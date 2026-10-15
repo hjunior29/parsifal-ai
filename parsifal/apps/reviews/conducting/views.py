@@ -5,7 +5,7 @@ import os
 from django.conf import settings as django_settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Sum, Value
+from django.db.models import Sum, Value
 from django.db.models.functions import Coalesce
 from django.http import Http404, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
@@ -15,23 +15,12 @@ from django.utils.html import escape
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
-import bibtexparser
 import xlwt
-from bibtexparser.bparser import BibTexParser
 
+from parsifal.apps.core.exceptions import DomainError
 from parsifal.apps.reviews.decorators import author_required
-from parsifal.apps.reviews.models import (
-    Article,
-    DataExtraction,
-    DataExtractionField,
-    QualityAnswer,
-    QualityAssessment,
-    QualityQuestion,
-    Review,
-    SearchSession,
-    SelectionCriteria,
-    Source,
-)
+from parsifal.apps.reviews.models import Article, DataExtractionField, Review, SearchSession, SelectionCriteria, Source
+from parsifal.apps.reviews.services import analytics, extraction, quality, reports, studies
 from parsifal.utils.elsevier.client import ElsevierClient
 from parsifal.utils.elsevier.exceptions import ElsevierInvalidRequest, ElsevierQuotaExceeded
 
@@ -573,81 +562,22 @@ def data_extraction(request, username, review_name):
     )
 
 
-def bibtex_to_article_object(bib_database, review, source):
-    articles = []
-    if bib_database:
-        for entry in bib_database.entries:
-            article = Article()
-            try:
-                if "id" in entry:
-                    article.bibtex_key = entry["id"][:100]
-                if "title" in entry:
-                    article.title = entry["title"][:1000]
-                if "journal" in entry:
-                    article.journal = entry["journal"][:1000]
-                if "year" in entry:
-                    article.year = entry["year"][:10]
-                if "author" in entry:
-                    article.author = entry["author"][:1000]
-                if "abstract" in entry:
-                    article.abstract = entry["abstract"][:4000]
-                if "pages" in entry:
-                    article.pages = entry["pages"][:20]
-                if "volume" in entry:
-                    article.volume = entry["volume"][:100]
-                if "type" in entry:
-                    article.document_type = entry["type"][:100]
-                elif "document_type" in entry:
-                    article.document_type = entry["document_type"][:100]
-                if "doi" in entry:
-                    article.doi = entry["doi"][:50]
-                if "link" in entry:
-                    article.url = entry["link"][:500]
-                elif "url" in entry:
-                    article.url = entry["url"][:500]
-                if "affiliation" in entry:
-                    article.affiliation = entry["affiliation"][:500]
-                if "author_keywords" in entry:
-                    article.author_keywords = entry["author_keywords"][:500]
-                if "keywords" in entry:
-                    article.keywords = entry["keywords"][:500]
-                elif "keyword" in entry:
-                    article.keywords = entry["keyword"][:500]
-                if "publisher" in entry:
-                    article.publisher = entry["publisher"][:100]
-                if "issn" in entry:
-                    article.issn = entry["issn"][:50]
-                if "language" in entry:
-                    article.language = entry["language"][:50]
-                if "note" in entry:
-                    article.note = entry["note"][:500]
-                article.review = review
-                article.source = source
-            except Exception:
-                continue
-            articles.append(article)
-    return articles
-
-
-def _import_articles(request, source, articles):
-    if any(articles):
-        success = 0
-        error = 0
-        for article in articles:
-            try:
-                article.created_by = request.user
-                article.save()
-                success = success + 1
-            except Exception:
-                error = error + 1
-        if success > 0:
-            messages.success(request, "{0} articles successfully imported to {1}!".format(success, source.name))
-        if error > 0:
-            messages.warning(
-                request,
-                "{0} articles could not be imported because of invalid format or invalid utf-8 string.".format(error),
-            )
-    else:
+def _import_articles(request, review, source, content):
+    try:
+        result = studies.import_bibtex(review=review, source_id=source.pk, content=content, actor=request.user)
+    except DomainError as error:
+        messages.error(request, _("An error occurred while trying to parse the bibtex file. Error detail: %s") % error)
+        return
+    if result.imported > 0:
+        messages.success(request, "{0} articles successfully imported to {1}!".format(result.imported, source.name))
+    if result.failed > 0:
+        messages.warning(
+            request,
+            "{0} articles could not be imported because of invalid format or invalid utf-8 string.".format(
+                result.failed
+            ),
+        )
+    if result.imported == 0 and result.failed == 0:
         messages.warning(request, "The bibtex file had no valid entry!")
 
 
@@ -667,17 +597,7 @@ def import_bibtex(request):
     valid_extensions = [".bib", ".bibtex"]
 
     if ext in valid_extensions or bibtex_file.content_type == "application/x-bibtex":
-        try:
-            parser = BibTexParser(common_strings=True)
-            bib_database = bibtexparser.load(bibtex_file, parser=parser)
-            articles = bibtex_to_article_object(bib_database, review, source)
-            _import_articles(request, source, articles)
-        except Exception as err:
-            logger.exception("An error occurred while trying to parse the bibtex file.")
-            detail = str(err)
-            messages.error(
-                request, _("An error occurred while trying to parse the bibtex file. Error detail: %s") % detail
-            )
+        _import_articles(request, review, source, bibtex_file.read())
     else:
         messages.error(request, _("Invalid file type. Only .bib or .bibtex files are accepted."))
 
@@ -695,10 +615,7 @@ def import_bibtex_raw_content(request):
     review = Review.objects.get(pk=review_id)
     source = Source.objects.get(pk=source_id)
 
-    parser = BibTexParser(common_strings=True)
-    bib_database = bibtexparser.loads(bibtex_file, parser=parser)
-    articles = bibtex_to_article_object(bib_database, review, source)
-    _import_articles(request, source, articles)
+    _import_articles(request, review, source, bibtex_file or "")
 
     return redirect(r("import_studies", args=(review.author.username, review.name)))
 
@@ -868,20 +785,18 @@ def save_article_details(request):
 @login_required
 def save_quality_assessment(request):
     try:
-        article_id = request.POST["article-id"]
-        question_id = request.POST["question-id"]
-        answer_id = request.POST["answer-id"]
-
-        article = Article.objects.get(pk=article_id)
-        question = QualityQuestion.objects.get(pk=question_id)
-        answer = QualityAnswer.objects.get(pk=answer_id)
-
-        quality_assessment, created = QualityAssessment.objects.get_or_create(article=article, question=question)
-        quality_assessment.answer = answer
-        quality_assessment.save()
-
-        return HttpResponse(article.get_score())
-    except Exception:
+        review = get_object_or_404(Review, pk=request.POST["review-id"])
+        assessment = quality.assess(
+            review=review,
+            article_id=request.POST["article-id"],
+            question_id=request.POST["question-id"],
+            answer_id=request.POST["answer-id"],
+            actor=request.user,
+        )
+        return HttpResponse(assessment.article.get_score())
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
+    except KeyError:
         return HttpResponseBadRequest()
 
 
@@ -917,116 +832,90 @@ def quality_assessment_summary(request):
         return HttpResponseBadRequest()
 
 
+def _multiple_articles_action(request, status=None):
+    try:
+        review = get_object_or_404(Review, pk=request.POST["review-id"])
+        article_ids = [pk for pk in request.POST["article_ids"].split("|") if pk]
+        if article_ids:
+            if status is None:
+                studies.delete_articles(review=review, article_ids=article_ids)
+            else:
+                studies.set_status(review=review, article_ids=article_ids, status=status, actor=request.user)
+        return HttpResponse()
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
+    except KeyError:
+        return HttpResponseBadRequest()
+
+
 @author_required
 @login_required
 def multiple_articles_action_remove(request):
-    try:
-        article_ids = request.POST["article_ids"]
-        article_ids_list = article_ids.split("|")
-        if article_ids_list:
-            review_id = request.POST["review-id"]
-            review = get_object_or_404(Review, pk=review_id)
-            review.article_set.filter(pk__in=article_ids_list).delete()
-        return HttpResponse()
-    except Exception:
-        return HttpResponseBadRequest()
+    return _multiple_articles_action(request)
 
 
 @author_required
 @login_required
 def multiple_articles_action_unclassify(request):
-    try:
-        article_ids = request.POST["article_ids"]
-        article_ids_list = article_ids.split("|")
-        if article_ids_list:
-            review_id = request.POST["review-id"]
-            review = get_object_or_404(Review, pk=review_id)
-            review.article_set.filter(pk__in=article_ids_list).update(status=Article.UNCLASSIFIED)
-        return HttpResponse()
-    except Exception:
-        return HttpResponseBadRequest()
+    return _multiple_articles_action(request, Article.UNCLASSIFIED)
 
 
 @author_required
 @login_required
 def multiple_articles_action_accept(request):
-    try:
-        article_ids = request.POST["article_ids"]
-        article_ids_list = article_ids.split("|")
-        if article_ids_list:
-            review_id = request.POST["review-id"]
-            review = get_object_or_404(Review, pk=review_id)
-            review.article_set.filter(pk__in=article_ids_list).update(status=Article.ACCEPTED)
-        return HttpResponse()
-    except Exception:
-        return HttpResponseBadRequest()
+    return _multiple_articles_action(request, Article.ACCEPTED)
 
 
 @author_required
 @login_required
 def multiple_articles_action_reject(request):
-    try:
-        article_ids = request.POST["article_ids"]
-        article_ids_list = article_ids.split("|")
-        if article_ids_list:
-            review_id = request.POST["review-id"]
-            review = get_object_or_404(Review, pk=review_id)
-            review.article_set.filter(pk__in=article_ids_list).update(status=Article.REJECTED)
-        return HttpResponse()
-    except Exception:
-        return HttpResponseBadRequest()
+    return _multiple_articles_action(request, Article.REJECTED)
 
 
 @author_required
 @login_required
 def multiple_articles_action_duplicated(request):
-    try:
-        article_ids = request.POST["article_ids"]
-        article_ids_list = article_ids.split("|")
-        if article_ids_list:
-            review_id = request.POST["review-id"]
-            review = get_object_or_404(Review, pk=review_id)
-            review.article_set.filter(pk__in=article_ids_list).update(status=Article.DUPLICATED)
-        return HttpResponse()
-    except Exception:
-        return HttpResponseBadRequest()
+    return _multiple_articles_action(request, Article.DUPLICATED)
 
 
 @author_required
 @login_required
 def save_data_extraction(request):
     try:
+        review = get_object_or_404(Review, pk=request.POST["review-id"])
         article_id = request.POST["article-id"]
         field_id = request.POST["field-id"]
         value = request.POST["value"]
-
-        article = Article.objects.get(pk=article_id)
-        field = DataExtractionField.objects.get(pk=field_id)
-        if article.review.is_author_or_coauthor(request.user):
-            data_extraction, created = DataExtraction.objects.get_or_create(article=article, field=field)
-            data_extraction.set_value(value)
-            data_extraction.save()
-            return HttpResponse()
+        field = get_object_or_404(DataExtractionField, pk=field_id, review=review)
+        if field.field_type == DataExtractionField.SELECT_MANY_FIELD:
+            # The legacy form posts one lookup id per click and expects it to be toggled.
+            extraction.toggle_select_value(
+                review=review, article_id=article_id, field_id=field_id, lookup_id=value, actor=request.user
+            )
         else:
-            return HttpResponseBadRequest()
-    except Exception as e:
-        return HttpResponseBadRequest(e)
+            extraction.set_value(
+                review=review, article_id=article_id, field_id=field_id, value=value, actor=request.user
+            )
+        return HttpResponse()
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
+    except KeyError:
+        return HttpResponseBadRequest()
 
 
 @author_required
 @login_required
 def save_data_extraction_status(request):
     try:
-        article_id = request.POST.get("article-id")
-        action = request.POST.get("action")
-        is_finished = action == "mark_as_done"
-
-        article = Article.objects.get(pk=article_id)
-        article.finished_data_extraction = is_finished
-        article.save()
+        review = get_object_or_404(Review, pk=request.POST["review-id"])
+        extraction.mark_done(
+            review=review, article_id=request.POST.get("article-id"), done=request.POST.get("action") == "mark_as_done"
+        )
         return HttpResponse()
-    except Exception as e:
-        return HttpResponseBadRequest(e)
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
+    except KeyError:
+        return HttpResponseBadRequest()
 
 
 @author_required
@@ -1034,7 +923,7 @@ def save_data_extraction_status(request):
 def find_duplicates(request):
     review_id = request.GET["review-id"]
     review = Review.objects.get(pk=review_id)
-    duplicates = review.get_duplicate_articles()
+    duplicates = studies.find_duplicates(review)
     return render(request, "conducting/partial_conducting_find_duplicates.html", {"duplicates": duplicates})
 
 
@@ -1042,15 +931,12 @@ def find_duplicates(request):
 @login_required
 def resolve_duplicated(request):
     try:
-        article_id = request.POST["article-id"]
-        article = Article.objects.get(pk=article_id)
-        if article.review.is_author_or_coauthor(request.user):
-            article.status = Article.DUPLICATED
-            article.save()
-            return HttpResponse()
-        else:
-            return HttpResponseBadRequest()
-    except Exception:
+        review = get_object_or_404(Review, pk=request.POST["review-id"])
+        studies.resolve_duplicates(review=review, article_ids=[request.POST["article-id"]], actor=request.user)
+        return HttpResponse()
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
+    except KeyError:
         return HttpResponseBadRequest()
 
 
@@ -1058,17 +944,10 @@ def resolve_duplicated(request):
 @login_required
 def resolve_all(request):
     try:
-        review_id = request.POST["review-id"]
-        review = Review.objects.get(pk=review_id)
-        duplicates = review.get_duplicate_articles()
-        articles_to_update = []
-        for duplicate in duplicates:
-            for i in range(1, len(duplicate)):
-                duplicate[i].status = Article.DUPLICATED
-                articles_to_update.append(duplicate[i])
-        Article.objects.bulk_update(articles_to_update, fields=("status",))
-        return HttpResponse(",".join([str(article.pk) for article in articles_to_update]))
-    except Exception:
+        review = get_object_or_404(Review, pk=request.POST["review-id"])
+        marked = studies.resolve_duplicates(review=review, actor=request.user)
+        return HttpResponse(",".join(str(article.pk) for article in marked))
+    except (DomainError, KeyError):
         return HttpResponseBadRequest()
 
 
@@ -1093,32 +972,17 @@ def data_analysis(request, username, review_name):
 @author_required
 @login_required
 def articles_selection_chart(request):
-    review_id = request.GET["review-id"]
-    review = Review.objects.get(pk=review_id)
-    selected_articles = review.get_accepted_articles()
-    articles = []
-    for source in review.sources.all():
-        count = review.get_source_articles(source.id).count()
-        accepted_count = selected_articles.filter(source__id=source.id).count()
-        articles.append(source.name + ":" + str(count) + ":" + str(accepted_count))
-    return HttpResponse(",".join(articles))
+    review = get_object_or_404(Review, pk=request.GET["review-id"])
+    rows = analytics.selection_by_source(review)
+    return HttpResponse(",".join("{source}:{total}:{accepted}".format(**row) for row in rows))
 
 
 @author_required
 @login_required
 def articles_per_year(request):
-    review_id = request.GET["review-id"]
-    review = get_object_or_404(Review, pk=review_id)
-    final_articles = (
-        review.get_final_selection_articles().values("year").annotate(count=Count("year")).order_by("-year")
-    )
-    articles = []
-    for article in final_articles:
-        try:
-            articles.append(article["year"] + ":" + str(article["count"]))
-        except Exception:
-            pass
-    return HttpResponse(",".join(articles))
+    review = get_object_or_404(Review, pk=request.GET["review-id"])
+    rows = analytics.final_selection_by_year(review)
+    return HttpResponse(",".join(f"{row['year']}:{row['count']}" for row in rows if row["year"] is not None))
 
 
 @author_required
@@ -1142,166 +1006,43 @@ def add_source_string(request):
     return redirect(r("search_studies", args=(review.author.username, review.name)))
 
 
+def _xls_response(filename, columns, rows):
+    response = HttpResponse(content_type="application/ms-excel")
+    response["Content-Disposition"] = "attachment; filename={0}".format(filename)
+    wb = xlwt.Workbook(encoding="utf-8")
+    ws = wb.add_sheet("Articles")
+
+    bold = xlwt.XFStyle()
+    bold.font.bold = True
+    for col_num, column in enumerate(columns):
+        ws.write(0, col_num, column, bold)
+        ws.col(col_num).width = 2000
+
+    plain = xlwt.XFStyle()
+    for row_num, row in enumerate(rows, start=1):
+        for col_num, column in enumerate(columns):
+            value = row[column]
+            if hasattr(value, "tzinfo") and value.tzinfo is not None:
+                value = value.replace(tzinfo=None)
+            ws.write(row_num, col_num, value, plain)
+
+    wb.save(response)
+    return response
+
+
 @author_required
 @login_required
 @require_POST
 def export_results(request):
-    review_id = request.POST.get("review-id")
-    review = get_object_or_404(Review, pk=review_id)
-    articles = review.get_source_articles()
-
-    response = HttpResponse(content_type="application/ms-excel")
-    response["Content-Disposition"] = "attachment; filename=articles.xls"
-    wb = xlwt.Workbook(encoding="utf-8")
-    ws = wb.add_sheet("Articles")
-
-    row_num = 0
-
-    columns = [
-        ("bibtex_key", 2000),
-        ("title", 2000),
-        ("author", 2000),
-        ("journal", 2000),
-        ("year", 2000),
-        ("source", 2000),
-        ("pages", 2000),
-        ("volume", 2000),
-        ("abstract", 2000),
-        ("document_type", 2000),
-        ("doi", 2000),
-        ("url", 2000),
-        ("affiliation", 2000),
-        ("author_keywords", 2000),
-        ("keywords", 2000),
-        ("publisher", 2000),
-        ("issn", 2000),
-        ("language", 2000),
-        ("note", 2000),
-        ("selection_criteria", 2000),
-        ("created_at", 2000),
-        ("updated_at", 2000),
-        ("created_by", 2000),
-        ("updated_by", 2000),
-        ("status", 2000),
-        ("comments", 2000),
-    ]
-
-    font_style = xlwt.XFStyle()
-    font_style.font.bold = True
-
-    for col_num in range(len(columns)):
-        ws.write(row_num, col_num, columns[col_num][0], font_style)
-        # set column width
-        ws.col(col_num).width = columns[col_num][1]
-
-    font_style = xlwt.XFStyle()
-    row_num += 1
-
-    for article in articles:
-        try:
-            row = [
-                article.bibtex_key,
-                article.title,
-                article.author,
-                article.journal,
-                article.year,
-                (article.source.name if article.source else ""),
-                article.pages,
-                article.volume,
-                article.abstract,
-                article.document_type,
-                article.doi,
-                article.url,
-                article.affiliation,
-                article.author_keywords,
-                article.keywords,
-                article.publisher,
-                article.issn,
-                article.language,
-                article.note,
-                (article.selection_criteria.description if article.selection_criteria else ""),
-                article.created_at.replace(tzinfo=None),
-                article.updated_at.replace(tzinfo=None),
-                (article.created_by.username if article.created_by else ""),
-                (article.updated_by.username if article.updated_by else ""),
-                article.get_status_display(),
-                article.comments,
-            ]
-            for col_num in range(len(row)):
-                ws.write(row_num, col_num, row[col_num], font_style)
-        except Exception as e:
-            ws.write(row_num, 0, "Error: {0}".format(e), font_style)
-
-        row_num += 1
-
-    wb.save(response)
-    return response
+    review = get_object_or_404(Review, pk=request.POST.get("review-id"))
+    columns, rows = reports.articles_rows(review)
+    return _xls_response("articles.xls", columns, rows)
 
 
 @author_required
 @login_required
 @require_POST
 def export_data_extraction(request):
-    review_id = request.POST.get("review-id")
-    review = get_object_or_404(Review, pk=review_id)
-
-    selected_studies = review.get_final_selection_articles()
-    data_extraction_fields = review.get_data_extraction_fields()
-
-    response = HttpResponse(content_type="application/ms-excel")
-    response["Content-Disposition"] = "attachment; filename=data_extraction.xls"
-    wb = xlwt.Workbook(encoding="utf-8")
-    ws = wb.add_sheet("Articles")
-
-    row_num = 0
-
-    columns = [
-        ("article", 2000),
-    ]
-    for field in data_extraction_fields:
-        columns.append((field.description, 2000))
-
-    font_style = xlwt.XFStyle()
-    font_style.font.bold = True
-
-    for col_num in range(len(columns)):
-        ws.write(row_num, col_num, columns[col_num][0], font_style)
-        # set column width
-        ws.col(col_num).width = columns[col_num][1]
-
-    font_style = xlwt.XFStyle()
-    row_num += 1
-
-    for article in selected_studies:
-        try:
-            row = [
-                article.title,
-            ]
-            for field in data_extraction_fields:
-                try:
-                    de = DataExtraction.objects.get(article=article, field=field)
-                    if de.field.field_type == DataExtractionField.DATE_FIELD:
-                        field_value = de.get_date_value_as_string()
-                    elif de.field.field_type == DataExtractionField.SELECT_ONE_FIELD:
-                        select_one_field = de._get_select_one_value()
-                        if select_one_field:
-                            field_value = select_one_field.value
-                        else:
-                            field_value = ""
-                    elif de.field.field_type == DataExtractionField.SELECT_MANY_FIELD:
-                        field_value = ", ".join(de._get_select_many_value().values_list("value", flat=True))
-                    else:
-                        field_value = de.value
-                except DataExtraction.DoesNotExist:
-                    field_value = ""
-                row.append(field_value)
-
-            for col_num in range(len(row)):
-                ws.write(row_num, col_num, row[col_num], font_style)
-        except Exception as e:
-            ws.write(row_num, 0, "Error: {0}".format(e), font_style)
-
-        row_num += 1
-
-    wb.save(response)
-    return response
+    review = get_object_or_404(Review, pk=request.POST.get("review-id"))
+    columns, rows = reports.extraction_rows(review)
+    return _xls_response("data_extraction.xls", columns, rows)

@@ -1,0 +1,1 @@
+New service layer (parsifal.apps.reviews.services) encapsulating protocol, studies, quality assessment, data extraction, search strings, analytics and reports; conducting views delegate to it and child lookups are always scoped to the review.

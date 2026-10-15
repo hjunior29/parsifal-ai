@@ -204,12 +204,16 @@ Scheduled for removal in the fork (ADR-003).
 | `Question.parent_question` | Never set. | Keep; API may expose sub-questions. |
 | `QualityAssessment.user`, `DataExtraction.user` | Never set. | Keep nullable; the API should start populating them. |
 
-## Invariants worth encoding in the service layer
+## Invariants (encoded in the service layer since phase 2)
 
-1. `Review.name` unique per author; slug regenerated on rename with collision suffix.
-2. A `SearchSession` with `source=None` is the only generic string; at most one per review (the code relies on `[:1]`).
-3. At most one `SearchSession` per (review, source) (`add_source_string` checks existence).
-4. `QualityAssessment` unique per (article, question); `DataExtraction` unique per (article, field) — enforced only by `get_or_create`, not by DB constraints.
-5. `Article.selection_criteria` should belong to the same review (not enforced).
-6. Removing a default source from a review deletes that review's articles from it.
+1. `Review.name` unique per author; slug regenerated on rename with collision suffix (`services.reviews.unique_review_name`).
+2. A `SearchSession` with `source=None` is the only generic string — DB constraint `unique_generic_search_session` (migration `0038`).
+3. At most one `SearchSession` per (review, source) — DB constraint `unique_search_session_per_source`.
+4. `QualityAssessment` unique per (article, question); `DataExtraction` unique per (article, field) — DB constraints since `0038`.
+5. `Article.selection_criteria` must belong to the same review — enforced by `services.studies` (`NotFound` otherwise).
+6. Removing a default source from a review deletes that review's articles from it (`services.protocol.detach_source`).
 7. Final selection depends on both `status == A` and the QA cut-off rule above.
+8. `Article.year_int` (added in `0038`) is derived from `year` on every save and used for per-year analytics.
+
+The service layer lives in `parsifal/apps/reviews/services/` — see
+[11-system-design.md](11-system-design.md) §3 for the module map.

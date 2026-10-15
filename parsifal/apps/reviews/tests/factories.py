@@ -2,7 +2,18 @@ import factory
 from factory.django import DjangoModelFactory
 
 from parsifal.apps.authentication.tests.factories import UserFactory
-from parsifal.apps.reviews.models import Review, Source
+from parsifal.apps.reviews.models import (
+    Article,
+    DataExtractionField,
+    DataExtractionLookup,
+    Keyword,
+    QualityAnswer,
+    QualityQuestion,
+    Question,
+    Review,
+    SelectionCriteria,
+    Source,
+)
 
 
 class ReviewFactory(DjangoModelFactory):
@@ -43,3 +54,78 @@ class SourceFactory(DjangoModelFactory):
 
 class DefaultSourceFactory(SourceFactory):
     is_default = True
+
+
+class ArticleFactory(DjangoModelFactory):
+    review = factory.SubFactory(ReviewFactory)
+    source = factory.SubFactory(SourceFactory)
+    bibtex_key = factory.Sequence(lambda n: f"key{n}")
+    title = factory.Sequence(lambda n: f"Article #{n}")
+    author = "Doe, J."
+    year = "2020"
+
+    class Meta:
+        model = Article
+
+
+class QuestionFactory(DjangoModelFactory):
+    review = factory.SubFactory(ReviewFactory)
+    question = factory.Sequence(lambda n: f"Research question #{n}?")
+    order = factory.Sequence(lambda n: n)
+
+    class Meta:
+        model = Question
+
+
+class KeywordFactory(DjangoModelFactory):
+    review = factory.SubFactory(ReviewFactory)
+    description = factory.Sequence(lambda n: f"keyword-{n}")
+    related_to = Keyword.POPULATION
+
+    class Meta:
+        model = Keyword
+
+
+class SelectionCriteriaFactory(DjangoModelFactory):
+    review = factory.SubFactory(ReviewFactory)
+    description = factory.Sequence(lambda n: f"Criteria #{n}")
+    criteria_type = SelectionCriteria.INCLUSION
+
+    class Meta:
+        model = SelectionCriteria
+
+
+class QualityQuestionFactory(DjangoModelFactory):
+    review = factory.SubFactory(ReviewFactory)
+    description = factory.Sequence(lambda n: f"Quality question #{n}?")
+    order = factory.Sequence(lambda n: n)
+
+    class Meta:
+        model = QualityQuestion
+
+
+class QualityAnswerFactory(DjangoModelFactory):
+    review = factory.SubFactory(ReviewFactory)
+    description = factory.Sequence(lambda n: f"Answer #{n}")
+    weight = 1.0
+
+    class Meta:
+        model = QualityAnswer
+
+
+class DataExtractionFieldFactory(DjangoModelFactory):
+    review = factory.SubFactory(ReviewFactory)
+    description = factory.Sequence(lambda n: f"Field #{n}")
+    field_type = DataExtractionField.STRING_FIELD
+    order = factory.Sequence(lambda n: n)
+
+    class Meta:
+        model = DataExtractionField
+
+
+class DataExtractionLookupFactory(DjangoModelFactory):
+    field = factory.SubFactory(DataExtractionFieldFactory, field_type=DataExtractionField.SELECT_MANY_FIELD)
+    value = factory.Sequence(lambda n: f"Option {n}")
+
+    class Meta:
+        model = DataExtractionLookup

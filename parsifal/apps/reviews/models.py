@@ -1,8 +1,9 @@
 import datetime
+import re
 
 from django.contrib.auth.models import User
 from django.db import models
-from django.db.models import Sum, Value
+from django.db.models import Q, Sum, Value
 from django.db.models.functions import Coalesce
 from django.urls import reverse
 from django.utils.html import escape
@@ -210,6 +211,14 @@ class SearchSession(models.Model):
     search_string = models.TextField(max_length=10000)
     version = models.IntegerField(default=1)
 
+    class Meta:
+        constraints = (
+            models.UniqueConstraint(fields=("review", "source"), name="unique_search_session_per_source"),
+            models.UniqueConstraint(
+                fields=("review",), condition=Q(source__isnull=True), name="unique_generic_search_session"
+            ),
+        )
+
     def __str__(self):
         return self.search_string
 
@@ -281,6 +290,7 @@ class Article(models.Model):
     author = models.CharField(max_length=1000, null=True, blank=True)
     journal = models.CharField(max_length=1000, null=True, blank=True)
     year = models.CharField(max_length=10, null=True, blank=True, db_index=True)
+    year_int = models.IntegerField(_("year (numeric)"), null=True, blank=True, db_index=True, editable=False)
     source = models.ForeignKey(Source, on_delete=models.CASCADE, null=True)
     pages = models.CharField(max_length=20, null=True, blank=True)
     volume = models.CharField(max_length=100, null=True, blank=True)
@@ -314,6 +324,16 @@ class Article(models.Model):
 
     def __str__(self):
         return self.title
+
+    @staticmethod
+    def parse_year(value):
+        """Extract a four-digit year from the free-text BibTeX year field, or None."""
+        match = re.search(r"\d{4}", value or "")
+        return int(match.group()) if match else None
+
+    def save(self, *args, **kwargs):
+        self.year_int = self.parse_year(self.year)
+        super().save(*args, **kwargs)
 
     def get_score(self):
         score = QualityAssessment.objects.filter(article__id=self.id).aggregate(Sum("answer__weight"))
@@ -404,6 +424,11 @@ class QualityAssessment(models.Model):
     question = models.ForeignKey(QualityQuestion, on_delete=models.CASCADE)
     answer = models.ForeignKey(QualityAnswer, on_delete=models.CASCADE, null=True)
 
+    class Meta:
+        constraints = (
+            models.UniqueConstraint(fields=("article", "question"), name="unique_quality_assessment_per_question"),
+        )
+
     def __str__(self):
         return str(self.article.id) + " " + str(self.question.id)
 
@@ -462,6 +487,9 @@ class DataExtraction(models.Model):
     field = models.ForeignKey(DataExtractionField, on_delete=models.CASCADE)
     value = models.TextField(blank=True, null=True)
     select_values = models.ManyToManyField(DataExtractionLookup)
+
+    class Meta:
+        constraints = (models.UniqueConstraint(fields=("article", "field"), name="unique_data_extraction_per_field"),)
 
     def _set_boolean_value(self, value):
         if value:

@@ -68,9 +68,11 @@ STATIC_ROOT = PARSIFAL_DATA_DIR / "static"
   `Connection.backup`) into `PARSIFAL_DATA_DIR/backups/`.
 - Remove `psycopg2-binary`; CI runs without Postgres.
 
-## 3. Service layer
+## 3. Service layer (implemented in phase 2)
 
-Package `parsifal/apps/reviews/services/` (plain modules, no classes needed):
+Package `parsifal/apps/reviews/services/` (plain modules, no classes needed).
+`_common.py` holds the shared helpers (`get_child`/`get_children` scoped
+lookups raising `NotFound`, `check_length`, `require`, `reorder`):
 
 | Module | Functions (examples) | Replaces logic in |
 |--------|----------------------|-------------------|

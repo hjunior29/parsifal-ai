@@ -1,0 +1,1 @@
+Phase 0 also found that imported articles never received their BibTeX key (bibtexparser exposes it as "ID"); imports now store it and fall back to the entry type for document_type.

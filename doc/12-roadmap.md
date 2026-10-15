@@ -82,7 +82,22 @@ Acceptance
 - No references to removed apps (`grep` clean); templates render; test suite
   green.
 
-## Phase 2 — Service layer and constraints (L)
+## Phase 2 — Service layer and constraints (L) — ✅ done 2026-10-15
+
+Outcome: `parsifal/apps/core/exceptions.py` (`DomainError`, `NotFound`,
+`PermissionDenied`, `Conflict`, `ValidationError`) and
+`parsifal/apps/reviews/services/` (`reviews`, `protocol`, `quality`,
+`extraction`, `search`, `studies`, `analytics`, `reports`, `_common`).
+Migration `0038` adds `Article.year_int` (kept in sync by `Article.save`) and
+uniqueness constraints (`QualityAssessment(article, question)`,
+`DataExtraction(article, field)`, `SearchSession(review, source)` + one
+generic string per review) after de-duplicating existing rows. Conducting
+views for import, bulk status, QA, data extraction, duplicates, charts and
+XLS exports delegate to the services; planning views still contain their
+logic (the API will call the services directly). 85 new tests (175 total),
+services at 94 % line coverage. Found and fixed on the way: imported articles
+never received their BibTeX key (bibtexparser exposes it as `ID`, upstream
+read `id`).
 
 Deliverables
 - `parsifal/apps/core/exceptions.py`; `parsifal/apps/reviews/services/`

@@ -53,7 +53,8 @@ Other notable constants in `base.py`:
 messages, staticfiles, sites, sitemaps, humanize), `compressor`,
 `crispy_forms`, and the first-party apps `reviews`, `reviews.planning`,
 `reviews.conducting`, `reviews.reporting`, `reviews.settings`, `accounts`,
-`activities`, `authentication`, `blog`, `core`, `help`, `invites`, `library`.
+`authentication`, `core`, `invites`, `library` (`activities`, `blog` and
+`help` were removed in phase 1).
 
 Middleware is the Django default stack (security, sessions, common, CSRF,
 auth, messages, clickjacking). No custom middleware exists.

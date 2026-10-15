@@ -9,7 +9,12 @@
   No Postgres-specific code exists (no `contrib.postgres`, `ArrayField`,
   `JSONField` or raw SQL).
 - Phase 0 added 13 tests (SQLite pragmas, profile picture upload/crop,
-  analytics endpoint authorization) → **88 tests**, green on Python 3.10.
+  analytics endpoint authorization) → 88 tests, green on Python 3.10.
+- Phase 1 replaced the blog tests with sign-up on/off tests → 90.
+- Phase 2 added `reviews/tests/services/` (73 service tests with golden
+  `.bib` samples in `reviews/tests/data/`) and conducting view tests for
+  import, bulk actions, QA, extraction, duplicates and exports → **175
+  tests**; the service layer is at 94 % line coverage.
 - Coverage config: `setup.cfg` `[coverage:run]` with `branch = true`, source
   `parsifal`, omitting `*/migrations/*` and `*/tests/*`.
 - Fixtures: `parsifal/apps/reviews/fixtures/source_initial_data.json` (7
@@ -44,18 +49,16 @@
 
 ## Gaps that matter for the fork
 
-1. The whole **planning** and **conducting** AJAX surface (~70 endpoints,
-   see [06-http-endpoints.md](06-http-endpoints.md)) has no tests. Since the
-   API/CLI/MCP layer will re-implement these behaviours through a service
-   layer, the service layer tests become the primary safety net.
-2. **Business rules** are untested: final-selection cut-off logic
-   (`Review.get_final_selection_articles`), duplicate detection
-   (`Review.get_duplicate_articles`), search-string generation, QA score
-   aggregation, `DataExtraction.set_value/get_value` coercions.
-3. **Import/export** paths (`bibtex_to_article_object`, XLS, DOCX) are
-   untested.
-4. **Authorization** of action endpoints that take `review-id` plus other ids
-   is untested (see IDOR notes in [13-known-issues.md](13-known-issues.md)).
+1. The **planning** AJAX views (~36 endpoints) still have no view tests; the
+   rules behind them are now covered through `services/protocol`,
+   `services/quality` and `services/extraction` tests, and the API will call
+   those services directly.
+2. ~~Business rules untested~~ — covered in phase 2 (final selection,
+   duplicates, search string, scores, coercions, import mapping).
+3. ~~Import/export untested~~ — covered in phase 2 (service and view level);
+   DOCX content assertions are still shallow.
+4. **Authorization** of the remaining legacy planning endpoints that take
+   child ids is untested (see [13-known-issues.md](13-known-issues.md) §B).
 
 ## Testing policy for new work
 
