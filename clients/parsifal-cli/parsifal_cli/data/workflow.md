@@ -1,0 +1,62 @@
+# Running a systematic review with Parsifal (for agents and humans)
+
+Parsifal follows Kitchenham & Charters (2007): **Planning → Conducting → Reporting**.
+Every step below is one CLI command (`parsifal ...`) and one MCP tool with the same name.
+Start with `parsifal review overview --review <id|author/slug>`: it tells you what exists and
+what is still missing.
+
+## 0. Connect
+
+```
+export PARSIFAL_URL=http://localhost:8000
+export PARSIFAL_TOKEN=pfl_...        # Settings → API tokens, or `manage.py create_api_token`
+parsifal me
+```
+
+## 1. Planning (the protocol)
+
+1. `review create --title ... --description ...`
+2. `review update --review R --objective ... --population ... --intervention ... --comparison ... --outcome ... --context ...`
+3. `question create --review R --description "RQ1 ..."` (repeat; `question reorder --ids ...`)
+4. `keyword import-picoc --review R` then `keyword update --id K --synonyms a --synonyms b`
+   (or `keyword create --description ... --related-to P|I|C|O --synonyms ...`)
+5. `search-string generate --review R` → review it → `search-string set --review R --search-string @string.txt`
+6. `source defaults` → `source add --review R --source-id N` (default libraries) or
+   `source add --review R --name "arXiv" --url arxiv.org` (custom)
+7. `criteria create --review R --description ... --criteria-type I` (inclusion) / `E` (exclusion)
+8. Quality checklist: `quality question create --review R --description ...`,
+   `quality answer suggested --review R` (Yes/Partially/No), `quality set-cutoff --review R --cutoff 1.5`
+9. Extraction form: `extraction field create --review R --description "Method" --field-type O --lookup-values "Case study" --lookup-values Survey`
+   Field types: B boolean, S string, F float, I integer, D date (MM/DD/YYYY), O select one, M select many.
+
+## 2. Conducting
+
+1. Adapt the search per source: `source search-string copy-generic --review R --id S`, then
+   `source search-string set --review R --id S --search-string @scopus.txt`.
+   Run the search in the digital library yourself and export BibTeX.
+2. Import: `article import --review R --source-id S --bibtex @export.bib`
+   (or `article import-file --review R --source-id S --file export.bib`).
+3. Duplicates: `article duplicates --review R` → `article resolve-duplicates --review R` (keeps the oldest).
+4. Screening: `article list --review R --status U --all` (title, abstract, keywords), then
+   `article set-status --review R --ids 1 --ids 2 --status A --selection-criteria-id C`
+   (`R` to reject with the exclusion criterion as reason; `--comments` for notes).
+   Record the decision reason; the human author remains accountable for the final selection.
+5. Quality assessment (accepted articles): `quality assess --review R --article A --question-id Q --answer-id ANS`;
+   `quality summary --review R` shows scores against the cutoff. Final selection = accepted AND score > cutoff.
+6. Data extraction (final selection): `extraction set --review R --article A --field-id F --value "..."`
+   (`--values id --values id` for select-many), then `extraction done --review R --article A`.
+
+## 3. Analysis and reporting
+
+- `analytics selection-by-source --review R`, `analytics final-by-year --review R`
+- `export articles --review R --format csv -o articles.csv`
+- `export extraction --review R --format json -o extraction.json`
+- `export report --review R -o report.docx` (`--sections name,picoc,research_questions,...`)
+
+## Conventions
+
+- `--review` accepts the numeric id or `author/slug`.
+- Text options accept `@path` (file contents) and `-` (stdin).
+- Output is JSON when piped or with `--json`; tables on a terminal.
+- Exit codes: 0 ok · 1 error · 2 invalid input · 3 authentication/permission · 4 not found · 5 conflict · 6 cannot connect.
+- Destructive commands ask for confirmation on a terminal; pass `--yes` in scripts.

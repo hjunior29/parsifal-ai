@@ -151,7 +151,15 @@ Acceptance
   review, builds a protocol, imports a `.bib`, screens, assesses, extracts and
   downloads the DOCX using only the API.
 
-## Phase 4 — CLI (M)
+## Phase 4 — CLI (M) — ✅ done 2026-10-15
+
+Outcome: `clients/parsifal-cli/` (package `parsifal-cli`, Python ≥ 3.10,
+typer + httpx + rich). `parsifal_cli/operations.py` is the registry (83
+operations); `cli.py` generates the command tree from it; `config.py`
+handles flags/env/profiles; `client.py` resolves `author/slug` references,
+pages with `--all`, maps HTTP errors to exit codes. 21 pytest tests in the
+package plus the server-side parity test (`test_cli_parity.py`) and the
+live-server e2e (`test_cli_e2e.py`). Reference: [15-cli-and-mcp.md](15-cli-and-mcp.md).
 
 Deliverables
 - `clients/parsifal-cli/` package (`parsifal` entry point), operation

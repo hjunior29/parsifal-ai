@@ -94,7 +94,18 @@ tox
 
 Every operation of a review is available through a JSON API at `/api/v1/` (interactive docs at
 `/api/v1/docs`). Create a personal token under *Settings → API tokens* and call the API with
-`Authorization: Bearer <token>`. See [doc/14-api.md](doc/14-api.md) and the rest of the
+`Authorization: Bearer <token>`.
+
+The `parsifal` command-line client wraps the whole API for scripts and AI coding agents:
+
+```bash
+pip install -e clients/parsifal-cli
+export PARSIFAL_URL=http://localhost:8000 PARSIFAL_TOKEN=pfl_...
+parsifal review overview --review admin/my-review
+parsifal docs    # the review workflow, command by command
+```
+
+See [doc/14-api.md](doc/14-api.md), [doc/15-cli-and-mcp.md](doc/15-cli-and-mcp.md) and the rest of the
 [documentation](doc/README.md).
 
 ## License

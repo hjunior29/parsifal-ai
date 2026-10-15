@@ -18,7 +18,11 @@
 - Phase 3 added `parsifal/api/tests/` (auth, tokens, users, every router,
   OpenAPI operationId uniqueness, and the end-to-end
   `test_e2e_full_review.py`), token model/view tests and management command
-  tests → **217 tests**; the API package is at 98 % line coverage.
+  tests → 217 tests; the API package is at 98 % line coverage.
+- Phase 4 added the CLI package suite (`clients/parsifal-cli/tests`, 21
+  pytest tests, run by `tox -e cli`) and two server-side tests: registry ⇄
+  OpenAPI parity and a live-server end-to-end run of the real CLI → **220
+  Django tests + 21 pytest tests**.
 - Coverage config: `setup.cfg` `[coverage:run]` with `branch = true`, source
   `parsifal`, omitting `*/migrations/*` and `*/tests/*`.
 - Fixtures: `parsifal/apps/reviews/fixtures/source_initial_data.json` (7
@@ -73,7 +77,7 @@ style unless noted:
 |-----------|-----------|-------|
 | Service layer (`parsifal/apps/*/services.py`) | Unit tests with factories, no HTTP | Cover every rule listed in the gaps above as the service functions are introduced. |
 | HTTP API (`parsifal/api/`) | `ApiTestCase` (`parsifal/api/tests/base.py`): author/co-author/outsider/admin users with Bearer tokens, `self.api(method, path, payload)` helper | One test module per router; assert status, JSON shape, permission denials (403/404), and DB side effects. `test_auth_and_accounts` checks the OpenAPI document and operationId uniqueness. |
-| CLI | `click`/`typer` `CliRunner` tests with a mocked HTTP client, plus a small number of end-to-end tests against `LiveServerTestCase` | Thin client: test argument parsing, output formatting (JSON/table), exit codes. |
+| CLI | pytest + typer `CliRunner` with an `httpx.MockTransport` fake API (`clients/parsifal-cli/tests/conftest.py`), plus `parsifal/api/tests/test_cli_e2e.py` against `LiveServerTestCase` | Thin client: argument parsing, request shaping, output formatting (JSON/table), exit codes. |
 | MCP server | Tool-schema snapshot test + in-process tool invocation tests against a mocked API client | Ensure 1:1 parity with CLI commands via a parity test that diffs the two command inventories. |
 | Migrations | `makemigrations --check` (already in tox) + a test that migrates an empty SQLite DB | Keep `tox -e migrations`. |
 | Data import/export | Golden-file tests with small `.bib` samples; assert XLS/DOCX contents by reading them back | Place samples under `parsifal/apps/reviews/tests/data/`. |

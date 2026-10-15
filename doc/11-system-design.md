@@ -162,7 +162,7 @@ Rules:
 | `/library/documents`, `/library/folders` | CRUD, import | v1.1 |
 | `*` reserved for phase 7–8 | `/reviews/{id}/facets`, `/articles/{aid}/classification`, `/decisions`, `/agreement`, `/test-set`, `/checklist` | see [10-methodology.md](10-methodology.md) |
 
-## 6. CLI (`clients/parsifal-cli/`)
+## 6. CLI (`clients/parsifal-cli/`) — implemented in phase 4 (see [15-cli-and-mcp.md](15-cli-and-mcp.md))
 
 - Separate installable package `parsifal-cli` (`pyproject.toml`,
   `requires-python >= 3.10`), dependencies `typer`, `httpx`, `rich`,

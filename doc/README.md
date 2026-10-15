@@ -30,12 +30,13 @@ documents are in English.
 |---|----------|---------------------|
 | 10 | [Methodology](10-methodology.md) | Kitchenham 2007 coverage matrix; what Petersen 2015 mapping studies require; proposed model additions. |
 | 11 | [System Design](11-system-design.md) | Service layer, SQLite data dir, API tokens, JSON API resource map, CLI, MCP, packaging, coding conventions. |
-| 12 | [Roadmap](12-roadmap.md) | Phases 0–10 with deliverables, tests and acceptance criteria; phases 0–3 done. |
+| 12 | [Roadmap](12-roadmap.md) | Phases 0–10 with deliverables, tests and acceptance criteria; phases 0–4 done. |
 | 14 | [JSON API v1](14-api.md) | Authentication with tokens, conventions, every resource and operationId, curl walkthrough, bootstrap commands. |
+| 15 | [CLI and MCP server](15-cli-and-mcp.md) | Installing and configuring `parsifal`, the command tree, conventions and exit codes, agent example; MCP server (phase 5). |
 | — | [Decisions (ADRs)](decisions.md) | SQLite · API-first · trim SaaS · single admin + tokens · Python ≥ 3.10, Django 4.2 for now · SLR+SMS · docs in English. |
 
-Planned additions as phases land: `15-cli-and-mcp.md`, `16-self-hosting.md`;
-phase 9 adds in-app documentation pages for the new features.
+Planned additions as phases land: `16-self-hosting.md`; phase 9 adds in-app
+documentation pages for the new features.
 
 ## Reference material
 
