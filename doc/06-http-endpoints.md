@@ -25,7 +25,7 @@ Conventions used below:
 |------|--------|-------|---------|
 | `/login/`, `/logout/`, `/password_change/`, `/password_change/done/`, `/password_reset/`, `/password_reset/done/`, `/reset/<uidb64>/<token>/`, `/reset/done/` | GET/POST | – | `django.contrib.auth.urls` with templates in `templates/registration/`. Login accepts username **or** e-mail (custom backend). |
 | `/login/success/` | GET | L | Redirect to `/<username>/`. |
-| `/signup/` | GET/POST | – | `SignUpView`; fields `username`, `email`, `password1`, `password2`, hidden `invite` (uuid). reCAPTCHA checked if enabled. The cover page posts `password2 = password1`. |
+| `/signup/` | GET/POST | – | `SignUpView`; fields `username`, `email`, `password1`, `password2`, hidden `invite` (uuid). Since phase 1: 403 unless `PARSIFAL_ALLOW_SIGNUP` or a pending invite code is given; reCAPTCHA removed. The cover page posts `password2 = password1`. |
 | `/signin/` | GET | – | Redirect to login. |
 | `/settings/` → `/settings/profile/` | GET/POST | L | `ProfileForm`: `first_name`, `last_name`, `public_email`, `location`, `url`, `institution`. |
 | `/settings/emails/` | GET/POST | L | `UserEmailForm.email` (unique, case-insensitive). |
@@ -34,7 +34,7 @@ Conventions used below:
 | `/settings/save_uploaded_picture/` | POST | L | `x`, `y`, `w`, `h` → crops to 200×200 `<username>.jpg`; returns image URL text. |
 | `/admin/` | | staff | Django admin. Registered: `reviews.Review`, `invites.Invite`, `core.Media`, `blog.Entry`, `help.Category`/`help.Article`. No admin for `library`, `accounts`/`Profile`, `activities`. |
 
-## 2. Public / SaaS pages (to be removed, ADR-003)
+## 2. Public / SaaS pages (removed in phase 1, ADR-003 — kept for reference)
 
 | Path | Method | Guard | Purpose |
 |------|--------|-------|---------|

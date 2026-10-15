@@ -19,15 +19,15 @@ class SendInviteForm(forms.ModelForm):
         self.request = request
         self.review = review
         super().__init__(*args, **kwargs)
-        user_ids = {user.pk for user in self.request.user.profile.get_following()}
         self.fields["invitee"].queryset = (
-            User.objects.filter(pk__in=user_ids)
+            User.objects.filter(is_active=True)
+            .exclude(pk=self.request.user.pk)
             .exclude(pk__in=self.review.co_authors.all())
             .annotate(lower_username=Lower("username"))
             .order_by("lower_username")
         )
-        self.fields["invitee"].label = _("Contacts")
-        self.fields["invitee"].help_text = _("List of people that you are currently following on Parsifal.")
+        self.fields["invitee"].label = _("Existing user")
+        self.fields["invitee"].help_text = _("People who already have an account on this Parsifal instance.")
 
         self.fields["invitee_email"].label = _("Email address of the person you want to invite")
         self.fields["invitee_email"].help_text = _(

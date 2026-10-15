@@ -14,9 +14,7 @@
       </div>
       <div class="collapse navbar-collapse" id="header-menu">
         <ul class="nav navbar-nav">
-          <li><a href="{% url 'blog:entries' %}">{% trans "Blog" %}</a></li>
           <li><a href="{% url 'about' %}">{% trans "About" %}</a></li>
-          <li><a href="{% url 'help:articles' %}">{% trans "Help" %}</a></li>
         </ul>
         {% if user.is_authenticated %}
           <ul class="nav navbar-nav navbar-right">
@@ -45,7 +43,9 @@
           </ul>
         {% else %}
           <a href="{% url "login" %}" title="Sign in" class="btn btn-default navbar-btn navbar-right">{% trans "Log in" %}</a>
-          <a href="{% url "signup" %}" title="Sign up" class="btn btn-primary navbar-btn navbar-right" style="margin-right: 5px;">{% trans "Sign up" %}</a>
+          {% if allow_signup %}
+            <a href="{% url "signup" %}" title="Sign up" class="btn btn-primary navbar-btn navbar-right" style="margin-right: 5px;">{% trans "Sign up" %}</a>
+          {% endif %}
         {% endif %}
       </div>
     </div>

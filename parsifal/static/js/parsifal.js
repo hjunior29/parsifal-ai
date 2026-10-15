@@ -154,12 +154,6 @@
       $("#modal-alert").modal("show");
     },
 
-    /* Apps */
-
-    activities: function () {
-
-    },
-
     /* Helper functions */
 
     pageLoading: function () {

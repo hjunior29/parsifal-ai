@@ -1,6 +1,7 @@
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import redirect
 from django.utils.decorators import method_decorator
 from django.utils.functional import cached_property
@@ -27,6 +28,12 @@ class SignUpView(FormView):
             return Invite.objects.filter(invitee=None, status=InviteStatus.PENDING).get(code=code)
         except (Invite.DoesNotExist, ValidationError):
             return None
+
+    def dispatch(self, request, *args, **kwargs):
+        # Self-hosted instances are closed by default: only people holding a pending invite can register.
+        if not settings.PARSIFAL_ALLOW_SIGNUP and self.invite is None:
+            raise PermissionDenied(_("Sign up is disabled on this Parsifal instance."))
+        return super().dispatch(request, *args, **kwargs)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()

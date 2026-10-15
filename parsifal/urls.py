@@ -5,12 +5,9 @@ from django.contrib.sitemaps.views import sitemap
 from django.urls import include, path
 from django.views.generic import RedirectView, TemplateView
 
-from parsifal.apps.activities import views as activities_views
 from parsifal.apps.authentication import views as auth_views
-from parsifal.apps.blog.sitemaps import BlogSitemap
 from parsifal.apps.core import views as core_views
 from parsifal.apps.core.sitemaps import StaticSitemap
-from parsifal.apps.help.sitemaps import HelpSitemap
 from parsifal.apps.invites import views as invites_views
 from parsifal.apps.reviews import views as reviews_views
 from parsifal.apps.reviews.conducting import views as reviews_conducting_views
@@ -19,8 +16,6 @@ from parsifal.apps.reviews.reporting import views as reviews_reporting_views
 from parsifal.apps.reviews.settings import views as reviews_settings_views
 
 sitemaps = {
-    "blog": BlogSitemap(),
-    "help": HelpSitemap(),
     "static": StaticSitemap(),
 }
 
@@ -32,9 +27,6 @@ urlpatterns = [
     path("signin/", RedirectView.as_view(pattern_name="login"), name="signin"),
     path("about/", TemplateView.as_view(template_name="core/about.html"), name="about"),
     path("reviews/", include("parsifal.apps.reviews.urls", namespace="reviews")),
-    path("activity/", include("parsifal.apps.activities.urls", namespace="activities")),
-    path("blog/", include("parsifal.apps.blog.urls", namespace="blog")),
-    path("help/", include("parsifal.apps.help.urls", namespace="help")),
     path("library/", include("parsifal.apps.library.urls", namespace="library")),
     path("settings/", include("parsifal.apps.accounts.urls", namespace="settings")),
     path("review_settings/transfer/", reviews_settings_views.transfer, name="transfer_review"),
@@ -45,8 +37,6 @@ urlpatterns = [
     path("invites/<int:invite_id>/accept/", invites_views.AcceptUserInviteView.as_view(), name="accept_user_invite"),
     path("invites/<int:invite_id>/reject/", invites_views.RejectUserInviteView.as_view(), name="reject_user_invite"),
     path("invites/<uuid:code>/", invites_views.InviteDetailView.as_view(), name="invite"),
-    path("<str:username>/following/", activities_views.following, name="following"),
-    path("<str:username>/followers/", activities_views.followers, name="followers"),
     # Review URLs
     path("<str:username>/<str:review_name>/", reviews_views.review, name="review"),
     path("<str:username>/<str:review_name>/settings/", reviews_settings_views.settings, name="settings"),

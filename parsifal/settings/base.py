@@ -47,11 +47,8 @@ INSTALLED_APPS = [
     "parsifal.apps.reviews.reporting",
     "parsifal.apps.reviews.settings",
     "parsifal.apps.accounts",
-    "parsifal.apps.activities",
     "parsifal.apps.authentication",
-    "parsifal.apps.blog",
     "parsifal.apps.core",
-    "parsifal.apps.help",
     "parsifal.apps.invites",
     "parsifal.apps.library",
 ]
@@ -199,17 +196,13 @@ CRISPY_TEMPLATE_PACK = "bootstrap3"
 
 ELSEVIER_API_KEY = config("ELSEVIER_API_KEY", default="")
 
-GOOGLE_ANALYTICS_UA = config("GOOGLE_ANALYTICS_UA", default="")
-
-GOOGLE_RECAPTCHA_ENABLED = config("GOOGLE_RECAPTCHA_ENABLED", default=False, cast=bool)
-GOOGLE_RECAPTCHA_SITE_KEY = config("GOOGLE_RECAPTCHA_SITE_KEY", default="")
-GOOGLE_RECAPTCHA_SECRET_KEY = config("GOOGLE_RECAPTCHA_SECRET_KEY", default="")
-
-SENTRY_DSN = config("SENTRY_DSN", default="")
-
 # ==============================================================================
 # FIRST-PARTY APP
 # ==============================================================================
 
 PARSIFAL_RELEASE = f"parsifal@{parsifal.__version__}"
 PARSIFAL_ENVIRONMENT = config("PARSIFAL_ENVIRONMENT", default=Environments.LOCAL)
+
+# Self-hosted instances are closed by default: accounts are created by the administrator or through
+# co-author invites. Set to True to let anyone register.
+PARSIFAL_ALLOW_SIGNUP = config("PARSIFAL_ALLOW_SIGNUP", default=False, cast=bool)

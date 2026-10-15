@@ -50,7 +50,15 @@ Acceptance
 - `tox` green on a machine without Postgres; `manage.py runserver` works with
   no `.env`.
 
-## Phase 1 — Trim SaaS / social features (M) — ADR-003
+## Phase 1 — Trim SaaS / social features (M) — ADR-003 — ✅ done 2026-10-15
+
+Outcome: `blog`, `help`, `activities` deleted (code and migrations; no other
+app depended on them), `core.Media` dropped by `core.0003_delete_media`,
+reCAPTCHA / Google Analytics / Sentry removed, `PARSIFAL_ALLOW_SIGNUP`
+(default `False`) added, invites now offer any existing user, home page
+reduced to the review list, cover page shows a login form when sign-up is
+closed. Databases created by upstream keep orphan `blog_*`, `help_*`,
+`activities_*` tables; drop them manually if migrating such a database.
 
 Deliverables
 - Remove apps `blog`, `activities`, `help`; remove `core.Media`,

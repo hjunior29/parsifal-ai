@@ -1,45 +1,46 @@
 {% extends 'base.html' %}
 
-{% load humanize %}
+{% load i18n %}
 
 {% block content %}
   <div class="row">
     <div class="col-md-12">
-      <a href="/reviews/new/" class="btn btn-primary pull-right">New review</a>
-      <h2 class="page-header">Last updates on your network</h2>
+      <a href="{% url 'reviews:new' %}" class="btn btn-primary pull-right">{% trans "New review" %}</a>
+      <h2 class="page-header">{% trans "Your reviews" %}</h2>
     </div>
   </div>
   <div class="row">
-    <div class="col-md-8">
-      {% for feed in feeds %}
-        <p>{{ feed.message|safe }} <small>{{ feed.date|naturaltime }}</small></p>
-      {% empty %}
-        <p>There are no recent updates to your network.</p>
-      {% endfor %}
-    </div>
-    <div class="col-md-4">
-      {% if latest_news and latest_news.summary %}
-        <div class="panel panel-info">
-          <div class="panel-heading">
-            <h3 class="panel-title">Lastest news</h3>
-          </div>
-          <div class="panel-body">
-            {{ latest_news.summary }} <a href="{% url 'blog:entry' latest_news.slug %}">Read more</a>
-          </div>
+    <div class="col-md-12">
+      {% if user_reviews %}
+        <div class="panel panel-default">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>{% trans "Title" %}</th>
+                <th>{% trans "Authors" %}</th>
+                <th>{% trans "Last update" %}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for review in user_reviews %}
+                <tr>
+                  <td><a href="{{ review.get_absolute_url }}">{{ review.title }}</a></td>
+                  <td>
+                    <a href="{% url 'reviews' review.author.username %}">{{ review.author.profile.get_screen_name }}</a>{% for author in review.co_authors.all %}, <a href="{% url 'reviews' author.username %}">{{ author.profile.get_screen_name }}</a>{% endfor %}
+                  </td>
+                  <td>{{ review.last_update|date:"D d M Y" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="well text-center" style="padding: 5em;">
+          <span class="glyphicon glyphicon-book" style="font-size: 2.6em; color: #aaa;"></span>
+          <h3 style="margin-top: 25px; margin-bottom: 25px;">{% trans "You don't have any systematic literature review yet." %}</h3>
+          <a href="{% url 'reviews:new' %}" class="btn btn-primary">{% trans "Start a review" %}</a>
         </div>
       {% endif %}
-      <div class="panel panel-default">
-        <div class="panel-heading">
-          <h3 class="panel-title">Your reviews</h3>
-        </div>
-        <div class="list-group">
-          {% for review in user_reviews %}
-            <a href="/{{ review.author.username }}/{{ review.name }}/" class="list-group-item">{{ review.title }}</a>
-          {% empty %}
-            <p class="list-group-item">You don't have any systematic literature review yet.</p>
-          {% endfor %}
-        </div>
-      </div>
     </div>
   </div>
 {% endblock content %}

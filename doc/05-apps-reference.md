@@ -11,10 +11,13 @@ decisions in [decisions.md](decisions.md): **Keep**, **Keep (trim)**, or
 | `invites` | 706 | 351 | Keep (trim e-mail dependency, drop "contacts you follow") |
 | `authentication` | 586 | 229 | Keep (trim: no public sign-up, no reCAPTCHA) |
 | `accounts` | 341 | 164 | Keep |
-| `core` | 231 | 26 | Keep (trim: home page without feed/blog; drop `Media`) |
-| `blog` | 179 | 67 | Remove |
-| `help` | 162 | 0 | Remove (replace with `doc/` + a static help link) |
-| `activities` | 146 | 0 | Remove |
+| `core` | 231 | 26 | Keep — trimmed in phase 1 (home page = review list; `Media` dropped) |
+| `blog` | 179 | 67 | **Removed in phase 1** |
+| `help` | 162 | 0 | **Removed in phase 1** (in-app docs return in phase 9) |
+| `activities` | 146 | 0 | **Removed in phase 1** |
+
+The sections below describe the apps as inherited; phase 1 changes are noted
+inline.
 
 ---
 
@@ -152,7 +155,7 @@ recaptcha / sentry keys). Add bootstrap management commands here
 
 ---
 
-## `blog`, `help`, `activities` — Remove
+## `blog`, `help`, `activities` — Removed (phase 1, 2026-10-15)
 
 - `blog`: `Entry` model, list/detail views, sitemap; linked from header and
   home.
@@ -162,11 +165,15 @@ recaptcha / sentry keys). Add bootstrap management commands here
   consumed by `core.home` feed, `reviews.views.reviews` (follower counts on the
   profile page), `invites.SendInviteForm` (contacts), `Profile` helpers.
 
-Removal order and touch points are listed in [12-roadmap.md](12-roadmap.md)
-(phase 1). Migrations for these apps must be handled by deleting the apps
-from `INSTALLED_APPS` **after** a migration that drops their tables, or by
-leaving the tables orphaned — the roadmap recommends a squash/reset since
-the fork starts from an empty database.
+What was done: the three apps were deleted with their migrations (no other
+app's migration graph referenced them); `core.Media` was removed by
+`core/migrations/0003_delete_media.py`; `Profile` lost its follower helpers;
+`core.home` renders only the user's reviews; `reviews.views.reviews` no longer
+shows follower counts; `invites.SendInviteForm.invitee` lists every active
+user instead of "people you follow"; `utils/recaptcha.py`, Google Analytics
+and Sentry were removed; `PARSIFAL_ALLOW_SIGNUP` gates `/signup/`.
+Databases created by upstream keep orphan `blog_*`, `help_*` and
+`activities_*` tables.
 
 ---
 

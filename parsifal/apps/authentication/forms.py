@@ -10,7 +10,6 @@ from parsifal.apps.authentication.validators import (
 )
 from parsifal.apps.invites.constants import InviteStatus
 from parsifal.apps.invites.models import Invite
-from parsifal.utils.recaptcha import recaptcha_is_valid
 
 
 class ASCIIUsernameField(UsernameField):
@@ -38,12 +37,6 @@ class SignUpForm(UserCreationForm):
         self.fields["username"].help_text = gettext("Required. 150 characters or fewer. Letters, digits and . _ only.")
         self.fields["email"].validators.append(validate_case_insensitive_email)
         self.fields["email"].required = True
-
-    def clean(self):
-        cleaned_data = super().clean()
-        if self.request and not recaptcha_is_valid(self.request):
-            self.add_error(None, gettext("The Google reCAPTCHA did not validate. Please try again."))
-        return cleaned_data
 
     def accept_invite(self, user):
         invite = self.cleaned_data.get("invite")

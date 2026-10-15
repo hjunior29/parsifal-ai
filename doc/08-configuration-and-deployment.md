@@ -31,10 +31,9 @@ template). `DATABASE_URL` is parsed by `dj-database-url`.
 | `TIME_ZONE` | `UTC` | | |
 | `COMPRESS_ENABLED` | `not DEBUG` | django-compressor | |
 | `ELSEVIER_API_KEY` | `""` | Scopus search (`parsifal/utils/elsevier/client.py`) | Optional. |
-| `GOOGLE_ANALYTICS_UA` | `""` | `base.html` (production only) | Removed in fork (ADR-003). |
-| `GOOGLE_RECAPTCHA_ENABLED` / `_SITE_KEY` / `_SECRET_KEY` | `False` / `""` / `""` | sign-up form | Removed in fork (ADR-003). |
-| `SENTRY_DSN` | `""` | `production.py`, `base.html` | Removed in fork (ADR-003). |
+| `PARSIFAL_ALLOW_SIGNUP` | `False` | `SignUpView`, header, cover page | Added in phase 1. When `False`, `/signup/` answers 403 unless the request carries a pending invite code; the admin creates accounts (`createsuperuser`, admin site) or users arrive through co-author invites. |
 | `PARSIFAL_ENVIRONMENT` | `local` | context processor, `environment` command | Keep. |
+| ~~`GOOGLE_ANALYTICS_UA`, `GOOGLE_RECAPTCHA_*`, `SENTRY_DSN`~~ | — | — | Removed in phase 1 (ADR-003). |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` | required in `production.py` | invites, password reset | Keep optional; self-hosted may use console/file backend. |
 | `EMAIL_BACKEND` | (only in `.env.example`) | not read by settings | `.env.example` lists it but `base.py` never calls `config("EMAIL_BACKEND")`; `local.py` hard-codes the console backend. |
 
@@ -60,8 +59,8 @@ Middleware is the Django default stack (security, sessions, common, CSRF,
 auth, messages, clickjacking). No custom middleware exists.
 
 Template context processor `parsifal.apps.core.context_processors.settings`
-exposes `parsifal_version`, `parsifal_release`, `parsifal_environment`,
-`recaptcha_*`, `google_analytics_ua`, `sentry_dsn` to every template.
+exposes `parsifal_version`, `parsifal_release`, `parsifal_environment` and
+`allow_signup` to every template.
 
 ## Running locally (current state)
 
@@ -97,7 +96,7 @@ The upstream production layout, encoded in `bin/` and `etc/`:
 - `etc/nginx.conf` — TLS termination, redirects `www.` → apex, serves `/static/` and `/media/` from `/home/parsifal/{static,media}`, proxies the rest to gunicorn with `X-Forwarded-*` headers (`SECURE_PROXY_SSL_HEADER` relies on them).
 - `bin/deploy` — `git pull`, `pip install -r requirements/production.txt`, `migrate`, `collectstatic`, `supervisorctl restart`, then Sentry release bookkeeping.
 
-`requirements/production.txt` = base + `gunicorn` + `sentry-sdk`.
+`requirements/production.txt` = base + `gunicorn` (`sentry-sdk` removed in phase 1).
 
 None of this is used by the fork's target (single container / single process
 with SQLite); it is documented so the design in

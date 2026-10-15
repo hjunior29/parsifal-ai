@@ -2,8 +2,6 @@ from django.core import mail
 from django.test.testcases import TestCase
 from django.urls import reverse
 
-from parsifal.apps.activities.constants import ActivityTypes
-from parsifal.apps.activities.models import Activity
 from parsifal.apps.authentication.tests.factories import UserFactory
 from parsifal.apps.invites.constants import InviteStatus
 from parsifal.apps.invites.models import Invite
@@ -70,9 +68,6 @@ class TestManageAccessView(TestCase):
 
     def test_post_success_invitee(self):
         contact = UserFactory(email="contact@parsif.al")
-        Activity.objects.create(
-            from_user=self.invite.review.author, to_user=contact, activity_type=ActivityTypes.FOLLOW
-        )
 
         with self.subTest(msg="Test setup"):
             self.assertFalse(self.invite.review.is_author_or_coauthor(contact))

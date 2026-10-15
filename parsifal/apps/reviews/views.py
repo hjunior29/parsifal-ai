@@ -15,14 +15,6 @@ from parsifal.apps.reviews.models import Review
 
 def reviews(request, username):
     user = get_object_or_404(User, username__iexact=username)
-    followers = user.profile.get_followers()
-    is_following = False
-    if request.user in followers:
-        is_following = True
-
-    followers_count = user.profile.get_followers_count()
-    following_count = user.profile.get_following_count()
-
     user_reviews = user.profile.get_reviews()
 
     pending_invites = user.invites_received.filter(status=InviteStatus.PENDING)
@@ -34,9 +26,6 @@ def reviews(request, username):
         {
             "user_reviews": user_reviews,
             "page_user": user,
-            "is_following": is_following,
-            "following_count": following_count,
-            "followers_count": followers_count,
             "pending_invites": pending_invites,
             "pending_invites_count": pending_invites_count,
         },
