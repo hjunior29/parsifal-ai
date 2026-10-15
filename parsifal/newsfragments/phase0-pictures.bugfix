@@ -1,0 +1,1 @@
+Profile picture upload and crop work again (absolute storage paths and the removed Pillow ANTIALIAS filter).

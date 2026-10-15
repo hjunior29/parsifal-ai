@@ -13,6 +13,11 @@ from parsifal.apps.core.constants import Environments
 
 BASE_DIR = Path(__file__).resolve(strict=True).parent.parent
 
+# Writable directory holding the SQLite database, uploaded media and collected static files.
+# Defaults to <repository root>/data so a self-hosted instance keeps all its state in one place.
+PARSIFAL_DATA_DIR = Path(config("PARSIFAL_DATA_DIR", default=str(BASE_DIR.parent / "data")))
+PARSIFAL_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
 SECRET_KEY = config("SECRET_KEY", default="parsifal.settings.local")
 
 DEBUG = config("DEBUG", default=True, cast=bool)
@@ -106,7 +111,7 @@ TEMPLATES = [
 
 DATABASES = {
     "default": dj_database_url.config(
-        default=config("DATABASE_URL", default="postgres://richardwagner:holygrail@localhost:5432/parsifal"),
+        default=config("DATABASE_URL", default=f"sqlite:///{PARSIFAL_DATA_DIR / 'parsifal.sqlite3'}"),
         conn_max_age=600,
     )
 }
@@ -166,7 +171,7 @@ LOCALE_PATHS = [str(BASE_DIR / "locale")]
 # ==============================================================================
 
 STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR.parent.parent / "static"
+STATIC_ROOT = PARSIFAL_DATA_DIR / "static"
 STATICFILES_DIRS = [str(BASE_DIR / "static")]
 STATICFILES_FINDERS = (
     "django.contrib.staticfiles.finders.FileSystemFinder",
@@ -180,7 +185,7 @@ STATICFILES_FINDERS = (
 # ==============================================================================
 
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR.parent.parent / "media/"
+MEDIA_ROOT = PARSIFAL_DATA_DIR / "media"
 DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
 
 

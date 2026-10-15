@@ -8,8 +8,8 @@ documentation; the roadmap schedules them.
 
 | # | Where | Problem | Fix |
 |---|-------|---------|-----|
-| A1 | `accounts/views.py:244, 268` | `Image.ANTIALIAS` was removed in Pillow 10; `requirements/base.txt` pins Pillow 10.3.0 → profile picture upload/crop raises `AttributeError` (caught and reported as "An expected error occurred"). | Use `Image.LANCZOS` (or `Image.Resampling.LANCZOS`). Add a test. |
-| A2 | `conducting/views.py` `articles_selection_chart`, `articles_per_year` | No `login_required`/`author_required`: anyone can read per-source and per-year counts of any review by id. | Add guards or move to the authenticated API. |
+| A1 | `accounts/views.py` `upload_picture`, `save_uploaded_picture` | **Fixed in phase 0.** Two independent breakages: `Image.ANTIALIAS` was removed in Pillow 10, and `FileSystemStorage.save()` was called with an absolute path, which Django ≥ 3.2 rejects with `SuspiciousFileOperation`. Profile picture upload had been broken upstream since those upgrades. | Storage-relative names + `fs.path()`, `Image.LANCZOS`, JPEG conversion; covered by `accounts/tests/test_upload_picture_view.py`. |
+| A2 | `conducting/views.py` `articles_selection_chart`, `articles_per_year` | **Fixed in phase 0.** No `login_required`/`author_required`: anyone could read per-source and per-year counts of any review by id. | Guards added; covered by `conducting/tests/test_analytics_views.py`. |
 | A3 | `conducting/views.py` `search_science_direct` | Always `Http404` while the UI still offers it for a `Science@Direct` source. | Remove the UI affordance or re-enable. |
 | A4 | `reviews/models.py` `Article.year` is `CharField` | `articles_per_year` orders by string; non-numeric years break the chart (`try/except` swallows). | Normalise year on import (int or null). |
 | A5 | `conducting/views.py` `DataExtraction._set_select_many_value` | Toggle semantics: sending the same lookup twice removes it; an API "set" must not reuse this. | Service layer implements set semantics. |
@@ -58,7 +58,7 @@ UI endpoints can be converted to POST when the JS is touched.
 | D7 | `Review.status`, `SearchSession.version`, `Question.parent_question`, `Document.review`, `Document.shared_folder`, `DocumentFile` exist without behaviour. | Decide: remove or implement. Roadmap proposes removing `SearchResult/StudySelection/Study` and repurposing `version` for search-string history. |
 | D8 | Keyword `related_to` covers P/I/C/O but PICOC has Context; `generate_search_string` ignores Context. | Add `X` (Context) choice or document the omission. |
 | D9 | `search_studies` matches sources by **name** (`"Scopus"`, `"Science@Direct"`) to enable API search. | Replace with an explicit `Source.provider` field. |
-| D10 | `STATIC_ROOT`/`MEDIA_ROOT` default outside the repo; media paths derived from username (`profile_pictures/<username>.jpg`). | Make configurable via `PARSIFAL_DATA_DIR`; renaming a user orphans the picture. |
+| D10 | ~~`STATIC_ROOT`/`MEDIA_ROOT` default outside the repo~~ (phase 0: both under `PARSIFAL_DATA_DIR`); media paths derived from username (`profile_pictures/<username>.jpg`). | Renaming a user still orphans the picture. |
 | D11 | `DATA_UPLOAD_MAX_MEMORY_SIZE` 10 MB applies to `import_bibtex_raw_content` (text in form body). | API import should accept files/streams or chunk. |
 | D12 | DOCX export has empty sections for QA, data extraction, data analysis. | Natural extension point for synthesis output. |
 | D13 | `xlwt` produces legacy `.xls`; `bibtexparser` 1.x is unmaintained (2.x has a new API). | Replace when touched: `openpyxl`/CSV, `bibtexparser>=2`. |
@@ -68,10 +68,9 @@ UI endpoints can be converted to POST when the JS is touched.
 
 - Planning, conducting, library, activities, help: no tests (see
   [09-testing.md](09-testing.md)).
-- CI installs PostgreSQL only because of the default `DATABASE_URL`.
-- `codecov.yml` targets `master` only; the fork's default branch is `dev`.
-- `tox.ini` `basepython = python3` with `py39` env name — runs whatever
-  `python3` is, not necessarily 3.9.
+- ~~CI installs PostgreSQL only because of the default `DATABASE_URL`~~ — fixed in phase 0.
+- ~~`codecov.yml` targets `master` only~~ — fixed in phase 0 (`master` and `dev`).
+- ~~`tox.ini` `basepython = python3` with `py39` env name~~ — fixed in phase 0 (`py310`, `python3.10`).
 
 ## F. Security hardening for self-hosting
 

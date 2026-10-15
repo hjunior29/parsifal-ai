@@ -25,7 +25,8 @@ template). `DATABASE_URL` is parsed by `dj-database-url`.
 | `DEBUG` | `True` | Django | |
 | `ALLOWED_HOSTS` | `127.0.0.1,localhost` (CSV) | Django | |
 | `ADMINS` | `""` (`name,email;name,email`) | Django error mail | |
-| `DATABASE_URL` | `postgres://richardwagner:holygrail@localhost:5432/parsifal` | `dj_database_url` | **Fork default becomes `sqlite:///<data dir>/parsifal.sqlite3`** (ADR-001). |
+| `PARSIFAL_DATA_DIR` | `<repo root>/data` (created on startup) | settings | Holds the SQLite file, `media/` and collected `static/`. Added in phase 0. |
+| `DATABASE_URL` | `sqlite:///<PARSIFAL_DATA_DIR>/parsifal.sqlite3` (upstream: a Postgres URL) | `dj_database_url` | SQLite connections get `journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=5000`, `foreign_keys=ON` via `core/database.py` (ADR-001). |
 | `LANGUAGE_CODE` | `en-us` | i18n | `LANGUAGES` lists en-us and pt-br but `parsifal/locale/` does not exist in the repo. |
 | `TIME_ZONE` | `UTC` | | |
 | `COMPRESS_ENABLED` | `not DEBUG` | django-compressor | |
@@ -42,7 +43,7 @@ Other notable constants in `base.py`:
 - `AUTHENTICATION_BACKENDS = ("parsifal.apps.authentication.backends.CaseInsensitiveUsernameOrEmailModelBackend",)` — login with username **or** e-mail, case-insensitive.
 - `ABSOLUTE_URL_OVERRIDES["auth.user"] = /<username>/` — a user's "profile" is their review list.
 - `LOGIN_REDIRECT_URL = "login_redirect"` → `/<username>/`.
-- `STATIC_ROOT = BASE_DIR.parent.parent / "static"` and `MEDIA_ROOT = BASE_DIR.parent.parent / "media/"` — i.e. **two levels above the repository root** (matches the upstream `/home/parsifal/{parsifal,static,media}` layout). Self-hosted/Docker deployments should override these (see [11-system-design.md](11-system-design.md)).
+- `STATIC_ROOT = PARSIFAL_DATA_DIR / "static"` and `MEDIA_ROOT = PARSIFAL_DATA_DIR / "media"` (upstream kept them two levels above the repository root to match its `/home/parsifal/{parsifal,static,media}` layout).
 - `DATA_UPLOAD_MAX_MEMORY_SIZE = 10 MB` — limits BibTeX uploads posted as form data.
 - `SITE_ID = 1` — `django.contrib.sites` is used by `invites` to build absolute invite links.
 - `DEFAULT_AUTO_FIELD = BigAutoField`.
@@ -65,10 +66,10 @@ exposes `parsifal_version`, `parsifal_release`, `parsifal_environment`,
 ## Running locally (current state)
 
 ```bash
-uv venv --python 3.9 .venv            # or python3.9 -m venv .venv
+uv venv --python 3.10 .venv           # or python3.10 -m venv .venv
 uv pip install --python .venv/bin/python -r requirements/local.txt
-cp .env.example .env                   # DATABASE_URL=sqlite:////tmp/db.sqlite3 by default
-.venv/bin/python manage.py migrate
+cp .env.example .env                   # optional: every value has a local default
+.venv/bin/python manage.py migrate     # creates ./data/parsifal.sqlite3
 .venv/bin/python manage.py loaddata source_initial_data   # 7 default digital libraries
 .venv/bin/python manage.py createsuperuser
 .venv/bin/python manage.py runserver
@@ -106,19 +107,19 @@ with SQLite); it is documented so the design in
 
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
-| `.github/workflows/tox.yml` | PR to `master`/`dev`, manual | Ubuntu 22.04, Python 3.9, installs PostgreSQL and creates the `parsifal` DB, runs `tox` (py39 tests + flake8 + isort + `makemigrations --check`). |
-| `.github/workflows/codecov.yml` | PR to `master` | Same Postgres setup, `coverage run manage.py test`, uploads to Codecov. |
-| `.github/workflows/codeql-analysis.yml` | push to `master`/`dev`, PR to `master`, weekly | CodeQL for Python and JavaScript. |
+| `.github/workflows/tox.yml` | push to `dev`, PR to `master`/`dev`, manual | Ubuntu 22.04, Python 3.10, `tox` (py310 tests + flake8 + isort + `makemigrations --check`). No database service needed. |
+| `.github/workflows/codecov.yml` | PR to `master`/`dev` | `coverage run manage.py test`, uploads to Codecov (`fail_ci_if_error: false` so a missing token does not block). |
+| `.github/workflows/codeql-analysis.yml` | push/PR to `master`/`dev`, weekly | CodeQL v3 for Python and JavaScript. |
 
-Both test workflows depend on PostgreSQL only because `DATABASE_URL` defaults
-to Postgres; with the SQLite default they reduce to `pip install && tox`.
+Upstream's workflows installed PostgreSQL in CI; phase 0 removed that along
+with the Postgres default.
 
 ## Code quality tooling
 
 - `make build` → `isort parsifal && black parsifal && flake8 parsifal && makemigrations --check`.
-- `pyproject.toml`: black line length 119, excludes `migrations`.
+- `pyproject.toml`: black line length 119, target `py310`, excludes `migrations`.
 - `setup.cfg`: flake8 (119 cols, ignores migrations), coverage (branch, omits migrations and tests), isort (Django section, first-party `parsifal`).
-- `tox.ini`: envs `py39`, `flake8`, `isort`, `migrations`.
+- `tox.ini`: envs `py310`, `flake8`, `isort`, `migrations` (`basepython = python3.10`).
 - `towncrier`: changelog fragments in `parsifal/newsfragments/`, compiled into `CHANGELOG.md`.
 
 ## Versioning

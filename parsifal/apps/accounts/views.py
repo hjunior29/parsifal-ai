@@ -1,7 +1,6 @@
 import logging
 import os
 
-from django.conf import settings as django_settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -52,6 +51,14 @@ class PictureView(LoginRequiredMixin, TemplateView):
         return super().get_context_data(**kwargs)
 
 
+def profile_picture_name(username, suffix=""):
+    """
+    Storage-relative name of a profile picture. Storage names must be relative to MEDIA_ROOT:
+    Django rejects absolute paths in Storage.save().
+    """
+    return f"profile_pictures/{username}{suffix}.jpg"
+
+
 @login_required
 def upload_picture(request):
     try:
@@ -60,17 +67,18 @@ def upload_picture(request):
         ext = os.path.splitext(f.name)[1].lower()
         valid_extensions = [".gif", ".png", ".jpg", ".jpeg", ".bmp"]
         if ext in valid_extensions:
-            filename = f"{django_settings.MEDIA_ROOT}/profile_pictures/{request.user.username}_tmp.jpg"
-            fs.delete(filename)
-            filename = fs.save(filename, f)
-            im = Image.open(filename)
+            name = profile_picture_name(request.user.username, "_tmp")
+            fs.delete(name)
+            name = fs.save(name, f)
+            path = fs.path(name)
+            im = Image.open(path).convert("RGB")
             width, height = im.size
             if width > 560:
                 new_width = 560
                 new_height = (height * 560) / width
                 new_size = new_width, new_height
-                im.thumbnail(new_size, Image.ANTIALIAS)
-                im.save(filename)
+                im.thumbnail(new_size, Image.LANCZOS)
+            im.save(path, format="JPEG")
             url = reverse("settings:picture")
             url = f"{url}?upload_picture=uploaded"
             return redirect(url)
@@ -89,14 +97,15 @@ def save_uploaded_picture(request):
         y = int(request.POST["y"])
         w = int(request.POST["w"])
         h = int(request.POST["h"])
-        tmp_filename = f"{django_settings.MEDIA_ROOT}/profile_pictures/{request.user.username}_tmp.jpg"
-        filename = f"{django_settings.MEDIA_ROOT}/profile_pictures/{request.user.username}.jpg"
-        im = Image.open(tmp_filename)
+        fs = FileSystemStorage()
+        tmp_name = profile_picture_name(request.user.username, "_tmp")
+        name = profile_picture_name(request.user.username)
+        im = Image.open(fs.path(tmp_name))
         cropped_im = im.crop((x, y, w + x, h + y))
-        cropped_im.thumbnail((200, 200), Image.ANTIALIAS)
-        cropped_im.save(filename)
-        os.remove(tmp_filename)
-        image_url = f"{django_settings.MEDIA_URL}/profile_pictures/{request.user.username}.jpg"
-        return HttpResponse(image_url)
+        cropped_im.thumbnail((200, 200), Image.LANCZOS)
+        cropped_im.save(fs.path(name), format="JPEG")
+        fs.delete(tmp_name)
+        return HttpResponse(fs.url(name))
     except Exception:
+        logger.exception("An error occurred while trying to crop a picture.")
         return HttpResponseBadRequest()

@@ -1090,6 +1090,8 @@ def data_analysis(request, username, review_name):
     return render(request, "conducting/conducting_data_analysis.html", {"review": review})
 
 
+@author_required
+@login_required
 def articles_selection_chart(request):
     review_id = request.GET["review-id"]
     review = Review.objects.get(pk=review_id)
@@ -1102,6 +1104,8 @@ def articles_selection_chart(request):
     return HttpResponse(",".join(articles))
 
 
+@author_required
+@login_required
 def articles_per_year(request):
     review_id = request.GET["review-id"]
     review = get_object_or_404(Review, pk=review_id)

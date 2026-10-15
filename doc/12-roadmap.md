@@ -27,7 +27,7 @@ flowchart LR
     P6 -.-> P10[10 Django 5 upgrade - optional]
 ```
 
-## Phase 0 — Baseline: Python 3.10, SQLite default and hygiene (S)
+## Phase 0 — Baseline: Python 3.10, SQLite default and hygiene (S) — ✅ done 2026-10-15
 
 Deliverables
 - Python minimum **3.10** (ADR-005): `pyproject.toml` `requires-python`,

@@ -3,10 +3,13 @@
 ## Current state
 
 - Test runner: Django's built-in runner (`manage.py test --settings=parsifal.settings.tests`).
-- **75 tests**, all passing. Verified on **2026-10-15** against **SQLite** with
-  Python 3.9.6 and Django 4.2.28 (`Ran 75 tests in 1.167s — OK`), after
-  applying all 87 migrations on an empty SQLite database. No Postgres-specific
-  code exists (no `contrib.postgres`, `ArrayField`, `JSONField` or raw SQL).
+- Upstream shipped **75 tests**, all passing. Verified on **2026-10-15**
+  against **SQLite** with Python 3.9.6 and Django 4.2.28 (`Ran 75 tests in
+  1.167s — OK`), after applying all 87 migrations on an empty SQLite database.
+  No Postgres-specific code exists (no `contrib.postgres`, `ArrayField`,
+  `JSONField` or raw SQL).
+- Phase 0 added 13 tests (SQLite pragmas, profile picture upload/crop,
+  analytics endpoint authorization) → **88 tests**, green on Python 3.10.
 - Coverage config: `setup.cfg` `[coverage:run]` with `branch = true`, source
   `parsifal`, omitting `*/migrations/*` and `*/tests/*`.
 - Fixtures: `parsifal/apps/reviews/fixtures/source_initial_data.json` (7
