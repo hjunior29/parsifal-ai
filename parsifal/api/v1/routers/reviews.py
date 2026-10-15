@@ -45,7 +45,10 @@ def reviews_list(request, author: str | None = None, name: str | None = None, q:
 
 @router.post("/reviews", response={201: ReviewOut}, operation_id="reviews_create")
 def reviews_create(request, payload: ReviewCreateIn):
-    return 201, reviews.create_review(actor=request.auth, title=payload.title, description=payload.description)
+    review = reviews.create_review(actor=request.auth, title=payload.title, description=payload.description)
+    if payload.review_type != review.review_type:
+        review = reviews.update_review(review=review, review_type=payload.review_type)
+    return 201, review
 
 
 @router.get("/reviews/{int:review_id}", response=ReviewOut, operation_id="reviews_get")

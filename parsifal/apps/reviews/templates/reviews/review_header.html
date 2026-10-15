@@ -5,6 +5,7 @@
   <a href="{{ review.author.get_absolute_url }}" class="review-title-user">{{ review.author.profile.get_screen_name }}</a> 
   <span class="text-muted">/</span>
   <a href="{{ review.get_absolute_url }}">{{ review.title }}</a>
+  {% if review.is_mapping_study %}<small><span class="label label-info" title="Systematic mapping study (Petersen et al. 2015)">mapping study</span></small>{% endif %}
 </h3>
 <ul class="review-menu">
   <li{% if active_menu == "review"%} class="active"{% endif %}>

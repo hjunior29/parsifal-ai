@@ -105,6 +105,27 @@ select-many takes the full list of lookup ids in `values` (set semantics).
 | `POST /reviews/{rid}/articles/import {source_id, bibtex}` · `POST /articles/import/file` (multipart `source_id`, `file`) | `articles_import` · `articles_import_file` → `{imported, failed, warnings[], article_ids[]}` |
 | `GET /reviews/{rid}/articles/duplicates` · `POST /duplicates/resolve {ids?}` | `articles_duplicates` · `articles_resolve_duplicates` |
 
+### Mapping studies (phase 7)
+
+| Method & path | operationId |
+|---------------|-------------|
+| `GET /facets/templates` | `facet_templates` — research_type, contribution_type, research_method, venue_type, study_focus |
+| `GET/POST /reviews/{rid}/facets` (`{template}` or `{name, kind, multiple, categories[]}`) · `PATCH/DELETE /facets/{id}` · `PUT /facets/order` | `facets_*` |
+| `POST /reviews/{rid}/facets/{fid}/categories` · `PATCH/DELETE /categories/{id}` · `PUT /categories/order` | `categories_*` |
+| `GET /reviews/{rid}/articles/{aid}/classification` · `PUT {facet_id, category_ids[], notes}` | `article_classification_*` (set semantics; single-choice facets accept one id) |
+| `GET /reviews/{rid}/analytics/facets/{fid}/frequencies` · `GET /analytics/facet-matrix?rows=&columns=` | `analytics_facet_frequencies` · `analytics_facet_matrix` (bubble-plot cells) |
+| `GET/POST /reviews/{rid}/test-set` · `PATCH/DELETE /test-set/{id}` · `POST /test-set/match` | `test_set_*` — known papers, matched by DOI or normalised title; `recall` = found/total |
+| `GET /reviews/{rid}/checklist` · `PUT /checklist/{key} {applied, notes}` | `checklist_*` — Petersen et al. (2015) Table 8 actions |
+| `PATCH /reviews/{rid}/sources/{sid}/search {search_type, searched_at, years_from, years_to, result_count}` | `source_search_update` — search documentation (K 6.1.4) |
+
+`ReviewOut`/`PATCH` also carry `review_type`, `selection_procedure`,
+`synthesis_strategy`, `validity_threats`; `ArticleOut` carries `found_via_id`.
+The DOCX report accepts the extra sections `classification_scheme`,
+`selection_procedure`, `synthesis_strategy`, `validity_threats`, `test_set`,
+`search_documentation`, `classification_results`, `process_checklist`, and its
+`quality_assessment` / `data_extraction` / `data_analysis` sections now have
+content.
+
 ### Analytics and exports
 
 | Method & path | operationId |

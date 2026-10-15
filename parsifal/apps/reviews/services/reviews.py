@@ -19,6 +19,10 @@ UPDATABLE_FIELDS = {
     "outcome": 200,
     "context": 200,
     "quality_assessment_cutoff_score": None,
+    "review_type": None,
+    "selection_procedure": 10000,
+    "synthesis_strategy": 10000,
+    "validity_threats": 10000,
 }
 
 
@@ -74,7 +78,10 @@ def update_review(*, review, **fields):
         limit = UPDATABLE_FIELDS[name]
         if name == "title":
             require(value, field="title")
-        if name == "quality_assessment_cutoff_score":
+        if name == "review_type":
+            if value not in dict(Review.REVIEW_TYPES):
+                raise ValidationError("review_type must be 'slr' or 'mapping'.", field=name)
+        elif name == "quality_assessment_cutoff_score":
             if isinstance(value, str):
                 value = value.replace(",", ".")
             try:
@@ -163,10 +170,13 @@ def review_overview(review):
     """Counts and prerequisites that agents need to decide what to do next."""
     articles = review.article_set
     accepted = review.get_accepted_articles().count()
+    from parsifal.apps.reviews.services import mapping
+
     return {
         "id": review.pk,
         "name": review.name,
         "title": review.title,
+        "review_type": review.review_type,
         "author": review.author.username,
         "co_authors": list(review.co_authors.values_list("username", flat=True)),
         "sources": review.sources.count(),
@@ -178,6 +188,12 @@ def review_overview(review):
         "quality_answers": review.qualityanswer_set.count(),
         "quality_assessment_cutoff_score": review.quality_assessment_cutoff_score,
         "data_extraction_fields": review.dataextractionfield_set.count(),
+        "classification_facets": review.facets.count(),
+        "test_set": {
+            "total": review.test_set.count(),
+            "found": review.test_set.filter(matched_article__isnull=False).count(),
+        },
+        "process_checklist_ratio": mapping.checklist(review)["ratio"],
         "articles": {
             "total": articles.count(),
             "unclassified": articles.filter(status="U").count(),

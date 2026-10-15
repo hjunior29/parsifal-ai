@@ -111,7 +111,7 @@ tool, with where Parsifal stands:
    exporter should have one template per review type and real content for
    QA, extraction/classification and analysis.
 
-## 4. Proposed data-model additions (design only)
+## 4. Data-model additions (implemented in phase 7, except per-reviewer decisions — phase 8)
 
 Additive changes to `reviews.models`; nothing existing is removed in this
 step. Names are proposals to be refined in implementation.
@@ -164,9 +164,13 @@ ProcessChecklistItem  (P 5.4 rubric; K 7.3 DARE)
 Analytics additions: facet × facet counts (bubble plot), facet frequencies,
 per-year per-facet; QA score distribution; inter-rater agreement per stage.
 
-Implementation is scheduled in [12-roadmap.md](12-roadmap.md) phases 7 and 8;
-the API design in [11-system-design.md](11-system-design.md) reserves the
-resource names.
+Status: phase 7 implemented `review_type`, the protocol text fields, search
+documentation, `Article.found_via`, facets/categories/classifications (with
+`multiple` per facet instead of a per-user uniqueness), the test set and the
+process checklist — see `reviews/services/classification.py`,
+`reviews/services/mapping.py`, the `mapping` API router and
+[14-api.md](14-api.md). `StudyDecision` and inter-rater agreement remain for
+phase 8.
 
 ## 5. Using the indexed guidelines
 

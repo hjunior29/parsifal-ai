@@ -44,11 +44,19 @@ DOCX_SECTIONS = (
     "selection_criteria",
     "quality_assessment_checklist",
     "data_extraction_form",
+    "classification_scheme",
+    "selection_procedure",
+    "synthesis_strategy",
+    "validity_threats",
+    "test_set",
     "source_search_strings",
     "number_imported_studies",
+    "search_documentation",
     "quality_assessment",
     "data_extraction",
+    "classification_results",
     "data_analysis",
+    "process_checklist",
 )
 
 

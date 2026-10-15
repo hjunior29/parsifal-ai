@@ -113,11 +113,14 @@ def article_from_entry(entry, *, review, source, warnings=None):
 @transaction.atomic
 def import_bibtex(*, review, source_id, content, actor=None):
     source = get_child(review.sources, source_id, label="Source")
+    # Provenance: articles imported for a source are linked to that source's documented search, if any.
+    found_via = review.searchsession_set.filter(source=source).first()
     result = ImportResult()
     for entry in parse_bibtex(content):
         try:
             article = article_from_entry(entry, review=review, source=source, warnings=result.warnings)
             article.created_by = actor
+            article.found_via = found_via
             article.save()
         except Exception as error:
             result.failed += 1

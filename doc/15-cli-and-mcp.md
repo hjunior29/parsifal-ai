@@ -51,12 +51,16 @@ mirror the API parameters in kebab-case; `--review` accepts a numeric id or
 | `question` | `list`, `create --description [--parent-id]`, `update --id`, `delete --id`, `reorder --ids …` |
 | `keyword` | `list`, `create --description [--related-to P|I|C|O] [--synonyms …]`, `update --id`, `delete --id`, `import-picoc` |
 | `search-string` | `get`, `set --search-string`, `generate` |
-| `source` | `defaults`, `list`, `add --source-id | --name --url`, `update --id`, `remove --id`; `source search-string list|set|copy-generic|delete --id` |
+| `source` | `defaults`, `list`, `add --source-id | --name --url`, `update --id`, `remove --id`, `document-search --id --search-type --searched-at --years-from --years-to --result-count`; `source search-string list|set|copy-generic|delete --id` |
 | `criteria` | `list`, `create --description --criteria-type I|E`, `update --id`, `delete --id` |
 | `quality` | `question list|create|update|delete|reorder`, `answer list|create|suggested|update|delete`, `max-score`, `set-cutoff --cutoff`, `summary`, `get --article`, `assess --article --question-id --answer-id` |
 | `extraction` | `field list|create|update|delete|reorder`, `get --article`, `set --article --field-id --value | --values …`, `done --article [--no-done]` |
 | `article` | `list [--source-id --status --q --finished-data-extraction --all]`, `create`, `get --id`, `update --id`, `delete --id`, `set-status --ids … --status [--selection-criteria-id --comments]`, `import --source-id --bibtex`, `import-file --source-id --file`, `duplicates`, `resolve-duplicates [--ids …]` |
-| `analytics` | `selection-by-source`, `final-by-year` |
+| `analytics` | `selection-by-source`, `final-by-year`, `facet-frequencies --facet`, `facet-matrix --rows --columns` |
+| `facet` | `templates`, `list`, `create --template | --name [--categories …] [--multiple]`, `update --id`, `delete --id`, `reorder --ids …`; `facet category create|update|delete|reorder --facet` |
+| `classification` | `get --article`, `set --article --facet-id --category-ids …` |
+| `test-set` | `get`, `add --title [--doi]`, `update --id`, `delete --id`, `match` |
+| `checklist` | `get`, `set --key --applied/--no-applied [--notes]` |
 | `export` | `articles --format csv|xlsx|json -o FILE`, `extraction --format … -o FILE`, `report [--sections …] -o FILE` |
 
 Conventions:

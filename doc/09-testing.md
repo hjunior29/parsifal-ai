@@ -25,8 +25,10 @@
   Django tests + 21 pytest tests.
 - Phase 5 added `tests/test_mcp.py` in the client package (tool inventory,
   schemas, calls, composites) → 220 Django tests + 31 pytest tests.
-- Phase 6 added backup/restore and production-settings tests → **225 Django
-  tests + 31 pytest tests**; the Docker workflow smoke-tests the image in CI.
+- Phase 6 added backup/restore and production-settings tests → 225 Django
+  tests + 31 pytest tests; the Docker workflow smoke-tests the image in CI.
+- Phase 7 added classification/mapping service tests, report-section tests
+  and the mapping API tests → **241 Django tests + 31 pytest tests**.
 - Coverage config: `setup.cfg` `[coverage:run]` with `branch = true`, source
   `parsifal`, omitting `*/migrations/*` and `*/tests/*`.
 - Fixtures: `parsifal/apps/reviews/fixtures/source_initial_data.json` (7

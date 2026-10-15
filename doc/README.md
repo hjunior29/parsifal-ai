@@ -30,7 +30,7 @@ documents are in English.
 |---|----------|---------------------|
 | 10 | [Methodology](10-methodology.md) | Kitchenham 2007 coverage matrix; what Petersen 2015 mapping studies require; proposed model additions. |
 | 11 | [System Design](11-system-design.md) | Service layer, SQLite data dir, API tokens, JSON API resource map, CLI, MCP, packaging, coding conventions. |
-| 12 | [Roadmap](12-roadmap.md) | Phases 0–10 with deliverables, tests and acceptance criteria; phases 0–6 done. |
+| 12 | [Roadmap](12-roadmap.md) | Phases 0–10 with deliverables, tests and acceptance criteria; phases 0–7 done. |
 | 14 | [JSON API v1](14-api.md) | Authentication with tokens, conventions, every resource and operationId, curl walkthrough, bootstrap commands. |
 | 15 | [CLI and MCP server](15-cli-and-mcp.md) | Installing and configuring `parsifal`, the command tree, conventions and exit codes, agent example; `parsifal-mcp` tools, composites and transports. |
 | 16 | [Self-hosting](16-self-hosting.md) | Docker and plain-Python deployment, environment variables, HTTPS, e-mail, backups, upgrades, security checklist. |

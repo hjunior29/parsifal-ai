@@ -19,13 +19,24 @@ class CreateReviewForm(forms.ModelForm):
         help_text="Try to keep it short, max 500 characters :)",
         required=False,
     )
+    review_type = forms.ChoiceField(
+        widget=forms.Select(attrs={"class": "form-control"}),
+        choices=Review.REVIEW_TYPES,
+        initial=Review.SLR,
+        label="Review type",
+        required=False,
+    )
 
     class Meta:
         model = Review
         fields = [
             "title",
             "description",
+            "review_type",
         ]
+
+    def clean_review_type(self):
+        return self.cleaned_data.get("review_type") or Review.SLR
 
 
 class ReviewForm(forms.ModelForm):

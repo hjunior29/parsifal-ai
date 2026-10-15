@@ -1,3 +1,5 @@
+from datetime import date
+
 from ninja import Schema
 
 
@@ -72,10 +74,25 @@ class SourceSearchStringOut(Schema):
     source_id: int
     source: str
     search_string: str
+    search_type: str
+    searched_at: date | None = None
+    years_from: int | None = None
+    years_to: int | None = None
+    result_count: int | None = None
 
     @staticmethod
     def resolve_source(obj):
         return obj.source.name
+
+
+class SourceSearchUpdateIn(Schema):
+    """Search documentation (Kitchenham 6.1.4): how, when and how broadly the source was searched."""
+
+    search_type: str | None = None
+    searched_at: date | None = None
+    years_from: int | None = None
+    years_to: int | None = None
+    result_count: int | None = None
 
 
 class CriteriaOut(Schema):

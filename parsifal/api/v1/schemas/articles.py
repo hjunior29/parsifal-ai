@@ -27,6 +27,7 @@ class ArticleOut(Schema):
     note: str | None = None
     status: str
     selection_criteria_id: int | None = None
+    found_via_id: int | None = None
     comments: str | None = None
     finished_data_extraction: bool
     created_at: datetime | None = None

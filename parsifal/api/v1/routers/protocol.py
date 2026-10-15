@@ -17,6 +17,7 @@ from parsifal.api.v1.schemas.protocol import (
     SourceAddIn,
     SourceOut,
     SourceSearchStringOut,
+    SourceSearchUpdateIn,
     SourceUpdateIn,
 )
 from parsifal.apps.core.exceptions import ValidationError
@@ -187,6 +188,17 @@ def source_search_string_set(request, review_id: int, source_id: int, payload: S
 )
 def source_search_string_copy_generic(request, review_id: int, source_id: int):
     return search.copy_generic_search_string(review=get_review(request, review_id), source_id=source_id)
+
+
+@router.patch(
+    "/reviews/{int:review_id}/sources/{int:source_id}/search",
+    response=SourceSearchStringOut,
+    operation_id="source_search_update",
+)
+def source_search_update(request, review_id: int, source_id: int, payload: SourceSearchUpdateIn):
+    """Document how a source was searched: type (database/snowballing/manual), date, years covered, results."""
+    review = get_review(request, review_id)
+    return search.update_source_search(review=review, source_id=source_id, **payload.dict(exclude_unset=True))
 
 
 @router.delete(

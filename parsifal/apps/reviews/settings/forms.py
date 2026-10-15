@@ -11,8 +11,18 @@ class ReviewSettingsForm(forms.ModelForm):
         max_length=255,
     )
 
+    review_type = forms.ChoiceField(
+        widget=forms.Select(attrs={"class": "form-control"}),
+        label="Review type",
+        choices=Review.REVIEW_TYPES,
+        help_text=(
+            "Systematic literature review (Kitchenham & Charters) or systematic mapping study (Petersen et al.)."
+        ),
+    )
+
     class Meta:
         model = Review
         fields = [
             "name",
+            "review_type",
         ]

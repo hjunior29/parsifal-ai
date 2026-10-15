@@ -223,7 +223,26 @@ Acceptance
 - `docker compose up` on a clean machine yields a working instance with an
   admin and a token in under two minutes.
 
-## Phase 7 — Systematic mapping study support (L) — ADR-006
+## Phase 7 — Systematic mapping study support (L) — ADR-006 — ✅ done 2026-10-15 (API first; UI minimal)
+
+Outcome (migration `reviews.0039_mapping_studies`): `Review.review_type`
+(`slr` | `mapping`, selectable on creation and in review settings, badge in
+the review header), `selection_procedure` / `synthesis_strategy` /
+`validity_threats`; `SearchSession.search_type/searched_at/years_from/years_to/result_count`
+and `Article.found_via` provenance (set on import); `ClassificationFacet`
+(fixed/emerging, single or multiple, templates research_type /
+contribution_type / research_method / venue_type / study_focus),
+`ClassificationCategory`, `ArticleClassification` (set semantics, attributed
+to the acting user); `ReviewTestSetArticle` with DOI/title matching and
+recall; `ProcessChecklistItem` with the 26 actions of Petersen Table 8.
+Services `classification.py` and `mapping.py`; analytics `facet_frequencies`
+and `facet_matrix` (bubble-plot data); DOCX report with filled QA / extraction
+/ analysis sections and new sections (classification scheme and results,
+procedures, validity threats, search documentation, test set, process
+checklist). API: 22 new operations (103 total), CLI groups `facet`,
+`facet category`, `classification`, `test-set`, `checklist`, `source
+document-search`; MCP tools follow. The web UI only exposes the review type;
+facet/classification pages are deferred to the in-app docs phase or later.
 
 Deliverables (from [10-methodology.md](10-methodology.md) §4)
 - `Review.review_type`, `validity_threats`, `selection_procedure`,

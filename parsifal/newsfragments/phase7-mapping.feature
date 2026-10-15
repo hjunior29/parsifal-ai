@@ -1,0 +1,1 @@
+Systematic mapping study support: review type, classification facets with templates, article classification, facet frequencies and matrix, known-paper test set, Petersen process checklist, search documentation and provenance, richer DOCX report.

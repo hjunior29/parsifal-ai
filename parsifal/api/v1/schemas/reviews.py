@@ -16,6 +16,10 @@ class ReviewOut(Schema):
     comparison: str
     outcome: str
     context: str
+    review_type: str
+    selection_procedure: str
+    synthesis_strategy: str
+    validity_threats: str
     quality_assessment_cutoff_score: float
     create_date: datetime
     last_update: datetime
@@ -32,6 +36,7 @@ class ReviewOut(Schema):
 class ReviewCreateIn(Schema):
     title: str
     description: str = ""
+    review_type: str = "slr"
 
 
 class ReviewUpdateIn(Schema):
@@ -43,6 +48,10 @@ class ReviewUpdateIn(Schema):
     comparison: str | None = None
     outcome: str | None = None
     context: str | None = None
+    review_type: str | None = None
+    selection_procedure: str | None = None
+    synthesis_strategy: str | None = None
+    validity_threats: str | None = None
     quality_assessment_cutoff_score: float | None = None
 
 

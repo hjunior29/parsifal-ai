@@ -41,6 +41,15 @@ class Review(models.Model):
         (PUBLISHED, "Published"),
     )
 
+    # Kitchenham & Charters (2007) systematic literature review, or Petersen et al. (2015) systematic mapping
+    # study. The type drives which steps are expected (quality assessment is optional for maps) and the report.
+    SLR = "slr"
+    MAPPING = "mapping"
+    REVIEW_TYPES = (
+        (SLR, _("Systematic literature review")),
+        (MAPPING, _("Systematic mapping study")),
+    )
+
     name = models.SlugField(_("name"), max_length=255)
     title = models.CharField(_("title"), max_length=255)
     description = models.CharField(_("description"), max_length=500, blank=True)
@@ -57,6 +66,11 @@ class Review(models.Model):
     comparison = models.CharField(_("comparison"), max_length=200, blank=True)
     outcome = models.CharField(_("outcome"), max_length=200, blank=True)
     context = models.CharField(_("context"), max_length=200, blank=True)
+    review_type = models.CharField(_("review type"), max_length=10, choices=REVIEW_TYPES, default=SLR)
+    # Protocol sections recommended by the guidelines but not modelled upstream (K 5.4, P 5.1.5)
+    selection_procedure = models.TextField(_("study selection procedure"), blank=True)
+    synthesis_strategy = models.TextField(_("synthesis strategy"), blank=True)
+    validity_threats = models.TextField(_("validity threats"), blank=True)
 
     class Meta:
         verbose_name = _("review")
@@ -65,6 +79,10 @@ class Review(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def is_mapping_study(self):
+        return self.review_type == self.MAPPING
 
     def get_absolute_url(self):
         return reverse("review", args=(self.author.username, self.name))
@@ -206,10 +224,27 @@ class SelectionCriteria(models.Model):
 
 
 class SearchSession(models.Model):
+    DATABASE = "database"
+    SNOWBALLING = "snowballing"
+    MANUAL = "manual"
+    OTHER = "other"
+    SEARCH_TYPES = (
+        (DATABASE, _("Database search")),
+        (SNOWBALLING, _("Snowballing")),
+        (MANUAL, _("Manual search")),
+        (OTHER, _("Other")),
+    )
+
     review = models.ForeignKey(Review, on_delete=models.CASCADE)
     source = models.ForeignKey(Source, on_delete=models.CASCADE, null=True)
     search_string = models.TextField(max_length=10000)
     version = models.IntegerField(default=1)
+    # Search documentation (Kitchenham 6.1.4 Table 2; Petersen 5.1.2)
+    search_type = models.CharField(_("search type"), max_length=12, choices=SEARCH_TYPES, default=DATABASE)
+    searched_at = models.DateField(_("date of search"), null=True, blank=True)
+    years_from = models.IntegerField(_("years covered (from)"), null=True, blank=True)
+    years_to = models.IntegerField(_("years covered (to)"), null=True, blank=True)
+    result_count = models.IntegerField(_("number of results"), null=True, blank=True)
 
     class Meta:
         constraints = (
@@ -309,6 +344,14 @@ class Article(models.Model):
     note = models.CharField(max_length=500, null=True, blank=True)
     finished_data_extraction = models.BooleanField(default=False)
     selection_criteria = models.ForeignKey(SelectionCriteria, null=True, blank=True, on_delete=models.SET_NULL)
+    found_via = models.ForeignKey(
+        SearchSession,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="found_articles",
+        verbose_name=_("found via search"),
+    )
     created_at = models.DateTimeField(auto_now_add=True, blank=True, null=True)
     updated_at = models.DateTimeField(auto_now=True, blank=True, null=True)
     created_by = models.ForeignKey(
@@ -635,3 +678,105 @@ class DataExtraction(models.Model):
             return value.strftime("%m/%d/%Y")
         except Exception:
             return ""
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Systematic mapping studies (Petersen et al. 2015)
+# ---------------------------------------------------------------------------------------------------------------------
+
+
+class ClassificationFacet(models.Model):
+    """A dimension used to classify studies (research type, research method, venue, topic-specific scheme...)."""
+
+    FIXED = "fixed"
+    EMERGING = "emerging"
+    KINDS = (
+        (FIXED, _("Fixed (topic-independent)")),
+        (EMERGING, _("Emerging (topic-specific, built during keywording)")),
+    )
+
+    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="facets")
+    name = models.CharField(_("name"), max_length=100)
+    description = models.CharField(_("description"), max_length=500, blank=True)
+    kind = models.CharField(_("kind"), max_length=10, choices=KINDS, default=EMERGING)
+    template = models.CharField(_("template"), max_length=30, blank=True)
+    multiple = models.BooleanField(_("allow several categories per study"), default=False)
+    order = models.IntegerField(default=0)
+
+    class Meta:
+        verbose_name = _("classification facet")
+        verbose_name_plural = _("classification facets")
+        ordering = ("order", "pk")
+        constraints = (models.UniqueConstraint(fields=("review", "name"), name="unique_facet_name_per_review"),)
+
+    def __str__(self):
+        return self.name
+
+
+class ClassificationCategory(models.Model):
+    facet = models.ForeignKey(ClassificationFacet, on_delete=models.CASCADE, related_name="categories")
+    name = models.CharField(_("name"), max_length=200)
+    description = models.CharField(_("description"), max_length=500, blank=True)
+    order = models.IntegerField(default=0)
+
+    class Meta:
+        verbose_name = _("classification category")
+        verbose_name_plural = _("classification categories")
+        ordering = ("order", "pk")
+        constraints = (models.UniqueConstraint(fields=("facet", "name"), name="unique_category_name_per_facet"),)
+
+    def __str__(self):
+        return self.name
+
+
+class ArticleClassification(models.Model):
+    article = models.ForeignKey(Article, on_delete=models.CASCADE, related_name="classifications")
+    facet = models.ForeignKey(ClassificationFacet, on_delete=models.CASCADE, related_name="classifications")
+    category = models.ForeignKey(ClassificationCategory, on_delete=models.CASCADE, related_name="classifications")
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    notes = models.TextField(_("notes"), blank=True)
+    classified_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("article classification")
+        verbose_name_plural = _("article classifications")
+        constraints = (
+            models.UniqueConstraint(fields=("article", "facet", "category"), name="unique_article_facet_category"),
+        )
+
+
+class ReviewTestSetArticle(models.Model):
+    """A known relevant paper used to evaluate the search (Petersen 5.1.2 'paper test-set')."""
+
+    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="test_set")
+    title = models.CharField(_("title"), max_length=1000)
+    doi = models.CharField(_("DOI"), max_length=100, blank=True)
+    notes = models.CharField(_("notes"), max_length=500, blank=True)
+    matched_article = models.ForeignKey(
+        Article, null=True, blank=True, on_delete=models.SET_NULL, related_name="test_set_matches"
+    )
+
+    class Meta:
+        verbose_name = _("test-set article")
+        verbose_name_plural = _("test-set articles")
+        ordering = ("pk",)
+
+    def __str__(self):
+        return self.title
+
+
+class ProcessChecklistItem(models.Model):
+    """One of the actions of Petersen et al. (2015) Table 8, used to self-assess the mapping process."""
+
+    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="checklist_items")
+    key = models.CharField(_("action"), max_length=50)
+    applied = models.BooleanField(default=False)
+    notes = models.CharField(_("notes"), max_length=500, blank=True)
+
+    class Meta:
+        verbose_name = _("process checklist item")
+        verbose_name_plural = _("process checklist items")
+        constraints = (models.UniqueConstraint(fields=("review", "key"), name="unique_checklist_item_per_review"),)
+
+    def __str__(self):
+        return self.key
