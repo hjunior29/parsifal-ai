@@ -505,3 +505,18 @@ select optgroup {
   color: #8a6d3b;
   padding: 10px;
 }
+
+
+/* In-app documentation (parsifal.apps.docs) */
+.docs-masthead { padding: 40px 0; }
+.docs-content article h1 { margin-top: 0; font-size: 28px; }
+.docs-content article h2 { margin-top: 30px; padding-bottom: 6px; border-bottom: 1px solid #eee; font-size: 22px; }
+.docs-content article h3 { margin-top: 24px; font-size: 18px; }
+.docs-content article table { width: 100%; margin-bottom: 20px; border-collapse: collapse; }
+.docs-content article table th, .docs-content article table td { padding: 8px; border-top: 1px solid #ddd; vertical-align: top; text-align: left; }
+.docs-content article table thead th { border-bottom: 2px solid #ddd; }
+.docs-content article pre { background: #f7f7f9; border: 1px solid #e1e1e8; padding: 12px; font-size: 13px; }
+.docs-content article code { white-space: pre-wrap; }
+.docs-content article blockquote { font-size: 14px; }
+.list-group-item .docs-summary { display: block; color: #999; font-size: 12px; margin-top: 2px; }
+.list-group-item.active .docs-summary { color: #e0e9f6; }

@@ -120,8 +120,9 @@ pip install -e "clients/parsifal-cli[mcp]"
 claude mcp add parsifal -e PARSIFAL_URL=$PARSIFAL_URL -e PARSIFAL_TOKEN=$PARSIFAL_TOKEN -- parsifal-mcp
 ```
 
-See [doc/14-api.md](doc/14-api.md), [doc/15-cli-and-mcp.md](doc/15-cli-and-mcp.md) and the rest of the
-[documentation](doc/README.md).
+A running instance documents these features itself at `/docs/`. Developer documentation:
+[doc/14-api.md](doc/14-api.md), [doc/15-cli-and-mcp.md](doc/15-cli-and-mcp.md) and the rest of
+[doc/](doc/README.md).
 
 ## License
 

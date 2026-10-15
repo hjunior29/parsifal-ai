@@ -30,6 +30,7 @@ urlpatterns = [
     path("about/", TemplateView.as_view(template_name="core/about.html"), name="about"),
     path("reviews/", include("parsifal.apps.reviews.urls", namespace="reviews")),
     path("library/", include("parsifal.apps.library.urls", namespace="library")),
+    path("docs/", include("parsifal.apps.docs.urls", namespace="docs")),
     path("settings/", include("parsifal.apps.accounts.urls", namespace="settings")),
     path("review_settings/transfer/", reviews_settings_views.transfer, name="transfer_review"),
     path("admin/", admin.site.urls),

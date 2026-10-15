@@ -12,6 +12,8 @@ decisions in [decisions.md](decisions.md): **Keep**, **Keep (trim)**, or
 | `authentication` | 586 | 229 | Keep (trim: no public sign-up, no reCAPTCHA) |
 | `accounts` | 341 | 164 | Keep |
 | `core` | 231 | 26 | Keep — trimmed in phase 1 (home page = review list; `Media` dropped) |
+| `docs` (new, phase 9) | — | 6 | In-app documentation of the fork's features at `/docs/`, Markdown content under `content/`. |
+| `api` (new, phase 3; `parsifal/api/`) | — | 50+ | JSON API v1 — see [14-api.md](14-api.md). |
 | `blog` | 179 | 67 | **Removed in phase 1** |
 | `help` | 162 | 0 | **Removed in phase 1** (in-app docs return in phase 9) |
 | `activities` | 146 | 0 | **Removed in phase 1** |

@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "parsifal.apps.accounts",
     "parsifal.apps.authentication",
     "parsifal.apps.core",
+    "parsifal.apps.docs",
     "parsifal.apps.invites",
     "parsifal.apps.library",
 ]

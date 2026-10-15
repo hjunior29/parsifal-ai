@@ -47,6 +47,15 @@ Conventions used below:
 | `/<username>/following/`, `/<username>/followers/` | GET | – | Lists. |
 | `/sitemap.xml`, `/robots.txt` | GET | – | |
 
+## 2b. Added by the fork
+
+| Path | Guard | Purpose |
+|------|-------|---------|
+| `/docs/`, `/docs/<slug>/` | – | In-app documentation of the new features (phase 9). |
+| `/settings/tokens/`, `/settings/tokens/<id>/revoke/` | L | API tokens (phase 3). |
+| `/api/v1/...` | token or session | JSON API — [14-api.md](14-api.md). |
+| `/media/<path>` | – | Uploaded pictures served by Django (phase 6). |
+
 ## 3. Reviews — lifecycle and membership
 
 | Path | Method | Guard | Inputs | Output |

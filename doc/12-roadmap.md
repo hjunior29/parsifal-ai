@@ -301,7 +301,17 @@ Acceptance
 - Two users (one human, one agent token) screen the same set independently;
   the system reports agreement and produces a consolidated selection.
 
-## Phase 9 — In-app documentation of the new features (M) — next
+## Phase 9 — In-app documentation of the new features (M) — ✅ done 2026-10-15
+
+Outcome: app `parsifal.apps.docs` serving `/docs/` from Markdown files in
+`parsifal/apps/docs/content/` (rendered with `Markdown`, cached unless
+`DEBUG`), inside the site layout (masthead, left navigation grouped by
+section, Bootstrap 3 panels). Nine pages: what is new, self-hosting, API
+tokens, JSON API, CLI, MCP server, working with AI agents, systematic mapping
+studies, multiple reviewers and agreement. Header and footer link to it (the
+footer now points to this fork's repository). Tests render every page for
+anonymous and authenticated users, check content/registry parity, 404s and
+that every internal `/docs/` link resolves.
 
 The upstream `help` app (a CMS) is removed in phase 1. This phase brings
 documentation **back into the site**, as static pages that follow the existing

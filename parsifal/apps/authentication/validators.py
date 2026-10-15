@@ -10,6 +10,8 @@ from django.utils.translation import gettext, gettext_lazy as _
 def validate_forbidden_usernames(value):
     forbidden_usernames = {
         "admin",
+        "api",
+        "docs",
         "settings",
         "news",
         "about",
