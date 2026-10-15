@@ -28,6 +28,6 @@ jobs:
         CID=$(docker run -d --rm -v "$PWD/data:/data" -e SECRET_KEY=ci -p 8000:8000 parsifal-ai:ci serve)
         for i in $(seq 1 30); do curl -sf -o /dev/null http://localhost:8000/login/ && break; sleep 2; done
         curl -sf -o /dev/null http://localhost:8000/static/css/parsifal.css
-        curl -sf -H "Authorization: Bearer $(cat token.txt)" http://localhost:8000/api/v1/me | grep '"username":"admin"'
+        curl -sf -H "Authorization: Bearer $(cat token.txt)" http://localhost:8000/api/v1/me | grep -E '"username": ?"admin"'
         docker logs "$CID" | tail -20
         docker stop "$CID"
