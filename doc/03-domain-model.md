@@ -1,0 +1,215 @@
+# 03 — Domain Model
+
+All core entities live in `parsifal/apps/reviews/models.py` (609 lines).
+Supporting entities live in `library`, `authentication`, `invites`,
+`activities`, `blog`, `help` and `core`. `reviews.planning`,
+`reviews.conducting`, `reviews.reporting` and `reviews.settings` have empty
+`models.py` files — they are view-only sub-apps.
+
+## Entity-relationship overview
+
+```mermaid
+erDiagram
+    User ||--o{ Review : "author"
+    User }o--o{ Review : "co_authors"
+    User ||--|| Profile : ""
+    Review }o--o{ Source : "sources"
+    Review ||--o{ Question : "research_questions"
+    Question ||--o{ Question : "parent_question"
+    Review ||--o{ SelectionCriteria : ""
+    Review ||--o{ Keyword : "keywords"
+    Keyword ||--o{ Keyword : "synonym_of"
+    Review ||--o{ SearchSession : ""
+    Source |o--o{ SearchSession : "null = generic string"
+    Review ||--o{ Article : ""
+    Source |o--o{ Article : ""
+    SelectionCriteria |o--o{ Article : "selection_criteria"
+    Review ||--o{ QualityQuestion : ""
+    Review ||--o{ QualityAnswer : ""
+    Article ||--o{ QualityAssessment : ""
+    QualityQuestion ||--o{ QualityAssessment : ""
+    QualityAnswer |o--o{ QualityAssessment : ""
+    Review ||--o{ DataExtractionField : ""
+    DataExtractionField ||--o{ DataExtractionLookup : ""
+    Article ||--o{ DataExtraction : ""
+    DataExtractionField ||--o{ DataExtraction : ""
+    DataExtraction }o--o{ DataExtractionLookup : "select_values"
+    Review ||--o{ Invite : "invites"
+```
+
+Legacy entities not reachable from any view (`SearchResult`,
+`StudySelection`, `Study`, `library.Document.review`) are discussed at the end.
+
+## Review and protocol entities
+
+### `Review`
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `name` | SlugField(255) | URL slug; `unique_together (name, author)`. Generated from `title` on creation (`slugify`, fallback `"literature-review"`, suffix `-1`, `-2`… on collision). Editable in review settings. |
+| `title`, `description` (≤500), `objective` (≤1000) | text | |
+| `author` | FK User (PROTECT) | Main author; only they can rename, transfer, delete, manage access. |
+| `co_authors` | M2M User | Added via accepted invites; can do everything except settings. |
+| `sources` | M2M Source | Digital libraries searched. |
+| `status` | `U` Unpublished / `P` Published | Stored, **never used** by any view. |
+| `quality_assessment_cutoff_score` | float, default 0.0 | See final selection rule. |
+| `population`, `intervention`, `comparison`, `outcome`, `context` | CharField(200) each | PICOC. Comma-separated terms can be imported as keywords. |
+| `create_date`, `last_update` | auto timestamps | |
+
+Key methods (business rules live here, not in a service layer):
+
+| Method | Rule |
+|--------|------|
+| `is_author_or_coauthor(user)` | Authorization predicate used by decorators. |
+| `get_generic_search_string()` | The `SearchSession` with `source=None`; created in memory if absent. |
+| `get_latest_source_search_strings()` | `SearchSession`s with a source, ordered by source name. |
+| `get_source_articles(source_id=None)` | Articles of the review, optionally filtered by source. |
+| `get_duplicate_articles()` | Groups non-duplicated articles by `slugify(title)`; returns groups of size > 1. |
+| `get_accepted_articles()` | `status == ACCEPTED`. |
+| `get_final_selection_articles()` | Accepted articles annotated with `score = Σ answer.weight`; if the review has a QA checklist (≥1 question **and** ≥1 answer) and `cutoff > 0`, keep only `score > cutoff`. Used by data extraction, per-year chart, data-extraction export. |
+| `has_quality_assessment_checklist()` | questions exist and answers exist. |
+| `calculate_quality_assessment_max_score()` | `#questions × max(answer.weight)`. |
+
+### `Source`
+
+Global table (not scoped to a review). `is_default=True` rows are the 7
+digital libraries from `fixtures/source_initial_data.json` (Science@Direct,
+El Compendex, IEEE, ACM, ISI Web of Science, Springer Link, Scopus), shared by
+all reviews. User-created sources are also plain rows, attached to a review
+only through the M2M; `remove_source_from_review` deletes the `Source` row if
+it is not a default (so a custom source is effectively per-review), and for a
+default source deletes the review's articles and search strings from it.
+`set_url()` prefixes `http://` when missing. `search_studies` special-cases
+sources named `Scopus` and `Science@Direct` to offer API search.
+
+### `Question` (research questions)
+
+`question` (≤500), `order`, optional self-FK `parent_question` (UI never sets
+it; `get_child_questions()` exists). Ordering by `order`.
+
+### `SelectionCriteria`
+
+`criteria_type` `I` inclusion / `E` exclusion, `description` (≤200,
+truncated in `save()`). Articles reference one criterion as the reason for
+their status.
+
+### `Keyword`
+
+`description` (≤200), `related_to` ∈ {`P`,`I`,`C`,`O`, blank} (PICO category —
+note: no Context), `synonym_of` self-FK. Top-level keywords have
+`synonym_of=None`. Search string generation
+(`planning.views.generate_search_string`) builds, per PICO category,
+`("kw" OR "syn1" OR "syn2")` and joins categories with ` AND `.
+
+### `SearchSession`
+
+`review`, `source` (nullable), `search_string` (text), `version` (int, always
+1 — never incremented). One row with `source=None` holds the **generic**
+search string built in planning; one row per source holds the **adapted**
+string used in conducting. `search_string_as_html()` bolds AND/OR.
+
+## Studies
+
+### `Article`
+
+The candidate study inside a review (despite the name, any BibTeX entry type).
+
+| Group | Fields |
+|-------|--------|
+| Identity | `review` FK, `source` FK (nullable), `bibtex_key` (≤100) |
+| Bibliographic | `title` (≤1000, indexed), `author`, `journal`, `year` (CharField ≤10, indexed), `pages`, `volume`, `abstract` (≤4000), `document_type`, `doi` (≤50), `url` (≤500), `affiliation`, `author_keywords`, `keywords`, `publisher`, `issn`, `language`, `note` |
+| Selection | `status` ∈ {`U` Unclassified (default), `R` Rejected, `A` Accepted, `D` Duplicated}, `selection_criteria` FK (SET_NULL), `comments` (≤2000) |
+| Extraction | `finished_data_extraction` bool |
+| Audit | `created_at`, `updated_at`, `created_by`, `updated_by` |
+
+Methods: `get_score()` (Σ QA answer weights), `get_quality_assesment()`,
+`get_status_html()` (Bootstrap label markup).
+
+Status transitions are unconstrained: any status can be set directly through
+`save_article_details` or the bulk actions
+(`multiple_articles_action_{accept,reject,unclassify,duplicated,remove}`).
+Duplicate resolution (`resolve_all`) keeps the first article of each title
+group and marks the rest `D`.
+
+### Quality assessment
+
+- `QualityQuestion(review, description ≤255, order)`.
+- `QualityAnswer(review, description ≤255, weight float)`; suggested set
+  `Yes=1.0, Partially=0.5, No=0.0` (`add_suggested_answer`, only if the review
+  has none). Ordered by `-weight`.
+- `QualityAssessment(user nullable, article, question, answer nullable)` —
+  one row per (article, question), `get_or_create`d on first answer. `user` is
+  **never set** by the views (no per-reviewer assessment).
+- Score of an article = Σ `answer.weight` over its assessments.
+
+### Data extraction
+
+- `DataExtractionField(review, description ≤255, field_type, order)` with
+  types `B` boolean, `S` string, `F` float, `I` integer, `D` date, `O` select
+  one, `M` select many. `DataExtractionLookup(field, value ≤1000)` holds
+  options for select types. Changing a field's type wipes existing values.
+- `DataExtraction(user nullable, article, field, value text, select_values M2M)`
+  — one row per (article, field). `set_value(str)` coerces by type:
+  booleans must be `"True"/"False"`; floats accept `,` as decimal separator;
+  integers via `int(float(v))`; dates parsed as `MM/DD/YYYY` and stored as ISO
+  `YYYY-MM-DD`; select-one replaces; **select-many toggles** the given lookup
+  id. `get_value()` returns typed Python values (`""` on failure).
+  `user` is never set.
+
+## People and collaboration
+
+- `authentication.Profile` (table `auth_profile`): one-to-one with `User`,
+  created by a `post_save` signal; `public_email`, `location`, `url`,
+  `institution`; helpers `get_screen_name()`, `get_picture()`,
+  `get_reviews()` (author + co-author reviews sorted by `last_update`),
+  follower helpers backed by `activities.Activity`.
+- `invites.Invite(review, invited_by, invitee nullable, invitee_email, status
+  PENDING/ACCEPTED/REJECTED, code uuid4, date_sent, date_answered)`.
+  `accept(user=None)` adds the invitee to `review.co_authors` atomically.
+  Sign-up with `?invite=<code>` auto-accepts, and pending invites matching the
+  new user's e-mail are linked.
+- `activities.Activity(from_user, to_user, activity_type FOLLOW, content,
+  review, date)` — only `FOLLOW` is used; the home feed is derived from it.
+
+## Library (personal bibliography)
+
+- `library.Document`: a full BibTeX record (entry types `article`…`unpublished`,
+  all standard fields plus `abstract`, `doi`, `isbn`, `issn`, `keywords`,
+  `language`, `url`, `coden`), owned by `user`; optional `review` FK and
+  `shared_folder` FK (**neither is set by any view**).
+- `library.Folder(name, slug, user, documents M2M)`; `unique_together (name, user)`.
+- `library.SharedFolder(name, slug, users through Collaborator)` and
+  `Collaborator(user, shared_folder, access R/W/A, is_owner)` — creation is
+  wired; collaboration management is not.
+- `library.DocumentFile(document, file, filename, size)` — model only.
+
+The library is independent from reviews: importing a BibTeX file into the
+library creates `Document`s, importing into a review creates `Article`s. There
+is no copy between them.
+
+## Content/SaaS entities
+
+`blog.Entry`, `help.Category`, `help.Article` (note the name clash with
+`reviews.Article`), `core.Media` (Open Graph metadata for help articles).
+Scheduled for removal in the fork (ADR-003).
+
+## Legacy / unused entities
+
+| Entity | Evidence | Fork disposition |
+|--------|----------|------------------|
+| `reviews.SearchResult(review, source, search_session, imported_file, documents M2M)` | No references outside `models.py`/migrations. | Drop (migration) or ignore; do not expose in API. |
+| `reviews.StudySelection(review, user nullable, has_finished)` and `reviews.Study(study_selection, document → library.Document, source, status, comments)` | Same. Appears to be an abandoned refactor towards per-reviewer selections over library documents. | Drop; but **the idea (per-reviewer decisions) is exactly what AI-assisted multi-reviewer selection needs** — see [10-methodology.md](10-methodology.md). |
+| `Review.status` | Never read. | Could be repurposed (draft/active/archived) or removed. |
+| `SearchSession.version` | Never incremented. | Could back search-string history. |
+| `Question.parent_question` | Never set. | Keep; API may expose sub-questions. |
+| `QualityAssessment.user`, `DataExtraction.user` | Never set. | Keep nullable; the API should start populating them. |
+
+## Invariants worth encoding in the service layer
+
+1. `Review.name` unique per author; slug regenerated on rename with collision suffix.
+2. A `SearchSession` with `source=None` is the only generic string; at most one per review (the code relies on `[:1]`).
+3. At most one `SearchSession` per (review, source) (`add_source_string` checks existence).
+4. `QualityAssessment` unique per (article, question); `DataExtraction` unique per (article, field) — enforced only by `get_or_create`, not by DB constraints.
+5. `Article.selection_criteria` should belong to the same review (not enforced).
+6. Removing a default source from a review deletes that review's articles from it.
+7. Final selection depends on both `status == A` and the QA cut-off rule above.
