@@ -176,7 +176,7 @@ All guard **L**, under `/library/`:
 | `move/`, `copy/`, `remove_from_folder/`, `delete_documents/` | POST | same as above | redirect |
 | `import_bibtex/` | POST multipart | `bibtex`, `add-to-folder-id`, `redirect` | redirect |
 
-## 8. Coverage map for the fork's API
+## 8. Coverage map for the fork's API (implemented in phase 3 — see [14-api.md](14-api.md))
 
 Every row in sections 3–7 maps to one or more API operations. Rows marked
 "no review scoping" or "no auth" must be fixed in the service layer rather than

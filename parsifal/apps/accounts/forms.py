@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils.translation import gettext, gettext_lazy as _
 
+from parsifal.apps.accounts.models import ApiToken
 from parsifal.apps.authentication.models import Profile
 
 
@@ -51,3 +52,15 @@ class ProfileForm(forms.ModelForm):
         if commit:
             self.instance.user.save()
         return super().save(commit)
+
+
+class ApiTokenForm(forms.ModelForm):
+    name = forms.CharField(
+        label=_("Token name"),
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": _("e.g. Claude Code on my laptop")}),
+        max_length=100,
+    )
+
+    class Meta:
+        model = ApiToken
+        fields = ("name",)

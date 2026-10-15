@@ -119,7 +119,15 @@ Tests
 Acceptance
 - ≥ 90 % coverage on `services/`; existing UI tests still pass.
 
-## Phase 3 — API tokens and JSON API v1 (L) — ADR-002/004
+## Phase 3 — API tokens and JSON API v1 (L) — ADR-002/004 — ✅ done 2026-10-15
+
+Outcome: `accounts.ApiToken` (hashed, shown once; UI at `/settings/tokens/`,
+admin read-only), `BearerTokenAuth` + session auth, `parsifal.api` with 83
+operations under `/api/v1/` (Swagger at `/api/v1/docs`), typed error mapping
+(404/403/409/422), exports as CSV/XLSX/JSON/DOCX, management commands
+`init`, `create_api_token`, `load_default_sources`. 42 new tests (217 total),
+API package at 98 % line coverage, including the end-to-end scenario
+`parsifal/api/tests/test_e2e_full_review.py`. Reference: [14-api.md](14-api.md).
 
 Deliverables
 - `accounts.ApiToken` + migration; `BearerTokenAuth`; `/settings/tokens/`

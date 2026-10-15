@@ -5,6 +5,7 @@ from django.contrib.sitemaps.views import sitemap
 from django.urls import include, path
 from django.views.generic import RedirectView, TemplateView
 
+from parsifal.api.api import api
 from parsifal.apps.authentication import views as auth_views
 from parsifal.apps.core import views as core_views
 from parsifal.apps.core.sitemaps import StaticSitemap
@@ -31,6 +32,7 @@ urlpatterns = [
     path("settings/", include("parsifal.apps.accounts.urls", namespace="settings")),
     path("review_settings/transfer/", reviews_settings_views.transfer, name="transfer_review"),
     path("admin/", admin.site.urls),
+    path("api/v1/", api.urls),
     path("sitemap.xml", sitemap, {"sitemaps": sitemaps}, name="sitemap"),
     path("robots.txt", TemplateView.as_view(template_name="robots.txt", content_type="text/plain")),
     path("invites/", invites_views.UserInviteListView.as_view(), name="user_invites"),

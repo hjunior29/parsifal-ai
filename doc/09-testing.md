@@ -13,8 +13,12 @@
 - Phase 1 replaced the blog tests with sign-up on/off tests → 90.
 - Phase 2 added `reviews/tests/services/` (73 service tests with golden
   `.bib` samples in `reviews/tests/data/`) and conducting view tests for
-  import, bulk actions, QA, extraction, duplicates and exports → **175
-  tests**; the service layer is at 94 % line coverage.
+  import, bulk actions, QA, extraction, duplicates and exports → 175 tests;
+  the service layer is at 94 % line coverage.
+- Phase 3 added `parsifal/api/tests/` (auth, tokens, users, every router,
+  OpenAPI operationId uniqueness, and the end-to-end
+  `test_e2e_full_review.py`), token model/view tests and management command
+  tests → **217 tests**; the API package is at 98 % line coverage.
 - Coverage config: `setup.cfg` `[coverage:run]` with `branch = true`, source
   `parsifal`, omitting `*/migrations/*` and `*/tests/*`.
 - Fixtures: `parsifal/apps/reviews/fixtures/source_initial_data.json` (7
@@ -68,7 +72,7 @@ style unless noted:
 | Component | Test type | Notes |
 |-----------|-----------|-------|
 | Service layer (`parsifal/apps/*/services.py`) | Unit tests with factories, no HTTP | Cover every rule listed in the gaps above as the service functions are introduced. |
-| HTTP API (`parsifal/api/`) | `django.test.TestCase` + `Client` against `/api/v1/...` with token auth | One test module per router; assert status, JSON shape, permission denials (403/404), and DB side effects. Use the OpenAPI schema test to catch accidental contract changes. |
+| HTTP API (`parsifal/api/`) | `ApiTestCase` (`parsifal/api/tests/base.py`): author/co-author/outsider/admin users with Bearer tokens, `self.api(method, path, payload)` helper | One test module per router; assert status, JSON shape, permission denials (403/404), and DB side effects. `test_auth_and_accounts` checks the OpenAPI document and operationId uniqueness. |
 | CLI | `click`/`typer` `CliRunner` tests with a mocked HTTP client, plus a small number of end-to-end tests against `LiveServerTestCase` | Thin client: test argument parsing, output formatting (JSON/table), exit codes. |
 | MCP server | Tool-schema snapshot test + in-process tool invocation tests against a mocked API client | Ensure 1:1 parity with CLI commands via a parity test that diffs the two command inventories. |
 | Migrations | `makemigrations --check` (already in tox) + a test that migrates an empty SQLite DB | Keep `tox -e migrations`. |

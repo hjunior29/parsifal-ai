@@ -7,14 +7,16 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.messages.views import SuccessMessageMixin
 from django.core.files.storage import FileSystemStorage
 from django.http import HttpResponse, HttpResponseBadRequest
-from django.shortcuts import redirect
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext, gettext_lazy as _
-from django.views.generic import RedirectView, TemplateView, UpdateView
+from django.views import View
+from django.views.generic import FormView, RedirectView, TemplateView, UpdateView
 
 from PIL import Image
 
-from parsifal.apps.accounts.forms import ProfileForm, UserEmailForm
+from parsifal.apps.accounts.forms import ApiTokenForm, ProfileForm, UserEmailForm
+from parsifal.apps.accounts.models import ApiToken
 
 logger = logging.getLogger(__name__)
 
@@ -109,3 +111,28 @@ def save_uploaded_picture(request):
     except Exception:
         logger.exception("An error occurred while trying to crop a picture.")
         return HttpResponseBadRequest()
+
+
+class ApiTokenListView(LoginRequiredMixin, FormView):
+    """List the user's API tokens and create new ones. The raw key is rendered once, right after creation."""
+
+    form_class = ApiTokenForm
+    template_name = "accounts/tokens.html"
+
+    def get_context_data(self, **kwargs):
+        kwargs["tokens"] = self.request.user.api_tokens.all()
+        return super().get_context_data(**kwargs)
+
+    def form_valid(self, form):
+        token, raw_key = ApiToken.create_for(self.request.user, form.cleaned_data["name"])
+        messages.success(self.request, _("Token created. Copy it now: it will not be shown again."))
+        context = self.get_context_data(form=self.form_class(), new_token=token, new_token_key=raw_key)
+        return self.render_to_response(context)
+
+
+class ApiTokenRevokeView(LoginRequiredMixin, View):
+    def post(self, request, token_id):
+        token = get_object_or_404(ApiToken, pk=token_id, user=request.user)
+        token.revoke()
+        messages.success(request, _("Token %(name)s was revoked.") % {"name": token.name})
+        return redirect("settings:tokens")

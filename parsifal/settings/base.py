@@ -41,6 +41,8 @@ INSTALLED_APPS = [
     "django.contrib.humanize",
     "compressor",
     "crispy_forms",
+    "ninja",
+    "parsifal.api",
     "parsifal.apps.reviews",
     "parsifal.apps.reviews.planning",
     "parsifal.apps.reviews.conducting",
@@ -193,6 +195,9 @@ DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
 COMPRESS_ENABLED = config("COMPRESS_ENABLED", default=not DEBUG, cast=bool)
 
 CRISPY_TEMPLATE_PACK = "bootstrap3"
+
+NINJA_PAGINATION_PER_PAGE = 100
+NINJA_PAGINATION_MAX_LIMIT = 1000
 
 ELSEVIER_API_KEY = config("ELSEVIER_API_KEY", default="")
 

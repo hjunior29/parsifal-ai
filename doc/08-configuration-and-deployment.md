@@ -83,10 +83,14 @@ and `towncrier` on top of `tests.txt`.
 | Command | File | Purpose |
 |---------|------|---------|
 | `environment` | `apps/core/management/commands/environment.py` | Prints `PARSIFAL_ENVIRONMENT` (used by `bin/deploy`). |
-| `release` | `apps/core/management/commands/release.py` | Prints `parsifal@<version>` (used for Sentry releases). |
+| `release` | `apps/core/management/commands/release.py` | Prints `parsifal@<version>`. |
+| `init` | `apps/core/management/commands/init.py` | Phase 3. Migrate, load default sources, create the administrator (`--username`, `--email`, `--password`; random password printed if omitted), optionally `--token NAME` prints an API token; warns about an insecure `SECRET_KEY`. Idempotent. |
+| `create_api_token` | `apps/core/management/commands/create_api_token.py` | Phase 3. `--user <username> [--name CLI]` prints a new token. |
+| `load_default_sources` | `apps/core/management/commands/load_default_sources.py` | Phase 3. Idempotent alternative to `loaddata source_initial_data`. |
 
-There are no data-management commands; the fork will add `parsifal init`-style
-bootstrap commands (see roadmap).
+Other settings added by the fork: `NINJA_PAGINATION_PER_PAGE = 100`,
+`NINJA_PAGINATION_MAX_LIMIT = 1000` (API list endpoints). The API itself is
+documented in [14-api.md](14-api.md).
 
 ## Upstream deployment (for reference)
 

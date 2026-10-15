@@ -140,6 +140,13 @@ def remove_co_author(*, review, user):
     return review
 
 
+def find_user_by_id(user_id):
+    try:
+        return User.objects.get(pk=user_id, is_active=True)
+    except (User.DoesNotExist, ValueError, TypeError):
+        raise NotFound(f"User {user_id} not found.")
+
+
 def find_user(*, username=None, email=None):
     queryset = User.objects.filter(is_active=True)
     try:

@@ -128,6 +128,10 @@ def import_bibtex(*, review, source_id, content, actor=None):
     return result
 
 
+def get_article(*, review, article_id):
+    return get_child(review.article_set.select_related("source", "selection_criteria"), article_id, label="Article")
+
+
 def _apply_fields(article, fields):
     unknown = set(fields) - set(ARTICLE_FIELD_LIMITS)
     if unknown:

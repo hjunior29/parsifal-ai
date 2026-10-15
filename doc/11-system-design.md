@@ -98,7 +98,7 @@ Rules:
 - Views may be refactored to call services, one view at a time, each with a
   test; this is optional and never blocks the API work.
 
-## 4. Authentication for agents (ADR-004)
+## 4. Authentication for agents (ADR-004) — implemented in phase 3
 
 - Model `accounts.ApiToken(user, name, prefix, key_hash, created_at,
   last_used_at, revoked_at)`. Token string `pfl_` + 40 url-safe random chars;
@@ -114,7 +114,7 @@ Rules:
 - Clients read `PARSIFAL_URL` and `PARSIFAL_TOKEN` (env) or
   `~/.config/parsifal/config.toml` with named profiles.
 
-## 5. JSON API (`parsifal/api/`)
+## 5. JSON API (`parsifal/api/`) — implemented in phase 3 (see [14-api.md](14-api.md) for the final paths)
 
 - New Django app `parsifal.api` with `api.py` (`NinjaAPI(title="Parsifal",
   version="1", urls_namespace="api-v1", auth=[BearerTokenAuth(), SessionAuth()])`),

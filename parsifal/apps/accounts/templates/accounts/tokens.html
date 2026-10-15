@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+
+{% load i18n %}
+
+{% block title %}{% trans "API tokens" %} · Parsifal{% endblock %}
+
+{% block content %}
+  <div class="row">
+    <div class="col-md-3">
+      {% include "accounts/menu.html" %}
+    </div>
+    <div class="col-md-9">
+
+      {% if new_token_key %}
+        <div class="panel panel-success">
+          <div class="panel-heading">
+            <h3 class="panel-title">{% trans "New token" %}: {{ new_token.name }}</h3>
+          </div>
+          <div class="panel-body">
+            <p>{% trans "Copy this token now. For security reasons it is stored hashed and cannot be displayed again." %}</p>
+            <pre id="new-token" style="white-space: pre-wrap; word-break: break-all;">{{ new_token_key }}</pre>
+            <p class="text-muted"><small>{% trans "Use it as" %} <code>Authorization: Bearer {{ new_token_key|slice:":12" }}…</code> {% trans "or set" %} <code>PARSIFAL_TOKEN</code> {% trans "for the CLI and MCP server." %}</small></p>
+          </div>
+        </div>
+      {% endif %}
+
+      <form action="{% url 'settings:tokens' %}" method="post">
+        {% csrf_token %}
+        <div class="panel panel-default">
+          <div class="panel-heading">
+            <h3 class="panel-title">{% trans "Create an API token" %}</h3>
+          </div>
+          <div class="panel-body">
+            <p class="text-muted">{% trans "Tokens let scripts and AI agents use the JSON API on your behalf, with exactly your permissions on each review." %}</p>
+            {% include 'form_vertical.html' with form=form %}
+          </div>
+          <div class="panel-footer">
+            <button type="submit" class="btn btn-success">{% trans "Create token" %}</button>
+          </div>
+        </div>
+      </form>
+
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h3 class="panel-title">{% trans "Your tokens" %}</h3>
+        </div>
+        <table class="table table-v-align-middle">
+          <thead>
+            <tr>
+              <th>{% trans "Name" %}</th>
+              <th>{% trans "Prefix" %}</th>
+              <th>{% trans "Created" %}</th>
+              <th>{% trans "Last used" %}</th>
+              <th>{% trans "Status" %}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for token in tokens %}
+              <tr>
+                <td>{{ token.name }}</td>
+                <td><code>{{ token.prefix }}…</code></td>
+                <td>{{ token.created_at|date:"SHORT_DATETIME_FORMAT" }}</td>
+                <td>{% if token.last_used_at %}{{ token.last_used_at|date:"SHORT_DATETIME_FORMAT" }}{% else %}<span class="text-muted">{% trans "never" %}</span>{% endif %}</td>
+                <td>
+                  {% if token.is_active %}
+                    <span class="label label-success">{% trans "active" %}</span>
+                  {% else %}
+                    <span class="label label-default">{% trans "revoked" %}</span>
+                  {% endif %}
+                </td>
+                <td class="text-right">
+                  {% if token.is_active %}
+                    <form action="{% url 'settings:token_revoke' token.pk %}" method="post" style="display: inline;">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-danger btn-sm">{% trans "Revoke" %}</button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="6" class="text-muted">{% trans "You have no API tokens yet." %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+{% endblock content %}

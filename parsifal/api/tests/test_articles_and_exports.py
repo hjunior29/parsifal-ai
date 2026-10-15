@@ -1,0 +1,128 @@
+import io
+import json
+from pathlib import Path
+
+from openpyxl import load_workbook
+
+from parsifal.api.tests.base import API, ApiTestCase
+from parsifal.apps.reviews.models import Article
+from parsifal.apps.reviews.tests.factories import ArticleFactory, SelectionCriteriaFactory
+
+DATA = Path(__file__).resolve().parents[2] / "apps" / "reviews" / "tests" / "data"
+
+
+class TestArticlesApi(ApiTestCase):
+    def test_import_json_and_file(self):
+        response = self.api(
+            "post",
+            self.review_path("/articles/import"),
+            {"source_id": self.source.pk, "bibtex": (DATA / "scopus_sample.bib").read_text()},
+        )
+        self.assertEqual(201, response.status_code)
+        body = response.json()
+        self.assertEqual((2, 0, []), (body["imported"], body["failed"], body["warnings"]))
+        self.assertEqual(2, len(body["article_ids"]))
+
+        with open(DATA / "ieee_sample.bib", "rb") as handle:
+            response = self.client.post(
+                f"{API}{self.review_path('/articles/import/file')}", {"source_id": self.source.pk, "file": handle}
+            )
+        self.assertEqual(201, response.status_code)
+        self.assertEqual(2, response.json()["imported"])
+        self.assertEqual(4, self.review.article_set.count())
+
+        with self.subTest(msg="empty bibtex is a validation error"):
+            response = self.api(
+                "post", self.review_path("/articles/import"), {"source_id": self.source.pk, "bibtex": " "}
+            )
+            self.assertEqual(422, response.status_code)
+            self.assertEqual("validation_error", response.json()["code"])
+
+    def test_list_pagination_and_filters(self):
+        ArticleFactory.create_batch(3, review=self.review, source=self.source)
+        ArticleFactory(review=self.review, source=self.source, status="A", title="Chosen")
+        body = self.api("get", self.review_path("/articles?limit=2")).json()
+        self.assertEqual((4, 2), (body["count"], len(body["items"])))
+        body = self.api("get", self.review_path("/articles?status=A")).json()
+        self.assertEqual(["Chosen"], [a["title"] for a in body["items"]])
+        self.assertEqual(422, self.api("get", self.review_path("/articles?status=Z")).status_code)
+
+    def test_create_get_update_delete(self):
+        criteria = SelectionCriteriaFactory(review=self.review)
+        response = self.api(
+            "post", self.review_path("/articles"), {"source_id": self.source.pk, "title": "Manual", "year": "2023"}
+        )
+        self.assertEqual(201, response.status_code)
+        article = response.json()
+        self.assertEqual((2023, self.author.username), (article["year_int"], article["created_by"]))
+
+        response = self.api(
+            "patch",
+            self.review_path(f"/articles/{article['id']}"),
+            {"status": "A", "selection_criteria_id": criteria.pk, "comments": "fits"},
+        )
+        self.assertEqual(
+            ("A", criteria.pk, "fits"),
+            tuple(response.json()[k] for k in ("status", "selection_criteria_id", "comments")),
+        )
+        self.assertEqual(article["id"], self.api("get", self.review_path(f"/articles/{article['id']}")).json()["id"])
+        self.assertEqual(204, self.api("delete", self.review_path(f"/articles/{article['id']}")).status_code)
+        self.assertEqual(404, self.api("get", self.review_path(f"/articles/{article['id']}")).status_code)
+
+    def test_bulk_status_and_scoping(self):
+        a1, a2 = ArticleFactory.create_batch(2, review=self.review, source=self.source)
+        foreign = ArticleFactory()
+        response = self.api(
+            "post", self.review_path("/articles/status"), {"ids": [a1.pk, a2.pk], "status": "R", "comments": "no"}
+        )
+        self.assertEqual(2, response.json()["count"])
+        self.assertEqual({"R"}, set(Article.objects.filter(pk__in=[a1.pk, a2.pk]).values_list("status", flat=True)))
+        response = self.api("post", self.review_path("/articles/status"), {"ids": [foreign.pk], "status": "A"})
+        self.assertEqual(404, response.status_code)
+        foreign.refresh_from_db()
+        self.assertEqual("U", foreign.status)
+
+    def test_duplicates(self):
+        a1 = ArticleFactory(review=self.review, source=self.source, title="Dup Title")
+        a2 = ArticleFactory(review=self.review, source=self.source, title="dup title")
+        body = self.api("get", self.review_path("/articles/duplicates")).json()
+        self.assertEqual([[a1.pk, a2.pk]], [[a["id"] for a in group] for group in body["groups"]])
+        marked = self.api("post", self.review_path("/articles/duplicates/resolve"), {}).json()
+        self.assertEqual([a2.pk], [a["id"] for a in marked])
+        self.assertEqual("D", marked[0]["status"])
+
+
+class TestAnalyticsAndExports(ApiTestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        ArticleFactory(review=cls.review, source=cls.source, status="A", year="2020", title="One")
+        ArticleFactory(review=cls.review, source=cls.source, status="R", year="2021", title="Two")
+
+    def test_analytics(self):
+        rows = self.api("get", self.review_path("/analytics/selection-by-source")).json()
+        self.assertEqual([(self.source.name, 2, 1)], [(r["source"], r["total"], r["accepted"]) for r in rows])
+        rows = self.api("get", self.review_path("/analytics/final-by-year")).json()
+        self.assertEqual([{"year": 2020, "count": 1}], rows)
+
+    def test_exports(self):
+        with self.subTest(msg="json"):
+            response = self.api("get", self.review_path("/export/articles.json"))
+            self.assertEqual(200, response.status_code)
+            self.assertEqual({"One", "Two"}, {row["title"] for row in json.loads(response.content)})
+        with self.subTest(msg="csv"):
+            response = self.api("get", self.review_path("/export/articles.csv"))
+            self.assertTrue(response["Content-Type"].startswith("text/csv"))
+            self.assertIn("bibtex_key,title", response.content.decode())
+        with self.subTest(msg="xlsx"):
+            response = self.api("get", self.review_path("/export/extraction.xlsx"))
+            sheet = load_workbook(io.BytesIO(response.content)).active
+            self.assertEqual("article", sheet.cell(row=1, column=1).value)
+            self.assertEqual("One", sheet.cell(row=2, column=1).value)
+        with self.subTest(msg="bad format"):
+            self.assertEqual(422, self.api("get", self.review_path("/export/articles.pdf")).status_code)
+        with self.subTest(msg="docx"):
+            response = self.api("get", self.review_path("/export/report.docx?sections=name,sources"))
+            self.assertEqual(200, response.status_code)
+            self.assertIn(f'filename="{self.review.name}.docx"', response["Content-Disposition"])
+            self.assertEqual(b"PK", response.content[:2])

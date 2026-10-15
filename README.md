@@ -78,11 +78,24 @@ Run the local server:
 python manage.py runserver
 ```
 
+Or bootstrap everything in one step (migrations, default sources, administrator and an API token):
+
+```bash
+python manage.py init --username admin --email you@example.com --token "my laptop"
+```
+
 Run the test suite and linters:
 
 ```bash
 tox
 ```
+
+## API, CLI and agents
+
+Every operation of a review is available through a JSON API at `/api/v1/` (interactive docs at
+`/api/v1/docs`). Create a personal token under *Settings → API tokens* and call the API with
+`Authorization: Bearer <token>`. See [doc/14-api.md](doc/14-api.md) and the rest of the
+[documentation](doc/README.md).
 
 ## License
 
