@@ -38,6 +38,17 @@ The project is currently running on the following versions:
 * Bootstrap 3.4
 * jQuery 3.6
 
+## Running with Docker
+
+```bash
+cp .env.example .env            # set a real SECRET_KEY
+docker compose build
+docker compose run --rm parsifal init --username admin --email you@example.org --token "my laptop"
+docker compose up -d            # http://localhost:8000 — data lives in ./data
+```
+
+See [doc/16-self-hosting.md](doc/16-self-hosting.md) for HTTPS, e-mail, backups and upgrades.
+
 ## Running Locally
 
 To run the project locally first you need to clone the repository:

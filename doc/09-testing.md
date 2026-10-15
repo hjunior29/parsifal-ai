@@ -21,8 +21,12 @@
   tests → 217 tests; the API package is at 98 % line coverage.
 - Phase 4 added the CLI package suite (`clients/parsifal-cli/tests`, 21
   pytest tests, run by `tox -e cli`) and two server-side tests: registry ⇄
-  OpenAPI parity and a live-server end-to-end run of the real CLI → **220
-  Django tests + 21 pytest tests**.
+  OpenAPI parity and a live-server end-to-end run of the real CLI → 220
+  Django tests + 21 pytest tests.
+- Phase 5 added `tests/test_mcp.py` in the client package (tool inventory,
+  schemas, calls, composites) → 220 Django tests + 31 pytest tests.
+- Phase 6 added backup/restore and production-settings tests → **225 Django
+  tests + 31 pytest tests**; the Docker workflow smoke-tests the image in CI.
 - Coverage config: `setup.cfg` `[coverage:run]` with `branch = true`, source
   `parsifal`, omitting `*/migrations/*` and `*/tests/*`.
 - Fixtures: `parsifal/apps/reviews/fixtures/source_initial_data.json` (7

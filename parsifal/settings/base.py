@@ -74,6 +74,7 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -170,7 +171,8 @@ LOCALE_PATHS = [str(BASE_DIR / "locale")]
 # ==============================================================================
 
 STATIC_URL = "/static/"
-STATIC_ROOT = PARSIFAL_DATA_DIR / "static"
+# Collected static files. The Docker image collects them at build time outside the data volume.
+STATIC_ROOT = Path(config("PARSIFAL_STATIC_ROOT", default=str(PARSIFAL_DATA_DIR / "static")))
 STATICFILES_DIRS = [str(BASE_DIR / "static")]
 STATICFILES_FINDERS = (
     "django.contrib.staticfiles.finders.FileSystemFinder",
@@ -185,14 +187,22 @@ STATICFILES_FINDERS = (
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = PARSIFAL_DATA_DIR / "media"
-DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
+
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    # WhiteNoise serves the collected static files from the application process itself (gzip/brotli), so a
+    # self-hosted instance needs no separate web server for /static/.
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
+}
 
 
 # ==============================================================================
 # THIRD-PARTY APPS
 # ==============================================================================
 
-COMPRESS_ENABLED = config("COMPRESS_ENABLED", default=not DEBUG, cast=bool)
+# django-compressor is kept for the templates but disabled by default: WhiteNoise serves the plain static files
+# collected at build/deploy time, which avoids generating bundles at request time inside the container.
+COMPRESS_ENABLED = config("COMPRESS_ENABLED", default=False, cast=bool)
 
 CRISPY_TEMPLATE_PACK = "bootstrap3"
 

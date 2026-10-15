@@ -1,0 +1,23 @@
+services:
+  parsifal:
+    build: .
+    image: parsifal-ai:local
+    ports:
+      - "${PARSIFAL_PORT:-8000}:8000"
+    volumes:
+      # Database (SQLite), uploaded media and backups live here. Back this directory up.
+      - ./data:/data
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DJANGO_SETTINGS_MODULE: parsifal.settings.production
+      PARSIFAL_DATA_DIR: /data
+      DEBUG: "False"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/login/')"]
+      interval: 30s
+      timeout: 5s
+      retries: 5

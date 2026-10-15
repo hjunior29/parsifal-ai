@@ -154,7 +154,7 @@ Acceptance
 ## Phase 4 — CLI (M) — ✅ done 2026-10-15
 
 Outcome: `clients/parsifal-cli/` (package `parsifal-cli`, Python ≥ 3.10,
-typer + httpx + rich). `parsifal_cli/operations.py` is the registry (83
+typer + httpx + rich). `parsifal_cli/operations.py` is the registry (81
 operations); `cli.py` generates the command tree from it; `config.py`
 handles flags/env/profiles; `client.py` resolves `author/slug` references,
 pages with `--all`, maps HTTP errors to exit codes. 21 pytest tests in the
@@ -200,7 +200,15 @@ Acceptance
 - A Claude Code session with the MCP configured can perform the phase 3
   end-to-end script using tools only.
 
-## Phase 6 — Packaging for self-hosting (S/M)
+## Phase 6 — Packaging for self-hosting (S/M) — ✅ done 2026-10-15
+
+Outcome: `Dockerfile` (python:3.10-slim, gunicorn, static collected at build),
+`bin/entrypoint.sh` (`serve` | `init` | `manage`), `docker-compose.yml` with a
+`./data` volume, WhiteNoise for static files, Django-served `/media/`,
+production settings that work without SMTP and with a `PARSIFAL_HTTPS`
+switch, `manage.py backup`/`restore` (SQLite online backup API), Makefile
+targets, a CI job that builds the image, runs `init` and calls the API.
+Reference: [16-self-hosting.md](16-self-hosting.md).
 
 Deliverables
 - `Dockerfile`, `docker-compose.yml` (single service, `./data` volume),

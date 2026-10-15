@@ -2,8 +2,9 @@ from django.apps import apps
 from django.conf import settings
 from django.contrib import admin
 from django.contrib.sitemaps.views import sitemap
-from django.urls import include, path
+from django.urls import include, path, re_path
 from django.views.generic import RedirectView, TemplateView
+from django.views.static import serve
 
 from parsifal.api.api import api
 from parsifal.apps.authentication import views as auth_views
@@ -121,6 +122,7 @@ if settings.DEBUG:
 
         urlpatterns = [path("__silk__/", include("silk.urls"))] + urlpatterns
 
-    from django.conf.urls.static import static
 
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Uploaded media (profile pictures) is served by Django itself: a self-hosted instance runs as a single process
+# without a front web server. The directory only ever holds small images.
+urlpatterns += [re_path(r"^media/(?P<path>.*)$", serve, {"document_root": settings.MEDIA_ROOT})]

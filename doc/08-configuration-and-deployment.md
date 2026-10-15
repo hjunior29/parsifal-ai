@@ -10,7 +10,7 @@ All settings live in `parsifal/settings/`. `manage.py` defaults to
 |--------|---------|-----------------|
 | `base.py` | — | Everything common: apps, middleware, templates, DB, auth, i18n, static/media, third-party keys. |
 | `local.py` | base | Adds `debug_toolbar` and `silk` (profiler) apps + middleware; console e-mail backend. |
-| `production.py` | base | Secure cookies, HSTS, SSL redirect, proxy header; SMTP e-mail from env; Sentry SDK init. |
+| `production.py` | base | Phase 6: security headers/cookies gated by `PARSIFAL_HTTPS`; SMTP when `EMAIL_HOST` is set, console backend otherwise; `CSRF_TRUSTED_ORIGINS`. Used by the Docker image. |
 | `tests.py` | base | MD5 password hasher (speed); `GOOGLE_RECAPTCHA_ENABLED = False`. |
 
 Configuration values are read with `python-decouple` (`config(...)`) from the
@@ -25,14 +25,18 @@ template). `DATABASE_URL` is parsed by `dj-database-url`.
 | `DEBUG` | `True` | Django | |
 | `ALLOWED_HOSTS` | `127.0.0.1,localhost` (CSV) | Django | |
 | `ADMINS` | `""` (`name,email;name,email`) | Django error mail | |
-| `PARSIFAL_DATA_DIR` | `<repo root>/data` (created on startup) | settings | Holds the SQLite file, `media/` and collected `static/`. Added in phase 0. |
+| `PARSIFAL_DATA_DIR` | `<repo root>/data` (created on startup) | settings | Holds the SQLite file, `media/` and (by default) collected `static/`. Added in phase 0. |
+| `PARSIFAL_STATIC_ROOT` | `<PARSIFAL_DATA_DIR>/static` | settings | Phase 6. Docker collects into `/app/staticfiles`, outside the data volume. |
 | `DATABASE_URL` | `sqlite:///<PARSIFAL_DATA_DIR>/parsifal.sqlite3` (upstream: a Postgres URL) | `dj_database_url` | SQLite connections get `journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=5000`, `foreign_keys=ON` via `core/database.py` (ADR-001). |
 | `LANGUAGE_CODE` | `en-us` | i18n | `LANGUAGES` lists en-us and pt-br but `parsifal/locale/` does not exist in the repo. |
 | `TIME_ZONE` | `UTC` | | |
-| `COMPRESS_ENABLED` | `not DEBUG` | django-compressor | |
+| `COMPRESS_ENABLED` | `False` (upstream: `not DEBUG`) | django-compressor | Phase 6: off by default; WhiteNoise serves collected files. |
 | `ELSEVIER_API_KEY` | `""` | Scopus search (`parsifal/utils/elsevier/client.py`) | Optional. |
 | `PARSIFAL_ALLOW_SIGNUP` | `False` | `SignUpView`, header, cover page | Added in phase 1. When `False`, `/signup/` answers 403 unless the request carries a pending invite code; the admin creates accounts (`createsuperuser`, admin site) or users arrive through co-author invites. |
 | `PARSIFAL_ENVIRONMENT` | `local` | context processor, `environment` command | Keep. |
+| `PARSIFAL_HTTPS` | `False` | `production.py` | Phase 6. Enables secure cookies, HSTS and the HTTPS redirect. |
+| `CSRF_TRUSTED_ORIGINS` | empty (CSV) | `production.py` | Phase 6. |
+| `EMAIL_BACKEND`, `DEFAULT_FROM_EMAIL`, `SERVER_EMAIL` | console backend / `Parsifal <noreply@localhost>` | `production.py` | Phase 6. SMTP is used automatically when `EMAIL_HOST` is set. |
 | ~~`GOOGLE_ANALYTICS_UA`, `GOOGLE_RECAPTCHA_*`, `SENTRY_DSN`~~ | — | — | Removed in phase 1 (ADR-003). |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` | required in `production.py` | invites, password reset | Keep optional; self-hosted may use console/file backend. |
 | `EMAIL_BACKEND` | (only in `.env.example`) | not read by settings | `.env.example` lists it but `base.py` never calls `config("EMAIL_BACKEND")`; `local.py` hard-codes the console backend. |
@@ -91,6 +95,12 @@ and `towncrier` on top of `tests.txt`.
 Other settings added by the fork: `NINJA_PAGINATION_PER_PAGE = 100`,
 `NINJA_PAGINATION_MAX_LIMIT = 1000` (API list endpoints). The API itself is
 documented in [14-api.md](14-api.md).
+
+## Deployment (fork)
+
+See [16-self-hosting.md](16-self-hosting.md): `Dockerfile` + `docker-compose.yml`
+(single container, `./data` volume), `bin/entrypoint.sh`, WhiteNoise for
+static files, Django-served `/media/`, `manage.py backup`/`restore`.
 
 ## Upstream deployment (for reference)
 
