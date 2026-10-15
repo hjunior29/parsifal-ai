@@ -188,7 +188,7 @@ Rules:
 - `parsifal docs` prints a condensed workflow guide (planning → conducting →
   reporting) for agents.
 
-## 7. MCP server (`clients/parsifal-cli/parsifal_mcp/`)
+## 7. MCP server (`clients/parsifal-cli/parsifal_mcp/`) — implemented in phase 5
 
 - Same package; entry point `parsifal-mcp`; built with the official `mcp`
   Python SDK (`FastMCP`). Transports: **stdio** (default; what

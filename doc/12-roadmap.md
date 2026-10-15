@@ -122,7 +122,7 @@ Acceptance
 ## Phase 3 — API tokens and JSON API v1 (L) — ADR-002/004 — ✅ done 2026-10-15
 
 Outcome: `accounts.ApiToken` (hashed, shown once; UI at `/settings/tokens/`,
-admin read-only), `BearerTokenAuth` + session auth, `parsifal.api` with 83
+admin read-only), `BearerTokenAuth` + session auth, `parsifal.api` with 81
 operations under `/api/v1/` (Swagger at `/api/v1/docs`), typed error mapping
 (404/403/409/422), exports as CSV/XLSX/JSON/DOCX, management commands
 `init`, `create_api_token`, `load_default_sources`. 42 new tests (217 total),
@@ -176,7 +176,14 @@ Tests
 Acceptance
 - Every API operation reachable from the CLI; `parsifal --help` lists them.
 
-## Phase 5 — MCP server (M)
+## Phase 5 — MCP server (M) — ✅ done 2026-10-15
+
+Outcome: `parsifal_mcp/server.py` generates 81 tools from the registry plus
+`parsifal_articles_screen_batch`, `parsifal_review_protocol` (also a
+`parsifal://reviews/{id}/protocol` resource) and `parsifal_workflow_guide`;
+stdio and streamable-HTTP transports; tool annotations (read-only /
+destructive / idempotent). 10 pytest tests (31 in the package). Reference:
+[15-cli-and-mcp.md](15-cli-and-mcp.md).
 
 Deliverables
 - `parsifal-mcp` entry point (stdio + HTTP) generated from the registry;

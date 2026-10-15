@@ -110,7 +110,45 @@ exposes the same text through its `parsifal_workflow_guide` tool.
 - Run everything with `tox` (env `cli` runs the pytest suite) or
   `python -m pytest clients/parsifal-cli`.
 
-## MCP server
+## MCP server (`parsifal-mcp`)
 
-Phase 5 — see the roadmap. The `parsifal-mcp` entry point is declared in
-`pyproject.toml` and will reuse the registry above.
+`parsifal_mcp/server.py` builds a [FastMCP](https://github.com/modelcontextprotocol/python-sdk)
+server from the same registry: **one tool per API operation**, named
+`parsifal_<operationId>` (e.g. `parsifal_articles_set_status`), with the same
+parameters as the CLI (`review_id` = id or `author/slug`; lists are JSON
+arrays; downloads take `output_path`). Tool annotations mark read-only,
+destructive and idempotent operations so clients can ask for confirmation.
+
+Composite tools (fewer round-trips for agents):
+
+| Tool | Returns |
+|------|---------|
+| `parsifal_articles_screen_batch(review_id, limit=20, offset=0, status="U")` | A page of articles with title/abstract/keywords **and** the review's selection criteria — everything needed to decide, then call `parsifal_articles_set_status`. |
+| `parsifal_review_protocol(review_id)` | The whole protocol as Markdown (also exposed as the resource `parsifal://reviews/{review_id}/protocol`). |
+| `parsifal_workflow_guide()` | The planning → conducting → reporting guide (`parsifal docs`). |
+
+### Install and connect
+
+```bash
+pip install -e "clients/parsifal-cli[mcp]"
+export PARSIFAL_URL=http://localhost:8000 PARSIFAL_TOKEN=pfl_...
+
+# Claude Code (stdio)
+claude mcp add parsifal -e PARSIFAL_URL=$PARSIFAL_URL -e PARSIFAL_TOKEN=$PARSIFAL_TOKEN -- parsifal-mcp
+
+# Codex / other stdio clients: command "parsifal-mcp", env PARSIFAL_URL + PARSIFAL_TOKEN
+# Remote agents: streamable HTTP on http://host:8765/mcp
+parsifal-mcp --transport http --host 0.0.0.0 --port 8765
+```
+
+`parsifal-mcp --url … --token … --profile …` override the environment and the
+config file, exactly like the CLI. The server never touches the database; it
+only talks to the API, so it can run anywhere the API is reachable.
+
+### Tests
+
+`clients/parsifal-cli/tests/test_mcp.py`: tool inventory = registry +
+composites, input schemas and annotations, tool calls against a fake API
+(JSON bodies, review references, downloads, errors as tool errors), the
+composite tools and `parsifal-mcp --help`. The stdio transport was also
+exercised end-to-end with the MCP Python client during development.

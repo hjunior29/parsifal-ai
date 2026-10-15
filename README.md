@@ -103,6 +103,10 @@ pip install -e clients/parsifal-cli
 export PARSIFAL_URL=http://localhost:8000 PARSIFAL_TOKEN=pfl_...
 parsifal review overview --review admin/my-review
 parsifal docs    # the review workflow, command by command
+
+# MCP server for Claude Code, Codex and other agents (same operations as tools)
+pip install -e "clients/parsifal-cli[mcp]"
+claude mcp add parsifal -e PARSIFAL_URL=$PARSIFAL_URL -e PARSIFAL_TOKEN=$PARSIFAL_TOKEN -- parsifal-mcp
 ```
 
 See [doc/14-api.md](doc/14-api.md), [doc/15-cli-and-mcp.md](doc/15-cli-and-mcp.md) and the rest of the

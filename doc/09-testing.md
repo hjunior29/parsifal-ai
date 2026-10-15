@@ -78,7 +78,7 @@ style unless noted:
 | Service layer (`parsifal/apps/*/services.py`) | Unit tests with factories, no HTTP | Cover every rule listed in the gaps above as the service functions are introduced. |
 | HTTP API (`parsifal/api/`) | `ApiTestCase` (`parsifal/api/tests/base.py`): author/co-author/outsider/admin users with Bearer tokens, `self.api(method, path, payload)` helper | One test module per router; assert status, JSON shape, permission denials (403/404), and DB side effects. `test_auth_and_accounts` checks the OpenAPI document and operationId uniqueness. |
 | CLI | pytest + typer `CliRunner` with an `httpx.MockTransport` fake API (`clients/parsifal-cli/tests/conftest.py`), plus `parsifal/api/tests/test_cli_e2e.py` against `LiveServerTestCase` | Thin client: argument parsing, request shaping, output formatting (JSON/table), exit codes. |
-| MCP server | Tool-schema snapshot test + in-process tool invocation tests against a mocked API client | Ensure 1:1 parity with CLI commands via a parity test that diffs the two command inventories. |
+| MCP server | `tests/test_mcp.py`: `FastMCP.list_tools()` inventory = registry + composites, input schemas/annotations, in-process `call_tool` against the fake API | Parity with the CLI is structural: both are generated from `operations.py`. |
 | Migrations | `makemigrations --check` (already in tox) + a test that migrates an empty SQLite DB | Keep `tox -e migrations`. |
 | Data import/export | Golden-file tests with small `.bib` samples; assert XLS/DOCX contents by reading them back | Place samples under `parsifal/apps/reviews/tests/data/`. |
 
