@@ -2,7 +2,17 @@ from ninja import NinjaAPI
 
 from parsifal.api import errors
 from parsifal.api.auth import API_AUTH
-from parsifal.api.v1.routers import accounts, analytics, articles, extraction, mapping, protocol, quality, reviews
+from parsifal.api.v1.routers import (
+    accounts,
+    analytics,
+    articles,
+    decisions,
+    extraction,
+    mapping,
+    protocol,
+    quality,
+    reviews,
+)
 
 api = NinjaAPI(
     title="Parsifal API",
@@ -29,3 +39,4 @@ api.add_router("", extraction.router)
 api.add_router("", articles.router)
 api.add_router("", analytics.router)
 api.add_router("", mapping.router)
+api.add_router("", decisions.router)

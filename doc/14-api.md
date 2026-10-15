@@ -126,6 +126,22 @@ The DOCX report accepts the extra sections `classification_scheme`,
 `quality_assessment` / `data_extraction` / `data_analysis` sections now have
 content.
 
+### Multi-reviewer decisions (phase 8)
+
+| Method & path | operationId |
+|---------------|-------------|
+| `GET /reviews/{rid}/decisions?stage=&user_id=&article_id=&status=` · `POST {ids[], status, stage?, selection_criteria_id?, comments?}` | `decisions_list` · `decisions_record` — records **the caller's** decision; `Article.status` is untouched |
+| `GET /reviews/{rid}/articles/{aid}/decisions` · `DELETE /articles/{aid}/decisions/mine?stage=` | `article_decisions` · `decisions_remove_mine` |
+| `GET /reviews/{rid}/decisions/summary` | `decisions_summary` |
+| `GET /reviews/{rid}/decisions/agreement?stage=&user_a_id=&user_b_id=` | `decisions_agreement` — Cohen's kappa, percent agreement, Landis & Koch label |
+| `GET /reviews/{rid}/decisions/disagreements?stage=` | `decisions_disagreements` |
+| `POST /reviews/{rid}/decisions/consolidate {stage, rule: unanimous | any_include | majority, ids?}` | `decisions_consolidate` — sets `Article.status` where the rule decides |
+
+Recommended flow for an agent: `decisions_record` its screening decisions
+with the criterion as reason; the human reviewer records theirs; both check
+`decisions_agreement` / `decisions_disagreements`; the human runs
+`decisions_consolidate` (or `articles_set_status` for individual overrides).
+
 ### Analytics and exports
 
 | Method & path | operationId |

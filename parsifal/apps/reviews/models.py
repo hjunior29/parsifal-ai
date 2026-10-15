@@ -10,8 +10,6 @@ from django.utils.html import escape
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 
-from parsifal.apps.library.models import Document
-
 
 class Source(models.Model):
     name = models.CharField(max_length=100)
@@ -264,47 +262,8 @@ class SearchSession(models.Model):
 
 
 def search_result_file_upload_to(instance, filename):
+    """Kept only because historical migration 0020 references it; the SearchResult model was removed."""
     return "reviews/{0}/search_result/".format(instance.review.pk)
-
-
-class SearchResult(models.Model):
-    review = models.ForeignKey(Review, on_delete=models.CASCADE)
-    source = models.ForeignKey(Source, on_delete=models.CASCADE)
-    search_session = models.ForeignKey(SearchSession, on_delete=models.CASCADE, null=True)
-    imported_file = models.FileField(upload_to=search_result_file_upload_to, null=True)
-    documents = models.ManyToManyField(Document)
-
-
-class StudySelection(models.Model):
-    review = models.ForeignKey(Review, on_delete=models.CASCADE)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True)
-    has_finished = models.BooleanField(default=False)
-
-    def __str__(self):
-        if self.user:
-            selection = "{0}'s Selection".format(self.user.username)
-        else:
-            selection = "Final Selection"
-        return "{0} ({1})".format(selection, self.review.title)
-
-
-class Study(models.Model):
-    UNCLASSIFIED = "U"
-    REJECTED = "R"
-    ACCEPTED = "A"
-    DUPLICATED = "D"
-    STUDY_STATUS = (
-        (UNCLASSIFIED, "Unclassified"),
-        (REJECTED, "Rejected"),
-        (ACCEPTED, "Accepted"),
-        (DUPLICATED, "Duplicated"),
-    )
-    study_selection = models.ForeignKey(StudySelection, on_delete=models.CASCADE, related_name="studies")
-    document = models.ForeignKey(Document, on_delete=models.CASCADE)
-    source = models.ForeignKey(Source, on_delete=models.CASCADE, null=True)
-    status = models.CharField(max_length=1, choices=STUDY_STATUS, default=UNCLASSIFIED)
-    updated_at = models.DateTimeField(auto_now=True)
-    comments = models.TextField(max_length=2000, blank=True, null=True)
 
 
 class Article(models.Model):
@@ -780,3 +739,42 @@ class ProcessChecklistItem(models.Model):
 
     def __str__(self):
         return self.key
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Multi-reviewer study selection (Kitchenham 6.2.3, Petersen 5.1.2)
+# ---------------------------------------------------------------------------------------------------------------------
+
+
+class StudyDecision(models.Model):
+    """
+    One reviewer's (human or agent) decision about one article at one screening stage. ``Article.status``
+    remains the consolidated decision; these rows make independent screening and agreement measures possible.
+    """
+
+    TITLE_ABSTRACT = "title_abstract"
+    FULL_TEXT = "full_text"
+    STAGES = (
+        (TITLE_ABSTRACT, _("Title and abstract screening")),
+        (FULL_TEXT, _("Full-text screening")),
+    )
+
+    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="decisions")
+    article = models.ForeignKey(Article, on_delete=models.CASCADE, related_name="decisions")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="study_decisions")
+    stage = models.CharField(_("stage"), max_length=20, choices=STAGES, default=TITLE_ABSTRACT)
+    status = models.CharField(_("decision"), max_length=1, choices=Article.ARTICLE_STATUS)
+    selection_criteria = models.ForeignKey(SelectionCriteria, null=True, blank=True, on_delete=models.SET_NULL)
+    comments = models.TextField(_("comments"), max_length=2000, blank=True)
+    decided_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("study decision")
+        verbose_name_plural = _("study decisions")
+        ordering = ("article_id", "stage", "user_id")
+        constraints = (
+            models.UniqueConstraint(fields=("article", "user", "stage"), name="unique_decision_per_reviewer_stage"),
+        )
+
+    def __str__(self):
+        return f"{self.user.username}: {self.get_status_display()} ({self.get_stage_display()})"

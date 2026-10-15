@@ -269,7 +269,19 @@ Acceptance
 - A mapping study can be planned, classified and reported end-to-end via the
   API with bubble-plot data available as JSON.
 
-## Phase 8 — Multi-reviewer decisions and agreement (M/L)
+## Phase 8 — Multi-reviewer decisions and agreement (M/L) — ✅ done 2026-10-15
+
+Outcome (migration `reviews.0040_study_decisions`): `StudyDecision(review,
+article, user, stage title_abstract|full_text, status, criteria, comments)`
+unique per (article, user, stage); the unused `SearchResult`,
+`StudySelection` and `Study` models were dropped. `services/decisions.py`:
+record/remove/list decisions, Cohen's kappa with Landis & Koch labels,
+disagreements, consolidation rules `unanimous` / `any_include` / `majority`
+(sets `Article.status`, attributed to the actor), summary in the review
+overview. API `decisions_*` (8 operations, 111 total) and CLI group
+`decision`; MCP tools follow. Quality assessments, extractions and
+classifications already record the acting user since phases 2 and 7. The
+"AI reviewer" scenario is covered by `parsifal/api/tests/test_decisions.py`.
 
 Deliverables
 - `StudyDecision(review, article, user, stage, status, criteria, comments)`
@@ -289,7 +301,7 @@ Acceptance
 - Two users (one human, one agent token) screen the same set independently;
   the system reports agreement and produces a consolidated selection.
 
-## Phase 9 — In-app documentation of the new features (M)
+## Phase 9 — In-app documentation of the new features (M) — next
 
 The upstream `help` app (a CMS) is removed in phase 1. This phase brings
 documentation **back into the site**, as static pages that follow the existing

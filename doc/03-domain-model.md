@@ -37,8 +37,10 @@ erDiagram
     Review ||--o{ Invite : "invites"
 ```
 
-Legacy entities not reachable from any view (`SearchResult`,
-`StudySelection`, `Study`, `library.Document.review`) are discussed at the end.
+Phase 7 added the mapping-study entities (`ClassificationFacet`, `ClassificationCategory`,
+`ArticleClassification`, `ReviewTestSetArticle`, `ProcessChecklistItem`) and phase 8 added
+`StudyDecision`; the unused upstream `SearchResult`/`StudySelection`/`Study` were removed.
+See [10-methodology.md](10-methodology.md) §4 for their shape.
 
 ## Review and protocol entities
 

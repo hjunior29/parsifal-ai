@@ -61,6 +61,7 @@ mirror the API parameters in kebab-case; `--review` accepts a numeric id or
 | `classification` | `get --article`, `set --article --facet-id --category-ids …` |
 | `test-set` | `get`, `add --title [--doi]`, `update --id`, `delete --id`, `match` |
 | `checklist` | `get`, `set --key --applied/--no-applied [--notes]` |
+| `decision` | `list [--stage --user-id --article-id --status]`, `record --ids … --status [--stage --selection-criteria-id --comments]`, `remove-mine --article`, `article --article`, `summary`, `agreement [--user-a-id --user-b-id]`, `disagreements`, `consolidate [--rule unanimous|any_include|majority] [--ids …]` |
 | `export` | `articles --format csv|xlsx|json -o FILE`, `extraction --format … -o FILE`, `report [--sections …] -o FILE` |
 
 Conventions:

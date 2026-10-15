@@ -169,8 +169,10 @@ documentation, `Article.found_via`, facets/categories/classifications (with
 `multiple` per facet instead of a per-user uniqueness), the test set and the
 process checklist — see `reviews/services/classification.py`,
 `reviews/services/mapping.py`, the `mapping` API router and
-[14-api.md](14-api.md). `StudyDecision` and inter-rater agreement remain for
-phase 8.
+[14-api.md](14-api.md). Phase 8 added `StudyDecision` (per reviewer and
+stage), Cohen's kappa, disagreement listing and consolidation rules — see
+`reviews/services/decisions.py`; the unused `StudySelection`/`Study`/`SearchResult`
+models were removed.
 
 ## 5. Using the indexed guidelines
 

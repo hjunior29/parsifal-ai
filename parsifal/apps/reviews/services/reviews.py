@@ -170,7 +170,7 @@ def review_overview(review):
     """Counts and prerequisites that agents need to decide what to do next."""
     articles = review.article_set
     accepted = review.get_accepted_articles().count()
-    from parsifal.apps.reviews.services import mapping
+    from parsifal.apps.reviews.services import decisions, mapping
 
     return {
         "id": review.pk,
@@ -194,6 +194,7 @@ def review_overview(review):
             "found": review.test_set.filter(matched_article__isnull=False).count(),
         },
         "process_checklist_ratio": mapping.checklist(review)["ratio"],
+        "decisions": decisions.summary(review),
         "articles": {
             "total": articles.count(),
             "unclassified": articles.filter(status="U").count(),

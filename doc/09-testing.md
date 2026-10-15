@@ -28,7 +28,9 @@
 - Phase 6 added backup/restore and production-settings tests → 225 Django
   tests + 31 pytest tests; the Docker workflow smoke-tests the image in CI.
 - Phase 7 added classification/mapping service tests, report-section tests
-  and the mapping API tests → **241 Django tests + 31 pytest tests**.
+  and the mapping API tests → 242 Django tests + 31 pytest tests.
+- Phase 8 added decision service tests (kappa, rules, scoping) and the
+  AI-reviewer API scenario → **251 Django tests + 31 pytest tests**.
 - Coverage config: `setup.cfg` `[coverage:run]` with `branch = true`, source
   `parsifal`, omitting `*/migrations/*` and `*/tests/*`.
 - Fixtures: `parsifal/apps/reviews/fixtures/source_initial_data.json` (7
