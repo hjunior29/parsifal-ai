@@ -7,12 +7,13 @@ records **who** did what, so the human author stays accountable for the review.
 
 ## Set-up that keeps you in control
 
-1. Create a **separate user** for the agent (administrators: *Settings → API
-   tokens* page of that user, `POST /api/v1/users`, or `parsifal user create`),
-   add it as a **co-author** of the review (`member add`), and give it its
-   own token. Everything the agent writes is attributed to that account.
-2. Keep the main authorship: only the main author can delete, rename or
-   transfer a review or manage its members.
+1. Create a **separate user** for the agent (administrators: admin site,
+   `POST /api/v1/users` or `parsifal user create`), add it as a **co-author**
+   of the review (*Review settings → Manage access*, or `member add`), and
+   create a token for it. Everything the agent writes is attributed to that
+   account.
+2. Keep the main authorship: only the main author can delete or rename a
+   review or manage its members.
 3. Prefer **independent decisions** over direct status changes during
    screening (next section), so the agent's judgement can be measured before
    it affects the selection.

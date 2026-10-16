@@ -60,7 +60,6 @@ Paths below are relative to `/api/v1`. `{rid}` = review id.
 | `GET /reviews/{rid}` · `PATCH /reviews/{rid}` (title, description, objective, population, intervention, comparison, outcome, context, quality_assessment_cutoff_score) · `DELETE` (owner) | `reviews_get` · `reviews_update` · `reviews_delete` |
 | `GET /reviews/{rid}/overview` | `reviews_overview` — counts per section and per article status; the first call an agent should make |
 | `PUT /reviews/{rid}/name {name}` (owner) | `reviews_rename` |
-| `POST /reviews/{rid}/transfer {username}` (owner) | `reviews_transfer` |
 | `GET /reviews/{rid}/members` · `POST {username | email}` (owner) · `DELETE /members/{user_id}` (owner, or self to leave) | `members_*` |
 
 ### Protocol (planning)

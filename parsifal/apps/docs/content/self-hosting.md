@@ -42,7 +42,7 @@ gunicorn parsifal.wsgi:application --bind 0.0.0.0:8000 --workers 2
 | `PARSIFAL_ALLOW_SIGNUP` | `False` | Open registration. |
 | `PARSIFAL_HTTPS` | `False` | Secure cookies, HSTS and HTTPS redirect when behind TLS. |
 | `CSRF_TRUSTED_ORIGINS` | empty | Public origin when it differs from the host Django sees. |
-| `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL` | console | Without `EMAIL_HOST`, e-mails (password reset, invites) are written to the log. |
+| `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL` | console | Without `EMAIL_HOST`, e-mails (password reset) are written to the log. |
 
 ## HTTPS
 

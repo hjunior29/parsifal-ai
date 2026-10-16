@@ -158,9 +158,7 @@ USE_L10N = True
 
 USE_TZ = True
 
-LANGUAGES = (("en-us", _("English")), ("pt-br", _("Brazilian Portuguese")))
-
-LOCALE_PATHS = [str(BASE_DIR / "locale")]
+LANGUAGES = (("en-us", _("English")),)
 
 
 # ==============================================================================

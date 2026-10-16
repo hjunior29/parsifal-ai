@@ -9,7 +9,7 @@ document at `/api/v1/openapi.json`.
 - Authenticate with `Authorization: Bearer <token>` ([API tokens](/docs/api-tokens/))
   or with your browser session.
 - You see the reviews you take part in; a review you are not part of answers
-  `404`. Operations reserved to the main author (delete, rename, transfer,
+  `404`. Operations reserved to the main author (delete, rename,
   manage members) answer `403` for co-authors.
 - JSON in and out; `PATCH` sends only the fields to change; `DELETE` answers
   `204`; creations answer `201`.
@@ -25,12 +25,12 @@ document at `/api/v1/openapi.json`.
 | Resource | Paths |
 |----------|-------|
 | Account | `/me`, `/tokens`, `/users` (administrators), `/sources/defaults` |
-| Reviews | `/reviews`, `/reviews/{id}`, `/overview`, `/name`, `/transfer`, `/members` |
+| Reviews | `/reviews`, `/reviews/{id}`, `/overview`, `/name`, `/members` |
 | Protocol | `/questions`, `/keywords` (+ `/import-picoc`), `/search-string` (+ `/generate`), `/sources` (+ `/search-strings`, `/{id}/search-string`, `/{id}/search`), `/criteria` |
 | Quality assessment | `/quality/questions`, `/quality/answers` (+ `/suggested`), `/quality/max-score`, `/quality/cutoff`, `/quality/summary`, `/articles/{id}/quality` |
 | Data extraction | `/extraction/fields`, `/articles/{id}/extraction` (+ `/done`) |
 | Articles | `/articles` (list, create), `/articles/{id}`, `/articles/status`, `/articles/import`, `/articles/import/file`, `/articles/duplicates` (+ `/resolve`) |
-| Mapping studies | `/facets` (+ templates, categories), `/articles/{id}/classification`, `/analytics/facets/{id}/frequencies`, `/analytics/facet-matrix`, `/test-set`, `/checklist` |
+| Classification (optional) | `/facets` (+ templates, categories), `/articles/{id}/classification`, `/analytics/facets/{id}/frequencies`, `/analytics/facet-matrix`, `/test-set`, `/checklist` |
 | Multiple reviewers | `/decisions`, `/articles/{id}/decisions`, `/decisions/agreement`, `/decisions/disagreements`, `/decisions/consolidate` |
 | Analytics and exports | `/analytics/selection-by-source`, `/analytics/final-by-year`, `/export/articles.{csv,xlsx,json}`, `/export/extraction.{csv,xlsx,json}`, `/export/report.docx` |
 

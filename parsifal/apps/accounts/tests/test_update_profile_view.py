@@ -21,7 +21,7 @@ class TestUpdateProfileView(TestCase):
         with self.subTest(msg="Test get status code"):
             self.assertEqual(200, response.status_code)
 
-        parts = ("csrfmiddlewaretoken", "first_name", "last_name", "public_email", "VITOR")
+        parts = ("csrfmiddlewaretoken", "first_name", "last_name", "VITOR")
         for part in parts:
             with self.subTest(msg="Test response body", part=part):
                 self.assertContains(response, part)
@@ -30,10 +30,6 @@ class TestUpdateProfileView(TestCase):
         data = {
             "first_name": "John",
             "last_name": "Doe",
-            "public_email": "john.doe@example.com",
-            "url": "https://example.com",
-            "institution": "University of Oulu",
-            "location": "Oulu",
         }
         self.client.force_login(self.user)
         response = self.client.post(self.url, data, follow=True)
@@ -51,7 +47,7 @@ class TestUpdateProfileView(TestCase):
                 self.assertContains(response, f'value="{value}"')
 
     def test_post_fail(self):
-        data = {"url": "x" * 100}  # invalid url with 100 chars
+        data = {"first_name": "x" * 200}  # first name is limited to 150 characters
         self.client.force_login(self.user)
         response = self.client.post(self.url, data)
 
@@ -59,4 +55,4 @@ class TestUpdateProfileView(TestCase):
             self.assertEqual(200, response.status_code)
 
         with self.subTest(msg="Test error message"):
-            self.assertContains(response, "Ensure this value has at most 50 characters (it has 100).")
+            self.assertContains(response, "Ensure this value has at most 150 characters (it has 200).")

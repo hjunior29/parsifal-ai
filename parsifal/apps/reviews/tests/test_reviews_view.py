@@ -11,35 +11,22 @@ class TestReviewsView(TestCase):
         cls.review = ReviewFactory(title="TEST_REVIEW")
         cls.url = reverse("reviews", args=(cls.review.author.username,))
 
-    def test_get_success(self):
+    def test_login_required(self):
         response = self.client.get(self.url)
-        with self.subTest(msg="Test get status code"):
-            self.assertEqual(200, response.status_code)
+        self.assertEqual(302, response.status_code)
 
-        with self.subTest(msg="Test unpublished review not visible"):
-            self.assertNotContains(response, self.review.title)
-
-    def test_get_success_authenticated(self):
+    def test_own_page_lists_reviews(self):
         self.client.force_login(self.review.author)
         response = self.client.get(self.url)
         with self.subTest(msg="Test get status code"):
             self.assertEqual(200, response.status_code)
-
-        with self.subTest(msg="Test unpublished review visible to author"):
+        with self.subTest(msg="Test review visible to author"):
             self.assertContains(response, self.review.title)
-
         with self.subTest(msg="Test review type column"):
             self.assertContains(response, "Literature review")
 
-    def test_get_success_authenticated_other_user(self):
-        """
-        Test if only the authenticated author can see the unpublished review
-        """
+    def test_other_users_pages_do_not_exist(self):
+        """No public profiles: another user's page is a 404 (not even its existence is revealed)."""
         user = UserFactory()
         self.client.force_login(user)
-        response = self.client.get(self.url)
-        with self.subTest(msg="Test get status code"):
-            self.assertEqual(200, response.status_code)
-
-        with self.subTest(msg="Test unpublished review only visible to author"):
-            self.assertNotContains(response, self.review.title)
+        self.assertEqual(404, self.client.get(self.url).status_code)

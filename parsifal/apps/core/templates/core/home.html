@@ -28,7 +28,7 @@
                   <td><a href="{{ review.get_absolute_url }}">{{ review.title }}</a></td>
                   <td>{% if review.is_mapping_study %}<span class="label label-info">Mapping study</span>{% else %}<span class="label label-default">Literature review</span>{% endif %}</td>
                   <td>
-                    <a href="{% url 'reviews' review.author.username %}">{{ review.author.profile.get_screen_name }}</a>{% for author in review.co_authors.all %}, <a href="{% url 'reviews' author.username %}">{{ author.profile.get_screen_name }}</a>{% endfor %}
+                    {{ review.author.profile.get_screen_name }}{% for author in review.co_authors.all %}, {{ author.profile.get_screen_name }}{% endfor %}
                   </td>
                   <td>{{ review.last_update|date:"D d M Y" }}</td>
                 </tr>

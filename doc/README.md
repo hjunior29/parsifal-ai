@@ -34,7 +34,7 @@ documents are in English.
 | 14 | [JSON API v1](14-api.md) | Authentication with tokens, conventions, every resource and operationId, curl walkthrough, bootstrap commands. |
 | 15 | [CLI and MCP server](15-cli-and-mcp.md) | Installing and configuring `parsifal`, the command tree, conventions and exit codes, agent example; `parsifal-mcp` tools, composites and transports. |
 | 16 | [Self-hosting](16-self-hosting.md) | Docker and plain-Python deployment, environment variables, HTTPS, e-mail, backups, upgrades, security checklist. |
-| — | [Decisions (ADRs)](decisions.md) | SQLite · API-first · trim SaaS · single admin + tokens · Python ≥ 3.10, Django 4.2 for now · SLR+SMS · docs in English. |
+| — | [Decisions (ADRs)](decisions.md) | SQLite · API-first · trim SaaS · single admin + tokens · Python ≥ 3.10, Django 4.2 for now · SLR+SMS · docs in English · second trimming round (no public profiles/invites/transfer/Scopus). |
 
 In-app user documentation for the new features is served by the instance itself at `/docs/` (`parsifal/apps/docs/`).
 

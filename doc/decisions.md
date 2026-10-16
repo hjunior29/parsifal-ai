@@ -160,3 +160,28 @@ Project documentation (this folder) is written in English, in Markdown, one
 topic per file, indexed from `doc/README.md`. Code comments and identifiers
 are English. Conversation with the maintainer may be in Portuguese; artefacts
 are not.
+
+---
+
+## ADR-008 — Second trimming round: no public profiles, no invites, no transfer, no Scopus
+
+**Date:** 2026-10-16 · **Status:** accepted
+
+**Context.** After phases 0–9 the maintainer reviewed the remaining inherited
+features and judged several of them unnecessary for a self-hosted instance
+used by one researcher plus a few collaborators and agents.
+
+**Decision.** Remove: e-mail invitations (replaced by a "Manage access" page
+where the main author adds existing accounts by username), ownership
+transfer (UI, service, API, CLI), the Scopus/Elsevier search integration,
+profile pictures, the public profile fields (public e-mail, location, URL,
+institution), the public `/<username>/` page (now the logged-in user's own
+review list only) and the never-functional "Published reviews" panel, and
+the advertised but untranslated pt-br language. Keep: the `library` app,
+sitemaps/About/Support, password reset by e-mail.
+
+**Consequences.** `django.contrib.sites`, `Pillow` and the `invites` app are
+gone; upstream databases keep orphan `invites_*` tables and the removed
+`auth_profile` columns are dropped by `authentication.0011`. Accounts are
+created by administrators (admin site, API, CLI); agents get their own account
+and are added as co-authors.

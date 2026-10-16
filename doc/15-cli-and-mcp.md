@@ -46,7 +46,7 @@ mirror the API parameters in kebab-case; `--review` accepts a numeric id or
 | (root) | `me`, `version`, `docs` (prints the workflow guide), `config show|set` |
 | `token` | `list`, `create --name`, `revoke --id` |
 | `user` | `list`, `create --username --email [--password …]` (administrators) |
-| `review` | `list [--author --name --q --limit --offset --all]`, `create`, `get`, `overview`, `update`, `delete`, `rename --name`, `transfer --username` |
+| `review` | `list [--author --name --q --limit --offset --all]`, `create`, `get`, `overview`, `update`, `delete`, `rename --name` |
 | `member` | `list`, `add --username|--email`, `remove --user-id` |
 | `question` | `list`, `create --description [--parent-id]`, `update --id`, `delete --id`, `reorder --ids …` |
 | `keyword` | `list`, `create --description [--related-to P|I|C|O] [--synonyms …]`, `update --id`, `delete --id`, `import-picoc` |

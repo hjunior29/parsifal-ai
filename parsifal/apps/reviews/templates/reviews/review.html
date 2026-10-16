@@ -48,7 +48,7 @@
           </li>
           {% for author in review.co_authors.all %}
             <li  class="list-group-item" data-user-id="{{ author.id }}">
-              <a href="{% url 'reviews' author.username %}">{{ author.profile.get_screen_name }}</a>
+              {{ author.profile.get_screen_name }}
               {% if user.id == review.author.id %}
                 <a href="javascript:void(0);" class="js-remove-author text-danger pull-right">
                   <span class="glyphicon glyphicon-remove"></span>

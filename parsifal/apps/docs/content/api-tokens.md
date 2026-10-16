@@ -44,7 +44,8 @@ tokens that are no longer needed.
 - Treat tokens like passwords: environment variables or the CLI's config file
   (`~/.config/parsifal/config.toml`, created with mode 600), never in
   repositories or chat transcripts.
-- Give an AI agent **its own user account and token** (an administrator can
-  create the account under *Settings → API tokens* of that user, or with
-  `POST /api/v1/users`). Decisions the agent records are then attributed to it
-  and can be compared with yours — see [Multiple reviewers](/docs/multi-reviewer/).
+- Give an AI agent **its own user account and token** (an administrator creates
+  the account in the admin site or with `POST /api/v1/users` / `parsifal user
+  create`, then adds it as co-author under *Review settings → Manage access*).
+  Decisions the agent records are then attributed to it and can be compared
+  with yours — see [Multiple reviewers](/docs/multi-reviewer/).

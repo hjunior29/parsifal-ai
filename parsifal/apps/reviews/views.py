@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import Http404, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse as r
 from django.utils.text import slugify
@@ -12,10 +12,13 @@ from parsifal.apps.reviews.forms import CreateReviewForm, ReviewForm
 from parsifal.apps.reviews.models import Review
 
 
+@login_required
 def reviews(request, username):
-    user = get_object_or_404(User, username__iexact=username)
-    user_reviews = user.profile.get_reviews()
-    return render(request, "reviews/reviews.html", {"user_reviews": user_reviews, "page_user": user})
+    """The current user's reviews. There are no public profiles on a self-hosted instance."""
+    if username.lower() != request.user.username.lower():
+        raise Http404
+    user_reviews = request.user.profile.get_reviews()
+    return render(request, "reviews/reviews.html", {"user_reviews": user_reviews, "page_user": request.user})
 
 
 @login_required
