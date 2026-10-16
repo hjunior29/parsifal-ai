@@ -6,8 +6,8 @@ from .base import *
 # CORE SETTINGS
 # ==============================================================================
 
-# Debug tooling is optional: a venv built without requirements/local.txt (or without setuptools, which
-# django-silk 4.x needs for pkg_resources) must still be able to run the project with these settings.
+# Debug tooling is optional: a venv built without requirements/local.txt must still run with these settings.
+# (silk < 5 also needed pkg_resources, which modern setuptools no longer ships; local.txt pins silk 5.x.)
 from importlib.util import find_spec  # noqa: E402
 
 if find_spec("debug_toolbar"):
