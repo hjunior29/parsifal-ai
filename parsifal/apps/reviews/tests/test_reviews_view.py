@@ -28,6 +28,9 @@ class TestReviewsView(TestCase):
         with self.subTest(msg="Test unpublished review visible to author"):
             self.assertContains(response, self.review.title)
 
+        with self.subTest(msg="Test review type column"):
+            self.assertContains(response, "Literature review")
+
     def test_get_success_authenticated_other_user(self):
         """
         Test if only the authenticated author can see the unpublished review
