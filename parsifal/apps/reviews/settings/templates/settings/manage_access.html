@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% load i18n %}
+
+{% block title %}{% trans "Manage access" %} · {{ review.title }}{% endblock %}
+
+{% block content %}
+  {% include "reviews/review_header.html" %}
+  <div class="row">
+    <div class="col-md-3">
+      {% include "settings/includes/menu.html" with menu="manage_access" %}
+    </div>
+    <div class="col-md-9">
+
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h3 class="panel-title">{% trans "Authors" %}</h3>
+        </div>
+        <table class="table table-v-align-middle">
+          <thead>
+            <tr>
+              <th>{% trans "User" %}</th>
+              <th>{% trans "Role" %}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>{{ review.author.profile.get_screen_name }} <small class="text-muted">({{ review.author.username }})</small></td>
+              <td><span class="label label-primary">{% trans "Main author" %}</span></td>
+              <td></td>
+            </tr>
+            {% for author in review.co_authors.all %}
+              <tr>
+                <td>{{ author.profile.get_screen_name }} <small class="text-muted">({{ author.username }})</small></td>
+                <td><span class="label label-default">{% trans "Co-author" %}</span></td>
+                <td class="text-right">
+                  <form method="post" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="remove">
+                    <input type="hidden" name="user_id" value="{{ author.pk }}">
+                    <button type="submit" class="btn btn-danger btn-sm">{% trans "Remove" %}</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add">
+        <div class="panel panel-default">
+          <div class="panel-heading">
+            <h3 class="panel-title">{% trans "Add a co-author" %}</h3>
+          </div>
+          <div class="panel-body">
+            <p class="text-muted">{% trans "Co-authors can edit the protocol, select studies, assess quality and extract data. An AI agent with its own account can be added here too; its decisions are then attributed to it." %}</p>
+            <div class="form-group">
+              <label for="id_username" class="control-label">{% trans "Username of an existing account" %}</label>
+              <input type="text" name="username" id="id_username" class="form-control" required>
+              <span class="help-block">{% trans "Accounts are created by the administrator (admin site, API or command line)." %}</span>
+            </div>
+          </div>
+          <div class="panel-footer">
+            <button type="submit" class="btn btn-success">{% trans "Add co-author" %}</button>
+          </div>
+        </div>
+      </form>
+
+    </div>
+  </div>
+{% endblock content %}

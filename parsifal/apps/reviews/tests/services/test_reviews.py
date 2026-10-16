@@ -84,21 +84,6 @@ class TestMembershipAndTransfer(TestCase):
         with self.assertRaises(NotFound):
             reviews.remove_co_author(review=self.review, user=self.outsider)
 
-    def test_transfer(self):
-        Review.objects.create(author=self.co_author, name="shared", title="Collision")  # new owner's namespace
-        reviews.transfer_review(review=self.review, actor=self.author, to_user=self.co_author)
-        self.review.refresh_from_db()
-        self.assertEqual(self.co_author, self.review.author)
-        self.assertEqual("shared-1", self.review.name)
-        self.assertIn(self.author, self.review.co_authors.all())
-        self.assertNotIn(self.co_author, self.review.co_authors.all())
-
-    def test_transfer_guards(self):
-        with self.assertRaises(PermissionDenied):
-            reviews.transfer_review(review=self.review, actor=self.co_author, to_user=self.outsider)
-        with self.assertRaises(ValidationError):
-            reviews.transfer_review(review=self.review, actor=self.author, to_user=self.author)
-
     def test_find_user(self):
         self.assertEqual(self.author, reviews.find_user(username=self.author.username.upper()))
         self.assertEqual(self.author, reviews.find_user(email=self.author.email))

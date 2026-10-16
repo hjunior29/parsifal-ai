@@ -8,14 +8,6 @@
   <script>
     $(function () {
 
-      $("#id_user").change(function () {
-        if ($(this).val() !== "") {
-          $("#confirm-transfer").prop("disabled", false);
-        }
-        else {
-          $("#confirm-transfer").prop("disabled", true);
-        }
-      });
 
       $("#enable-confirm-deletion").click(function () {
         if ($(this).is(":checked")) {
@@ -64,11 +56,6 @@
         </div>
         <ul class="list-group">
           <li class="list-group-item">
-            <button type="button" class="btn btn-danger pull-right" data-toggle="modal" data-target="#transfer-review">{% translate "Transfer" %}</button>
-            <p><strong>{% translate "Transfer ownership" %}</strong></p>
-            <p style="margin-bottom: 0;">{% translate "Transfer this review to another user." %}</p>
-          </li>
-          <li class="list-group-item">
             <button type="button" class="btn btn-danger pull-right" data-toggle="modal" data-target="#delete-review">{% translate "Delete" %}</button>
             <p><strong>{% translate "Delete this review" %}</strong></p>
             <p style="margin-bottom: 0;">{% translate "Once you delete a review, there is no going back. Please be certain." %}</p>
@@ -76,27 +63,6 @@
         </ul>
       </div>
 
-      <form method="post" action="{% url 'transfer_review' %}">
-        {% csrf_token %}
-        <input type="hidden" name="review-id" value="{{ review.pk }}">
-        <div class="modal fade" id="transfer-review" tabindex="-1" role="dialog" aria-labelledby="transfer-review-title" aria-hidden="true">
-          <div class="modal-dialog">
-            <div class="modal-content">
-              <div class="modal-header">
-                <button type="button" class="close" data-dismiss="modal" aria-label="{% translate "Close" %}"><span aria-hidden="true">&times;</span></button>
-                <h4 class="modal-title" id="transfer-review-title">{% translate "Transfer ownership" %}</h4>
-              </div>
-              <div class="modal-body">
-                <label for="id_user" class="control-label">{% translate "New owner's Parsifal username:" %}</label>
-                <input type="text" id="id_user" name="transfer-user" class="form-control">
-              </div>
-              <div class="modal-footer">
-                <button type="submit" id="confirm-transfer" class="btn btn-danger btn-block">{% translate "Transfer ownership" %}</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </form>
 
       <form method="post" action="{% url "delete_review" review.author.username review.name %}" id="formDeleteReview">
         {% csrf_token %}

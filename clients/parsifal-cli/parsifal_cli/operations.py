@@ -216,15 +216,6 @@ OPERATIONS = (
         (REVIEW, B("name", required=True, help="New slug.")),
     ),
     Operation(
-        "reviews_transfer",
-        "POST",
-        "/reviews/{review_id}/transfer",
-        ("review",),
-        "transfer",
-        "Transfer ownership to another user; you become a co-author.",
-        (REVIEW, B("username", required=True)),
-    ),
-    Operation(
         "members_list",
         "GET",
         "/reviews/{review_id}/members",

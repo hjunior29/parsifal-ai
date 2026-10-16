@@ -36,7 +36,6 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "django.contrib.sites",
     "django.contrib.sitemaps",
     "django.contrib.humanize",
     "compressor",
@@ -52,7 +51,6 @@ INSTALLED_APPS = [
     "parsifal.apps.authentication",
     "parsifal.apps.core",
     "parsifal.apps.docs",
-    "parsifal.apps.invites",
     "parsifal.apps.library",
 ]
 
@@ -61,8 +59,6 @@ INTERNAL_IPS = ["127.0.0.1"]
 ROOT_URLCONF = "parsifal.urls"
 
 WSGI_APPLICATION = "parsifal.wsgi.application"
-
-SITE_ID = 1
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

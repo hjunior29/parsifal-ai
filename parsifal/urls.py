@@ -10,7 +10,6 @@ from parsifal.api.api import api
 from parsifal.apps.authentication import views as auth_views
 from parsifal.apps.core import views as core_views
 from parsifal.apps.core.sitemaps import StaticSitemap
-from parsifal.apps.invites import views as invites_views
 from parsifal.apps.reviews import views as reviews_views
 from parsifal.apps.reviews.conducting import views as reviews_conducting_views
 from parsifal.apps.reviews.planning import views as reviews_planning_views
@@ -32,21 +31,17 @@ urlpatterns = [
     path("library/", include("parsifal.apps.library.urls", namespace="library")),
     path("docs/", include("parsifal.apps.docs.urls", namespace="docs")),
     path("settings/", include("parsifal.apps.accounts.urls", namespace="settings")),
-    path("review_settings/transfer/", reviews_settings_views.transfer, name="transfer_review"),
     path("admin/", admin.site.urls),
     path("api/v1/", api.urls),
     path("sitemap.xml", sitemap, {"sitemaps": sitemaps}, name="sitemap"),
     path("robots.txt", TemplateView.as_view(template_name="robots.txt", content_type="text/plain")),
-    path("invites/", invites_views.UserInviteListView.as_view(), name="user_invites"),
-    path("invites/<int:invite_id>/accept/", invites_views.AcceptUserInviteView.as_view(), name="accept_user_invite"),
-    path("invites/<int:invite_id>/reject/", invites_views.RejectUserInviteView.as_view(), name="reject_user_invite"),
-    path("invites/<uuid:code>/", invites_views.InviteDetailView.as_view(), name="invite"),
     # Review URLs
     path("<str:username>/<str:review_name>/", reviews_views.review, name="review"),
     path("<str:username>/<str:review_name>/settings/", reviews_settings_views.settings, name="settings"),
     path(
-        "<str:username>/<str:review_name>/settings/invites/",
-        include("parsifal.apps.invites.urls", namespace="invites"),
+        "<str:username>/<str:review_name>/settings/access/",
+        reviews_settings_views.ManageAccessView.as_view(),
+        name="manage_access",
     ),
     path(
         "<str:username>/<str:review_name>/settings/delete/",

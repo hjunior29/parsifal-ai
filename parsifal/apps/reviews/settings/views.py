@@ -1,18 +1,18 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.auth.models import User
 from django.db import transaction
-from django.http import HttpResponseBadRequest
 from django.shortcuts import redirect, render
 from django.urls import reverse as r
 from django.utils.text import slugify
 from django.utils.translation import gettext
 from django.views import View
 
+from parsifal.apps.core.exceptions import DomainError
 from parsifal.apps.reviews.decorators import main_author_required
 from parsifal.apps.reviews.mixins import MainAuthorRequiredMixin, ReviewMixin
 from parsifal.apps.reviews.models import Review
+from parsifal.apps.reviews.services import reviews as review_services
 from parsifal.apps.reviews.settings.forms import ReviewSettingsForm
 
 
@@ -39,35 +39,6 @@ def settings(request, username, review_name):
     return render(request, "settings/review_settings.html", {"review": review, "form": form})
 
 
-@main_author_required
-@login_required
-def transfer(request):
-    try:
-        review_id = request.POST["review-id"]
-        transfer_user_username = request.POST["transfer-user"]
-        review = Review.objects.get(pk=review_id)
-        try:
-            transfer_user = User.objects.get(username=transfer_user_username)
-        except Exception:
-            messages.warning(request, "User not found.")
-            return redirect("settings", review.author.username, review.name)
-
-        current_user = request.user
-        if current_user != transfer_user:
-            if transfer_user in review.co_authors.all():
-                review.co_authors.remove(transfer_user)
-            review.author = transfer_user
-            review.co_authors.add(current_user)
-            review.save()
-            return redirect("review", review.author.username, review.name)
-        else:
-            messages.warning(request, "Hey! You can't transfer the review to yourself.")
-            return redirect("settings", review.author.username, review.name)
-
-    except Exception:
-        return HttpResponseBadRequest("Something went wrong.")
-
-
 class DeleteReviewView(LoginRequiredMixin, MainAuthorRequiredMixin, ReviewMixin, View):
     @transaction.atomic()
     def post(self, request, *args, **kwargs):
@@ -79,3 +50,27 @@ class DeleteReviewView(LoginRequiredMixin, MainAuthorRequiredMixin, ReviewMixin,
         self.review.delete()
         messages.success(request, gettext("The review was deleted with success."))
         return redirect(request.user)
+
+
+class ManageAccessView(LoginRequiredMixin, MainAuthorRequiredMixin, ReviewMixin, View):
+    """Co-authors of a review: the main author adds existing accounts by username and removes them."""
+
+    template_name = "settings/manage_access.html"
+
+    def get(self, request, *args, **kwargs):
+        return render(request, self.template_name, {"review": self.review})
+
+    def post(self, request, *args, **kwargs):
+        action = request.POST.get("action")
+        try:
+            if action == "add":
+                user = review_services.find_user(username=request.POST.get("username", "").strip())
+                review_services.add_co_author(review=self.review, user=user)
+                messages.success(request, gettext("%(user)s is now a co-author.") % {"user": user.username})
+            elif action == "remove":
+                user = review_services.find_user_by_id(request.POST.get("user_id"))
+                review_services.remove_co_author(review=self.review, user=user)
+                messages.success(request, gettext("%(user)s was removed from the review.") % {"user": user.username})
+        except DomainError as error:
+            messages.error(request, str(error))
+        return redirect("manage_access", self.review.author.username, self.review.name)

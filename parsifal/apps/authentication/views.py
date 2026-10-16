@@ -1,10 +1,9 @@
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
-from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect
 from django.utils.decorators import method_decorator
-from django.utils.functional import cached_property
 from django.utils.translation import gettext as _
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_protect
@@ -12,8 +11,6 @@ from django.views.decorators.debug import sensitive_post_parameters
 from django.views.generic import FormView
 
 from parsifal.apps.authentication.forms import SignUpForm
-from parsifal.apps.invites.constants import InviteStatus
-from parsifal.apps.invites.models import Invite
 
 
 @method_decorator([sensitive_post_parameters(), csrf_protect, never_cache], name="dispatch")
@@ -21,23 +18,15 @@ class SignUpView(FormView):
     form_class = SignUpForm
     template_name = "registration/signup.html"
 
-    @cached_property
-    def invite(self):
-        try:
-            code = self.request.GET.get("invite", self.request.POST.get("invite"))
-            return Invite.objects.filter(invitee=None, status=InviteStatus.PENDING).get(code=code)
-        except (Invite.DoesNotExist, ValidationError):
-            return None
-
     def dispatch(self, request, *args, **kwargs):
-        # Self-hosted instances are closed by default: only people holding a pending invite can register.
-        if not settings.PARSIFAL_ALLOW_SIGNUP and self.invite is None:
+        # Self-hosted instances are closed by default: the administrator creates accounts.
+        if not settings.PARSIFAL_ALLOW_SIGNUP:
             raise PermissionDenied(_("Sign up is disabled on this Parsifal instance."))
         return super().dispatch(request, *args, **kwargs)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        kwargs.update(request=self.request, initial={"invite": self.invite})
+        kwargs.update(request=self.request)
         return kwargs
 
     def form_valid(self, form):
@@ -55,7 +44,3 @@ class SignUpView(FormView):
             ),
         )
         return super().form_invalid(form)
-
-    def get_context_data(self, **kwargs):
-        kwargs.update(invite=self.invite)
-        return super().get_context_data(**kwargs)

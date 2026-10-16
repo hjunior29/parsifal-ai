@@ -109,20 +109,6 @@ def rename_review(*, review, name):
 
 
 @transaction.atomic
-def transfer_review(*, review, actor, to_user):
-    require_owner(review, actor)
-    if to_user == actor:
-        raise ValidationError("You can't transfer the review to yourself.")
-    if to_user in review.co_authors.all():
-        review.co_authors.remove(to_user)
-    review.author = to_user
-    review.name = unique_review_name(to_user, review.name, exclude_pk=review.pk)
-    review.save()
-    review.co_authors.add(actor)
-    return review
-
-
-@transaction.atomic
 def delete_review(*, review):
     for source in review.sources.all():
         if not source.is_default:

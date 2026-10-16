@@ -6,14 +6,7 @@ from ninja.pagination import LimitOffsetPagination, paginate
 from parsifal.api.deps import get_owned_review, get_review
 from parsifal.api.v1.schemas.common import UserOut
 from parsifal.api.v1.schemas.protocol import SourceOut
-from parsifal.api.v1.schemas.reviews import (
-    MemberIn,
-    ReviewCreateIn,
-    ReviewNameIn,
-    ReviewOut,
-    ReviewUpdateIn,
-    TransferIn,
-)
+from parsifal.api.v1.schemas.reviews import MemberIn, ReviewCreateIn, ReviewNameIn, ReviewOut, ReviewUpdateIn
 from parsifal.apps.core.exceptions import PermissionDenied, ValidationError
 from parsifal.apps.reviews.models import Review
 from parsifal.apps.reviews.services import protocol, reviews
@@ -82,13 +75,6 @@ def reviews_rename(request, review_id: int, payload: ReviewNameIn):
     return reviews.rename_review(review=get_owned_review(request, review_id), name=payload.name)
 
 
-@router.post("/reviews/{int:review_id}/transfer", response=ReviewOut, operation_id="reviews_transfer")
-def reviews_transfer(request, review_id: int, payload: TransferIn):
-    review = get_owned_review(request, review_id)
-    to_user = reviews.find_user(username=payload.username)
-    return reviews.transfer_review(review=review, actor=request.auth, to_user=to_user)
-
-
 @router.get("/reviews/{int:review_id}/members", response=list[UserOut], operation_id="members_list")
 def members_list(request, review_id: int):
     review = get_review(request, review_id)
@@ -97,7 +83,7 @@ def members_list(request, review_id: int):
 
 @router.post("/reviews/{int:review_id}/members", response={201: UserOut}, operation_id="members_add")
 def members_add(request, review_id: int, payload: MemberIn):
-    """Add an existing account as co-author directly (main author only); the web UI uses e-mail invites."""
+    """Add an existing account as co-author (main author only)."""
     review = get_owned_review(request, review_id)
     if not payload.username and not payload.email:
         raise ValidationError("Provide username or email.")

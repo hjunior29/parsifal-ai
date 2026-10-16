@@ -59,10 +59,6 @@ class ReviewNameIn(Schema):
     name: str
 
 
-class TransferIn(Schema):
-    username: str
-
-
 class MemberIn(Schema):
     username: str | None = None
     email: str | None = None

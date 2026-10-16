@@ -27,7 +27,7 @@ CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", default="", cast=Csv())
 # EMAIL SETTINGS
 # ==============================================================================
 
-# Without an SMTP host, e-mails (password reset, invites) are written to the console/log so the instance still
+# Without an SMTP host, e-mails (password reset) are written to the console/log so the instance still
 # works; the administrator can copy the links from the log.
 EMAIL_HOST = config("EMAIL_HOST", default="")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
