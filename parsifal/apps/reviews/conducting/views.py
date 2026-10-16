@@ -19,8 +19,16 @@ import xlwt
 
 from parsifal.apps.core.exceptions import DomainError
 from parsifal.apps.reviews.decorators import author_required
-from parsifal.apps.reviews.models import Article, DataExtractionField, Review, SearchSession, SelectionCriteria, Source
-from parsifal.apps.reviews.services import analytics, extraction, quality, reports, studies
+from parsifal.apps.reviews.models import (
+    Article,
+    DataExtractionField,
+    Review,
+    SearchSession,
+    SelectionCriteria,
+    Source,
+    StudyDecision,
+)
+from parsifal.apps.reviews.services import analytics, decisions, extraction, quality, reports, studies
 from parsifal.utils.elsevier.client import ElsevierClient
 from parsifal.utils.elsevier.exceptions import ElsevierInvalidRequest, ElsevierQuotaExceeded
 
@@ -651,10 +659,99 @@ def article_details(request):
     article = get_object_or_404(Article, pk=article_id, review_id=review_id)
 
     mendeley_files = []
+    context = {"review": review, "article": article, "mendeley_files": mendeley_files}
+    context.update(_decisions_context(request, review, article))
+    return render(request, "conducting/partial_conducting_article_details.html", context)
+
+
+def _decisions_context(request, review, article, message=None):
+    rows = list(decisions.article_decisions(review=review, article_id=article.pk))
+    mine = next((d for d in rows if d.user_id == request.user.pk), None)
+    return {
+        "decisions": rows,
+        "my_decision": mine,
+        "decision_stages": StudyDecision.STAGES,
+        "decision_statuses": Article.ARTICLE_STATUS,
+        "decision_message": message,
+    }
+
+
+@author_required
+@login_required
+@require_POST
+def record_decision(request):
+    """Record the current user's independent decision for an article; returns the Reviewers tab partial."""
+    review = get_object_or_404(Review, pk=request.POST.get("review-id"))
+    try:
+        decision = decisions.record_decision(
+            review=review,
+            article_id=request.POST.get("article-id"),
+            actor=request.user,
+            status=request.POST.get("status"),
+            stage=request.POST.get("stage") or StudyDecision.TITLE_ABSTRACT,
+            criteria_id=request.POST.get("selection_criteria") or None,
+            comments=request.POST.get("comments", ""),
+        )
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
+    context = {"review": review, "article": decision.article}
+    context.update(_decisions_context(request, review, decision.article, message="Your decision was recorded."))
+    return render(request, "conducting/partial_conducting_article_decisions.html", context)
+
+
+RULE_LABELS = (
+    (decisions.RULE_UNANIMOUS, "Unanimous — all reviewers agree"),
+    (decisions.RULE_ANY_INCLUDE, "Any include — accepted if any reviewer accepts"),
+    (decisions.RULE_MAJORITY, "Majority — strict majority of reviewers"),
+)
+
+
+def _agreement_context(request, review, stage, result=None):
+    context = {
+        "review": review,
+        "stage": stage,
+        "stages": StudyDecision.STAGES,
+        "rules": RULE_LABELS,
+        "summary": decisions.summary(review),
+        "result": result,
+        "agreement": None,
+        "agreement_error": None,
+    }
+    try:
+        context["disagreements"] = decisions.disagreements(review=review, stage=stage)
+        context["agreement"] = decisions.agreement(review=review, stage=stage)
+    except DomainError as error:
+        context.setdefault("disagreements", [])
+        context["agreement_error"] = str(error)
+    return context
+
+
+@author_required
+@login_required
+def agreement(request):
+    """Reviewer agreement panel: summary, Cohen's kappa, disagreements and the consolidation form."""
+    review = get_object_or_404(Review, pk=request.GET.get("review-id"))
+    stage = request.GET.get("stage") or StudyDecision.TITLE_ABSTRACT
+    if stage not in dict(StudyDecision.STAGES):
+        return HttpResponseBadRequest("Unknown stage.")
+    return render(request, "conducting/partial_conducting_agreement.html", _agreement_context(request, review, stage))
+
+
+@author_required
+@login_required
+@require_POST
+def consolidate(request):
+    """Set Article.status from the reviewers' decisions with the chosen rule; re-renders the agreement panel."""
+    review = get_object_or_404(Review, pk=request.POST.get("review-id"))
+    stage = request.POST.get("stage") or StudyDecision.TITLE_ABSTRACT
+    try:
+        result = decisions.consolidate(
+            review=review, stage=stage, rule=request.POST.get("rule", decisions.RULE_UNANIMOUS), actor=request.user
+        )
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
     return render(
-        request,
-        "conducting/partial_conducting_article_details.html",
-        {"review": review, "article": article, "mendeley_files": mendeley_files},
+        request, "conducting/partial_conducting_agreement.html", _agreement_context(request, review, stage, result)
     )
 
 

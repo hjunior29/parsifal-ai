@@ -1,0 +1,84 @@
+{% comment %}
+  Reviewers tab of the article modal: every reviewer's decision for this article plus a form for the current
+  user's own decision. Rendered by article_details and re-rendered by record_decision.
+{% endcomment %}
+<div id="article-decisions" data-article-id="{{ article.id }}">
+  {% if decision_message %}
+    <div class="alert alert-success">{{ decision_message }}</div>
+  {% endif %}
+
+  <table class="table table-condensed">
+    <thead>
+      <tr>
+        <th>Reviewer</th>
+        <th>Stage</th>
+        <th>Decision</th>
+        <th>Reason</th>
+        <th>Comments</th>
+        <th>When</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for decision in decisions %}
+        <tr{% if decision.user == user %} class="info"{% endif %}>
+          <td>{{ decision.user.profile.get_screen_name }}{% if decision.user == user %} <small class="text-muted">(you)</small>{% endif %}</td>
+          <td>{{ decision.get_stage_display }}</td>
+          <td>
+            {% if decision.status == "A" %}<span class="label label-success">Accepted</span>
+            {% elif decision.status == "R" %}<span class="label label-danger">Rejected</span>
+            {% elif decision.status == "D" %}<span class="label label-warning">Duplicated</span>
+            {% else %}<span class="label label-default">Unclassified</span>{% endif %}
+          </td>
+          <td>{{ decision.selection_criteria.description|default:"—" }}</td>
+          <td>{{ decision.comments|default:"—" }}</td>
+          <td><small class="text-muted">{{ decision.decided_at|date:"SHORT_DATETIME_FORMAT" }}</small></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="text-muted">No independent decisions recorded yet. The status on the Details tab is the consolidated decision.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <form id="decision-form" class="form-horizontal">
+    {% csrf_token %}
+    <input type="hidden" name="review-id" value="{{ review.id }}">
+    <input type="hidden" name="article-id" value="{{ article.id }}">
+    <div class="form-group">
+      <label class="col-sm-2 control-label">My decision</label>
+      <div class="col-sm-3">
+        <select name="status" class="form-control input-sm">
+          {% for status in decision_statuses %}
+            <option value="{{ status.0 }}"{% if my_decision and my_decision.status == status.0 %} selected{% endif %}>{{ status.1 }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-sm-3">
+        <select name="stage" class="form-control input-sm">
+          {% for stage in decision_stages %}
+            <option value="{{ stage.0 }}"{% if my_decision and my_decision.stage == stage.0 %} selected{% endif %}>{{ stage.1 }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-sm-4">
+        <select name="selection_criteria" class="form-control input-sm">
+          <option value="">Reason (criteria)...</option>
+          {% for criteria in review.get_inclusion_criterias %}
+            <option value="{{ criteria.id }}"{% if my_decision and my_decision.selection_criteria_id == criteria.id %} selected{% endif %}>[I] {{ criteria.description }}</option>
+          {% endfor %}
+          {% for criteria in review.get_exclusion_criterias %}
+            <option value="{{ criteria.id }}"{% if my_decision and my_decision.selection_criteria_id == criteria.id %} selected{% endif %}>[E] {{ criteria.description }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="col-sm-offset-2 col-sm-7">
+        <input type="text" name="comments" class="form-control input-sm" placeholder="Comments (optional)" value="{% if my_decision %}{{ my_decision.comments }}{% endif %}" maxlength="2000">
+      </div>
+      <div class="col-sm-3">
+        <button type="button" class="btn btn-primary btn-sm btn-block btn-record-decision">Record my decision</button>
+      </div>
+    </div>
+    <p class="help-block col-sm-offset-2">Independent decisions do not change the consolidated status. Use <em>Reviewer agreement</em> on the study selection page to compare reviewers and consolidate.</p>
+  </form>
+</div>

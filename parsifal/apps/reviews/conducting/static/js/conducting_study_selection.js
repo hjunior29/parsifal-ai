@@ -149,6 +149,94 @@ $(function () {
     }
   });
 
+
+  /* Reviewers tab inside the article modal: the tab pane is rendered hidden after the form and moved into the
+     tab content, so that posting the decision form does not interfere with the article form. */
+  $("#modal-article").on("click", "a[href='#tab-reviewers']", function () {
+    var source = $("#modal-article #tab-reviewers-source");
+    if ($("#modal-article #tab-reviewers").length === 0 && source.length) {
+      $("#modal-article .tab-content").append('<div role="tabpanel" class="tab-pane" id="tab-reviewers"></div>');
+      $("#modal-article #tab-reviewers").html(source.html());
+      source.remove();
+    }
+  });
+
+  $("#modal-article").on("click", ".btn-record-decision", function () {
+    var btn = $(this);
+    var form = $("#modal-article #decision-form");
+    $.ajax({
+      url: '/reviews/conducting/record_decision/',
+      type: 'post',
+      cache: false,
+      data: form.serialize(),
+      beforeSend: function () { btn.prop("disabled", true); },
+      success: function (data) {
+        $("#modal-article #tab-reviewers").html(data);
+      },
+      error: function (xhr) {
+        $.parsifal.alert("Could not record the decision", xhr.responseText || "Unexpected error.");
+      },
+      complete: function () { btn.prop("disabled", false); }
+    });
+  });
+
+  var agreementConsolidated = false;
+
+  function loadAgreement(stage) {
+    $.ajax({
+      url: '/reviews/conducting/agreement/',
+      data: {'review-id': $("#review-id").val(), 'stage': stage || ''},
+      type: 'get',
+      cache: false,
+      beforeSend: function () {
+        $("#modal-agreement .modal-body").css("max-height", $(window).height() * 0.7);
+        $("#modal-agreement").modal('show');
+        $("#modal-agreement .modal-body").loading();
+      },
+      success: function (data) {
+        $("#modal-agreement .modal-body").html(data);
+      },
+      complete: function () {
+        $("#modal-agreement .modal-body").stopLoading();
+      }
+    });
+  }
+
+  $("#btn-agreement").click(function () { loadAgreement(); });
+
+  $("#modal-agreement").on("change", "#agreement-stage", function () {
+    loadAgreement($(this).val());
+  });
+
+  $("#modal-agreement").on("click", "#btn-consolidate", function () {
+    var btn = $(this);
+    var stage = $("#modal-agreement #agreement-stage").val();
+    var rule = $("#modal-agreement #consolidate-form select[name=rule]").val();
+    var csrf_token = $("#modal-agreement input[name=csrfmiddlewaretoken]").val();
+    $.ajax({
+      url: '/reviews/conducting/consolidate/',
+      type: 'post',
+      cache: false,
+      data: {'review-id': $("#review-id").val(), 'stage': stage, 'rule': rule, 'csrfmiddlewaretoken': csrf_token},
+      beforeSend: function () { btn.prop("disabled", true); },
+      success: function (data) {
+        agreementConsolidated = true;
+        $("#modal-agreement .modal-body").html(data);
+      },
+      error: function (xhr) {
+        $.parsifal.alert("Could not consolidate", xhr.responseText || "Unexpected error.");
+        btn.prop("disabled", false);
+      }
+    });
+  });
+
+  $("#modal-agreement").on("hidden.bs.modal", function () {
+    if (agreementConsolidated) {
+      agreementConsolidated = false;
+      $("#source-tab li.active a").click();
+    }
+  });
+
   $("body").keydown(function (event) {
     var keyCode = event.which?event.which:event.keyCode;
 

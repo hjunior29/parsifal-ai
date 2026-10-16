@@ -1,0 +1,84 @@
+{% comment %}Body of the "Reviewer agreement" modal (agreement view; re-rendered after consolidate).{% endcomment %}
+<div id="agreement-panel" data-stage="{{ stage }}">
+  {% csrf_token %}
+  <input type="hidden" name="review-id" value="{{ review.id }}">
+
+  {% if result %}
+    <div class="alert alert-success">
+      Consolidated with rule <strong>{{ result.rule }}</strong> at stage <strong>{{ result.stage }}</strong>:
+      {{ result.resolved }} article(s) updated, {{ result.unresolved }} left unresolved. The study list will refresh when you close this window.
+    </div>
+  {% endif %}
+
+  <form class="form-inline" id="agreement-filters">
+    <div class="form-group">
+      <label>Stage</label>
+      <select name="stage" class="form-control input-sm" id="agreement-stage">
+        {% for value, label in stages %}
+          <option value="{{ value }}"{% if value == stage %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </form>
+
+  <h4>Decisions per reviewer</h4>
+  {% if summary %}
+    <ul>
+      {% for row in summary %}
+        <li><strong>{{ row.stage }}</strong>: {{ row.articles }} article(s) decided —
+          {% for name, count in row.reviewers.items %}{{ name }} ({{ count }}){% if not forloop.last %}, {% endif %}{% endfor %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="text-muted">No independent decisions yet. Reviewers (people or agents with their own account) record them in the <em>Reviewers</em> tab of each article.</p>
+  {% endif %}
+
+  <h4>Agreement</h4>
+  {% if agreement %}
+    <table class="table table-condensed">
+      <tr><th>Reviewers</th><td>{{ agreement.user_a }} × {{ agreement.user_b }}</td></tr>
+      <tr><th>Articles decided by both</th><td>{{ agreement.compared }}</td></tr>
+      <tr><th>Agreed</th><td>{{ agreement.agreed }}{% if agreement.percent_agreement is not None %} ({{ agreement.percent_agreement|floatformat:2 }})
+        {% endif %}</td></tr>
+      <tr><th>Cohen's kappa</th><td>{% if agreement.kappa is not None %}{{ agreement.kappa|floatformat:3 }} — {{ agreement.interpretation }}{% else %}—{% endif %}</td></tr>
+    </table>
+  {% else %}
+    <p class="text-muted">{{ agreement_error|default:"At least two reviewers must record decisions at this stage to compute agreement." }}</p>
+  {% endif %}
+
+  <h4>Disagreements <small>({{ disagreements|length }})</small></h4>
+  {% if disagreements %}
+    <table class="table table-condensed table-hover">
+      <thead><tr><th>Article</th><th>Decisions</th></tr></thead>
+      <tbody>
+        {% for row in disagreements %}
+          <tr>
+            <td>{{ row.article.title }}</td>
+            <td>
+              {% for decision in row.decisions %}
+                <span class="label {% if decision.status == 'A' %}label-success{% elif decision.status == 'R' %}label-danger{% else %}label-default{% endif %}" title="{{ decision.comments }}">{{ decision.user.username }}: {{ decision.get_status_display }}</span>
+              {% endfor %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="text-muted">None at this stage.</p>
+  {% endif %}
+
+  <h4>Consolidate</h4>
+  <form class="form-inline" id="consolidate-form">
+    <div class="form-group">
+      <label>Rule</label>
+      <select name="rule" class="form-control input-sm">
+        {% for value, label in rules %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="button" class="btn btn-success btn-sm" id="btn-consolidate"{% if not summary %} disabled{% endif %}>Set article status from decisions</button>
+    <p class="help-block">Applies to the selected stage. Articles the rule cannot decide keep their current status.</p>
+  </form>
+</div>

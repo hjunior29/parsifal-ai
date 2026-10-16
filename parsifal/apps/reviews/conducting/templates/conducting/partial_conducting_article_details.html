@@ -19,6 +19,11 @@
       <li role="presentation">
         <a href="#tab-comments" aria-controls="tab-comments" role="tab" data-toggle="tab">Comments</a>
       </li>
+      {% if decisions is not None %}
+      <li role="presentation">
+        <a href="#tab-reviewers" aria-controls="tab-reviewers" role="tab" data-toggle="tab">Reviewers{% if decisions %} <span class="badge">{{ decisions|length }}</span>{% endif %}</a>
+      </li>
+      {% endif %}
       {% comment %}<li role="presentation">
         <a href="#tab-files" aria-controls="tab-files" role="tab" data-toggle="tab">Files</a>
       </li>{% endcomment %}
@@ -151,3 +156,8 @@
     </div>
   </div>
 </form>
+{% if decisions is not None %}
+<div class="hide" id="tab-reviewers-source">
+  {% include 'conducting/partial_conducting_article_decisions.html' %}
+</div>
+{% endif %}
