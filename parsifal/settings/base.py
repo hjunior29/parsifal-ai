@@ -188,6 +188,7 @@ STATICFILES_FINDERS = (
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = PARSIFAL_DATA_DIR / "media"
+MEDIA_ROOT.mkdir(parents=True, exist_ok=True)  # uploads and silk's profiler files land here
 
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
