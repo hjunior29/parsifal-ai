@@ -42,7 +42,7 @@ parameters in kebab-case; `--review` accepts a numeric id or `author/slug`.
 | `quality` | `question …`, `answer …`, `max-score`, `set-cutoff`, `summary`, `get`, `assess` |
 | `extraction` | `field …`, `get`, `set`, `done` |
 | `article` | `list`, `create`, `get`, `update`, `delete`, `set-status`, `import`, `import-file`, `duplicates`, `resolve-duplicates` |
-| `facet`, `classification`, `test-set`, `checklist` | mapping-study commands — see [Systematic mapping studies](/docs/mapping-studies/) |
+| `facet`, `classification`, `test-set`, `checklist` | optional classification steps — see [Classification and search evaluation](/docs/classification/) |
 | `decision` | `list`, `record`, `remove-mine`, `article`, `summary`, `agreement`, `disagreements`, `consolidate` |
 | `analytics` | `selection-by-source`, `final-by-year`, `facet-frequencies`, `facet-matrix` |
 | `export` | `articles`, `extraction`, `report` (all take `-o FILE`) |

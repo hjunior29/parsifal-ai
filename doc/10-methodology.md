@@ -111,7 +111,13 @@ tool, with where Parsifal stands:
    exporter should have one template per review type and real content for
    QA, extraction/classification and analysis.
 
-## 4. Data-model additions (implemented in phase 7, except per-reviewer decisions — phase 8)
+## 4. Data-model additions (implemented in phases 7 and 8)
+
+Design principle (decided 2026-10-16): there is **one workflow**. Everything
+below is optional for any review and is never gated by `review_type`; a
+mapping study is a review that uses facets, search documentation, the test
+set and the checklist, and usually skips quality assessment. `review_type`
+only labels the review and selects report vocabulary/sections.
 
 Additive changes to `reviews.models`; nothing existing is removed in this
 step. Names are proposals to be refined in implementation.

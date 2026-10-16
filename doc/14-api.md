@@ -105,7 +105,7 @@ select-many takes the full list of lookup ids in `values` (set semantics).
 | `POST /reviews/{rid}/articles/import {source_id, bibtex}` · `POST /articles/import/file` (multipart `source_id`, `file`) | `articles_import` · `articles_import_file` → `{imported, failed, warnings[], article_ids[]}` |
 | `GET /reviews/{rid}/articles/duplicates` · `POST /duplicates/resolve {ids?}` | `articles_duplicates` · `articles_resolve_duplicates` |
 
-### Mapping studies (phase 7)
+### Classification, search documentation, test set, checklist (optional for any review; phase 7)
 
 | Method & path | operationId |
 |---------------|-------------|

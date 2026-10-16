@@ -39,7 +39,10 @@ PAGES = (
     Page("mcp", "MCP server", "Automation", "Connect Claude Code, Codex and other agents."),
     Page("agents", "Working with AI agents", "Automation", "How an agent is expected to drive a review."),
     Page(
-        "mapping-studies", "Systematic mapping studies", "Methodology", "Classification facets, test set, checklist."
+        "classification",
+        "Classification and search evaluation",
+        "Methodology",
+        "Optional steps: facets, test set, checklist — what a mapping study uses.",
     ),
     Page(
         "multi-reviewer",

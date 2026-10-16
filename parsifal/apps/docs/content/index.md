@@ -19,7 +19,7 @@ assessment, data extraction and the exports. These pages document only what was 
 | Automation | The `parsifal` command-line client | [Command-line client](/docs/cli/) |
 | Automation | An MCP server so Claude Code, Codex and other agents can operate reviews as tools | [MCP server](/docs/mcp/) |
 | Agents | The expected division of work between an agent and the human reviewer | [Working with AI agents](/docs/agents/) |
-| Methodology | Review type, classification facets, known-paper test set, process checklist, richer report | [Systematic mapping studies](/docs/mapping-studies/) |
+| Methodology | Optional steps for any review — classification facets, search documentation and test set, process checklist, richer report; a mapping study is a review that uses them | [Classification and search evaluation](/docs/classification/) |
 | Methodology | Independent decisions per reviewer, Cohen's kappa, consolidation rules | [Multiple reviewers and agreement](/docs/multi-reviewer/) |
 
 ## What was removed

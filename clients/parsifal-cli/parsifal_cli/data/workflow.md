@@ -28,27 +28,38 @@ parsifal me
    `quality answer suggested --review R` (Yes/Partially/No), `quality set-cutoff --review R --cutoff 1.5`
 9. Extraction form: `extraction field create --review R --description "Method" --field-type O --lookup-values "Case study" --lookup-values Survey`
    Field types: B boolean, S string, F float, I integer, D date (MM/DD/YYYY), O select one, M select many.
+10. Optional — classification facets (what a mapping study uses instead of detailed extraction):
+    `facet create --review R --template research_type` (also research_method, venue_type, study_focus,
+    contribution_type) or `facet create --review R --name Topic --multiple --categories A --categories B`.
+11. Optional — procedures: `review update --review R --selection-procedure @sel.txt --synthesis-strategy @syn.txt --validity-threats @val.txt`;
+    known papers to evaluate the search: `test-set add --review R --title "..." --doi ...`.
 
 ## 2. Conducting
 
 1. Adapt the search per source: `source search-string copy-generic --review R --id S`, then
    `source search-string set --review R --id S --search-string @scopus.txt`.
-   Run the search in the digital library yourself and export BibTeX.
+   Run the search in the digital library yourself and export BibTeX, then document it:
+   `source document-search --review R --id S --search-type database --searched-at 2026-10-01 --years-from 2015 --years-to 2026 --result-count 120`.
 2. Import: `article import --review R --source-id S --bibtex @export.bib`
    (or `article import-file --review R --source-id S --file export.bib`).
 3. Duplicates: `article duplicates --review R` → `article resolve-duplicates --review R` (keeps the oldest).
-4. Screening: `article list --review R --status U --all` (title, abstract, keywords), then
-   `article set-status --review R --ids 1 --ids 2 --status A --selection-criteria-id C`
-   (`R` to reject with the exclusion criterion as reason; `--comments` for notes).
-   Record the decision reason; the human author remains accountable for the final selection.
+4. Screening: `article list --review R --status U --all` (title, abstract, keywords). Preferred: record your
+   own independent decision, `decision record --review R --ids 1 --ids 2 --status A --selection-criteria-id C`
+   (`R` to reject with the exclusion criterion as reason; `--comments` for notes); the human reviewer compares
+   with `decision agreement` / `decision disagreements` and sets the final status with `decision consolidate`.
+   `article set-status ...` changes the consolidated status directly — use it only when asked to.
+   `test-set get --review R` tells whether the known papers were found by the search.
 5. Quality assessment (accepted articles): `quality assess --review R --article A --question-id Q --answer-id ANS`;
    `quality summary --review R` shows scores against the cutoff. Final selection = accepted AND score > cutoff.
 6. Data extraction (final selection): `extraction set --review R --article A --field-id F --value "..."`
    (`--values id --values id` for select-many), then `extraction done --review R --article A`.
+   If the review has facets, classify too: `classification set --review R --article A --facet-id F --category-ids C`.
+7. Optional — process checklist (Petersen): `checklist set --review R --key search_database --applied --notes "..."`.
 
 ## 3. Analysis and reporting
 
 - `analytics selection-by-source --review R`, `analytics final-by-year --review R`
+- With facets: `analytics facet-frequencies --review R --facet F`, `analytics facet-matrix --review R --rows F1 --columns F2` (bubble plot)
 - `export articles --review R --format csv -o articles.csv`
 - `export extraction --review R --format json -o extraction.json`
 - `export report --review R -o report.docx` (`--sections name,picoc,research_questions,...`)
