@@ -43,7 +43,7 @@ The project is currently running on the following versions:
 ```bash
 cp .env.example .env            # set a real SECRET_KEY
 docker compose build
-docker compose run --rm parsifal init --username admin --email you@example.org --token "my laptop"
+docker compose run --rm parsifal init --username alice --email you@example.org --token "my laptop"
 docker compose up -d            # http://localhost:8000 — data lives in ./data
 ```
 
@@ -92,7 +92,7 @@ python manage.py runserver
 Or bootstrap everything in one step (migrations, default sources, administrator and an API token):
 
 ```bash
-python manage.py init --username admin --email you@example.com --token "my laptop"
+python manage.py init --username alice --email you@example.com --token "my laptop"
 ```
 
 Run the test suite and linters:

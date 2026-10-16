@@ -87,6 +87,10 @@ class TestUsers(ApiTestCase):
         )
         self.assertEqual(201, response.status_code)
         self.assertEqual("newbie", response.json()["username"])
+        with self.subTest(msg="reserved or non-ascii usernames are rejected"):
+            for name in ("admin", "docs", "joão"):
+                response = self.api("post", "/users", {"username": name, "email": f"{name}@example.com"}, client=admin)
+                self.assertEqual(422, response.status_code, name)
         with self.subTest(msg="duplicate username conflicts"):
             response = self.api("post", "/users", {"username": "NEWBIE", "email": "other@example.com"}, client=admin)
             self.assertEqual(409, response.status_code)

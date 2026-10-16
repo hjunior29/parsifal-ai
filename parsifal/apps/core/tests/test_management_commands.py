@@ -55,6 +55,13 @@ class TestInit(TestCase):
         call_command("init", username="auto", stdout=out)
         self.assertIn("Generated password for 'auto'", out.getvalue())
 
+    def test_reserved_username_is_refused(self):
+        for name in ("admin", "docs", "api", "settings", "joão"):
+            with self.subTest(name=name):
+                with self.assertRaises(CommandError):
+                    call_command("init", username=name, stdout=io.StringIO())
+        self.assertFalse(User.objects.exists())
+
     def test_existing_non_admin_user_is_refused(self):
         User.objects.create_user("plain", "plain@example.com", "pw")
         with self.assertRaises(CommandError):

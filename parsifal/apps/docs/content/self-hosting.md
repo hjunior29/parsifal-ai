@@ -10,7 +10,7 @@ uploaded pictures, backups and (by default) collected static files live in the
 git clone https://github.com/hjunior29/parsifal-ai.git && cd parsifal-ai
 cp .env.example .env     # set SECRET_KEY: python -c "import secrets; print(secrets.token_urlsafe(50))"
 docker compose build
-docker compose run --rm parsifal init --username admin --email you@example.org --token "my laptop"
+docker compose run --rm parsifal init --username alice --email you@example.org --token "my laptop"
 docker compose up -d     # http://localhost:8000
 ```
 
@@ -27,7 +27,7 @@ python3.10 -m venv .venv && source .venv/bin/activate
 pip install -r requirements/production.txt
 export DJANGO_SETTINGS_MODULE=parsifal.settings.production SECRET_KEY=... ALLOWED_HOSTS=parsifal.example.org
 python manage.py collectstatic --noinput
-python manage.py init --username admin --email you@example.org --token cli
+python manage.py init --username alice --email you@example.org --token cli
 gunicorn parsifal.wsgi:application --bind 0.0.0.0:8000 --workers 2
 ```
 

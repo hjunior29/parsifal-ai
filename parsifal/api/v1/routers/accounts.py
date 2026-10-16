@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError
 
 from ninja import Router
@@ -7,6 +8,7 @@ from parsifal.api.deps import require_superuser
 from parsifal.api.v1.schemas.accounts import MeOut, TokenCreatedOut, TokenCreateIn, TokenOut, UserCreateIn
 from parsifal.api.v1.schemas.common import UserOut
 from parsifal.apps.accounts.models import ApiToken
+from parsifal.apps.authentication.validators import ASCIIUsernameValidator, validate_forbidden_usernames
 from parsifal.apps.core.exceptions import Conflict, NotFound, ValidationError
 
 router = Router(tags=["account"])
@@ -39,6 +41,11 @@ def users_create(request, payload: UserCreateIn):
     User = get_user_model()
     if not payload.username.strip():
         raise ValidationError("username is required.", field="username")
+    try:
+        ASCIIUsernameValidator()(payload.username)
+        validate_forbidden_usernames(payload.username)
+    except DjangoValidationError as error:
+        raise ValidationError(" ".join(error.messages), field="username")
     if User.objects.filter(username__iexact=payload.username).exists():
         raise Conflict("A user with that username already exists.", field="username")
     if payload.email and User.objects.filter(email__iexact=payload.email).exists():

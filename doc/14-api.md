@@ -179,7 +179,7 @@ The complete end-to-end scenario is encoded in
 
 | Command | Purpose |
 |---------|---------|
-| `manage.py init [--username admin] [--email …] [--password …] [--token NAME]` | Migrate, load default sources, create the administrator (random password printed if omitted), optionally print an API token; warns if `SECRET_KEY` is insecure. Safe to re-run. |
+| `manage.py init --username <name> [--email …] [--password …] [--token NAME]` | Migrate, load default sources, create the administrator (random password printed if omitted), optionally print an API token; warns if `SECRET_KEY` is insecure. Safe to re-run. |
 | `manage.py create_api_token --user <username> [--name CLI]` | Print a new token for a user. |
 | `manage.py load_default_sources` | Idempotent load of the 7 default digital libraries. |
 

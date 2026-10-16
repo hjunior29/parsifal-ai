@@ -2,10 +2,12 @@ import secrets
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 
 from parsifal.apps.accounts.models import ApiToken
+from parsifal.apps.authentication.validators import ASCIIUsernameValidator, validate_forbidden_usernames
 from parsifal.apps.core.management.commands.load_default_sources import load_default_sources
 
 INSECURE_SECRET_KEYS = {"parsifal.settings.local", "change-me", ""}
@@ -18,7 +20,9 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser):
-        parser.add_argument("--username", default="admin", help="Administrator username (default: admin).")
+        parser.add_argument(
+            "--username", required=True, help="Administrator username (not a reserved word such as admin)."
+        )
         parser.add_argument("--email", default="", help="Administrator e-mail.")
         parser.add_argument(
             "--password",
@@ -42,6 +46,13 @@ class Command(BaseCommand):
         self.stdout.write(f"Default sources: {len(created_sources)} created.")
 
         username = options["username"]
+        try:
+            # Review pages live at /<username>/..., so names that collide with site routes (admin, docs, api...)
+            # would make the administrator's reviews unreachable.
+            ASCIIUsernameValidator()(username)
+            validate_forbidden_usernames(username)
+        except ValidationError as error:
+            raise CommandError(f"Invalid username {username!r}: {' '.join(error.messages)}")
         user = User.objects.filter(username__iexact=username).first()
         generated_password = None
         if user is None:
