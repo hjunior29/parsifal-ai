@@ -141,7 +141,11 @@ def _make_handler(operation):
         for param in operation.params:
             value = kwargs.get(param.name)
             if param.type == TEXT:
-                value = read_text_argument(value)
+                try:
+                    value = read_text_argument(value)
+                except OSError as exc:
+                    error(f"Cannot read --{param.option}: {exc.strerror or exc} ({getattr(exc, 'filename', '')})")
+                    raise typer.Exit(code=EXIT_ERROR)
             if param.kind == FILE and value is not None:
                 value = str(value)
             values[param.name] = value

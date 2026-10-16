@@ -165,3 +165,10 @@ def test_connection_error_is_reported(fake_api):
     with pytest.raises(Exception) as excinfo:
         run(server.call_tool("parsifal_me", {}))
     assert "Could not reach" in str(excinfo.value)
+
+
+def test_review_reference_accepts_a_number_or_a_string(server, fake_api):
+    fake_api.route("GET", "/api/v1/reviews/7/overview", 200, {"id": 7})
+    for reference in (7, "7"):
+        result = run(server.call_tool("parsifal_reviews_overview", {"review_id": reference}))
+        assert json.loads(text_of(result))["id"] == 7

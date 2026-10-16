@@ -118,7 +118,7 @@ def make_tool(operation, context):
     for param in operation.params:
         python_type = PYTHON_TYPES.get(param.type, str)
         if param.kind == PATH and param.name == "review_id":
-            python_type = str
+            python_type = int | str  # id or author/slug; agents often send the id as a number
         if param.kind == FILE:
             python_type = str
         add(param.name, python_type, param.required)
@@ -260,7 +260,7 @@ def build_server(settings=None, transport=None, host="127.0.0.1", port=8765):
         ),
         annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=False),
     )
-    def articles_screen_batch(review_id: str, limit: int = 20, offset: int = 0, status: str = "U") -> str:
+    def articles_screen_batch(review_id: int | str, limit: int = 20, offset: int = 0, status: str = "U") -> str:
         return dumps(screen_batch(context, review_id, limit, offset, status))
 
     @server.tool(
@@ -269,7 +269,7 @@ def build_server(settings=None, transport=None, host="127.0.0.1", port=8765):
         "sources, criteria, quality checklist, extraction form) as Markdown.",
         annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=False),
     )
-    def review_protocol(review_id: str) -> str:
+    def review_protocol(review_id: int | str) -> str:
         return protocol_markdown(context, review_id)
 
     @server.tool(

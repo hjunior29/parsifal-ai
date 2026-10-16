@@ -55,6 +55,28 @@ def test_body_lists_and_text_from_file(runner, fake_api, tmp_path):
     assert fake_api.last_json() == {"ids": [1, 2], "status": "A"}
 
 
+def test_inline_bibtex_is_not_read_as_a_file(runner, fake_api, tmp_path):
+    fake_api.route(
+        "POST",
+        "/api/v1/reviews/7/articles/import",
+        201,
+        {"imported": 1, "failed": 0, "warnings": [], "article_ids": [1]},
+    )
+    inline = "@article{k, title={T}}"
+    result = invoke(runner, ["article", "import", "--review", "7", "--source-id", "3", "--bibtex", inline])
+    assert result.exit_code == 0, result.output
+    assert fake_api.last_json() == {"source_id": 3, "bibtex": inline}
+
+
+def test_missing_text_file_is_a_clean_error(runner, fake_api, tmp_path):
+    result = invoke(
+        runner, ["article", "import", "--review", "7", "--source-id", "3", "--bibtex", f"@{tmp_path}/nope.bib"]
+    )
+    assert result.exit_code != 0
+    assert "Cannot read --bibtex" in result.output
+    assert "Traceback" not in result.output
+
+
 def test_stdin_text(runner, fake_api):
     fake_api.route("PUT", "/api/v1/reviews/7/search-string", 200, {"search_string": "a AND b"})
     result = invoke(runner, ["search-string", "set", "--review", "7", "--search-string", "-"], input="a AND b")

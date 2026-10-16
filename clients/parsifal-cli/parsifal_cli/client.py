@@ -147,15 +147,22 @@ class ApiClient:
                 return {"count": page["count"], "items": items}
 
 
+BIBTEX_ENTRY = re.compile(r"@\w+\s*[{(]")
+
+
 def read_text_argument(value):
-    """``@path`` reads a file, ``-`` reads stdin; anything else is returned unchanged."""
+    """``@path`` reads a file, ``-`` reads stdin; anything else is returned unchanged.
+
+    BibTeX text also starts with ``@`` (``@article{...``): a value that opens a BibTeX entry is literal text, so
+    inline BibTeX works as well as ``@refs.bib``.
+    """
     import sys
 
     if value is None:
         return None
     if value == "-":
         return sys.stdin.read()
-    if isinstance(value, str) and value.startswith("@") and len(value) > 1:
+    if isinstance(value, str) and value.startswith("@") and len(value) > 1 and not BIBTEX_ENTRY.match(value):
         with open(value[1:], encoding="utf-8") as handle:
             return handle.read()
     return value
