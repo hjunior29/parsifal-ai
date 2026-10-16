@@ -211,5 +211,5 @@ reproduced. Rows in section 2 are dropped. A first grouping of resources:
 | data extraction | get per article; set value (set semantics for select-many); mark done/undone; export |
 | analytics | per-source counts; per-year counts |
 | reports | generate DOCX with sections |
-| library | documents CRUD, folders CRUD, import BibTeX (optional in v1) |
+| library | documents CRUD, folders CRUD, import BibTeX — done 2026-10-16 (`/api/v1/library/…`) |
 | auth | API tokens for the current user |

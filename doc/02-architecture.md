@@ -89,7 +89,7 @@ contract that the fork's JSON API must cover.
 | `@author_required` (`reviews/decorators.py`) | most page/action views | If URL kwargs `username`+`review_name` exist: load review, allow if `review.is_author_or_coauthor(user)`, else **404**. Otherwise read `review-id` from POST then GET; allow if author/co-author, else **403**; missing id → 400. |
 | `@main_author_required` | review settings, transfer, remove co-author | Same lookup, but only `review.author`. |
 | `ReviewMixin` + `MainAuthorRequiredMixin` / `AuthorRequiredMixin` (`reviews/mixins.py`) | class-based views (`DeleteReviewView`, invites) | `review` cached property from URL kwargs; `UserPassesTestMixin` → 403. |
-| `login_required` only | library, accounts, activities | Library object ownership is checked ad hoc (`Folder.objects.get(pk=..., user=request.user)` in some views, not in others). |
+| `login_required` only | library, accounts, activities | Library lookups are scoped to `request.user` in every view since 2026-10-16 (before, only some were). |
 
 Decorator order in the code is `@author_required` **outside**
 `@login_required`, so for an anonymous user `author_required` runs first:

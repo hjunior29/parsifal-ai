@@ -24,7 +24,7 @@ document at `/api/v1/openapi.json`.
 
 | Resource | Paths |
 |----------|-------|
-| Account | `/me`, `/tokens`, `/users` (administrators), `/sources/defaults` |
+| Account | `/me` (GET, PATCH), `/tokens`, `/users` (administrators), `/sources/defaults` |
 | Reviews | `/reviews`, `/reviews/{id}`, `/overview`, `/name`, `/members` |
 | Protocol | `/questions`, `/keywords` (+ `/import-picoc`), `/search-string` (+ `/generate`), `/sources` (+ `/search-strings`, `/{id}/search-string`, `/{id}/search`), `/criteria` |
 | Quality assessment | `/quality/questions`, `/quality/answers` (+ `/suggested`), `/quality/max-score`, `/quality/cutoff`, `/quality/summary`, `/articles/{id}/quality` |
@@ -32,9 +32,11 @@ document at `/api/v1/openapi.json`.
 | Articles | `/articles` (list, create), `/articles/{id}`, `/articles/status`, `/articles/import`, `/articles/import/file`, `/articles/duplicates` (+ `/resolve`) |
 | Classification (optional) | `/facets` (+ templates, categories), `/articles/{id}/classification`, `/analytics/facets/{id}/frequencies`, `/analytics/facet-matrix`, `/test-set`, `/checklist` |
 | Multiple reviewers | `/decisions`, `/articles/{id}/decisions`, `/decisions/agreement`, `/decisions/disagreements`, `/decisions/consolidate` |
+| Library (personal, not review-scoped) | `/library/folders` (+ `/{id}/documents`, `/remove`, `/move`), `/library/documents` (+ `/delete`), `/library/import` (+ `/file`) |
 | Analytics and exports | `/analytics/selection-by-source`, `/analytics/final-by-year`, `/export/articles.{csv,xlsx,json}`, `/export/extraction.{csv,xlsx,json}`, `/export/report.docx` |
 
-All review-scoped paths are prefixed with `/api/v1/reviews/{review_id}`.
+All review-scoped paths are prefixed with `/api/v1/reviews/{review_id}`; the library paths are scoped to the
+authenticated user instead.
 
 ## Example
 

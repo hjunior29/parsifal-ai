@@ -1,11 +1,12 @@
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.validators import validate_email
 from django.db import IntegrityError
 
 from ninja import Router
 
 from parsifal.api.deps import require_superuser
-from parsifal.api.v1.schemas.accounts import MeOut, TokenCreatedOut, TokenCreateIn, TokenOut, UserCreateIn
+from parsifal.api.v1.schemas.accounts import MeOut, MeUpdateIn, TokenCreatedOut, TokenCreateIn, TokenOut, UserCreateIn
 from parsifal.api.v1.schemas.common import UserOut
 from parsifal.apps.accounts.models import ApiToken
 from parsifal.apps.authentication.validators import ASCIIUsernameValidator, validate_forbidden_usernames
@@ -14,9 +15,7 @@ from parsifal.apps.core.exceptions import Conflict, NotFound, ValidationError
 router = Router(tags=["account"])
 
 
-@router.get("/me", response=MeOut, operation_id="me")
-def me(request):
-    user = request.auth
+def _me_out(user):
     return MeOut(
         id=user.pk,
         username=user.username,
@@ -26,6 +25,36 @@ def me(request):
         is_superuser=user.is_superuser,
         active_tokens=user.api_tokens.active().count(),
     )
+
+
+@router.get("/me", response=MeOut, operation_id="me")
+def me(request):
+    return _me_out(request.auth)
+
+
+@router.patch("/me", response=MeOut, operation_id="me_update")
+def me_update(request, payload: MeUpdateIn):
+    """Change your name or e-mail (the same fields as Settings → Profile)."""
+    user = request.auth
+    fields = payload.dict(exclude_unset=True)
+    for name, limit in (("first_name", 150), ("last_name", 150)):
+        if name in fields:
+            value = (fields[name] or "").strip()
+            if len(value) > limit:
+                raise ValidationError(f"{name} must have at most {limit} characters.", field=name)
+            setattr(user, name, value)
+    if "email" in fields:
+        email = (fields["email"] or "").strip()
+        if email:
+            try:
+                validate_email(email)
+            except DjangoValidationError:
+                raise ValidationError("Enter a valid e-mail address.", field="email")
+            if get_user_model().objects.filter(email__iexact=email).exclude(pk=user.pk).exists():
+                raise Conflict("A user with that email already exists.", field="email")
+        user.email = email
+    user.save(update_fields=["first_name", "last_name", "email"])
+    return _me_out(user)
 
 
 @router.get("/users", response=list[UserOut], operation_id="users_list")

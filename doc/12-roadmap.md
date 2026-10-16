@@ -377,3 +377,9 @@ Scopus/Elsevier search, profile pictures and public profiles, the
 sitemaps/About/Support and password reset. Also added: review type column in
 the review lists, the Reviewers tab and Reviewer agreement panel on the study
 selection page, and the single-workflow framing of the docs.
+
+Follow-up (2026-10-16): after a browser QA round, `manage.py init` refuses
+reserved usernames (`admin` collided with `/admin/`), and the two gaps between
+the web UI and the API/CLI/MCP were closed — the personal library
+(`/library/…`, 14 operations) and `PATCH /me`. Every feature reachable in the
+browser now has an API operation (sign-up, login and password reset excepted).

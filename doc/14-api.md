@@ -46,7 +46,7 @@ Paths below are relative to `/api/v1`. `{rid}` = review id.
 
 | Method & path | operationId | Purpose |
 |---------------|-------------|---------|
-| `GET /me` | `me` | Current user and number of active tokens |
+| `GET /me` · `PATCH /me {first_name?, last_name?, email?}` | `me` · `me_update` | Current user and number of active tokens; change your own profile fields |
 | `GET /tokens` · `POST /tokens {name}` · `DELETE /tokens/{id}` | `tokens_*` | Manage own tokens (`POST` returns `key` once) |
 | `GET /users` · `POST /users {username,email,password?,first_name?,last_name?}` | `users_*` | Administrators only |
 | `GET /sources/defaults` | `sources_defaults` | The default digital libraries |
@@ -140,6 +140,19 @@ Recommended flow for an agent: `decisions_record` its screening decisions
 with the criterion as reason; the human reviewer records theirs; both check
 `decisions_agreement` / `decisions_disagreements`; the human runs
 `decisions_consolidate` (or `articles_set_status` for individual overrides).
+
+### Library (personal bibliography, independent from reviews)
+
+Everything under `/library/` is scoped to the authenticated user; another
+user's folder or document answers `404`.
+
+| Method & path | operationId |
+|---------------|-------------|
+| `GET/POST /library/folders {name}` · `PATCH /library/folders/{id} {name}` · `DELETE /library/folders/{id}` (documents stay) | `folders_list` · `folders_create` · `folders_rename` · `folders_delete` |
+| `POST /library/folders/{id}/documents {ids}` · `POST …/documents/remove {ids}` · `POST …/documents/move {ids, to_folder_id}` | `folders_add_documents` · `folders_remove_documents` · `folders_move_documents` |
+| `GET /library/documents?folder_id=&q=&order=&limit=&offset=` (`order`: title, author, year, created_at, `-` to reverse) | `documents_list` |
+| `POST /library/documents {BibTeX fields}` · `GET/PATCH/DELETE /library/documents/{id}` · `POST /library/documents/delete {ids}` | `documents_create` · `documents_get` · `documents_update` · `documents_delete` · `documents_delete_batch` |
+| `POST /library/import {bibtex, folder_id?}` · `POST /library/import/file` (multipart `file`, `folder_id?`) | `library_import` · `library_import_file` |
 
 ### Analytics and exports
 

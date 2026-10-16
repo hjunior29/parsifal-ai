@@ -7,7 +7,7 @@ decisions in [decisions.md](decisions.md): **Keep**, **Keep (trim)**, or
 | App | Lines (py, excl. migrations) | Tests | Disposition |
 |-----|------------------------------|-------|-------------|
 | `reviews` (+ `planning`, `conducting`, `reporting`, `settings`) | 3 913 | 297 | Keep — core |
-| `library` | 819 | 0 | Keep (low priority in API v1) |
+| `library` | 819 | 0 | Keep — service layer + API/CLI/MCP added 2026-10-16 |
 | `invites` | 706 | 351 | **Removed 2026-10-16 (ADR-008)** — replaced by Review settings → Manage access |
 | `authentication` | 586 | 229 | Keep (trim: no public sign-up, no reCAPTCHA) |
 | `accounts` | 341 | 164 | Keep — pictures and public profile fields removed (ADR-008); hosts API tokens |
@@ -92,7 +92,11 @@ self-hosted troubleshooting.
 `DocumentFile`. Views in `library/views.py` (416 lines): listing with search,
 ordering and pagination; folder CRUD; document create/edit via JSON+HTML
 modals; move/copy/remove/delete bulk actions; BibTeX import. Templates in
-`templates/library/`, JS `library.js` (330 lines). No tests and no admin
+`templates/library/`, JS `library.js` (330 lines). Since 2026-10-16 the same
+operations exist in `library/services.py` (owner-scoped; tested) and in the
+API (`/api/v1/library/…`, see [14-api.md](14-api.md)), and every legacy view
+lookup is scoped to `request.user`. Shared folders remain UI-only and
+half-built upstream (no way to add collaborators). No admin
 registration (admin exists only for `reviews.Review`, `invites.Invite`,
 `core.Media`, `blog.Entry`, `help.Category`/`Article`).
 

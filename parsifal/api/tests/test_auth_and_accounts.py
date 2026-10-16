@@ -99,3 +99,27 @@ class TestUsers(ApiTestCase):
             self.assertIn("newbie", usernames)
             UserFactory()  # unrelated user still listed
             self.assertGreater(len(self.api("get", "/users", client=admin).json()), len(usernames))
+
+
+class TestMeUpdate(ApiTestCase):
+    def test_update_profile_fields(self):
+        response = self.api("patch", "/me", {"first_name": " Ada ", "last_name": "Lovelace"})
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(
+            ("Ada", "Lovelace", self.author.email),
+            tuple(response.json()[k] for k in ("first_name", "last_name", "email")),
+        )
+
+        with self.subTest(msg="e-mail is validated and must be unique"):
+            self.assertEqual(422, self.api("patch", "/me", {"email": "not-an-email"}).status_code)
+            self.assertEqual(409, self.api("patch", "/me", {"email": self.co_author.email.upper()}).status_code)
+            response = self.api("patch", "/me", {"email": "ada@example.org"})
+            self.assertEqual("ada@example.org", response.json()["email"])
+
+        with self.subTest(msg="too long names are rejected"):
+            self.assertEqual(422, self.api("patch", "/me", {"first_name": "x" * 151}).status_code)
+
+        self.author.refresh_from_db()
+        self.assertEqual(
+            ("Ada", "Lovelace", "ada@example.org"), (self.author.first_name, self.author.last_name, self.author.email)
+        )

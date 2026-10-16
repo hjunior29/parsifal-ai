@@ -34,6 +34,7 @@ parameters in kebab-case; `--review` accepts a numeric id or `author/slug`.
 |-------|----------|
 | root | `me`, `version`, `docs`, `config show|set` |
 | `token`, `user` | `list`, `create`, `revoke` / `create` (administrators) |
+| `library` | `folder list|create|rename|delete|add|remove|move`, `document list|create|get|update|delete|delete-batch`, `import`, `import-file` |
 | `review` | `list`, `create`, `get`, `overview`, `update`, `delete`, `rename` |
 | `member` | `list`, `add`, `remove` |
 | `question`, `keyword`, `criteria` | `list`, `create`, `update`, `delete` (+ `reorder`, `import-picoc`) |

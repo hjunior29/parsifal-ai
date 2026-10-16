@@ -8,6 +8,7 @@ from parsifal.api.v1.routers import (
     articles,
     decisions,
     extraction,
+    library,
     mapping,
     protocol,
     quality,
@@ -40,3 +41,4 @@ api.add_router("", articles.router)
 api.add_router("", analytics.router)
 api.add_router("", mapping.router)
 api.add_router("", decisions.router)
+api.add_router("", library.router)

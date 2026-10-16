@@ -9,6 +9,14 @@ class MeOut(UserOut):
     active_tokens: int
 
 
+class MeUpdateIn(Schema):
+    """Profile fields; only the fields sent are changed."""
+
+    first_name: str | None = None
+    last_name: str | None = None
+    email: str | None = None
+
+
 class UserCreateIn(Schema):
     username: str
     email: str

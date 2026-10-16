@@ -99,7 +99,7 @@ def list_actions(request):
 def folder(request, slug):
     querystring = request.GET.get("q", "")
     order = get_order(request)
-    folder = get_object_or_404(Folder, slug=slug)
+    folder = get_object_or_404(Folder, slug=slug, user=request.user)
     queryset = folder.documents.all()
     queryset = get_filtered_documents(queryset, querystring)
     queryset = queryset.order_by(order)
@@ -144,7 +144,7 @@ def edit_folder(request):
 
 @login_required
 def document(request, document_id):
-    document = Document.objects.get(pk=document_id)
+    document = get_object_or_404(Document, pk=document_id, user=request.user)
     json_context = {}
     if request.method == "POST":
         form = DocumentForm(request.POST, instance=document)
@@ -197,16 +197,16 @@ def get_document_verbose_name(documents_size):
 @require_POST
 def move(request):
     move_from_folder_id = request.POST.get("active-folder-id")
-    move_from_folder = Folder.objects.get(pk=move_from_folder_id)
+    move_from_folder = get_object_or_404(Folder, pk=move_from_folder_id, user=request.user)
 
     move_to_folder_id = request.POST.get("action-folder-id")
-    move_to_folder = Folder.objects.get(pk=move_to_folder_id)
+    move_to_folder = get_object_or_404(Folder, pk=move_to_folder_id, user=request.user)
 
     if request.POST.get("select-all-pages") == "all":
         documents = move_from_folder.documents.all()
     else:
         document_ids = request.POST.getlist("document")
-        documents = Document.objects.filter(id__in=document_ids)
+        documents = Document.objects.filter(id__in=document_ids, user=request.user)
 
     querystring = request.POST.get("querystring", "")
     documents = get_filtered_documents(documents, querystring)
@@ -231,7 +231,7 @@ def copy(request):
     copy_to_folder_id = request.POST.get("action-folder-id")
 
     try:
-        copy_to_folder = Folder.objects.get(pk=copy_to_folder_id)
+        copy_to_folder = Folder.objects.get(pk=copy_to_folder_id, user=request.user)
     except Folder.DoesNotExist:
         messages.error(request, _("The folder you are trying to copy does not exist."))
         return redirect(redirect_to)
@@ -241,7 +241,7 @@ def copy(request):
 
     if copy_from_folder_id:
         try:
-            copy_from_folder = Folder.objects.get(pk=copy_from_folder_id)
+            copy_from_folder = Folder.objects.get(pk=copy_from_folder_id, user=request.user)
             documents = copy_from_folder.documents.all()
         except Folder.DoesNotExist:
             messages.error(request, _("The folder you are trying to copy does not exist."))
@@ -264,7 +264,7 @@ def copy(request):
 @require_POST
 def remove_from_folder(request):
     remove_from_folder_id = request.POST.get("active-folder-id")
-    folder = Folder.objects.get(pk=remove_from_folder_id)
+    folder = get_object_or_404(Folder, pk=remove_from_folder_id, user=request.user)
     select_all_pages = request.POST.get("select-all-pages")
 
     if select_all_pages == "all":
@@ -296,7 +296,7 @@ def delete_documents(request):
     folder_id = request.POST.get("active-folder-id")
 
     if folder_id:
-        folder = Folder.objects.get(pk=folder_id)
+        folder = get_object_or_404(Folder, pk=folder_id, user=request.user)
         if select_all_pages == "all":
             documents = folder.documents.all()
         else:
@@ -376,7 +376,7 @@ def import_bibtex(request):
             folder_id = request.POST.get("add-to-folder-id")
             if folder_id:
                 try:
-                    folder = Folder.objects.get(pk=folder_id)
+                    folder = Folder.objects.get(pk=folder_id, user=request.user)
                     folder.documents.add(*documents)
                 except Folder.DoesNotExist:
                     messages.error(request, "Folder does not exists.")
@@ -393,7 +393,7 @@ def import_bibtex(request):
 def shared_folder(request, slug):
     querystring = request.GET.get("q", "")
     order = get_order(request)
-    shared_folder = get_object_or_404(SharedFolder, slug=slug)
+    shared_folder = get_object_or_404(SharedFolder, slug=slug, users=request.user)
     queryset = shared_folder.documents.all()
     queryset = get_filtered_documents(queryset, querystring)
     queryset = queryset.order_by(order)
