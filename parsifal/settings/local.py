@@ -14,7 +14,7 @@ if find_spec("debug_toolbar"):
     INSTALLED_APPS += ["debug_toolbar"]
     MIDDLEWARE.insert(0, "debug_toolbar.middleware.DebugToolbarMiddleware")
 
-if find_spec("silk") and find_spec("pkg_resources"):
+if find_spec("silk"):
     INSTALLED_APPS += ["silk"]
     MIDDLEWARE.insert(0, "silk.middleware.SilkyMiddleware")
 
