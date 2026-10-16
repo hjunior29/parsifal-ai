@@ -34,6 +34,7 @@ class TestDecisionViews(TestCase):
         # The pane is moved inside <form id="article-details"> by JS; a nested <form> would be dropped by browsers.
         self.assertContains(response, 'id="decision-form"')
         self.assertNotContains(response, '<form id="decision-form"')
+        self.assertNotContains(response, "{#")  # multi-line {# #} comments are rendered as text by Django
 
     def test_record_decision(self):
         self.client.force_login(self.human)

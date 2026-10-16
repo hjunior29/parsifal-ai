@@ -39,8 +39,10 @@
     </tbody>
   </table>
 
-  {# A div, not a form: this pane is moved into the article modal, inside <form id="article-details">, and a nested
-     form tag would be dropped by the browser. The JS serializes the inputs of #decision-form. #}
+  {% comment %}
+    A div, not a form: this pane is moved into the article modal, inside the article form, and a nested form tag
+    would be dropped by the browser. The JS serializes the inputs of #decision-form.
+  {% endcomment %}
   <div id="decision-form" class="form-horizontal">
     {% csrf_token %}
     <input type="hidden" name="review-id" value="{{ review.id }}">
