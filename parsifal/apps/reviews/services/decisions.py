@@ -261,8 +261,15 @@ def consolidate(*, review, stage=StudyDecision.TITLE_ABSTRACT, rule=RULE_UNANIMO
 def summary(review):
     """Decision counts per stage and reviewer, for the overview."""
     rows = []
-    for stage, _label in StudyDecision.STAGES:
+    for stage, label in StudyDecision.STAGES:
         per_user = Counter(review.decisions.filter(stage=stage).values_list("user__username", flat=True))
         if per_user:
-            rows.append({"stage": stage, "reviewers": dict(per_user), "articles": len(_decision_table(review, stage))})
+            rows.append(
+                {
+                    "stage": stage,
+                    "stage_label": str(label),
+                    "reviewers": dict(per_user),
+                    "articles": len(_decision_table(review, stage)),
+                }
+            )
     return rows

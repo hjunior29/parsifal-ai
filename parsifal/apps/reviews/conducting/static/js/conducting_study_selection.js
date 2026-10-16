@@ -163,24 +163,33 @@ $(function () {
 
   $("#modal-article").on("click", ".btn-record-decision", function () {
     var btn = $(this);
-    var form = $("#modal-article #decision-form");
     $.ajax({
       url: '/reviews/conducting/record_decision/',
       type: 'post',
       cache: false,
-      data: form.serialize(),
+      data: $("#modal-article #decision-form :input").serialize(),
       beforeSend: function () { btn.prop("disabled", true); },
       success: function (data) {
         $("#modal-article #tab-reviewers").html(data);
       },
       error: function (xhr) {
-        $.parsifal.alert("Could not record the decision", xhr.responseText || "Unexpected error.");
+        $.parsifal.alert("Could not record the decision", requestError(xhr));
       },
       complete: function () { btn.prop("disabled", false); }
     });
   });
 
   var agreementConsolidated = false;
+
+  /* Short, readable text for a failed AJAX call: plain-text responses (our 400s) are shown as they are, HTML
+     error pages are reduced to the status line. */
+  function requestError(xhr) {
+    var text = xhr.responseText || "";
+    if (text && text.indexOf("<") !== 0) {
+      return text;
+    }
+    return "Request failed" + (xhr.status ? " (" + xhr.status + " " + xhr.statusText + ")" : "") + ".";
+  }
 
   function loadAgreement(stage) {
     $.ajax({
@@ -224,7 +233,7 @@ $(function () {
         $("#modal-agreement .modal-body").html(data);
       },
       error: function (xhr) {
-        $.parsifal.alert("Could not consolidate", xhr.responseText || "Unexpected error.");
+        $.parsifal.alert("Could not consolidate", requestError(xhr));
         btn.prop("disabled", false);
       }
     });

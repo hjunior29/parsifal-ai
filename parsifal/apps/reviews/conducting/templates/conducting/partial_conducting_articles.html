@@ -71,7 +71,7 @@
             <td>{{ article.bibtex_key }}</td>
             <td>{{ article.title }}</td>
             <td>{{ article.author }}</td>
-            <td>{{ article.journal }}</td>
+            <td>{{ article.journal|default_if_none:"" }}</td>
             <td>{{ article.year }}</td>
             <td>{{ article.created_by.profile.get_screen_name }}</td>
             <td>{{ article.created_at|date:"d M Y H:i:s" }}</td>

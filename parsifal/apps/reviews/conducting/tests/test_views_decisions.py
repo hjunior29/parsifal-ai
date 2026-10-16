@@ -31,6 +31,9 @@ class TestDecisionViews(TestCase):
         self.assertContains(response, "Reviewers")
         self.assertContains(response, "agent")
         self.assertContains(response, "btn-record-decision")
+        # The pane is moved inside <form id="article-details"> by JS; a nested <form> would be dropped by browsers.
+        self.assertContains(response, 'id="decision-form"')
+        self.assertNotContains(response, '<form id="decision-form"')
 
     def test_record_decision(self):
         self.client.force_login(self.human)
@@ -92,6 +95,8 @@ class TestDecisionViews(TestCase):
         )
         self.assertEqual(200, response.status_code)
         self.assertContains(response, "1 article(s) updated, 1 left unresolved")
+        self.assertContains(response, "rule <strong>Unanimous</strong> at stage <strong>Title and abstract")
+        self.assertNotContains(response, "<strong>title_abstract</strong>")
         self.a1.refresh_from_db()
         self.a2.refresh_from_db()
         self.assertEqual(("A", "U"), (self.a1.status, self.a2.status))

@@ -650,8 +650,10 @@ def _agreement_context(request, review, stage, result=None):
     context = {
         "review": review,
         "stage": stage,
+        "stage_label": dict(StudyDecision.STAGES).get(stage, stage),
         "stages": StudyDecision.STAGES,
         "rules": RULE_LABELS,
+        "rule_label": dict(RULE_LABELS).get(result["rule"], result["rule"]).split(" — ")[0] if result else None,
         "summary": decisions.summary(review),
         "result": result,
         "agreement": None,

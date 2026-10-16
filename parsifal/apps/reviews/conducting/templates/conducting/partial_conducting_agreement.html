@@ -5,7 +5,7 @@
 
   {% if result %}
     <div class="alert alert-success">
-      Consolidated with rule <strong>{{ result.rule }}</strong> at stage <strong>{{ result.stage }}</strong>:
+      Consolidated with rule <strong>{{ rule_label }}</strong> at stage <strong>{{ stage_label }}</strong>:
       {{ result.resolved }} article(s) updated, {{ result.unresolved }} left unresolved. The study list will refresh when you close this window.
     </div>
   {% endif %}
@@ -25,7 +25,7 @@
   {% if summary %}
     <ul>
       {% for row in summary %}
-        <li><strong>{{ row.stage }}</strong>: {{ row.articles }} article(s) decided —
+        <li><strong>{{ row.stage_label }}</strong>: {{ row.articles }} article(s) decided —
           {% for name, count in row.reviewers.items %}{{ name }} ({{ count }}){% if not forloop.last %}, {% endif %}{% endfor %}
         </li>
       {% endfor %}
