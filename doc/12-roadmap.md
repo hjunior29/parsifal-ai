@@ -368,3 +368,12 @@ Acceptance
   (title, abstract, keywords, criteria), and JSON analytics/exports.
 - The indexed guidelines (`kitchenham-2007`, `petersen-2015`) and this
   documentation as grounding material.
+
+## Trimming round — ✅ 2026-10-16 (ADR-008)
+
+Removed e-mail invites (→ Manage access by username), ownership transfer,
+Scopus/Elsevier search, profile pictures and public profiles, the
+'Published reviews' panel and the pt-br placeholder. Kept the library,
+sitemaps/About/Support and password reset. Also added: review type column in
+the review lists, the Reviewers tab and Reviewer agreement panel on the study
+selection page, and the single-workflow framing of the docs.

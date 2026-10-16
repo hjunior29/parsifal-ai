@@ -58,6 +58,11 @@ Conventions used below:
 
 ## 3. Reviews — lifecycle and membership
 
+> 2026-10-16 (ADR-008): invites, `transfer`, the Scopus endpoints, picture
+> upload/crop and public `/<username>/` pages were removed; `/<username>/`
+> now serves only the logged-in user's own list and co-authors are managed at
+> `/<username>/<review_name>/settings/access/`.
+
 | Path | Method | Guard | Inputs | Output |
 |------|--------|-------|--------|--------|
 | `/<username>/` | GET | – | | Review list of that user (author + co-author), pending invites. |

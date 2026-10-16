@@ -8,9 +8,9 @@ decisions in [decisions.md](decisions.md): **Keep**, **Keep (trim)**, or
 |-----|------------------------------|-------|-------------|
 | `reviews` (+ `planning`, `conducting`, `reporting`, `settings`) | 3 913 | 297 | Keep — core |
 | `library` | 819 | 0 | Keep (low priority in API v1) |
-| `invites` | 706 | 351 | Keep (trim e-mail dependency, drop "contacts you follow") |
+| `invites` | 706 | 351 | **Removed 2026-10-16 (ADR-008)** — replaced by Review settings → Manage access |
 | `authentication` | 586 | 229 | Keep (trim: no public sign-up, no reCAPTCHA) |
-| `accounts` | 341 | 164 | Keep |
+| `accounts` | 341 | 164 | Keep — pictures and public profile fields removed (ADR-008); hosts API tokens |
 | `core` | 231 | 26 | Keep — trimmed in phase 1 (home page = review list; `Media` dropped) |
 | `docs` (new, phase 9) | — | 6 | In-app documentation of the fork's features at `/docs/`, Markdown content under `content/`. |
 | `api` (new, phase 3; `parsifal/api/`) | — | 50+ | JSON API v1 — see [14-api.md](14-api.md). |

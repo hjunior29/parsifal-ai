@@ -32,7 +32,10 @@
 - Phase 8 added decision service tests (kappa, rules, scoping) and the
   AI-reviewer API scenario → 251 Django tests + 31 pytest tests.
 - Phase 9 added the in-app docs tests (rendering, registry/content parity,
-  internal links) → **257 Django tests + 31 pytest tests**.
+  internal links) → 257 Django tests + 31 pytest tests.
+- The 2026-10-16 trimming round (ADR-008) removed invites, transfer, Scopus,
+  pictures and public profiles with their tests and added Manage access and
+  decision-UI tests → **231 Django tests + 31 pytest tests**.
 - Coverage config: `setup.cfg` `[coverage:run]` with `branch = true`, source
   `parsifal`, omitting `*/migrations/*` and `*/tests/*`.
 - Fixtures: `parsifal/apps/reviews/fixtures/source_initial_data.json` (7
