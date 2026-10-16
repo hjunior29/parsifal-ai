@@ -4,3 +4,4 @@ django-debug-toolbar==3.5.0
 django-silk==4.4.1
 ipython==8.10.0
 towncrier==21.9.0
+setuptools>=68  # django-silk 4.x and towncrier 21.x import pkg_resources
