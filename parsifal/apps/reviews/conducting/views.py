@@ -1,13 +1,11 @@
-import json
 import logging
 import os
 
-from django.conf import settings as django_settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum, Value
 from django.db.models.functions import Coalesce
-from django.http import Http404, HttpResponse, HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.context_processors import csrf
 from django.urls import reverse as r
@@ -29,8 +27,6 @@ from parsifal.apps.reviews.models import (
     StudyDecision,
 )
 from parsifal.apps.reviews.services import analytics, decisions, extraction, quality, reports, studies
-from parsifal.utils.elsevier.client import ElsevierClient
-from parsifal.utils.elsevier.exceptions import ElsevierInvalidRequest, ElsevierQuotaExceeded
 
 logger = logging.getLogger(__name__)
 
@@ -47,29 +43,10 @@ def search_studies(request, username, review_name):
     review = get_object_or_404(Review, name=review_name, author__username__iexact=username)
     sessions = review.get_latest_source_search_strings()
     add_sources = review.sources.exclude(id__in=sessions.values("source__id"))
-    database_queries = {}
-    try:
-        scopus = sessions.filter(source__name__iexact="Scopus")[0]
-        database_queries["scopus"] = scopus
-    except Exception:
-        pass
-    try:
-        science_direct = sessions.filter(source__name__iexact="Science@Direct")[0]
-        database_queries["science_direct"] = science_direct
-    except Exception:
-        pass
-    sources_names = []
-    for source in review.sources.all():
-        sources_names.append(source.name.lower())
     return render(
         request,
         "conducting/conducting_search_studies.html",
-        {
-            "review": review,
-            "add_sources": add_sources,
-            "database_queries": database_queries,
-            "sources_names": sources_names,
-        },
+        {"review": review, "add_sources": add_sources},
     )
 
 
@@ -130,43 +107,6 @@ def import_base_string(request):
         return HttpResponse(base_search_string)
     except Exception:
         return HttpResponseBadRequest()
-
-
-def elsevier_search(request, database):
-    client = ElsevierClient(django_settings.ELSEVIER_API_KEY)
-    query = request.GET.get("query", "")
-    query = " ".join(query.split())
-    count = request.GET.get("count", "25")
-    start = request.GET.get("start", "0")
-    try:
-        result = {}
-        if database == "scopus":
-            result = client.search_scopus({"query": query, "count": count, "start": start})
-        elif database == "science_direct":
-            result = client.search_science_direct({"query": query, "count": count, "start": start})
-        data = json.dumps(result)
-        return HttpResponse(data, content_type="application/json")
-    except ElsevierInvalidRequest:
-        return HttpResponseBadRequest(
-            "Invalid query. Please verify the syntax of your query before executing a new search."
-        )
-    except ElsevierQuotaExceeded:
-        return HttpResponseBadRequest(
-            "Parsifal's search quota on Elsevier's databases exceeded. Please try again later."
-        )
-
-
-@author_required
-@login_required
-def search_scopus(request):
-    return elsevier_search(request, "scopus")
-
-
-@author_required
-@login_required
-def search_science_direct(request):
-    raise Http404
-    # return elsevier_search(request, 'science_direct')
 
 
 @author_required

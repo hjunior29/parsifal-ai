@@ -31,7 +31,7 @@ template). `DATABASE_URL` is parsed by `dj-database-url`.
 | `LANGUAGE_CODE` | `en-us` | i18n | `LANGUAGES` lists en-us and pt-br but `parsifal/locale/` does not exist in the repo. |
 | `TIME_ZONE` | `UTC` | | |
 | `COMPRESS_ENABLED` | `False` (upstream: `not DEBUG`) | django-compressor | Phase 6: off by default; WhiteNoise serves collected files. |
-| `ELSEVIER_API_KEY` | `""` | Scopus search (`parsifal/utils/elsevier/client.py`) | Optional. |
+| ~~`ELSEVIER_API_KEY`~~ | — | — | Scopus search removed (cleanup round, 2026-10-16). |
 | `PARSIFAL_ALLOW_SIGNUP` | `False` | `SignUpView`, header, cover page | Added in phase 1. When `False`, `/signup/` answers 403 unless the request carries a pending invite code; the admin creates accounts (`createsuperuser`, admin site) or users arrive through co-author invites. |
 | `PARSIFAL_ENVIRONMENT` | `local` | context processor, `environment` command | Keep. |
 | `PARSIFAL_HTTPS` | `False` | `production.py` | Phase 6. Enables secure cookies, HSTS and the HTTPS redirect. |

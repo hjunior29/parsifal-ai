@@ -79,7 +79,6 @@ still show the nginx + supervisor layout if you prefer a front web server.
 | `PARSIFAL_HTTPS` | `False` | Secure cookies, HSTS, SSL redirect (production settings). |
 | `CSRF_TRUSTED_ORIGINS` | empty | Needed when the public origin differs from the host Django sees. |
 | `EMAIL_*`, `DEFAULT_FROM_EMAIL` | console backend | SMTP delivery. |
-| `ELSEVIER_API_KEY` | empty | Optional Scopus search. |
 | `GUNICORN_WORKERS`, `GUNICORN_TIMEOUT`, `PORT` | `2`, `120`, `8000` | Container only. |
 
 ## Backups and restore

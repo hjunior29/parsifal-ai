@@ -43,7 +43,6 @@ gunicorn parsifal.wsgi:application --bind 0.0.0.0:8000 --workers 2
 | `PARSIFAL_HTTPS` | `False` | Secure cookies, HSTS and HTTPS redirect when behind TLS. |
 | `CSRF_TRUSTED_ORIGINS` | empty | Public origin when it differs from the host Django sees. |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL` | console | Without `EMAIL_HOST`, e-mails (password reset, invites) are written to the log. |
-| `ELSEVIER_API_KEY` | empty | Optional Scopus search in the Conducting tab. |
 
 ## HTTPS
 

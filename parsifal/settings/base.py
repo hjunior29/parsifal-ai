@@ -207,8 +207,6 @@ CRISPY_TEMPLATE_PACK = "bootstrap3"
 NINJA_PAGINATION_PER_PAGE = 100
 NINJA_PAGINATION_MAX_LIMIT = 1000
 
-ELSEVIER_API_KEY = config("ELSEVIER_API_KEY", default="")
-
 # ==============================================================================
 # FIRST-PARTY APP
 # ==============================================================================

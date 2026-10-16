@@ -71,19 +71,8 @@ edits existing articles.
 
 ## Elsevier / Scopus search
 
-`parsifal/utils/elsevier/client.py` — `ElsevierClient(api_key, host="http://api.elsevier.com/content")`:
-
-- `search_scopus(params)` → `GET /search/scopus?query=&count=&start=&apiKey=`
-- `search_science_direct(params)` → `GET /search/scidir` (the view for it
-  raises `Http404`; disabled upstream).
-- Status 400 → `ElsevierInvalidRequest`; 429 → `ElsevierQuotaExceeded`;
-  other non-200 → returns `None`.
-
-`conducting.views.search_scopus` (GET: `query`, `count=25`, `start=0`)
-proxies the JSON back to the browser; the JS renders results and lets the user
-push them into the review through `import_bibtex_raw_content`. Requires
-`ELSEVIER_API_KEY` (per-instance key, quota shared by all users). The host is
-plain `http://`.
+Removed in the cleanup round of 2026-10-16: searches are run in the digital
+libraries and imported as BibTeX.
 
 ## Exports
 
