@@ -112,6 +112,7 @@ def documents_delete_batch(request, payload: IdsIn):
 def _import_out(result):
     return LibraryImportOut(
         imported=result.imported,
+        failed=result.failed,
         warnings=result.warnings,
         document_ids=[document.pk for document in result.documents],
         folder_id=result.folder.pk if result.folder else None,

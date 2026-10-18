@@ -47,8 +47,20 @@ def articles_create(request, review_id: int, payload: ArticleCreateIn):
     "/reviews/{int:review_id}/articles/duplicates", response=DuplicateGroupsOut, operation_id="articles_duplicates"
 )
 def articles_duplicates(request, review_id: int):
-    """Groups of non-duplicated articles sharing the same normalised title (oldest first in each group)."""
-    return DuplicateGroupsOut(groups=studies.find_duplicates(get_review(request, review_id)))
+    """
+    Groups of non-duplicated articles that are the same publication (same normalised DOI or title, oldest first).
+    ``details`` is aligned with ``groups`` and says why each was grouped and whether it needs a manual check;
+    ``conflicts`` lists articles with the same title but different DOIs, which are not grouped.
+    """
+    groups, conflicts = studies.duplicate_report(get_review(request, review_id))
+    return DuplicateGroupsOut(
+        groups=[group.articles for group in groups],
+        details=[
+            dict(article_ids=[a.pk for a in g.articles], match=g.match, needs_review=g.needs_review, reason=g.reason)
+            for g in groups
+        ],
+        conflicts=[dict(article_ids=[a.pk for a in c.articles], reason=c.reason) for c in conflicts],
+    )
 
 
 @router.post(
@@ -57,7 +69,10 @@ def articles_duplicates(request, review_id: int):
     operation_id="articles_resolve_duplicates",
 )
 def articles_resolve_duplicates(request, review_id: int, payload: ResolveIn):
-    """Mark the given ids as duplicated, or — without ids — every duplicate except the oldest of each group."""
+    """
+    Mark the given ids as duplicated, or — without ids — every duplicate except the oldest of each group
+    (groups flagged ``needs_review`` are skipped).
+    """
     review = get_review(request, review_id)
     return studies.resolve_duplicates(review=review, article_ids=payload.ids, actor=request.auth)
 

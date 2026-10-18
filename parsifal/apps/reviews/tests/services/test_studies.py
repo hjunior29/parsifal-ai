@@ -82,6 +82,33 @@ class TestImportBibtex(TestCase):
         self.assertEqual(1000, len(article.title))
         self.assertEqual(["long: title truncated to 1000 characters."], result.warnings)
 
+    def test_keys_with_spaces_are_recovered_with_their_original_key(self):
+        content = (
+            "@article{De Pascale2023,\n title={Internet-of-things},\n year={2023},\n doi={10.1002/smr.2511}\n}\n"
+            "@article{De_Pascale2023,\n title={Another one},\n year={2022}\n}\n"
+            "@article{Plain,\n title={Plain},\n year={2021}\n}\n"
+            "@comment{some note, with a comma}\n"
+        )
+        result = studies.import_bibtex(review=self.review, source_id=self.source.pk, content=content)
+        self.assertEqual((3, 0), (result.imported, result.failed))
+        self.assertEqual(
+            {"De Pascale2023", "De_Pascale2023", "Plain"},
+            set(Article.objects.filter(review=self.review).values_list("bibtex_key", flat=True)),
+        )
+        self.assertEqual(
+            ["De Pascale2023: key contains spaces; the entry was kept with its original key."], result.warnings
+        )
+
+    def test_repeated_keys_are_all_imported(self):
+        content = "@article{Same,\n title={First}\n}\n@article{Same,\n title={Second}\n}\n"
+        result = studies.import_bibtex(review=self.review, source_id=self.source.pk, content=content)
+        self.assertEqual((2, 0), (result.imported, result.failed))
+
+    def test_entries_the_parser_drops_are_reported(self):
+        parsed = studies.parse_bibtex_detailed("@article{Good,\n title={Fine}\n}\n@article{Bad,\n title={x\n")
+        self.assertEqual(1 + parsed.unreadable, 2)
+        self.assertTrue(any("could not be read" in warning for warning in parsed.warnings))
+
     def test_source_must_belong_to_review(self):
         other_source = SourceFactory()
         with self.assertRaises(NotFound):
@@ -205,6 +232,48 @@ class TestDuplicates(TestCase):
         groups = studies.find_duplicates(self.review)
         self.assertEqual(1, len(groups))
         self.assertEqual([self.a1.pk, self.a2.pk, self.a3.pk], [a.pk for a in groups[0]])
+
+    def test_dash_variants_with_the_same_doi_are_duplicates(self):
+        review = ReviewFactory(sources=[self.source])
+        a = ArticleFactory(review=review, source=self.source, title="Navigation Using CNN-SSD", doi="10.1109/X.1")
+        b = ArticleFactory(
+            review=review, source=self.source, title="Navigation Using CNN\u2013SSD", doi="https://doi.org/10.1109/X.1"
+        )
+        groups, conflicts = studies.duplicate_report(review)
+        self.assertEqual([[a.pk, b.pk]], [[x.pk for x in g.articles] for g in groups])
+        self.assertEqual(("doi+title", False), (groups[0].match, groups[0].needs_review))
+        self.assertEqual([], conflicts)
+
+    def test_dash_variants_without_doi_match_by_title(self):
+        review = ReviewFactory(sources=[self.source])
+        ArticleFactory(review=review, source=self.source, title="CNN-SSD")
+        ArticleFactory(review=review, source=self.source, title="CNN\u2013SSD")
+        self.assertEqual(1, len(studies.find_duplicates(review)))
+
+    def test_same_title_with_different_dois_is_a_conflict_not_a_group(self):
+        review = ReviewFactory(sources=[self.source])
+        ArticleFactory(review=review, source=self.source, title="Same title", doi="10.1/a")
+        ArticleFactory(review=review, source=self.source, title="Same title", doi="10.1/b")
+        groups, conflicts = studies.duplicate_report(review)
+        self.assertEqual([], groups)
+        self.assertEqual(1, len(conflicts))
+        self.assertIn("10.1/a", conflicts[0].reason)
+        self.assertEqual([], studies.resolve_duplicates(review=review))
+
+    def test_same_doi_with_different_titles_needs_review_and_is_not_auto_resolved(self):
+        review = ReviewFactory(sources=[self.source])
+        ArticleFactory(review=review, source=self.source, title="Edge computing for smart glasses", doi="10.1/z")
+        ArticleFactory(review=review, source=self.source, title="A survey of wine tasting", doi="10.1/Z")
+        groups, _ = studies.duplicate_report(review)
+        self.assertEqual((1, "doi", True), (len(groups), groups[0].match, groups[0].needs_review))
+        self.assertEqual([], studies.resolve_duplicates(review=review))
+        self.assertEqual(1, len(studies.find_duplicates(review)))
+
+    def test_articles_without_title_or_doi_are_not_grouped(self):
+        review = ReviewFactory(sources=[self.source])
+        ArticleFactory(review=review, source=self.source, title="")
+        ArticleFactory(review=review, source=self.source, title="")
+        self.assertEqual([], studies.find_duplicates(review))
 
     def test_resolve_all_keeps_oldest(self):
         marked = studies.resolve_duplicates(review=self.review)

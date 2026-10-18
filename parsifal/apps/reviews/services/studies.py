@@ -1,6 +1,10 @@
 """Conducting phase: candidate studies (articles) — import, manual entry, selection, duplicates."""
 
+import re
+import unicodedata
+from collections import Counter
 from dataclasses import dataclass, field as dataclass_field
+from difflib import SequenceMatcher
 
 from django.db import transaction
 from django.utils.text import slugify
@@ -80,16 +84,76 @@ def _decode(content):
     return content
 
 
-def parse_bibtex(content):
-    """Parse BibTeX text/bytes/file into bibtexparser entries, raising ValidationError on malformed input."""
+# "@type{key," at the start of a line. Keys may contain spaces in exports (e.g. Scopus "De Pascale2023"), which
+# bibtexparser silently drops, so such keys are swapped for a placeholder while parsing and restored afterwards.
+ENTRY_HEADER = re.compile(r"^([ \t]*@([A-Za-z]+)[ \t]*[{(][ \t]*)([^,\n]*?)([ \t]*,)", re.MULTILINE)
+NON_ENTRY_TYPES = {"comment", "string", "preamble"}
+
+
+@dataclass
+class ParseResult:
+    entries: list
+    warnings: list = dataclass_field(default_factory=list)
+    unreadable: int = 0
+
+
+def _protect_keys(text):
+    """Replace keys that contain whitespace with placeholders; returns the new text and {placeholder: key}."""
+    originals = {}
+
+    def replace(match):
+        key = match.group(3)
+        if match.group(2).lower() in NON_ENTRY_TYPES or not re.search(r"\s", key):
+            return match.group(0)
+        placeholder = f"pfl-key-{len(originals)}"
+        originals[placeholder] = key
+        return f"{match.group(1)}{placeholder}{match.group(4)}"
+
+    return ENTRY_HEADER.sub(replace, text), originals
+
+
+def parse_bibtex_detailed(content):
+    """
+    Parse BibTeX text/bytes/file. Besides the entries, report what the parser did not hand back: entries whose key
+    had spaces are recovered (with their original key), and entries that still cannot be read are counted and named,
+    so an import never looks complete when it is not.
+    """
     text = _decode(content)
     if not text or not text.strip():
         raise ValidationError("The BibTeX content is empty.", field="bibtex")
+    protected, originals = _protect_keys(text)
     try:
-        database = bibtexparser.loads(text, parser=BibTexParser(common_strings=True))
+        database = bibtexparser.loads(protected, parser=BibTexParser(common_strings=True))
     except Exception as error:
         raise ValidationError(f"Could not parse the BibTeX content: {error}", field="bibtex")
-    return database.entries
+    entries = database.entries
+    result = ParseResult(entries=entries)
+    for entry in entries:
+        if entry.get("ID") in originals:
+            original = originals[entry["ID"]]
+            entry["ID"] = original
+            result.warnings.append(f"{original}: key contains spaces; the entry was kept with its original key.")
+    # Cross-check against the entry headers actually present in the text.
+    declared = Counter(
+        originals.get(match.group(3), match.group(3))
+        for match in ENTRY_HEADER.finditer(protected)
+        if match.group(2).lower() not in NON_ENTRY_TYPES
+    )
+    missing = declared - Counter(entry.get("ID") for entry in entries)
+    for key, count in missing.items():
+        result.unreadable += count
+        result.warnings.append(f"{key}: entry could not be read by the BibTeX parser and was not imported.")
+    shortfall = len(re.findall(r"^[ \t]*@(?!(?:comment|string|preamble)\b)[A-Za-z]+[ \t]*[{(]", text, re.I | re.M))
+    shortfall -= len(entries) + result.unreadable
+    if shortfall > 0:
+        result.unreadable += shortfall
+        result.warnings.append(f"{shortfall} more entries could not be read by the BibTeX parser (no key found).")
+    return result
+
+
+def parse_bibtex(content):
+    """Parse BibTeX text/bytes/file into bibtexparser entries, raising ValidationError on malformed input."""
+    return parse_bibtex_detailed(content).entries
 
 
 def article_from_entry(entry, *, review, source, warnings=None):
@@ -115,8 +179,9 @@ def import_bibtex(*, review, source_id, content, actor=None):
     source = get_child(review.sources, source_id, label="Source")
     # Provenance: articles imported for a source are linked to that source's documented search, if any.
     found_via = review.searchsession_set.filter(source=source).first()
-    result = ImportResult()
-    for entry in parse_bibtex(content):
+    parsed = parse_bibtex_detailed(content)
+    result = ImportResult(failed=parsed.unreadable, warnings=list(parsed.warnings))
+    for entry in parsed.entries:
         try:
             article = article_from_entry(entry, review=review, source=source, warnings=result.warnings)
             article.created_by = actor
@@ -215,24 +280,125 @@ def list_articles(review, *, source_id=None, status=None, query=None, finished_d
     return queryset
 
 
+DASHES = re.compile("[\u2010-\u2015\u2212]")
+DOI_PREFIX = re.compile(r"^(?:https?://(?:dx\.)?doi\.org/|doi:\s*)", re.I)
+# Titles that share a DOI but are less similar than this are flagged for a manual check.
+TITLE_SIMILARITY = 0.8
+
+
+def normalize_doi(doi):
+    doi = DOI_PREFIX.sub("", (doi or "").strip()).strip().lower()
+    return doi or None
+
+
+def title_key(title):
+    """Slug of the title after unifying Unicode dashes, so "CNN-SSD" and "CNN\u2013SSD" match."""
+    return slugify(DASHES.sub("-", unicodedata.normalize("NFKC", title or "")))
+
+
+@dataclass
+class DuplicateGroup:
+    articles: list
+    match: str  # "doi", "title" or "doi+title"
+    needs_review: bool = False
+    reason: str = ""
+
+
+@dataclass
+class DuplicateConflict:
+    articles: list
+    reason: str
+
+
+def duplicate_report(review):
+    """
+    Duplicate groups plus conflicts. Articles are grouped when they share a normalized DOI or a title slug (dashes
+    unified). Same title with different DOIs is *not* grouped but reported as a conflict; same DOI with clearly
+    different titles is grouped but flagged ``needs_review``. Articles are ordered oldest first.
+    """
+    articles = list(review.article_set.exclude(status=Article.DUPLICATED).order_by("pk"))
+    parent = {article.pk: article.pk for article in articles}
+    reasons = {}
+
+    def find(pk):
+        while parent[pk] != pk:
+            parent[pk] = parent[parent[pk]]
+            pk = parent[pk]
+        return pk
+
+    def union(a, b, kind):
+        root_a, root_b = find(a), find(b)
+        if root_a != root_b:
+            parent[max(root_a, root_b)] = min(root_a, root_b)
+        reasons.setdefault(min(root_a, root_b), set()).add(kind)
+
+    by_doi, by_title = {}, {}
+    for article in articles:
+        doi = normalize_doi(article.doi)
+        if doi:
+            by_doi.setdefault(doi, []).append(article)
+        key = title_key(article.title)
+        if key:
+            by_title.setdefault(key, []).append(article)
+    for members in by_doi.values():
+        for other in members[1:]:
+            union(members[0].pk, other.pk, "doi")
+    conflicts = []
+    for members in by_title.values():
+        if len(members) < 2:
+            continue
+        dois = {normalize_doi(article.doi) for article in members} - {None}
+        if len(dois) > 1:
+            conflicts.append(
+                DuplicateConflict(
+                    articles=members,
+                    reason="Same title but different DOIs: " + ", ".join(sorted(dois)) + ".",
+                )
+            )
+            continue
+        for other in members[1:]:
+            union(members[0].pk, other.pk, "title")
+
+    grouped = {}
+    for article in articles:
+        grouped.setdefault(find(article.pk), []).append(article)
+    groups = []
+    for root, members in grouped.items():
+        if len(members) < 2:
+            continue
+        kinds = set()
+        for pk in {a.pk for a in members}:
+            kinds |= reasons.get(pk, set())
+        match = "+".join(sorted(kinds)) or "title"
+        group = DuplicateGroup(articles=members, match=match)
+        keys = [title_key(a.title) for a in members if title_key(a.title)]
+        if (
+            "doi" in kinds
+            and keys
+            and any(SequenceMatcher(None, keys[0], key).ratio() < TITLE_SIMILARITY for key in keys)
+        ):
+            group.needs_review = True
+            group.reason = "Same DOI but the titles differ substantially; check before resolving."
+        groups.append(group)
+    return groups, conflicts
+
+
 def find_duplicates(review):
-    """Groups (lists) of non-duplicated articles sharing the same slugified title, oldest first."""
-    groups = {}
-    for article in review.article_set.exclude(status=Article.DUPLICATED).order_by("pk"):
-        groups.setdefault(slugify(article.title or ""), []).append(article)
-    return [articles for articles in groups.values() if len(articles) > 1]
+    """Groups (lists) of non-duplicated articles identified as the same publication, oldest first."""
+    return [group.articles for group in duplicate_report(review)[0]]
 
 
 @transaction.atomic
 def resolve_duplicates(*, review, article_ids=None, actor=None):
     """
     Mark articles as duplicated. With ``article_ids`` only those; without, every duplicate group keeps its
-    oldest article and the rest are marked. Returns the articles marked.
+    oldest article and the rest are marked (groups flagged ``needs_review`` are left for a manual decision).
+    Returns the articles marked.
     """
     if article_ids is not None:
         articles = get_children(review.article_set, article_ids, label="Article")
     else:
-        articles = [article for group in find_duplicates(review) for article in group[1:]]
+        articles = [a for g in duplicate_report(review)[0] if not g.needs_review for a in g.articles[1:]]
     for article in articles:
         article.status = Article.DUPLICATED
         article.updated_by = actor

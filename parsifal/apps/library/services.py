@@ -11,7 +11,7 @@ from django.db.models import Count
 from parsifal.apps.core.exceptions import Conflict, NotFound, ValidationError
 from parsifal.apps.library.models import Document, Folder
 from parsifal.apps.reviews.services._common import check_length, require
-from parsifal.apps.reviews.services.studies import parse_bibtex
+from parsifal.apps.reviews.services.studies import parse_bibtex_detailed
 
 DOCUMENT_FIELDS = (
     "entry_type",
@@ -68,6 +68,7 @@ for _name in DOCUMENT_FIELDS:
 @dataclass
 class ImportResult:
     imported: int = 0
+    failed: int = 0
     warnings: list = dataclass_field(default_factory=list)
     documents: list = dataclass_field(default_factory=list)
     folder: Folder | None = None
@@ -240,8 +241,9 @@ def document_from_entry(entry, *, user, warnings=None):
 def import_bibtex(user, *, content, folder_id=None):
     """Create one Document per BibTeX entry, optionally adding them all to a folder of the user."""
     folder = get_folder(user, folder_id) if folder_id is not None else None
-    result = ImportResult(folder=folder)
-    for entry in parse_bibtex(content):
+    parsed = parse_bibtex_detailed(content)
+    result = ImportResult(folder=folder, failed=parsed.unreadable, warnings=list(parsed.warnings))
+    for entry in parsed.entries:
         document = document_from_entry(entry, user=user, warnings=result.warnings)
         document.save()
         result.documents.append(document)

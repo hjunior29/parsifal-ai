@@ -525,6 +525,9 @@ def _import_articles(request, review, source, content):
                 result.failed
             ),
         )
+    for warning in result.warnings:
+        if "could not be read" in warning or "key contains spaces" in warning:
+            messages.warning(request, warning)
     if result.imported == 0 and result.failed == 0:
         messages.warning(request, "The bibtex file had no valid entry!")
 

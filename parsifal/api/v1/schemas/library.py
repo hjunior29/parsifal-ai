@@ -84,6 +84,7 @@ class LibraryImportIn(Schema):
 
 class LibraryImportOut(Schema):
     imported: int
+    failed: int = 0
     warnings: list[str]
     document_ids: list[int]
     folder_id: int | None = None

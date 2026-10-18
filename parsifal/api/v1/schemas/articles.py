@@ -96,8 +96,22 @@ class ImportOut(Schema):
     article_ids: list[int]
 
 
+class DuplicateGroupInfoOut(Schema):
+    article_ids: list[int]
+    match: str
+    needs_review: bool
+    reason: str
+
+
+class DuplicateConflictOut(Schema):
+    article_ids: list[int]
+    reason: str
+
+
 class DuplicateGroupsOut(Schema):
     groups: list[list[ArticleOut]]
+    details: list[DuplicateGroupInfoOut] = []
+    conflicts: list[DuplicateConflictOut] = []
 
 
 class ResolveIn(Schema):

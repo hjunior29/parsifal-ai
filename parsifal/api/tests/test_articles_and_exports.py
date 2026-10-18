@@ -91,6 +91,18 @@ class TestArticlesApi(ApiTestCase):
         self.assertEqual([a2.pk], [a["id"] for a in marked])
         self.assertEqual("D", marked[0]["status"])
 
+    def test_duplicates_report_reasons_and_conflicts(self):
+        a = ArticleFactory(review=self.review, source=self.source, title="Using CNN-SSD", doi="10.1/a")
+        b = ArticleFactory(review=self.review, source=self.source, title="Using CNN\u2013SSD", doi="10.1/A")
+        c = ArticleFactory(review=self.review, source=self.source, title="Twin", doi="10.2/x")
+        d = ArticleFactory(review=self.review, source=self.source, title="Twin", doi="10.2/y")
+        body = self.api("get", self.review_path("/articles/duplicates")).json()
+        self.assertEqual([[a.pk, b.pk]], [[x["id"] for x in group] for group in body["groups"]])
+        self.assertEqual(
+            [{"article_ids": [a.pk, b.pk], "match": "doi+title", "needs_review": False, "reason": ""}], body["details"]
+        )
+        self.assertEqual([[c.pk, d.pk]], [conflict["article_ids"] for conflict in body["conflicts"]])
+
 
 class TestAnalyticsAndExports(ApiTestCase):
     @classmethod

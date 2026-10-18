@@ -98,9 +98,13 @@ full text; K 6.2.3 reliability with two assessors.
 - Save: `save_article_details` (whole form, including bibliographic edits).
 - Bulk: select rows → accept / reject / unclassify / mark duplicated / remove
   (`multiple_articles_action_*`).
-- Duplicates: `find_duplicates` groups non-duplicated articles by slugified
-  title; `resolve_duplicated` marks one; `resolve_all` keeps the first of each
-  group.
+- Duplicates: `duplicate_report` groups non-duplicated articles by normalised
+  DOI or by title slug (Unicode dashes unified). Same title with different DOIs
+  is reported as a conflict and not grouped; same DOI with very different
+  titles is grouped but flagged `needs_review`. `resolve_duplicated` marks one;
+  `resolve_all` keeps the first of each group and skips flagged groups.
+- BibTeX import: keys with spaces (Scopus) are kept as-is; entries the parser
+  cannot read are counted in `failed` and named in `warnings`.
 - Manual add: `new_article` + `save_article_details(article-id=None)`.
 - Single consolidated decision per article (`Article.status`) — **no
   per-reviewer decisions and no agreement statistics** (K 6.2.3 Kappa).

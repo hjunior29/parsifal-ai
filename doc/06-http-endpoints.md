@@ -151,7 +151,7 @@ Action endpoints under `/reviews/conducting/`, guard **A** unless noted:
 | `article_details/` | GET | `review-id`, `article-id` | frag details form |
 | `save_article_details/` | POST | `review-id`, `article-id` (`None` to create; then `source-id`), `bibtex-key`, `title`, `author`, `journal`, `year`, `pages`, `volume`, `abstract`, `document-type`, `doi`, `url`, `affiliation`, `author_keywords`, `keywords`, `publisher`, `issn`, `language`, `note`, `comments`, `status` (`U/R/A/D`), `selection_criteria` (id or empty) | frag `<tr>`; sets `updated_by` |
 | `multiple_articles_action/accept/` · `reject/` · `unclassify/` · `duplicated/` · `remove/` | POST | `review-id`, `article_ids` (`"1|2|3"`) | Bulk status update / delete, scoped to review |
-| `find_duplicates/` | GET | `review-id` | frag groups by slugified title |
+| `find_duplicates/` | GET | `review-id` | frag duplicate groups (DOI / title) |
 | `resolve_duplicated/` | POST | `article-id` | status `D` (checks review membership) |
 | `resolve_all/` | POST | `review-id` | Marks all but first of each group `D`; csv of ids |
 | `export_results/` | POST | `review-id` | `articles.xls` |
