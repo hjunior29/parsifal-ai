@@ -524,7 +524,7 @@ def add_criteria(request):
         review = Review.objects.get(pk=review_id)
         criteria = SelectionCriteria(review=review, description=description, criteria_type=criteria_type)
         criteria.save()
-        return HttpResponse('<option value="' + str(criteria.id) + '">' + escape(criteria.description) + "</option>")
+        return render(request, "planning/partial_criteria.html", {"criteria": criteria})
     except Exception:
         return HttpResponseBadRequest()
 

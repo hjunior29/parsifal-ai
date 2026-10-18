@@ -9,6 +9,11 @@
     body,html,.wrapper{height:auto;}
     section {padding-top:20px;}
     #planning-tab,section>.panel,section form>.panel{margin-bottom:0;}
+    /* Criteria are listed as wrapping rows (a native <select> cuts long descriptions off). */
+    .criteria-list{max-height:320px;overflow-y:auto;margin-bottom:10px;}
+    .criteria-list:empty::before{content:"No criteria yet.";display:block;padding:10px 15px;color:#999;}
+    .criteria-item{display:flex;align-items:flex-start;gap:8px;margin:0;font-weight:normal;white-space:normal;overflow-wrap:anywhere;cursor:pointer;}
+    .criteria-item input{flex:none;margin-top:3px;}
   </style>
 {% endblock stylesheet %}
 
@@ -19,7 +24,7 @@
   <script src="{% static 'js/planning_keyword.js' %}?v=2"></script>
   <script src="{% static 'js/planning_source.js' %}?v=2"></script>
   <script src="{% static 'js/planning_search_string.js' %}?v=1"></script>
-  <script src="{% static 'js/planning_criteria.js' %}?v=1"></script>
+  <script src="{% static 'js/planning_criteria.js' %}?v=2"></script>
   <script>
     $(function () {
       $("#protocol").affix({
@@ -586,20 +591,14 @@
             <h3 class="panel-title">Selection Criteria</h3>
           </div>
           <div class="panel-body">
-            <p>Inform your inclusion or exclusion criteria and press <strong>Enter</strong> to add.</p>
+            <p>Inform your inclusion or exclusion criteria and press <strong>Enter</strong> to add (up to 200 characters). Tick criteria to remove them.</p>
             <div class="row">
               <div class="col-sm-6">
                 <div class="form-group">
                   <label for="input-inclusion" class="control-label">Inclusion Criteria</label>
                   <input type="text" id="input-inclusion" maxlength="200" class="form-control">
                 </div>
-                <div class="form-group">
-                  <select multiple="multiple" size="6" id="inclusion-criteria" class="form-control">
-                    {% for criteria in review.get_inclusion_criterias %}
-                      <option value="{{ criteria.id }}">{{ criteria.description }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
+                <div class="list-group criteria-list" id="inclusion-criteria">{% for criteria in review.get_inclusion_criterias %}{% include "planning/partial_criteria.html" %}{% endfor %}</div>
                 <button type="button" class="btn btn-danger btn-sm btn-remove-criteria" data-target="#inclusion-criteria">
                   <span class="glyphicon glyphicon-trash"></span>
                   remove selected
@@ -610,13 +609,7 @@
                   <label for="input-exclusion" class="control-label">Exclusion Criteria</label>
                   <input type="text" id="input-exclusion" maxlength="200" class="form-control">
                 </div>
-                <div class="form-group">
-                  <select multiple="multiple" size="6" id="exclusion-criteria" class="form-control">
-                    {% for criteria in review.get_exclusion_criterias %}
-                      <option value="{{ criteria.id }}">{{ criteria.description }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
+                <div class="list-group criteria-list" id="exclusion-criteria">{% for criteria in review.get_exclusion_criterias %}{% include "planning/partial_criteria.html" %}{% endfor %}</div>
                 <button type="button" class="btn btn-danger btn-sm btn-remove-criteria" data-target="#exclusion-criteria">
                   <span class="glyphicon glyphicon-trash"></span>
                   remove selected

@@ -11,7 +11,13 @@ $(function () {
       type: 'get',
       cache: false,
       success: function (data) {
-        select_list.prepend(data);
+        // Keep the list in the server's order (by description).
+        var item = $(data);
+        var description = String(item.data("description"));
+        var next = select_list.children(".criteria-item").filter(function () {
+          return String($(this).data("description")).localeCompare(description) > 0;
+        }).first();
+        if (next.length) { item.insertBefore(next); } else { select_list.append(item); }
         input.val("");
         input.focus();
       }
@@ -37,30 +43,20 @@ $(function () {
   });
 
   $(".btn-remove-criteria").click(function () {
-    var select = $(this).attr("data-target");
-    var ids = $(select).val();
-    if (ids != null) {
-      var review_id = $('#review-id').val();
-      var str_ids = "";
-      var i;
-      for (i = 0 ; i < ids.length ; i++) {
-        if (i == 0) {
-          str_ids += ids[i];  
-        }
-        else {
-          str_ids += "," + ids[i];
-        }
-      }
-      $.ajax({
-        url: '/reviews/planning/remove_criteria/',
-        data: { 'review-id': review_id,  'criteria-ids': str_ids },
-        type: 'get',
-        cache: false,
-        success: function (data) {
-          $("option:selected", select).remove();
-        }
-      });
+    var list = $($(this).attr("data-target"));
+    var checked = list.find("input[type=checkbox]:checked");
+    if (checked.length === 0) {
+      return;
     }
+    var ids = checked.map(function () { return $(this).val(); }).get();
+    $.ajax({
+      url: '/reviews/planning/remove_criteria/',
+      data: { 'review-id': $('#review-id').val(), 'criteria-ids': ids.join(",") },
+      type: 'get',
+      cache: false,
+      success: function () {
+        checked.closest(".criteria-item").remove();
+      }
+    });
   });
-  
 });
