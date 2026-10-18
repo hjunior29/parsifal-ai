@@ -19,12 +19,12 @@ class CriteriaViewsTest(TestCase):
     def setUp(self):
         self.client.force_login(self.review.author)
 
-    def test_long_criteria_are_listed_in_full_as_wrapping_rows(self):
+    def test_long_criteria_are_listed_in_full(self):
         SelectionCriteriaFactory(review=self.review, criteria_type="E", description=LONG)
         response = self.client.get(self.protocol_url)
-        self.assertContains(response, f"<span>{LONG}</span>", html=False)
-        self.assertContains(response, 'class="list-group criteria-list" id="exclusion-criteria"')
-        self.assertNotContains(response, 'id="exclusion-criteria" class="form-control"')
+        self.assertContains(response, 'role="option" aria-selected="false" data-id=')
+        self.assertContains(response, f">{LONG}</div>")
+        self.assertContains(response, 'class="form-control criteria-listbox" id="exclusion-criteria"')
 
     def test_add_returns_an_escaped_list_row(self):
         response = self.client.get(
@@ -32,6 +32,6 @@ class CriteriaViewsTest(TestCase):
             {"review-id": self.review.pk, "criteria": "<b>CI9</b>", "criteria-type": "I"},
         )
         criteria = SelectionCriteria.objects.get(review=self.review)
-        self.assertContains(response, f'<input type="checkbox" value="{criteria.pk}">')
+        self.assertContains(response, f'data-id="{criteria.pk}"')
         self.assertContains(response, "&lt;b&gt;CI9&lt;/b&gt;")
         self.assertNotContains(response, "<b>CI9</b>")

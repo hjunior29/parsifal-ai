@@ -14,7 +14,7 @@ $(function () {
         // Keep the list in the server's order (by description).
         var item = $(data);
         var description = String(item.data("description"));
-        var next = select_list.children(".criteria-item").filter(function () {
+        var next = select_list.children(".criteria-option").filter(function () {
           return String($(this).data("description")).localeCompare(description) > 0;
         }).first();
         if (next.length) { item.insertBefore(next); } else { select_list.append(item); }
@@ -42,20 +42,39 @@ $(function () {
     }
   });
 
+  // Selection behaves like a native multiple <select>: click picks one, Cmd/Ctrl+click toggles, Shift+click
+  // selects a range.
+  var anchor = null;
+  $(".criteria-listbox").on("click", ".criteria-option", function (event) {
+    var option = $(this);
+    var options = option.parent().children(".criteria-option");
+    if (event.shiftKey && anchor && anchor.parent().is(option.parent())) {
+      var from = options.index(anchor), to = options.index(option);
+      options.attr("aria-selected", "false");
+      options.slice(Math.min(from, to), Math.max(from, to) + 1).attr("aria-selected", "true");
+    } else if (event.metaKey || event.ctrlKey) {
+      option.attr("aria-selected", option.attr("aria-selected") === "true" ? "false" : "true");
+      anchor = option;
+    } else {
+      options.attr("aria-selected", "false");
+      option.attr("aria-selected", "true");
+      anchor = option;
+    }
+  });
+
   $(".btn-remove-criteria").click(function () {
-    var list = $($(this).attr("data-target"));
-    var checked = list.find("input[type=checkbox]:checked");
-    if (checked.length === 0) {
+    var selected = $($(this).attr("data-target")).children('.criteria-option[aria-selected="true"]');
+    if (selected.length === 0) {
       return;
     }
-    var ids = checked.map(function () { return $(this).val(); }).get();
+    var ids = selected.map(function () { return $(this).data("id"); }).get();
     $.ajax({
       url: '/reviews/planning/remove_criteria/',
       data: { 'review-id': $('#review-id').val(), 'criteria-ids': ids.join(",") },
       type: 'get',
       cache: false,
       success: function () {
-        checked.closest(".criteria-item").remove();
+        selected.remove();
       }
     });
   });
