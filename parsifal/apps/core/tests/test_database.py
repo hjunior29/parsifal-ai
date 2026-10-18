@@ -16,4 +16,4 @@ class TestSQLiteConfiguration(TestCase):
             self.assertEqual(1, self.pragma("foreign_keys"))
 
         with self.subTest(msg="busy timeout set"):
-            self.assertEqual(5000, self.pragma("busy_timeout"))
+            self.assertEqual(30000, self.pragma("busy_timeout"))

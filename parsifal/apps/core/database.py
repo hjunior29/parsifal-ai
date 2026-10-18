@@ -6,7 +6,7 @@ from django.db.backends.signals import connection_created
 SQLITE_PRAGMAS = (
     "PRAGMA journal_mode=WAL",
     "PRAGMA synchronous=NORMAL",
-    "PRAGMA busy_timeout=5000",
+    "PRAGMA busy_timeout=30000",
     "PRAGMA foreign_keys=ON",
 )
 

@@ -55,7 +55,7 @@ STATIC_ROOT = PARSIFAL_DATA_DIR / "static"
 ```
 
 - `core/apps.py` connects `django.db.backends.signals.connection_created` to
-  run `PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000;
+  run `PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=30000;
   PRAGMA foreign_keys=ON;` on SQLite connections (Django 4.2 has no
   `init_command` option for SQLite).
 - Imports wrap batches of ~500 articles in `transaction.atomic()` to keep

@@ -9,7 +9,7 @@ All settings live in `parsifal/settings/`. `manage.py` defaults to
 | Module | Extends | What it changes |
 |--------|---------|-----------------|
 | `base.py` | — | Everything common: apps, middleware, templates, DB, auth, i18n, static/media, third-party keys. |
-| `local.py` | base | Adds `debug_toolbar` and `silk` (profiler) apps + middleware; console e-mail backend. |
+| `local.py` | base | Adds `debug_toolbar`, and `silk` (profiler) only when `SILK=1` (it writes every request and query into the database); console e-mail backend. |
 | `production.py` | base | Phase 6: security headers/cookies gated by `PARSIFAL_HTTPS`; SMTP when `EMAIL_HOST` is set, console backend otherwise; `CSRF_TRUSTED_ORIGINS`. Used by the Docker image. |
 | `tests.py` | base | MD5 password hasher (speed); `GOOGLE_RECAPTCHA_ENABLED = False`. |
 
@@ -27,7 +27,7 @@ template). `DATABASE_URL` is parsed by `dj-database-url`.
 | `ADMINS` | `""` (`name,email;name,email`) | Django error mail | |
 | `PARSIFAL_DATA_DIR` | `<repo root>/data` (created on startup) | settings | Holds the SQLite file, `media/` and (by default) collected `static/`. Added in phase 0. |
 | `PARSIFAL_STATIC_ROOT` | `<PARSIFAL_DATA_DIR>/static` | settings | Phase 6. Docker collects into `/app/staticfiles`, outside the data volume. |
-| `DATABASE_URL` | `sqlite:///<PARSIFAL_DATA_DIR>/parsifal.sqlite3` (upstream: a Postgres URL) | `dj_database_url` | SQLite connections get `journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=5000`, `foreign_keys=ON` via `core/database.py` (ADR-001). |
+| `DATABASE_URL` | `sqlite:///<PARSIFAL_DATA_DIR>/parsifal.sqlite3` (upstream: a Postgres URL) | `dj_database_url` | SQLite connections get `journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=30000`, `foreign_keys=ON` via `core/database.py` (ADR-001). |
 | `LANGUAGE_CODE` | `en-us` | i18n | `LANGUAGES` lists en-us and pt-br but `parsifal/locale/` does not exist in the repo. |
 | `TIME_ZONE` | `UTC` | | |
 | `COMPRESS_ENABLED` | `False` (upstream: `not DEBUG`) | django-compressor | Phase 6: off by default; WhiteNoise serves collected files. |
