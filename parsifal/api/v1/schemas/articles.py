@@ -116,3 +116,12 @@ class DuplicateGroupsOut(Schema):
 
 class ResolveIn(Schema):
     ids: list[int] | None = None
+
+
+class IdsIn(Schema):
+    ids: list[int]
+
+
+class ClearIn(Schema):
+    source_id: int
+    status: str | None = None

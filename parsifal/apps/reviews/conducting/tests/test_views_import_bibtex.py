@@ -67,3 +67,46 @@ class ImportBibtexViewsTest(TestCase):
         )
         self.assertEqual(403, response.status_code)
         self.assertFalse(Article.objects.filter(review=self.review).exists())
+
+
+class ClearSourceViewTest(TestCase):
+    fixtures = ["source_initial_data.json"]
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.source, cls.other = SourceFactory(), SourceFactory()
+        cls.review = ReviewFactory(sources=[cls.source, cls.other])
+        cls.url = reverse("reviews:conducting:clear_source_articles")
+
+    def setUp(self):
+        for index in range(2):
+            Article.objects.create(review=self.review, source=self.source, title=f"Wrong {index}")
+        Article.objects.create(review=self.review, source=self.other, title="Right")
+
+    def test_import_page_offers_delete_only_for_sources_with_studies(self):
+        self.client.force_login(self.review.author)
+        response = self.client.get(reverse("import_studies", args=(self.review.author.username, self.review.name)))
+        self.assertContains(response, "Delete all", count=2)
+        self.assertContains(response, 'data-count="2"')
+
+    def test_clear_one_source(self):
+        self.client.force_login(self.review.author)
+        response = self.client.post(self.url, {"review-id": self.review.pk, "source-id": self.source.pk}, follow=True)
+        self.assertContains(response, "2 studies deleted.")
+        self.assertEqual(["Right"], list(self.review.article_set.values_list("title", flat=True)))
+
+    def test_requires_post_and_author(self):
+        self.client.force_login(self.review.author)
+        self.assertEqual(405, self.client.get(self.url, {"review-id": self.review.pk}).status_code)
+        self.client.force_login(UserFactory())
+        response = self.client.post(self.url, {"review-id": self.review.pk, "source-id": self.source.pk})
+        self.assertEqual(403, response.status_code)
+        self.assertEqual(3, self.review.article_set.count())
+
+    def test_source_of_another_review_is_refused(self):
+        self.client.force_login(self.review.author)
+        response = self.client.post(
+            self.url, {"review-id": self.review.pk, "source-id": SourceFactory().pk}, follow=True
+        )
+        self.assertContains(response, "not found in this review")
+        self.assertEqual(3, self.review.article_set.count())

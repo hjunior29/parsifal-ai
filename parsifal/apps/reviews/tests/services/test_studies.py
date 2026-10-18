@@ -218,6 +218,35 @@ class TestArticleCrud(TestCase):
             self.assertEqual("Beta study", studies.list_articles(self.review, query="beta").get().title)
 
 
+class TestClearArticles(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.wrong, cls.right = SourceFactory(), SourceFactory()
+        cls.review = ReviewFactory(sources=[cls.wrong, cls.right])
+
+    def test_clear_deletes_only_that_source(self):
+        ArticleFactory.create_batch(3, review=self.review, source=self.wrong)
+        keep = ArticleFactory(review=self.review, source=self.right)
+        other_review = ReviewFactory(sources=[self.wrong])
+        foreign = ArticleFactory(review=other_review, source=self.wrong)
+        self.assertEqual(3, studies.clear_articles(review=self.review, source_id=self.wrong.pk))
+        self.assertEqual({keep.pk}, set(self.review.article_set.values_list("pk", flat=True)))
+        self.assertTrue(Article.objects.filter(pk=foreign.pk).exists())
+        self.assertTrue(self.review.sources.filter(pk=self.wrong.pk).exists())
+
+    def test_clear_by_status(self):
+        ArticleFactory(review=self.review, source=self.wrong, status=Article.REJECTED)
+        kept = ArticleFactory(review=self.review, source=self.wrong, status=Article.ACCEPTED)
+        self.assertEqual(1, studies.clear_articles(review=self.review, source_id=self.wrong.pk, status="R"))
+        self.assertEqual([kept.pk], list(self.review.article_set.values_list("pk", flat=True)))
+        with self.assertRaises(ValidationError):
+            studies.clear_articles(review=self.review, source_id=self.wrong.pk, status="Z")
+
+    def test_source_of_another_review_is_refused(self):
+        with self.assertRaises(NotFound):
+            studies.clear_articles(review=self.review, source_id=SourceFactory().pk)
+
+
 class TestDuplicates(TestCase):
     @classmethod
     def setUpTestData(cls):

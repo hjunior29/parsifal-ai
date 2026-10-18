@@ -6,7 +6,7 @@ from openpyxl import load_workbook
 
 from parsifal.api.tests.base import API, ApiTestCase
 from parsifal.apps.reviews.models import Article
-from parsifal.apps.reviews.tests.factories import ArticleFactory, SelectionCriteriaFactory
+from parsifal.apps.reviews.tests.factories import ArticleFactory, SelectionCriteriaFactory, SourceFactory
 
 DATA = Path(__file__).resolve().parents[2] / "apps" / "reviews" / "tests" / "data"
 
@@ -90,6 +90,42 @@ class TestArticlesApi(ApiTestCase):
         marked = self.api("post", self.review_path("/articles/duplicates/resolve"), {}).json()
         self.assertEqual([a2.pk], [a["id"] for a in marked])
         self.assertEqual("D", marked[0]["status"])
+
+    def test_bulk_delete_and_clear_source(self):
+        other = SourceFactory()
+        self.review.sources.add(other)
+        mine = [ArticleFactory(review=self.review, source=self.source).pk for _ in range(3)]
+        other_source = ArticleFactory(review=self.review, source=other)
+        foreign = ArticleFactory()
+        with self.subTest(msg="one foreign id means nothing is deleted"):
+            response = self.api("post", self.review_path("/articles/delete"), {"ids": [mine[0], foreign.pk]})
+            self.assertEqual(404, response.status_code)
+            self.assertEqual(3, self.review.article_set.filter(source=self.source).count())
+        with self.subTest(msg="delete by ids"):
+            response = self.api("post", self.review_path("/articles/delete"), {"ids": mine[:2]})
+            self.assertEqual((200, 2), (response.status_code, response.json()["count"]))
+        with self.subTest(msg="clear a source"):
+            response = self.api("post", self.review_path("/articles/clear"), {"source_id": self.source.pk})
+            self.assertEqual((200, 1), (response.status_code, response.json()["count"]))
+            self.assertEqual([other_source.pk], list(self.review.article_set.values_list("pk", flat=True)))
+        with self.subTest(msg="source of another review, bad status, outsider"):
+            self.assertEqual(
+                404, self.api("post", self.review_path("/articles/clear"), {"source_id": 99999}).status_code
+            )
+            self.assertEqual(
+                422,
+                self.api(
+                    "post", self.review_path("/articles/clear"), {"source_id": other.pk, "status": "Z"}
+                ).status_code,
+            )
+            outsider = self.client_for(self.outsider)
+            self.assertEqual(
+                404,
+                self.api(
+                    "post", self.review_path("/articles/clear"), {"source_id": other.pk}, client=outsider
+                ).status_code,
+            )
+            self.assertEqual(1, self.review.article_set.count())
 
     def test_duplicates_report_reasons_and_conflicts(self):
         a = ArticleFactory(review=self.review, source=self.source, title="Using CNN-SSD", doi="10.1/a")

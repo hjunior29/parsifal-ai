@@ -3,7 +3,7 @@
 {% load static %}
 
 {% block javascript %}
-  <script type="text/javascript" src="{% static 'js/conducting_import_studies.js' %}?_=2"></script>
+  <script type="text/javascript" src="{% static 'js/conducting_import_studies.js' %}?_=3"></script>
 {% endblock javascript %}
 
 {% block tab_content %}
@@ -48,6 +48,14 @@
                         <li><a href="javascript:void(0);" class="js-import-bibtex-raw-content" data-source-id="{{ source.source.id }}" data-toggle="modal" data-target="#parse-bibtex">Paste BibTeX content</a></li>
                       </ul>
                     </div>
+                    {% if source.count %}
+                      <form method="post" action="{% url 'reviews:conducting:clear_source_articles' %}" class="form-inline-block js-clear-source" data-source="{{ source.source.name }}" data-count="{{ source.count }}" style="display: inline-block;">
+                        {% csrf_token %}
+                        <input type="hidden" name="review-id" value="{{ review.id }}">
+                        <input type="hidden" name="source-id" value="{{ source.source.id }}">
+                        <button type="submit" class="btn btn-danger btn-sm"><span class="glyphicon glyphicon-trash"></span> Delete all</button>
+                      </form>
+                    {% endif %}
                   </td>
                 </tr>
               {% endfor %}

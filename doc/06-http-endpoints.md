@@ -146,6 +146,7 @@ Action endpoints under `/reviews/conducting/`, guard **A** unless noted:
 | `search_science_direct/` | GET | | always 404 |
 | `import/bibtex_file/` | POST multipart | `review-id`, `source-id`, `bibtex` (.bib/.bibtex) | Creates `Article`s; redirect with counts |
 | `import/bibtex_raw_content/` | POST | `review-id`, `source-id`, `bibtex_file` (text) | same |
+| `import/clear/` | POST | `review-id`, `source-id` | redirect to import page; deletes every study of the source |
 | `new_article/` | GET | `review-id`, `source-id` | frag empty article form |
 | `source_articles/` | GET | `review-id`, `source-id` (`None` = all) | frag table of articles |
 | `article_details/` | GET | `review-id`, `article-id` | frag details form |

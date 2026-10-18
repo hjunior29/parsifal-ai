@@ -573,6 +573,20 @@ def import_bibtex_raw_content(request):
 
 @author_required
 @login_required
+@require_POST
+def clear_source_articles(request):
+    review = get_object_or_404(Review, pk=request.POST["review-id"])
+    try:
+        count = studies.clear_articles(review=review, source_id=request.POST.get("source-id"))
+    except DomainError as error:
+        messages.error(request, str(error))
+    else:
+        messages.success(request, _("%(count)s studies deleted.") % {"count": count})
+    return redirect(r("import_studies", args=(review.author.username, review.name)))
+
+
+@author_required
+@login_required
 def source_articles(request):
     review_id = request.GET["review-id"]
     source_id = request.GET["source-id"]

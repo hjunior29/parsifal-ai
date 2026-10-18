@@ -6,8 +6,10 @@ from parsifal.api.v1.schemas.articles import (
     ArticleCreateIn,
     ArticleOut,
     ArticleUpdateIn,
+    ClearIn,
     DuplicateGroupsOut,
     ImportIn,
+    IdsIn,
     ImportOut,
     ResolveIn,
     StatusIn,
@@ -142,3 +144,22 @@ def articles_update(request, review_id: int, article_id: int, payload: ArticleUp
 def articles_delete(request, review_id: int, article_id: int):
     studies.delete_articles(review=get_review(request, review_id), article_ids=[article_id])
     return 204, None
+
+
+@router.post("/reviews/{int:review_id}/articles/delete", response=CountOut, operation_id="articles_delete_batch")
+def articles_delete_batch(request, review_id: int, payload: IdsIn):
+    """
+    Delete several articles at once (all ids must belong to the review, otherwise nothing is deleted). Their
+    decisions, quality assessments, extractions and classifications are deleted with them.
+    """
+    return CountOut(count=studies.delete_articles(review=get_review(request, review_id), article_ids=payload.ids))
+
+
+@router.post("/reviews/{int:review_id}/articles/clear", response=CountOut, operation_id="articles_clear")
+def articles_clear(request, review_id: int, payload: ClearIn):
+    """
+    Delete every article imported into ``source_id`` (only those with ``status`` when given), keeping the source.
+    Use it to undo an import of the wrong export.
+    """
+    review = get_review(request, review_id)
+    return CountOut(count=studies.clear_articles(review=review, source_id=payload.source_id, status=payload.status))

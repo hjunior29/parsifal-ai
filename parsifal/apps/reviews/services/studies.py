@@ -251,6 +251,20 @@ def delete_articles(*, review, article_ids):
     return len(articles)
 
 
+def clear_articles(*, review, source_id, status=None):
+    """
+    Delete every article imported into a source (optionally only those with ``status``), e.g. after importing the
+    wrong export. The source itself stays. Decisions, assessments and extractions of those articles go with them.
+    """
+    source = get_child(review.sources, source_id, label="Source")
+    queryset = review.article_set.filter(source=source)
+    if status is not None:
+        queryset = queryset.filter(status=_validate_status(status))
+    count = queryset.count()
+    queryset.delete()
+    return count
+
+
 def set_status(*, review, article_ids, status, selection_criteria_id=None, comments=None, actor=None):
     """Bulk selection decision; the criteria (reason) and comments are optional and applied to every article."""
     _validate_status(status)
