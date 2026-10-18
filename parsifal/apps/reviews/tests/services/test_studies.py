@@ -244,6 +244,64 @@ class TestDuplicates(TestCase):
         self.assertEqual(("doi+title", False), (groups[0].match, groups[0].needs_review))
         self.assertEqual([], conflicts)
 
+    def test_doi_escapes_and_prefixes_are_ignored(self):
+        self.assertEqual("10.1007/978-3-031-70518-2_12", studies.normalize_doi("10.1007/978-3-031-70518-2\\_12"))
+        self.assertEqual("10.1/a&b", studies.normalize_doi(" DOI: 10.1/A\\&B. "))
+        self.assertEqual("10.1/x", studies.normalize_doi("https://dx.doi.org/10.1/X"))
+        self.assertIsNone(studies.normalize_doi("  "))
+
+    def test_wos_and_scopus_dois_differing_by_an_escape_are_duplicates(self):
+        review = ReviewFactory(sources=[self.source])
+        wos = ArticleFactory(review=review, source=self.source, title="A study", doi="10.1007/978-3-031-70518-2\\_12")
+        scopus = ArticleFactory(review=review, source=self.source, title="A study", doi="10.1007/978-3-031-70518-2_12")
+        groups, conflicts = studies.duplicate_report(review)
+        self.assertEqual([[wos.pk, scopus.pk]], [[a.pk for a in g.articles] for g in groups])
+        self.assertEqual(([], False), (conflicts, groups[0].needs_review))
+
+    def test_title_variants_with_the_same_doi_stay_grouped_without_review_flag(self):
+        variants = (
+            ("Body Acupoint Localization and Visualization", "Body Acupoint Localiz.ation and Visualization"),
+            (
+                "Engaging recently incarcerated and gang affiliated Black and Latino/a young adults",
+                "Engaging recently incarcerated and gang afiliated Black and Latino/a young adults.",
+            ),
+            (
+                "Leveraging Ultra-Low-Power Wearables Using Distributed Neural Networks",
+                "Leveraging Ultra-Law-Power Wearables Using Distributed Neural Networks",
+            ),
+            (
+                "Moir{\\'e}Mop: Lightweight and Pervasive Moir{\\'e} Removal",
+                "Moir\u00e9Mop: Lightweight and Pervasive Moir\u00e9 Removal",
+            ),
+            (
+                "OCOsense\u2122 Smart Glasses for Analyzing Facial Expressions",
+                "OCOsenseTMSmart Glasses for Analyzing Facial Expressions",
+            ),
+            (
+                "Observation of memory effects in 5CB/PVAc liquid crystal-polymer",
+                "Observation of memory effects in 5CB/PVAc liquid crystal-polymer composites",
+            ),
+        )
+        for index, (first, second) in enumerate(variants):
+            with self.subTest(title=first):
+                review = ReviewFactory(sources=[self.source])
+                doi = f"10.1/variant{index}"
+                ArticleFactory(review=review, source=self.source, title=first, doi=doi)
+                ArticleFactory(review=review, source=self.source, title=second, doi=doi)
+                groups, conflicts = studies.duplicate_report(review)
+                self.assertEqual((1, [], False), (len(groups), conflicts, groups[0].needs_review))
+                self.assertEqual(1, len(studies.resolve_duplicates(review=review)))
+
+    def test_one_source_without_doi_joins_the_group_by_title(self):
+        review = ReviewFactory(sources=[self.source])
+        title = "Smart Glasses Integrating Bone Conduction and Real-Time Image Processing"
+        wos = ArticleFactory(review=review, source=self.source, title=title, year="2024")
+        scopus = ArticleFactory(review=review, source=self.source, title=title, year="2024", doi="10.23919/X.1")
+        ieee = ArticleFactory(review=review, source=self.source, title=title, year="2024", doi="10.23919/x.1")
+        groups, conflicts = studies.duplicate_report(review)
+        self.assertEqual([[wos.pk, scopus.pk, ieee.pk]], [[a.pk for a in g.articles] for g in groups])
+        self.assertEqual([], conflicts)
+
     def test_dash_variants_without_doi_match_by_title(self):
         review = ReviewFactory(sources=[self.source])
         ArticleFactory(review=review, source=self.source, title="CNN-SSD")

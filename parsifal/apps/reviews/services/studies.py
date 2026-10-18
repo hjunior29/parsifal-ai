@@ -286,14 +286,32 @@ DOI_PREFIX = re.compile(r"^(?:https?://(?:dx\.)?doi\.org/|doi:\s*)", re.I)
 TITLE_SIMILARITY = 0.8
 
 
+TEX_ACCENTS = {"`": "\u0300", "'": "\u0301", "^": "\u0302", "~": "\u0303", "=": "\u0304", '"': "\u0308", ".": "\u0307"}
+TEX_ACCENT = re.compile(r"""\\([`'^~=".])\s*\{?\s*([A-Za-z])\s*\}?""")
+TRADEMARKS = re.compile("[\u2122\u00ae\u00a9]")
+
+
+def untex(text):
+    """Plain text from BibTeX markup: ``Moir{\\'e}Mop`` -> ``Moir\u00e9Mop``, ``10.1/a\\_b`` -> ``10.1/a_b``."""
+    text = TEX_ACCENT.sub(lambda m: m.group(2) + TEX_ACCENTS[m.group(1)], text or "")
+    text = re.sub(r"\\([&%$#_{}])", r"\1", text)
+    return unicodedata.normalize("NFC", text.replace("{", "").replace("}", "")).replace("\\", "")
+
+
 def normalize_doi(doi):
-    doi = DOI_PREFIX.sub("", (doi or "").strip()).strip().lower()
+    """DOI in a comparable form: no URL/``doi:`` prefix, no BibTeX escapes (``\\_``), lower case, no trailing dot."""
+    doi = DOI_PREFIX.sub("", untex(doi).strip())
+    doi = re.sub(r"\s+", "", doi).rstrip(".,;").lower()
     return doi or None
 
 
 def title_key(title):
-    """Slug of the title after unifying Unicode dashes, so "CNN-SSD" and "CNN\u2013SSD" match."""
-    return slugify(DASHES.sub("-", unicodedata.normalize("NFKC", title or "")))
+    """
+    Slug of the title for comparison: TeX markup resolved, trademark signs dropped and Unicode dashes unified, so
+    ``CNN-SSD``/``CNN\u2013SSD`` and ``Moir{\\'e}Mop``/``Moir\u00e9Mop`` match.
+    """
+    text = unicodedata.normalize("NFKC", TRADEMARKS.sub("", untex(title)))
+    return slugify(DASHES.sub("-", text))
 
 
 @dataclass
