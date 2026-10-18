@@ -60,7 +60,10 @@ Paths below are relative to `/api/v1`. `{rid}` = review id.
 | `GET /reviews/{rid}` · `PATCH /reviews/{rid}` (title, description, objective, population, intervention, comparison, outcome, context, quality_assessment_cutoff_score) · `DELETE` (owner) | `reviews_get` · `reviews_update` · `reviews_delete` |
 | `GET /reviews/{rid}/overview` | `reviews_overview` — counts per section and per article status; the first call an agent should make |
 | `PUT /reviews/{rid}/name {name}` (owner) | `reviews_rename` |
-| `GET /reviews/{rid}/members` · `POST {username | email}` (owner) · `DELETE /members/{user_id}` (owner, or self to leave) | `members_*` |
+| `GET /reviews/{rid}/members` | `members_list` (author and co-authors) |
+| `GET /reviews/{rid}/agents` · `POST {name}` (owner) · `POST /agents/{id}/token` (owner) · `DELETE /agents/{id}` (owner) | `agents_list` · `agents_create` · `agents_new_token` · `agents_delete` |
+
+An **agent** is an AI co-author with an account of its own, created for one review by its main author; there is no way to add an existing account. `POST /agents` answers with the agent's token, shown once. `POST /agents/{id}/token` revokes its tokens and issues a new one. **Deleting an agent is permanent: it deletes the account, its API tokens and everything recorded under it (screening decisions, quality assessments, extracted data). Studies it imported and classifications it made stay in the review, without an author.** Agents cannot create or delete agents, rename or delete the review.
 
 ### Protocol (planning)
 
@@ -199,5 +202,5 @@ The complete end-to-end scenario is encoded in
 
 ## Not in v1
 
-Library (documents/folders), review invites by e-mail (use `members_add`),
-and the phase 7–8 resources (facets, per-reviewer decisions, agreement).
+Review invites by e-mail and adding existing accounts as co-authors (agents are
+created with `agents_create`).

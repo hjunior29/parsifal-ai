@@ -1,8 +1,7 @@
-from django.contrib.auth.models import User
 from django.db import transaction
 from django.utils.text import slugify
 
-from parsifal.apps.core.exceptions import Conflict, NotFound, PermissionDenied, ValidationError
+from parsifal.apps.core.exceptions import NotFound, PermissionDenied, ValidationError
 from parsifal.apps.reviews.models import Review
 from parsifal.apps.reviews.services._common import check_length, require
 
@@ -115,41 +114,6 @@ def delete_review(*, review):
             review.sources.remove(source)
             source.delete()
     review.delete()
-
-
-def add_co_author(*, review, user):
-    if user == review.author:
-        raise Conflict("The main author is already part of the review.")
-    if review.co_authors.filter(pk=user.pk).exists():
-        raise Conflict(f"{user.username} is already a co-author.")
-    review.co_authors.add(user)
-    return review
-
-
-def remove_co_author(*, review, user):
-    if not review.co_authors.filter(pk=user.pk).exists():
-        raise NotFound(f"{user.username} is not a co-author of this review.")
-    review.co_authors.remove(user)
-    return review
-
-
-def find_user_by_id(user_id):
-    try:
-        return User.objects.get(pk=user_id, is_active=True)
-    except (User.DoesNotExist, ValueError, TypeError):
-        raise NotFound(f"User {user_id} not found.")
-
-
-def find_user(*, username=None, email=None):
-    queryset = User.objects.filter(is_active=True)
-    try:
-        if username:
-            return queryset.get(username__iexact=username)
-        if email:
-            return queryset.get(email__iexact=email)
-    except User.DoesNotExist:
-        pass
-    raise NotFound("User not found.")
 
 
 def review_overview(review):

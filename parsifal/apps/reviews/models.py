@@ -5,6 +5,8 @@ from django.contrib.auth.models import User
 from django.db import models
 from django.db.models import Q, Sum, Value
 from django.db.models.functions import Coalesce
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from django.urls import reverse
 from django.utils.html import escape
 from django.utils.text import slugify
@@ -778,3 +780,30 @@ class StudyDecision(models.Model):
 
     def __str__(self):
         return f"{self.user.username}: {self.get_status_display()} ({self.get_stage_display()})"
+
+
+class ReviewAgent(models.Model):
+    """
+    An AI agent that works on one review as a co-author, with an account of its own so that everything it does is
+    attributed to it. The account belongs to the review: deleting the agent (or the review) deletes the account,
+    its tokens and everything stored under it.
+    """
+
+    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="agents")
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="agent_of")
+    name = models.CharField(_("name"), max_length=50)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("review agent")
+        verbose_name_plural = _("review agents")
+        ordering = ("created_at", "pk")
+
+    def __str__(self):
+        return f"{self.name} ({self.user.username})"
+
+
+@receiver(post_delete, sender=ReviewAgent)
+def delete_agent_account(sender, instance, **kwargs):
+    """The agent's account never outlives its place in the review (also when the whole review is deleted)."""
+    User.objects.filter(pk=instance.user_id).delete()

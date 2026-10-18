@@ -69,27 +69,9 @@ class TestReviews(ApiTestCase):
         with self.subTest(msg="list"):
             usernames = [m["username"] for m in self.api("get", self.review_path("/members")).json()]
             self.assertEqual([self.author.username, self.co_author.username], usernames)
-        with self.subTest(msg="add by email"):
-            response = self.api("post", self.review_path("/members"), {"email": self.outsider.email})
-            self.assertEqual(201, response.status_code)
-            self.assertTrue(self.review.is_author_or_coauthor(self.outsider))
-        with self.subTest(msg="add twice conflicts"):
-            self.assertEqual(
-                409, self.api("post", self.review_path("/members"), {"username": self.outsider.username}).status_code
-            )
-        with self.subTest(msg="co-author cannot remove others"):
-            response = self.api(
-                "delete", self.review_path(f"/members/{self.outsider.pk}"), client=self.client_for(self.co_author)
-            )
-            self.assertEqual(403, response.status_code)
-        with self.subTest(msg="co-author can leave"):
-            response = self.api(
-                "delete", self.review_path(f"/members/{self.co_author.pk}"), client=self.client_for(self.co_author)
-            )
-            self.assertEqual(204, response.status_code)
-        with self.subTest(msg="owner removes"):
-            self.assertEqual(204, self.api("delete", self.review_path(f"/members/{self.outsider.pk}")).status_code)
-            self.assertEqual(404, self.api("delete", self.review_path(f"/members/{self.outsider.pk}")).status_code)
+        with self.subTest(msg="humans can no longer be added or removed through the API"):
+            self.assertEqual(405, self.api("post", self.review_path("/members"), {"username": "x"}).status_code)
+            self.assertEqual(404, self.api("delete", self.review_path(f"/members/{self.co_author.pk}")).status_code)
 
     def test_default_sources(self):
         DefaultSourceFactory(name="Scopus")

@@ -172,7 +172,8 @@ features and judged several of them unnecessary for a self-hosted instance
 used by one researcher plus a few collaborators and agents.
 
 **Decision.** Remove: e-mail invitations (replaced by a "Manage access" page
-where the main author adds existing accounts by username), ownership
+where the main author adds existing accounts by username; superseded by
+agent accounts, see below), ownership
 transfer (UI, service, API, CLI), the Scopus/Elsevier search integration,
 profile pictures, the public profile fields (public e-mail, location, URL,
 institution), the public `/<username>/` page (now the logged-in user's own
@@ -185,3 +186,23 @@ gone; upstream databases keep orphan `invites_*` tables and the removed
 `auth_profile` columns are dropped by `authentication.0011`. Accounts are
 created by administrators (admin site, API, CLI); agents get their own account
 and are added as co-authors.
+
+## Agents are co-authors created from the review
+
+**Context.** Actions through the API, CLI and MCP should not be attributed to
+the human, and there is only one human (created by `init`); "adding an
+existing account" made no sense.
+
+**Decision.** The main author creates an AI agent from *Manage access* (or
+`agents_create`): a new account (`ReviewAgent`, unusable password, username
+`agent-<name>`) that belongs to that review, is a co-author, and gets a token
+shown once. Adding an existing account by username was removed from the web,
+API (`members_add`/`members_remove`), CLI and MCP. Agents cannot manage
+agents. Deleting an agent is permanent and deletes the account with its
+tokens, decisions, quality assessments and extracted data (those FKs cascade);
+imported studies and classifications stay, with the author cleared. Deleting
+the review deletes its agents.
+
+**Consequences.** Migration `reviews.0041`. The decision count, quality
+assessments and extractions of an agent are shown before deleting it.
+

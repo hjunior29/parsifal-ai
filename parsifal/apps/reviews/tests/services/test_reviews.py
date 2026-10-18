@@ -1,7 +1,7 @@
 from django.test import TestCase
 
 from parsifal.apps.authentication.tests.factories import UserFactory
-from parsifal.apps.core.exceptions import Conflict, NotFound, PermissionDenied, ValidationError
+from parsifal.apps.core.exceptions import NotFound, PermissionDenied, ValidationError
 from parsifal.apps.reviews.models import Review, Source
 from parsifal.apps.reviews.services import reviews
 from parsifal.apps.reviews.tests.factories import ArticleFactory, DefaultSourceFactory, ReviewFactory, SourceFactory
@@ -72,23 +72,6 @@ class TestMembershipAndTransfer(TestCase):
             reviews.require_member(self.review, self.outsider)
         with self.assertRaises(PermissionDenied):
             reviews.require_owner(self.review, self.co_author)
-
-    def test_add_remove_co_author(self):
-        reviews.add_co_author(review=self.review, user=self.outsider)
-        self.assertTrue(self.review.is_author_or_coauthor(self.outsider))
-        with self.assertRaises(Conflict):
-            reviews.add_co_author(review=self.review, user=self.outsider)
-        with self.assertRaises(Conflict):
-            reviews.add_co_author(review=self.review, user=self.author)
-        reviews.remove_co_author(review=self.review, user=self.outsider)
-        with self.assertRaises(NotFound):
-            reviews.remove_co_author(review=self.review, user=self.outsider)
-
-    def test_find_user(self):
-        self.assertEqual(self.author, reviews.find_user(username=self.author.username.upper()))
-        self.assertEqual(self.author, reviews.find_user(email=self.author.email))
-        with self.assertRaises(NotFound):
-            reviews.find_user(username="nobody")
 
     def test_get_review(self):
         self.assertEqual(self.review, reviews.get_review(author_username=self.author.username.upper(), name="shared"))

@@ -6,10 +6,18 @@ from ninja.pagination import LimitOffsetPagination, paginate
 from parsifal.api.deps import get_owned_review, get_review
 from parsifal.api.v1.schemas.common import UserOut
 from parsifal.api.v1.schemas.protocol import SourceOut
-from parsifal.api.v1.schemas.reviews import MemberIn, ReviewCreateIn, ReviewNameIn, ReviewOut, ReviewUpdateIn
-from parsifal.apps.core.exceptions import PermissionDenied, ValidationError
+from parsifal.api.v1.schemas.reviews import (
+    AgentCreatedOut,
+    AgentIn,
+    AgentOut,
+    ReviewCreateIn,
+    ReviewNameIn,
+    ReviewOut,
+    ReviewUpdateIn,
+)
+from parsifal.apps.core.exceptions import ValidationError
 from parsifal.apps.reviews.models import Review
-from parsifal.apps.reviews.services import protocol, reviews
+from parsifal.apps.reviews.services import agents, protocol, reviews
 
 router = Router(tags=["reviews"])
 
@@ -81,23 +89,55 @@ def members_list(request, review_id: int):
     return [review.author, *review.co_authors.order_by("username")]
 
 
-@router.post("/reviews/{int:review_id}/members", response={201: UserOut}, operation_id="members_add")
-def members_add(request, review_id: int, payload: MemberIn):
-    """Add an existing account as co-author (main author only)."""
+def _agent_out(agent, created=None):
+    data = dict(
+        id=agent.user_id,
+        name=agent.name,
+        username=agent.user.username,
+        created_at=agent.created_at,
+        **agents.stats(agent),
+    )
+    if created is not None:
+        return AgentCreatedOut(token=created.raw_key, **data)
+    return AgentOut(**data)
+
+
+@router.get("/reviews/{int:review_id}/agents", response=list[AgentOut], operation_id="agents_list")
+def agents_list(request, review_id: int):
+    """AI agents of the review, with how much each has recorded (what deleting it would remove)."""
+    return [_agent_out(agent) for agent in agents.list_agents(get_review(request, review_id))]
+
+
+@router.post("/reviews/{int:review_id}/agents", response={201: AgentCreatedOut}, operation_id="agents_create")
+def agents_create(request, review_id: int, payload: AgentIn):
+    """
+    Create an AI agent as co-author of the review (main author only): an account of its own with co-author
+    permissions and an API token. The token is in the response and is never shown again.
+    """
     review = get_owned_review(request, review_id)
-    if not payload.username and not payload.email:
-        raise ValidationError("Provide username or email.")
-    user = reviews.find_user(username=payload.username, email=payload.email)
-    reviews.add_co_author(review=review, user=user)
-    return 201, user
+    created = agents.create_agent(review=review, actor=request.auth, name=payload.name)
+    return 201, _agent_out(created.agent, created)
 
 
-@router.delete("/reviews/{int:review_id}/members/{int:user_id}", response={204: None}, operation_id="members_remove")
-def members_remove(request, review_id: int, user_id: int):
-    """Main author removes a co-author, or a co-author removes themselves (leave)."""
-    review = get_review(request, review_id)
-    if user_id != request.auth.pk and review.author_id != request.auth.pk:
-        raise PermissionDenied("Only the main author can remove other co-authors.")
-    user = reviews.find_user_by_id(user_id)
-    reviews.remove_co_author(review=review, user=user)
+@router.post(
+    "/reviews/{int:review_id}/agents/{int:agent_id}/token",
+    response=AgentCreatedOut,
+    operation_id="agents_new_token",
+)
+def agents_new_token(request, review_id: int, agent_id: int):
+    """Revoke every token of the agent and issue a new one (main author only); the new token is shown once."""
+    review = get_owned_review(request, review_id)
+    created = agents.new_token(review=review, actor=request.auth, agent_id=agent_id)
+    return _agent_out(created.agent, created)
+
+
+@router.delete("/reviews/{int:review_id}/agents/{int:agent_id}", response={204: None}, operation_id="agents_delete")
+def agents_delete(request, review_id: int, agent_id: int):
+    """
+    Delete the agent (main author only). PERMANENT: deletes its account, its API tokens and everything recorded
+    under it, namely its screening decisions, quality assessments and extracted data. Studies it imported and
+    classifications it made stay in the review, without an author.
+    """
+    review = get_owned_review(request, review_id)
+    agents.delete_agent(review=review, actor=request.auth, agent_id=agent_id)
     return 204, None

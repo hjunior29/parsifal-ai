@@ -12,7 +12,7 @@ from parsifal.apps.core.exceptions import DomainError
 from parsifal.apps.reviews.decorators import main_author_required
 from parsifal.apps.reviews.mixins import MainAuthorRequiredMixin, ReviewMixin
 from parsifal.apps.reviews.models import Review
-from parsifal.apps.reviews.services import reviews as review_services
+from parsifal.apps.reviews.services import agents as agent_services
 from parsifal.apps.reviews.settings.forms import ReviewSettingsForm
 
 
@@ -53,24 +53,52 @@ class DeleteReviewView(LoginRequiredMixin, MainAuthorRequiredMixin, ReviewMixin,
 
 
 class ManageAccessView(LoginRequiredMixin, MainAuthorRequiredMixin, ReviewMixin, View):
-    """Co-authors of a review: the main author adds existing accounts by username and removes them."""
+    """
+    Who works on the review: the main author and the AI agents it created as co-authors. An agent is an account of
+    its own for this review, with its own API token; deleting it deletes the account and what it recorded.
+    """
 
     template_name = "settings/manage_access.html"
 
+    def _render(self, request, new_token=None, new_token_agent=None):
+        agents = [
+            {"agent": agent, "stats": agent_services.stats(agent)} for agent in agent_services.list_agents(self.review)
+        ]
+        agent_user_ids = {row["agent"].user_id for row in agents}
+        context = {
+            "review": self.review,
+            "agents": agents,
+            "other_co_authors": [user for user in self.review.co_authors.all() if user.pk not in agent_user_ids],
+            "new_token": new_token,
+            "new_token_agent": new_token_agent,
+            "deletion_warning": agent_services.DELETION_WARNING,
+        }
+        return render(request, self.template_name, context)
+
     def get(self, request, *args, **kwargs):
-        return render(request, self.template_name, {"review": self.review})
+        return self._render(request)
 
     def post(self, request, *args, **kwargs):
         action = request.POST.get("action")
         try:
-            if action == "add":
-                user = review_services.find_user(username=request.POST.get("username", "").strip())
-                review_services.add_co_author(review=self.review, user=user)
-                messages.success(request, gettext("%(user)s is now a co-author.") % {"user": user.username})
-            elif action == "remove":
-                user = review_services.find_user_by_id(request.POST.get("user_id"))
-                review_services.remove_co_author(review=self.review, user=user)
-                messages.success(request, gettext("%(user)s was removed from the review.") % {"user": user.username})
+            if action == "create_agent":
+                created = agent_services.create_agent(
+                    review=self.review, actor=request.user, name=request.POST.get("name", "")
+                )
+                # Rendered, not redirected: the token is shown exactly once and never stored.
+                return self._render(request, created.raw_key, created.agent)
+            if action == "new_token":
+                created = agent_services.new_token(
+                    review=self.review, actor=request.user, agent_id=request.POST.get("user_id")
+                )
+                return self._render(request, created.raw_key, created.agent)
+            if action == "delete_agent":
+                agent = agent_services.get_agent(self.review, request.POST.get("user_id"))
+                name = agent.name
+                agent_services.delete_agent(review=self.review, actor=request.user, agent_id=agent.user_id)
+                messages.success(
+                    request, gettext("Agent %(name)s and everything it recorded were deleted.") % {"name": name}
+                )
         except DomainError as error:
             messages.error(request, str(error))
         return redirect("manage_access", self.review.author.username, self.review.name)

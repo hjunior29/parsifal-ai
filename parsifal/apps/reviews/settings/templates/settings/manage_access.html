@@ -30,44 +30,80 @@
               <td><span class="label label-primary">{% trans "Main author" %}</span></td>
               <td></td>
             </tr>
-            {% for author in review.co_authors.all %}
+            {% for row in agents %}
+              <tr>
+                <td>
+                  {{ row.agent.name }} <small class="text-muted">({{ row.agent.user.username }})</small><br>
+                  <small class="text-muted">
+                    {% blocktrans with decisions=row.stats.decisions quality=row.stats.quality_assessments extractions=row.stats.data_extractions %}Recorded so far: {{ decisions }} decisions, {{ quality }} quality assessments, {{ extractions }} data extractions.{% endblocktrans %}
+                  </small>
+                </td>
+                <td><span class="label label-info">{% trans "AI agent" %}</span> <span class="label label-default">{% trans "Co-author" %}</span></td>
+                <td class="text-right" style="white-space: nowrap;">
+                  <form method="post" style="display: inline;" class="js-confirm" data-confirm="{% trans "Issue a new token? The current token of this agent stops working immediately." %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="new_token">
+                    <input type="hidden" name="user_id" value="{{ row.agent.user_id }}">
+                    <button type="submit" class="btn btn-default btn-sm">{% trans "New token" %}</button>
+                  </form>
+                  <form method="post" style="display: inline;" class="js-confirm" data-confirm="{% blocktrans with name=row.agent.name decisions=row.stats.decisions quality=row.stats.quality_assessments extractions=row.stats.data_extractions %}Delete the agent {{ name }}?
+
+This permanently deletes its account, its API tokens and everything it recorded: {{ decisions }} screening decisions, {{ quality }} quality assessments and {{ extractions }} data extractions. Studies it imported and classifications it made stay in the review, without an author. This cannot be undone.{% endblocktrans %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete_agent">
+                    <input type="hidden" name="user_id" value="{{ row.agent.user_id }}">
+                    <button type="submit" class="btn btn-danger btn-sm"><span class="glyphicon glyphicon-trash"></span> {% trans "Delete agent" %}</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+            {% for author in other_co_authors %}
               <tr>
                 <td>{{ author.profile.get_screen_name }} <small class="text-muted">({{ author.username }})</small></td>
                 <td><span class="label label-default">{% trans "Co-author" %}</span></td>
-                <td class="text-right">
-                  <form method="post" style="display: inline;">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="remove">
-                    <input type="hidden" name="user_id" value="{{ author.pk }}">
-                    <button type="submit" class="btn btn-danger btn-sm">{% trans "Remove" %}</button>
-                  </form>
-                </td>
+                <td></td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
 
+      {% if new_token %}
+        <div class="alert alert-warning">
+          <p><strong>{% blocktrans with name=new_token_agent.name %}API token of the agent {{ name }}{% endblocktrans %}</strong></p>
+          <p><code style="user-select: all;">{{ new_token }}</code></p>
+          <p class="small">{% trans "Copy it now: it is shown only once and cannot be recovered. Give it to the agent as PARSIFAL_TOKEN." %}</p>
+        </div>
+      {% endif %}
+
       <form method="post">
         {% csrf_token %}
-        <input type="hidden" name="action" value="add">
+        <input type="hidden" name="action" value="create_agent">
         <div class="panel panel-default">
           <div class="panel-heading">
-            <h3 class="panel-title">{% trans "Add a co-author" %}</h3>
+            <h3 class="panel-title">{% trans "Create an AI agent as co-author" %}</h3>
           </div>
           <div class="panel-body">
-            <p class="text-muted">{% trans "Co-authors can edit the protocol, select studies, assess quality and extract data. An AI agent with its own account can be added here too; its decisions are then attributed to it." %}</p>
+            <p class="text-muted">{% trans "The agent gets an account of its own for this review and an API token. It can edit the protocol, import and select studies, assess quality, extract data and classify, and everything it does is attributed to it. Its screening decisions count as those of one more reviewer. It cannot manage access or delete the review." %}</p>
             <div class="form-group">
-              <label for="id_username" class="control-label">{% trans "Username of an existing account" %}</label>
-              <input type="text" name="username" id="id_username" class="form-control" required>
-              <span class="help-block">{% trans "Accounts are created by the administrator (admin site, API or command line)." %}</span>
+              <label for="id_name" class="control-label">{% trans "Agent name" %}</label>
+              <input type="text" name="name" id="id_name" class="form-control" maxlength="50" required>
             </div>
+            <p class="small text-danger"><span class="glyphicon glyphicon-warning-sign"></span> {{ deletion_warning }}</p>
           </div>
           <div class="panel-footer">
-            <button type="submit" class="btn btn-success">{% trans "Add co-author" %}</button>
+            <button type="submit" class="btn btn-success">{% trans "Create agent" %}</button>
           </div>
         </div>
       </form>
+
+      <script>
+        document.querySelectorAll("form.js-confirm").forEach(function (form) {
+          form.addEventListener("submit", function (event) {
+            if (!window.confirm(form.dataset.confirm)) { event.preventDefault(); }
+          });
+        });
+      </script>
 
     </div>
   </div>

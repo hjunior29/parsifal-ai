@@ -59,6 +59,20 @@ class ReviewNameIn(Schema):
     name: str
 
 
-class MemberIn(Schema):
-    username: str | None = None
-    email: str | None = None
+class AgentIn(Schema):
+    name: str
+
+
+class AgentOut(Schema):
+    id: int  # the agent's user id
+    name: str
+    username: str
+    created_at: datetime
+    decisions: int
+    quality_assessments: int
+    data_extractions: int
+    active_tokens: int
+
+
+class AgentCreatedOut(AgentOut):
+    token: str  # shown once; store it now

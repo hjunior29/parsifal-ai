@@ -47,7 +47,8 @@ mirror the API parameters in kebab-case; `--review` accepts a numeric id or
 | `token` | `list`, `create --name`, `revoke --id` |
 | `user` | `list`, `create --username --email [--password …]` (administrators) |
 | `review` | `list [--author --name --q --limit --offset --all]`, `create`, `get`, `overview`, `update`, `delete`, `rename --name` |
-| `member` | `list`, `add --username|--email`, `remove --user-id` |
+| `member` | `list` |
+| `agent` | `list`, `create --name`, `new-token --id`, `delete --id` (permanent: account, tokens, decisions, quality assessments and extracted data; imported studies and classifications stay) |
 | `question` | `list`, `create --description [--parent-id]`, `update --id`, `delete --id`, `reorder --ids …` |
 | `keyword` | `list`, `create --description [--related-to P|I|C|O] [--synonyms …]`, `update --id`, `delete --id`, `import-picoc` |
 | `search-string` | `get`, `set --search-string`, `generate` |

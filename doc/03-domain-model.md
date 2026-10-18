@@ -51,7 +51,7 @@ See [10-methodology.md](10-methodology.md) §4 for their shape.
 | `name` | SlugField(255) | URL slug; `unique_together (name, author)`. Generated from `title` on creation (`slugify`, fallback `"literature-review"`, suffix `-1`, `-2`… on collision). Editable in review settings. |
 | `title`, `description` (≤500), `objective` (≤1000) | text | |
 | `author` | FK User (PROTECT) | Main author; only they can rename, transfer, delete, manage access. |
-| `co_authors` | M2M User | Added via accepted invites; can do everything except settings. |
+| `co_authors` | M2M User | AI agents created by the main author (`ReviewAgent`); can do everything except settings, access and deleting the review. |
 | `sources` | M2M Source | Digital libraries searched. |
 | `status` | `U` Unpublished / `P` Published | Stored, **never used** by any view. |
 | `quality_assessment_cutoff_score` | float, default 0.0 | See final selection rule. |
