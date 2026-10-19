@@ -32,3 +32,9 @@ class Conflict(DomainError):
 
 class ValidationError(DomainError):
     code = "validation_error"
+
+
+class UpstreamError(DomainError):
+    """A third-party service Parsifal depends on (e.g. Jev) failed or could not be reached."""
+
+    code = "upstream_error"

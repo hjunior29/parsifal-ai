@@ -4,6 +4,7 @@ from parsifal.api import errors
 from parsifal.api.auth import API_AUTH
 from parsifal.api.v1.routers import (
     accounts,
+    ai_screening,
     analytics,
     articles,
     decisions,
@@ -41,4 +42,5 @@ api.add_router("", articles.router)
 api.add_router("", analytics.router)
 api.add_router("", mapping.router)
 api.add_router("", decisions.router)
+api.add_router("", ai_screening.router)
 api.add_router("", library.router)

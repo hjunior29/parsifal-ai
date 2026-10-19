@@ -1,10 +1,18 @@
-from parsifal.apps.core.exceptions import Conflict, DomainError, NotFound, PermissionDenied, ValidationError
+from parsifal.apps.core.exceptions import (
+    Conflict,
+    DomainError,
+    NotFound,
+    PermissionDenied,
+    UpstreamError,
+    ValidationError,
+)
 
 STATUS_CODES = (
     (NotFound, 404),
     (PermissionDenied, 403),
     (Conflict, 409),
     (ValidationError, 422),
+    (UpstreamError, 502),
     (DomainError, 400),
 )
 

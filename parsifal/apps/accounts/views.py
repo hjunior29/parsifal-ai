@@ -7,9 +7,11 @@ from django.utils.translation import gettext, gettext_lazy as _
 from django.views import View
 from django.views.generic import FormView, RedirectView, UpdateView
 
+from parsifal.apps.accounts import services
 from parsifal.apps.accounts.forms import ApiTokenForm, JevIntegrationForm, ProfileForm, UserEmailForm
-from parsifal.apps.accounts.models import ApiToken, Integration
+from parsifal.apps.accounts.models import ApiToken
 from parsifal.apps.core import jev
+from parsifal.apps.core.exceptions import DomainError
 
 
 class SettingsRedirectView(LoginRequiredMixin, RedirectView):
@@ -69,11 +71,8 @@ class IntegrationsView(LoginRequiredMixin, View):
 
     template_name = "accounts/integrations.html"
 
-    def _jev(self):
-        return Integration.objects.filter(user=self.request.user, provider=Integration.JEV).first()
-
     def _render(self, form=None):
-        integration = self._jev()
+        integration = services.get_jev(self.request.user)
         if form is None:
             form = JevIntegrationForm(
                 initial={"model": integration.model if integration else jev.DEFAULT_MODEL},
@@ -86,34 +85,24 @@ class IntegrationsView(LoginRequiredMixin, View):
 
     def post(self, request):
         action = request.POST.get("action")
-        integration = self._jev()
         if action == "remove":
-            if integration:
-                integration.delete()
+            if services.remove_jev(request.user):
                 messages.success(request, gettext("The Jev API key was removed."))
             return redirect("settings:integrations")
         if action == "test":
-            if not integration:
-                messages.error(request, gettext("Save an API key first."))
+            try:
+                models = services.test_jev(request.user)
+            except DomainError as error:
+                messages.error(request, str(error))
             else:
-                try:
-                    models = jev.list_models(integration.api_key)
-                except jev.JevError as error:
-                    messages.error(request, str(error))
-                else:
-                    available = ", ".join(models) or gettext("none listed")
-                    messages.success(
-                        request, gettext("Jev accepted the key. Models available: %(models)s.") % {"models": available}
-                    )
+                available = ", ".join(models) or gettext("none listed")
+                messages.success(
+                    request, gettext("Jev accepted the key. Models available: %(models)s.") % {"models": available}
+                )
             return redirect("settings:integrations")
-        form = JevIntegrationForm(request.POST, has_key=integration is not None)
+        form = JevIntegrationForm(request.POST, has_key=services.get_jev(request.user) is not None)
         if not form.is_valid():
             return self._render(form)
-        if integration is None:
-            integration = Integration(user=request.user, provider=Integration.JEV)
-        if form.cleaned_data["api_key"]:
-            integration.api_key = form.cleaned_data["api_key"]
-        integration.model = form.cleaned_data["model"]
-        integration.save()
+        services.save_jev(request.user, api_key=form.cleaned_data["api_key"], model=form.cleaned_data["model"])
         messages.success(request, gettext("Jev settings saved."))
         return redirect("settings:integrations")

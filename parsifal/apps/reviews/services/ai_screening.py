@@ -30,6 +30,7 @@ DEFAULT_THRESHOLD = 0.9
 MIN_THRESHOLD = 0.5
 MAX_THRESHOLD = 0.99
 STEP_SIZE = 8  # studies per step; one request each
+MAX_STEP_SIZE = 50
 WORKERS = 4  # concurrent requests to Jev within a step
 ORDERS = 3  # option orders asked per study
 NONE = "none"
@@ -225,6 +226,25 @@ def combine(response, options):
 # Runs ---------------------------------------------------------------------------------------------------------------
 
 
+def list_runs(review):
+    return review.screening_runs.select_related("started_by")
+
+
+def list_results(run, *, outcome=None):
+    """Answers of a run, in screening order; ``outcome`` filters (excluded, passed, error, pending)."""
+    results = run.results.select_related("article", "run")
+    if outcome:
+        if outcome not in dict(ScreeningResult.OUTCOMES):
+            raise ValidationError(f"outcome must be one of {sorted(dict(ScreeningResult.OUTCOMES))}.", field="outcome")
+        results = results.filter(outcome=outcome)
+    return results.order_by("pk")
+
+
+def criteria_key(run, criteria_id):
+    """The option key (E1, E2…) a criterion had in the run, or None."""
+    return next((option["key"] for option in run.parameters.get("criteria", []) if option["id"] == criteria_id), None)
+
+
 def get_run(review, run_id):
     try:
         return review.screening_runs.get(pk=run_id)
@@ -233,13 +253,20 @@ def get_run(review, run_id):
 
 
 @transaction.atomic
-def start_run(*, review, actor, context, guidance="", threshold=DEFAULT_THRESHOLD, source_id=None, rescreen=False):
-    """Check the settings, take the studies in scope and open a run; ``process_step`` does the work."""
+def start_run(
+    *, review, actor, context=None, guidance="", threshold=DEFAULT_THRESHOLD, source_id=None, rescreen=False
+):
+    """
+    Check the settings, take the studies in scope and open a run; ``process_step`` does the work. Context fields
+    left out (or None) take the review's values; an empty string sends the field empty.
+    """
     integration = integration_for(actor)
     options = exclusion_options(review)
     if not options:
         raise ValidationError("The review has no exclusion criteria. Add them in Planning first.", field="criteria")
-    context, guidance = _clean_context(context, guidance)
+    merged = default_context(review)
+    merged.update({name: value for name, value in (context or {}).items() if value is not None})
+    context, guidance = _clean_context(merged, guidance)
     threshold = _clean_threshold(threshold)
     if source_id in ("", None):
         source_id = None
@@ -300,10 +327,16 @@ def process_step(*, run, actor, size=STEP_SIZE):
     Screen the next ``size`` studies of the run and record the outcome. Returns the results of this step. The calls
     to Jev happen outside any transaction; each study's outcome is then written in a short one.
     """
+    try:
+        size = int(size)
+    except (TypeError, ValueError):
+        raise ValidationError("size must be a number.", field="size")
+    if not 1 <= size <= MAX_STEP_SIZE:
+        raise ValidationError(f"size must be between 1 and {MAX_STEP_SIZE}.", field="size")
     if run.status != ScreeningRun.RUNNING:
         return []
     integration = integration_for(actor)
-    pending = list(run.results.filter(outcome=ScreeningResult.PENDING).select_related("article")[:size])
+    pending = list(run.results.filter(outcome=ScreeningResult.PENDING).select_related("article", "run")[:size])
     if not pending:
         _close(run, ScreeningRun.FINISHED)
         return []

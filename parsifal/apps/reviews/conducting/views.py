@@ -791,7 +791,6 @@ def ai_screening_step(request):
         results = ai_screening_service.process_step(run=run, actor=request.user)
     except DomainError as error:
         return _ai_screening_error(error)
-    criteria = {option["id"]: option for option in run.parameters["criteria"]}
     return JsonResponse(
         {
             "run": ai_screening_service.progress(run),
@@ -800,7 +799,7 @@ def ai_screening_step(request):
                     "title": result.article.title or result.article.bibtex_key,
                     "outcome": result.outcome,
                     "p_exclude": result.p_exclude,
-                    "criteria": criteria.get(result.selection_criteria_id, {}).get("key"),
+                    "criteria": ai_screening_service.criteria_key(run, result.selection_criteria_id),
                     "error": result.error,
                 }
                 for result in results
