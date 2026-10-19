@@ -4,7 +4,7 @@ else: no authors, venue or affiliations) and answers about the review's criteria
 
 - **Exclude with AI** (phase 1): which exclusion criterion, if any, the study meets. One is enough to reject it.
 - **Include with AI** (phase 2): whether the study meets each inclusion criterion. All of them must be met to accept
-  it.
+  it. It never rejects: rejecting is phase 1's job, and what it does not accept is left to the reviewers.
 
 Every run is made in the name of a **reviewer** chosen by whoever starts it (the main author may pick any member of
 the review, anyone else only themselves), so one person can screen as several reviewers and compare them. A run
@@ -13,8 +13,9 @@ accepted for inclusion) and rewrites this reviewer's decisions: nothing is skipp
 two reviewers can screen the same studies and be compared (Reviewer agreement).
 
 A run records the reviewer's decision on every study it screens, but changes a study's **status** only when the
-study is unclassified, or was rejected (exclusion) or accepted or rejected (inclusion) by this same reviewer.
-Duplicates and studies classified by someone else keep their status.
+study is unclassified, or was rejected (exclusion) or accepted (inclusion) by this same reviewer. Duplicates and
+studies classified by someone else keep their status, and so do accepted studies in an exclusion run and rejected
+studies in an inclusion run.
 
 Every question is asked in several orders of its options within the same request (Jev tends to favour the first
 option when unsure) and the answers are averaged.
@@ -34,9 +35,11 @@ does not. There is no "unclear" answer: doubt shows as a probability away from 0
 so the lowest p(meets) decides (an average would let a criterion that is clearly met make up for one that is not).
 Then:
 
-- lowest ``p(meets) >= accept_threshold``: the reviewer's decision is "accepted" (and the study is accepted).
-- otherwise, lowest ``1 - p(meets) >= reject_threshold``: "rejected" with that criterion as the reason.
-- otherwise: "unclassified"; the title and abstract do not settle it, so it is left to the reviewers.
+- lowest ``p(meets) >= threshold``: the reviewer's decision is "accepted", and the study is accepted (when the run
+  may change its status).
+- otherwise: the reviewer's decision is "unclassified" (undecided: the title and abstract do not show that it meets
+  every criterion) and the study stays, or goes back to, unclassified for the reviewers (when the run may change its
+  status).
 
 A run is driven in small steps (``process_step``) so that the page can show its progress, and every answer is kept
 in ``ScreeningResult`` for audit. A run cannot be stopped; when it is interrupted (page closed, connection lost, Jev
@@ -60,8 +63,6 @@ from parsifal.apps.reviews.services._common import check_length
 DEFAULT_THRESHOLD = 0.9
 MIN_THRESHOLD = 0.5
 MAX_THRESHOLD = 0.99
-# Inclusion: the reject threshold may go below 0.5, down to 1 - accept threshold (see clean_thresholds).
-MIN_REJECT_THRESHOLD = round(1 - MAX_THRESHOLD, 4)
 STEP_SIZE = 8  # studies per step; one request each
 ACTIVE_FOR = 30  # seconds: a running run with a step this recent is being driven somewhere
 MAX_STEP_SIZE = 50
@@ -113,9 +114,6 @@ INCLUSION_RULES = (
 INCLUSION_QUESTION = "noul"  # Jev's yes/no question: the answer is the probability of yes
 YES, NO = "true", "false"  # keys of a yes/no question's descriptions
 INCLUSION_ORDERS = ((YES, NO), (NO, YES))
-# Inclusion: what happens to a study that is neither clearly in nor clearly out. Only "keep_undecided" exists: it
-# stays unclassified for the reviewers. A reject threshold of 1 - accept threshold leaves no study in between.
-RULE_KEEP_UNDECIDED = "keep_undecided"
 SENT_FIELDS = ("title", "keywords", "abstract")
 
 # Statuses of the studies a run may send, in the order the window lists them.
@@ -268,55 +266,20 @@ def _clean_context(context, guidance):
     return cleaned, check_length(str(guidance or "").strip(), GUIDANCE_LENGTH, field="guidance")
 
 
-THRESHOLD_NAMES = {
-    "threshold": "threshold",
-    "accept_threshold": "accept threshold",
-    "reject_threshold": "reject threshold",
-}
-
-
-def _clean_threshold(threshold, field="threshold", minimum=MIN_THRESHOLD):
-    name = THRESHOLD_NAMES[field]
+def clean_threshold(threshold):
+    """
+    The threshold of a run, 0.5–0.99 (None: 0.9). Exclusion: reject when some exclusion criterion applies with at
+    least this probability. Inclusion: accept when every inclusion criterion is met with at least this probability.
+    """
     if threshold is None:
         return DEFAULT_THRESHOLD
     try:
         threshold = round(float(threshold), 4)
     except (TypeError, ValueError):
-        raise ValidationError(f"The {name} must be a number.", field=field)
-    if not minimum <= threshold <= MAX_THRESHOLD:
-        raise ValidationError(f"The {name} must be between {minimum} and {MAX_THRESHOLD}.", field=field)
+        raise ValidationError("The threshold must be a number.", field="threshold")
+    if not MIN_THRESHOLD <= threshold <= MAX_THRESHOLD:
+        raise ValidationError(f"The threshold must be between {MIN_THRESHOLD} and {MAX_THRESHOLD}.", field="threshold")
     return threshold
-
-
-def clean_thresholds(phase, *, threshold=None, accept_threshold=None, reject_threshold=None):
-    """
-    The thresholds of a run (default 0.9 each). Exclusion takes ``threshold``, 0.5–0.99: reject when some exclusion
-    criterion applies with at least this probability. Inclusion takes ``accept_threshold``, 0.5–0.99: accept when
-    every inclusion criterion is met with at least this probability; and ``reject_threshold``: reject when one is not
-    met with at least this probability, i.e. its p(meets) is at most ``1 - reject_threshold``. The reject threshold
-    may go below 0.5 (reject studies that are not clearly in) but not below ``1 - accept_threshold``, where every
-    study that is not accepted is rejected and none is left undecided; lower would overlap the two. Passing the other
-    phase's thresholds is an error, not silently ignored.
-    """
-    if phase == INCLUSION:
-        if threshold is not None:
-            raise ValidationError(
-                "An inclusion run takes accept_threshold and reject_threshold, not threshold.", field="threshold"
-            )
-        accept = _clean_threshold(accept_threshold, "accept_threshold")
-        reject = _clean_threshold(reject_threshold, "reject_threshold", minimum=MIN_REJECT_THRESHOLD)
-        lowest = round(1 - accept, 4)
-        if reject < lowest:
-            raise ValidationError(
-                f"With the accept threshold at {accept:g}, the reject threshold must be at least {lowest:g}: at "
-                f"{lowest:g} every study that is not accepted is rejected.",
-                field="reject_threshold",
-            )
-        return {"accept_threshold": accept, "reject_threshold": reject}
-    for field, value in (("accept_threshold", accept_threshold), ("reject_threshold", reject_threshold)):
-        if value is not None:
-            raise ValidationError(f"An exclusion run takes threshold, not {field}.", field=field)
-    return {"threshold": _clean_threshold(threshold)}
 
 
 # Request ------------------------------------------------------------------------------------------------------------
@@ -419,7 +382,7 @@ def combine(response, options):
 def combine_inclusion(response, options):
     """
     Average each inclusion criterion's probability of yes over the orders asked. Returns (probabilities {key:
-    p(meets)}, the weakest criterion: the lowest p(meets), which is also the one most clearly not met).
+    p(meets)}, the weakest criterion: the one with the lowest p(meets)).
     """
     ids = inclusion_question_ids(options)
     probabilities = {
@@ -474,7 +437,10 @@ def list_runs(review):
 
 
 def list_results(run, *, outcome=None):
-    """Answers of a run, in screening order; ``outcome`` filters (excluded, passed, error, pending)."""
+    """
+    Answers of a run, in screening order; ``outcome`` filters (excluded, passed, included, undecided, error,
+    pending).
+    """
     results = run.results.select_related("article", "run")
     if outcome:
         if outcome not in dict(ScreeningResult.OUTCOMES):
@@ -515,8 +481,6 @@ def start_run(
     context=None,
     guidance="",
     threshold=None,
-    accept_threshold=None,
-    reject_threshold=None,
     source_id=None,
     statuses=None,
     phase=EXCLUSION,
@@ -525,8 +489,8 @@ def start_run(
     Check the settings, take the studies in scope and open a run of ``phase`` (exclusion or inclusion);
     ``process_step`` does the work. The decisions are recorded as ``reviewer_id``; the calls use the actor's Jev key
     and ``model`` (default: the actor's default model). Context fields left out (or None) take the review's values;
-    an empty string sends the field empty. The thresholds are the phase's (see ``clean_thresholds``). ``statuses``
-    picks the studies sent (codes U, R, A, D; default: see ``clean_statuses``).
+    an empty string sends the field empty. ``threshold``: see ``clean_threshold``. ``statuses`` picks the studies
+    sent (codes U, R, A, D; default: see ``clean_statuses``).
     """
     phase = clean_phase(phase)
     integrations.jev_api_key(actor)  # a key the actor can use, before anything else
@@ -538,9 +502,7 @@ def start_run(
     merged = default_context(review)
     merged.update({name: value for name, value in (context or {}).items() if value is not None})
     context, guidance = _clean_context(merged, guidance)
-    thresholds = clean_thresholds(
-        phase, threshold=threshold, accept_threshold=accept_threshold, reject_threshold=reject_threshold
-    )
+    threshold = clean_threshold(threshold)
     statuses = clean_statuses(statuses, phase)
     if source_id in ("", None):
         source_id = None
@@ -558,13 +520,11 @@ def start_run(
         "context": context,
         "guidance": guidance,
         "criteria": options,
-        **thresholds,
+        "threshold": threshold,
         "source_id": int(source_id) if source_id else None,
         "statuses": statuses,
         "orders": len(INCLUSION_ORDERS) if phase == INCLUSION else len(_orders(options)),
     }
-    if phase == INCLUSION:
-        parameters["rule"] = RULE_KEEP_UNDECIDED
     run = ScreeningRun.objects.create(
         review=review,
         reviewer=reviewer,
@@ -718,17 +678,11 @@ def _apply_inclusion(run, result, response):
     probabilities, weakest = combine_inclusion(response, run.parameters["criteria"])
     result.probabilities = probabilities
     result.p_include = probabilities[weakest]
-    result.p_exclude = round(1.0 - result.p_include, 4)
     result.model = str(response.get("model") or run.model)[:100]
     meets = ", ".join(f"{key} {p_meets:.2f}" for key, p_meets in probabilities.items())
-    if result.p_include >= run.parameters["accept_threshold"]:
+    if result.p_include >= run.parameters["threshold"]:
         _accept(run, result, f"meets every inclusion criterion — meets: {meets}")
         result.outcome = ScreeningResult.INCLUDED
-    elif result.p_exclude >= run.parameters["reject_threshold"]:
-        if _reject(run, result, weakest, f"{weakest} not met (meet {result.p_include:.2f}) — meets: {meets}"):
-            result.outcome = ScreeningResult.EXCLUDED
-        else:
-            _criterion_gone(result, weakest)
     else:
         _undecided(run, result, f"undecided, weakest {weakest} (meet {result.p_include:.2f}) — meets: {meets}")
         result.outcome = ScreeningResult.UNDECIDED
@@ -742,13 +696,11 @@ def _criterion_gone(result, key):
 def _changeable(run, result):
     """
     The study, if the run may change its status: it was unclassified, or classified by the run's reviewer (rejected,
-    in an exclusion run; accepted or rejected, in an inclusion run), when the run took it, and nobody changed it
-    since. Duplicates and studies classified by someone else keep their status (the reviewer's decision is recorded
-    all the same); an exclusion run never changes an accepted study.
+    in an exclusion run; accepted, in an inclusion run), when the run took it, and nobody changed it since.
+    Duplicates and studies classified by someone else keep their status (the reviewer's decision is recorded all the
+    same); an exclusion run never changes an accepted study, nor an inclusion run a rejected one.
     """
-    changeable = {Article.UNCLASSIFIED, Article.REJECTED}
-    if run.phase == INCLUSION:
-        changeable.add(Article.ACCEPTED)
+    changeable = {Article.UNCLASSIFIED, Article.ACCEPTED if run.phase == INCLUSION else Article.REJECTED}
     if result.previous_status not in changeable:
         return run.review.article_set.none()
     articles = run.review.article_set.filter(pk=result.article_id, status=result.previous_status)
@@ -777,8 +729,8 @@ def _decide(run, result, status, criteria_id, detail):
 
 def _reject(run, result, key, detail):
     """
-    Record the reviewer's "rejected" decision with the criterion ``key``, and reject the study with it when the run
-    may change its status (see ``_changeable``). False when the criterion is gone.
+    Exclusion: record the reviewer's "rejected" decision with the criterion ``key``, and reject the study with it when
+    the run may change its status (see ``_changeable``). False when the criterion is gone.
     """
     criteria_id = next(option["id"] for option in run.parameters["criteria"] if option["key"] == key)
     if not run.review.selectioncriteria_set.filter(pk=criteria_id).exists():
@@ -800,17 +752,20 @@ def _pass(run, result, detail):
 
 
 def _accept(run, result, detail):
-    """Inclusion, every criterion is met: the reviewer's decision is "accepted", and so is the study."""
+    """
+    Inclusion, every criterion is met: the reviewer's decision is "accepted", and so is the study when the run may
+    change its status (see ``_changeable``).
+    """
     _set_status(run, result, Article.ACCEPTED)
     _decide(run, result, Article.ACCEPTED, None, detail)
 
 
 def _undecided(run, result, detail):
     """
-    Inclusion, neither clearly met nor clearly not met: the reviewer's decision becomes "unclassified", and a study
-    this reviewer had accepted or rejected goes back to unclassified.
+    Inclusion, not every criterion is clearly met: the reviewer's decision becomes "unclassified", and a study this
+    reviewer had accepted goes back to unclassified. Include with AI never rejects.
     """
-    if result.previous_status in (Article.ACCEPTED, Article.REJECTED):
+    if result.previous_status == Article.ACCEPTED:
         _set_status(run, result, Article.UNCLASSIFIED)
     _decide(run, result, Article.UNCLASSIFIED, None, detail)
 

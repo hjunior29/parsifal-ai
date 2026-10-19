@@ -275,7 +275,8 @@ class TestIncludeWithAiApi(AiScreeningApiBase):
         self.assertEqual("inclusion", body["phase"])
         self.assertEqual([{"key": "I1", "id": self.inclusion.pk, "description": "Implemented tool"}], body["criteria"])
         self.assertEqual(("noul", ""), (body["question_type"], body["none_description"]))
-        self.assertEqual((0.5, 0.01), (body["threshold_min"], body["reject_threshold_min"]))
+        self.assertEqual((0.5, 0.99), (body["threshold_min"], body["threshold_max"]))
+        self.assertNotIn("reject_threshold_min", body)
         self.assertIn("inclusion", body["task"])
         self.assertEqual(["A", "U"], body["statuses_default"])
         self.assertEqual(2, body["scopes"][0]["studies"])
@@ -291,20 +292,14 @@ class TestIncludeWithAiApi(AiScreeningApiBase):
     def test_inclusion_run(self):
         start = self.review_path("/ai-screening/runs")
         inclusion = {"reviewer_id": self.author.pk, "phase": "inclusion"}
-        refused = self.api("post", start, {**inclusion, "threshold": 0.9})
+        refused = self.api("post", start, {**inclusion, "threshold": 0.2})
         self.assertEqual(422, refused.status_code)
-        self.assertIn("not threshold", refused.json()["detail"])
-        overlap = self.api("post", start, {**inclusion, "accept_threshold": 0.85, "reject_threshold": 0.1})
-        self.assertEqual(422, overlap.status_code)
-        self.assertIn("must be at least 0.15", overlap.json()["detail"])
-        self.assertEqual(
-            422, self.api("post", start, {"reviewer_id": self.author.pk, "accept_threshold": 0.9}).status_code
-        )
-        response = self.api("post", start, {**inclusion, "accept_threshold": 0.85, "reject_threshold": 0.2})
+        self.assertIn("between 0.5 and 0.99", refused.json()["detail"])
+        response = self.api("post", start, {**inclusion, "threshold": 0.85})
         self.assertEqual(201, response.status_code, response.content)
         run = response.json()
         self.assertEqual(("inclusion", 2, ["A", "U"]), (run["phase"], run["total"], run["parameters"]["statuses"]))
-        self.assertEqual((0.85, 0.2), (run["parameters"]["accept_threshold"], run["parameters"]["reject_threshold"]))
+        self.assertEqual(0.85, run["parameters"]["threshold"])
 
         with (
             mock.patch.object(ai_screening, "WORKERS", 1),
@@ -312,20 +307,21 @@ class TestIncludeWithAiApi(AiScreeningApiBase):
         ):
             step = self.api("post", self.review_path(f"/ai-screening/runs/{run['id']}/step"), {"size": 2}).json()
         self.assertEqual(
-            ("finished", 1, 1, 0), tuple(step["run"][k] for k in ("status", "included", "excluded", "undecided"))
+            ("finished", 1, 0, 1), tuple(step["run"][k] for k in ("status", "included", "excluded", "undecided"))
         )
-        rejected, accepted = step["results"]
+        undecided, accepted = step["results"]
         self.assertEqual(
-            ("excluded", "I1", 0.95, 0.05),
-            (rejected["outcome"], rejected["criteria_key"], rejected["p_exclude"], rejected["p_include"]),
+            ("undecided", None, None, 0.05),
+            (undecided["outcome"], undecided["criteria_key"], undecided["p_exclude"], undecided["p_include"]),
         )
         self.assertEqual({"I1": 0.96}, accepted["probabilities"])
         self.assertEqual(
-            {self.secondary.pk: "R", self.primary.pk: "A"},
+            {self.secondary.pk: "U", self.primary.pk: "A"},  # Include with AI never rejects
             dict(StudyDecision.objects.filter(user=self.author).values_list("article_id", "status")),
         )
         self.primary.refresh_from_db()
-        self.assertEqual(Article.ACCEPTED, self.primary.status)
+        self.secondary.refresh_from_db()
+        self.assertEqual((Article.ACCEPTED, Article.UNCLASSIFIED), (self.primary.status, self.secondary.status))
         self.assertEqual(
             1,
             self.api(

@@ -32,7 +32,7 @@ like the CLI. The server only talks to the API; it never touches the database.
 | `parsifal_articles_set_status`, `parsifal_decisions_record` | Record selection decisions — consolidated, or as the agent's own independent decision. |
 | `parsifal_article_quality_assess`, `parsifal_article_extraction_set`, `parsifal_article_classification_set` | Quality answers, extracted values, classification. |
 | `parsifal_workflow_guide` | The planning → conducting → reporting guide. |
-| `parsifal_ai_screening_run` | Exclude with AI in one call: Jev rejects the studies that clearly meet an exclusion criterion; with `phase="inclusion"`, Include with AI: accepts those that clearly meet every inclusion criterion, with `accept_threshold` and `reject_threshold` instead of `threshold` (continue with `run_id` if the time budget runs out). |
+| `parsifal_ai_screening_run` | Exclude with AI in one call: Jev rejects the studies that clearly meet an exclusion criterion; with `phase="inclusion"`, Include with AI: accepts those that clearly meet every inclusion criterion and never rejects (`threshold` is how sure Jev must be to reject, or to accept; continue with `run_id` if the time budget runs out). |
 | `parsifal_export_*` | Save CSV/XLSX/JSON/DOCX files (`output_path`). |
 
 Tool annotations tell the client which tools are read-only, idempotent or

@@ -76,7 +76,7 @@ class ScreeningRunOut(Schema):
     model: str
     total: int
     processed: int
-    excluded: int  # rejected (both phases)
+    excluded: int  # exclusion: rejected (inclusion never rejects)
     passed: int  # exclusion: no exclusion criterion applies
     included: int  # inclusion: every inclusion criterion met
     undecided: int  # inclusion: left unclassified
@@ -104,11 +104,9 @@ class ScreeningSetupOut(Schema):
     task: str
     rules: list[str]
     sent_fields: list[str]
-    # Range and default of the thresholds: threshold (exclusion), accept_threshold and reject_threshold (inclusion).
     threshold_default: float
     threshold_min: float
     threshold_max: float
-    reject_threshold_min: float  # inclusion: the reject threshold may go this low, but not below 1 - accept_threshold
     statuses: list[ScreeningStatusOut]  # statuses of the studies a run may send
     statuses_default: list[str]  # sent when ``statuses`` is left out: R and U (exclusion), A and U (inclusion)
     scopes: list[ScreeningScopeOut]
@@ -130,11 +128,8 @@ class ScreeningStartIn(Schema):
     phase: str = "exclusion"  # exclusion (Exclude with AI) or inclusion (Include with AI)
     model: str | None = None  # default: your default model
     guidance: str = ""
-    threshold: float | None = None  # exclusion: reject when 1 - p(none) is at least this (default 0.9)
-    accept_threshold: float | None = None  # inclusion: accept when every p(meets) is at least this (default 0.9)
-    # Inclusion: reject when some 1 - p(meets) is at least this (default 0.9; may go below 0.5, down to
-    # 1 - accept_threshold, where every study not accepted is rejected).
-    reject_threshold: float | None = None
+    # Default 0.9. Exclusion: reject when 1 - p(none) is at least this; inclusion: accept when every p(meets) is.
+    threshold: float | None = None
     source_id: int | None = None
     statuses: list[str] | None = None  # studies sent: any of U, R, A, D (default R and U; inclusion: A and U)
 
@@ -144,7 +139,7 @@ class ScreeningStepIn(Schema):
 
 
 class ScreeningRunDetailOut(ScreeningRunOut):
-    parameters: dict  # snapshot of what was sent: context, guidance, criteria, thresholds, source and statuses
+    parameters: dict  # snapshot of what was sent: context, guidance, criteria, threshold, source and statuses
 
 
 class ScreeningResultOut(Schema):
@@ -152,9 +147,9 @@ class ScreeningResultOut(Schema):
     title: str | None
     previous_status: str  # the study's status when the run took it (U, R, A or D)
     outcome: str  # excluded, passed (exclusion), included, undecided (inclusion), error, pending
-    p_exclude: float | None  # exclusion: 1 - p(none), averaged over the orders; inclusion: 1 - p_include
+    p_exclude: float | None  # exclusion: 1 - p(none), averaged over the orders
     p_include: float | None  # inclusion: the lowest p(meets) over the criteria
-    criteria_key: str | None  # E1… or I1… of the criterion the study was rejected with
+    criteria_key: str | None  # E1… of the criterion the study was rejected with
     selection_criteria_id: int | None
     probabilities: dict | None  # exclusion: {option: p}; inclusion: {criterion: p(meets)}
     model: str

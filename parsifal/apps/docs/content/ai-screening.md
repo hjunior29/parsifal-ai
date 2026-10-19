@@ -5,8 +5,8 @@ Study selection by a model, in two phases, in the name of a reviewer you choose:
 1. **Exclude with AI**: Jev rejects the studies that clearly meet one of the
    review's **exclusion criteria**. One criterion is enough.
 2. **Include with AI**: Jev accepts the studies that clearly meet **every**
-   **inclusion criterion**, rejects those that clearly fail one, and leaves the
-   rest unclassified for you.
+   **inclusion criterion** and leaves the rest unclassified for you. It never
+   rejects: that is the first phase's job.
 
 [Jev](https://docs.typesafe.ai/models) is TypeSafe's decision model: it does not
 write text, it returns the probability of each allowed answer (of yes, for a
@@ -50,11 +50,8 @@ be sent:
 - **Criteria**: from the protocol, read-only. Exclusion: options `E1`, `E2`…
   plus `none` ("no criterion clearly applies, or there is not enough
   information"). Inclusion: `I1`, `I2`…, one yes/no question each.
-- **Thresholds** (default 0.9, from 0.5 to 0.99): how sure Jev must be.
-  Exclusion has one, to reject. Inclusion has two: the **accept threshold**
-  and the **reject threshold**, set separately (for instance accept only above
-  0.95 but reject from 0.85). The reject threshold can also go below 0.5 (see
-  below).
+- **Threshold** (default 0.9, from 0.5 to 0.99): how sure Jev must be — to
+  reject, in exclusion; to accept, in inclusion.
 - **Studies**: all sources or one, and the **statuses** to send — any mix of
   accepted, rejected, unclassified and duplicated (*All* checks every one). The
   default is rejected + unclassified for exclusion, so a second reviewer
@@ -85,7 +82,7 @@ parsifal integration jev test
 parsifal ai-screening setup --review R                        # what the window shows (reviewers, models, studies per status…)
 parsifal ai-screening run --review R --reviewer-id U --model jev-1.13.0 --threshold 0.9 --guidance @notes.txt
 parsifal ai-screening run --review R --reviewer-id U --statuses U --statuses R --statuses A   # statuses to send (default R and U)
-parsifal ai-screening run --review R --reviewer-id U --phase inclusion --accept-threshold 0.95 --reject-threshold 0.85   # Include with AI (default A and U)
+parsifal ai-screening run --review R --reviewer-id U --phase inclusion --threshold 0.95   # Include with AI (default A and U)
 parsifal ai-screening runs --review R
 parsifal ai-screening results --review R --id RUN --outcome excluded
 ```
@@ -146,43 +143,36 @@ up for one that is not:
 
 | Answers | Reviewer's decision |
 |---|---|
-| The lowest `p(meets)` ≥ accept threshold | **accepted** |
-| Otherwise, the lowest `1 − p(meets)` ≥ reject threshold | **rejected**, with that criterion as the reason |
-| Otherwise (nothing strong enough either way) | **unclassified**: left to you |
+| The lowest `p(meets)` ≥ threshold | **accepted** |
+| Otherwise | **unclassified** (undecided): left to you |
 
-With both thresholds at 0.9, a study is accepted when every criterion is at
-0.90 or more, rejected when one is at 0.10 or less, and left to you in between.
-The reject threshold is compared with the probability of **no**, so a study is
-rejected when its weakest criterion is at `1 − reject threshold` or less:
-
-| Reject threshold | Rejected when the weakest criterion is at |
-|---|---|
-| 0.9 | 0.10 or less |
-| 0.5 | 0.50 or less (more likely not met than met) |
-| 0.2 | 0.80 or less |
-
-Below 0.5 it rejects studies Jev thinks *more likely* meet the criterion than
-not: everything that is not clearly in. It can go down to `1 − accept
-threshold` — with the accept threshold at 0.85, down to 0.15 — where every study
-that is not accepted is rejected and none is left to you. Lower would overlap
-the two, so it is refused. Those rejections mean "not clearly eligible from the
-abstract", not "shown ineligible": read a sample before trusting them.
-The rules sent to Jev tell it that missing information is not a "no", so a
-study is not rejected because its abstract does not mention a criterion. The
-comment says what Jev answered for every criterion:
+**Include with AI never rejects.** Excluding is the first phase's job; here a
+study that does not clearly meet every criterion — whether Jev is unsure or
+thinks one is not met — stays unclassified, with Jev's answers in the comment,
+for you (or a later step) to decide:
 
 ```
 Include with AI (run 12, jev-1.13.0): meets every inclusion criterion — meets: I1 0.97, I2 0.95.
-Include with AI (run 12, jev-1.13.0): I1 not met (meet 0.06) — meets: I1 0.06, I2 0.90.
+Include with AI (run 12, jev-1.13.0): undecided, weakest I1 (meet 0.06) — meets: I1 0.06, I2 0.90.
 Include with AI (run 12, jev-1.13.0): undecided, weakest I2 (meet 0.40) — meets: I1 0.96, I2 0.40.
 ```
 
 Both phases record the reviewer's decision at the *title and abstract* stage,
 so the inclusion decision replaces the "no exclusion criterion" one: the
-reviewer's last word on the study is what *Reviewer agreement* compares. The
-status follows the decision when the study was unclassified, or accepted or
-rejected by this same reviewer (back to unclassified when undecided now);
-duplicates and studies classified by someone else keep theirs.
+reviewer's last word on the study is what *Reviewer agreement* compares.
+
+The study's **status** follows the decision only when the study is
+unclassified, or was accepted by this same reviewer — the mirror of exclusion:
+
+| Status before the run | Accepted by the run | Undecided |
+|---|---|---|
+| Unclassified | accepted (the reviewer is its last editor) | stays unclassified |
+| Accepted by this reviewer | stays accepted | back to unclassified |
+| Accepted by someone else, rejected, duplicated | kept | kept |
+
+As with exclusion, a second reviewer (another model or guidance) screens the
+same studies — accepted and unclassified, the default — without undoing the
+first one's acceptances, and *Reviewer agreement* compares the two.
 
 ## Reviewers and agreement
 
@@ -198,8 +188,9 @@ rejected, without an author.
 
 Start with one source and read what it rejected (filter *Rejected*; the
 *Reviewers* tab shows Jev's probability). If it rejects studies you would keep,
-raise the (reject) threshold or add guidance and run again as the same reviewer: its
-earlier rejections are screened again and rewritten. A study you mark yourself
+raise the threshold or add guidance and run again as the same reviewer: its
+earlier rejections are screened again and rewritten (in inclusion, its
+acceptances). A study you mark yourself
 is no longer this reviewer's to change. To try another model or guidance
 without touching the first results, run it as another reviewer and compare
 the two.

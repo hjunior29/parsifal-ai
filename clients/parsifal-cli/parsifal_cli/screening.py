@@ -57,7 +57,7 @@ def interrupted(run):
 
 def progress_line(run):
     if run.get("phase") == "inclusion":
-        outcomes = f"{run['included']} accepted · {run['excluded']} rejected · {run['undecided']} undecided"
+        outcomes = f"{run['included']} accepted · {run['undecided']} undecided"
     else:
         outcomes = f"{run['excluded']} rejected · {run['passed']} passed"
     return f"{run['processed']}/{run['total']} screened · {outcomes} · {run['failed']} errors"

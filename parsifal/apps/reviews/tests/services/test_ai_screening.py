@@ -184,8 +184,6 @@ class TestStartRun(AiScreeningTestCase):
             self.start(threshold=0.3)
         with self.assertRaisesMessage(ValidationError, "must be a number"):
             self.start(threshold="high")
-        with self.assertRaisesMessage(ValidationError, "An exclusion run takes threshold, not accept_threshold"):
-            self.start(accept_threshold=0.9)
         with self.assertRaises(ValidationError):
             self.start(guidance="x" * (ai_screening.GUIDANCE_LENGTH + 1))
         with self.assertRaises(NotFound):
@@ -618,117 +616,66 @@ class TestInclusion(AiScreeningTestCase):
         with self.assertRaisesMessage(jev.JevError, "not numbers"):
             ai_screening.combine_inclusion(yes_no({"inclusion_i1_1": "yes", "inclusion_i2_1": 1.0}), options)
 
-    def test_thresholds(self):
+    def test_threshold(self):
         self.article()
-        run = self.start(accept_threshold="0.95", reject_threshold=0.8)
+        run = self.start(threshold="0.95")
         self.assertEqual(
-            (0.95, 0.8, False, 2),
-            (
-                run.parameters["accept_threshold"],
-                run.parameters["reject_threshold"],
-                "threshold" in run.parameters,
-                run.parameters["orders"],
-            ),
+            (0.95, 2, ["A", "U"]), (run.parameters["threshold"], run.parameters["orders"], run.parameters["statuses"])
         )
-        defaults = self.start()
-        self.assertEqual(
-            (0.9, 0.9), (defaults.parameters["accept_threshold"], defaults.parameters["reject_threshold"])
-        )
-        with self.assertRaisesMessage(ValidationError, "accept threshold must be between 0.5 and 0.99"):
-            self.start(accept_threshold=0.3)
-        with self.assertRaisesMessage(ValidationError, "reject threshold must be a number"):
-            self.start(reject_threshold="")
-        with self.assertRaisesMessage(ValidationError, "takes accept_threshold and reject_threshold, not threshold"):
-            self.start(threshold=0.9)
+        self.assertEqual(0.9, self.start().parameters["threshold"])
+        with self.assertRaisesMessage(ValidationError, "threshold must be between 0.5 and 0.99"):
+            self.start(threshold=0.3)
+        with self.assertRaisesMessage(ValidationError, "threshold must be a number"):
+            self.start(threshold="")
 
-        with self.subTest(msg="the reject threshold may go below 0.5, down to 1 - accept threshold"):
-            low = self.start(accept_threshold=0.85, reject_threshold=0.2)
-            self.assertEqual(0.2, low.parameters["reject_threshold"])
-            self.assertEqual(
-                0.15, self.start(accept_threshold=0.85, reject_threshold=0.15).parameters["reject_threshold"]
-            )
-            with self.assertRaisesMessage(
-                ValidationError,
-                "With the accept threshold at 0.85, the reject threshold must be at least 0.15: at 0.15 every study "
-                "that is not accepted is rejected.",
-            ):
-                self.start(accept_threshold=0.85, reject_threshold=0.1)
-            with self.assertRaisesMessage(ValidationError, "reject threshold must be between 0.01 and 0.99"):
-                self.start(accept_threshold=0.99, reject_threshold=0)
-            with self.assertRaisesMessage(ValidationError, "threshold must be between 0.5 and 0.99"):
-                super().start(threshold=0.2)  # exclusion keeps its range
-
-    def test_accepts_when_every_criterion_is_met_rejects_when_one_is_not_and_leaves_the_rest(self):
+    def test_accepts_when_every_criterion_is_met_and_never_rejects(self):
         accepted = self.article(title="Accepted")
-        rejected = self.article(title="Rejected")
-        undecided = self.article(title="Undecided")
+        not_met = self.article(title="I1 not met")
+        unsure = self.article(title="I2 unsure")
         self.article(title="Out already", status=Article.REJECTED, updated_by=self.owner)
         run = self.start()
         self.assertEqual(("inclusion", 3), (run.phase, run.total))  # unclassified and accepted, by default
-        self.assertEqual((["A", "U"], "keep_undecided"), (run.parameters["statuses"], run.parameters["rule"]))
 
         self.step(run, [BOTH_MET, I1_NOT_MET, I2_UNSURE])
 
         progress = ai_screening.progress(run)
         self.assertEqual(
-            ("finished", 1, 1, 1, 0),
+            ("finished", 1, 0, 2, 0),
             tuple(progress[k] for k in ("status", "included", "excluded", "undecided", "passed")),
         )
-        for article, status, criteria, decision_status, comment in (
-            (accepted, Article.ACCEPTED, None, "A", "meets every inclusion criterion — meets: I1 0.95, I2 0.97."),
-            (rejected, Article.REJECTED, self.about, "R", "I1 not met (meet 0.06) — meets: I1 0.06, I2 0.90."),
-            (
-                undecided,
-                Article.UNCLASSIFIED,
-                None,
-                "U",
-                "undecided, weakest I2 (meet 0.40) — meets: I1 0.96, I2 0.40.",
-            ),
+        for article, status, decision_status, comment in (
+            (accepted, Article.ACCEPTED, "A", "meets every inclusion criterion — meets: I1 0.95, I2 0.97."),
+            (not_met, Article.UNCLASSIFIED, "U", "undecided, weakest I1 (meet 0.06) — meets: I1 0.06, I2 0.90."),
+            (unsure, Article.UNCLASSIFIED, "U", "undecided, weakest I2 (meet 0.40) — meets: I1 0.96, I2 0.40."),
         ):
             with self.subTest(article=article.title):
                 article.refresh_from_db()
-                self.assertEqual((status, criteria), (article.status, article.selection_criteria))
+                self.assertEqual((status, None), (article.status, article.selection_criteria))
                 decision = self.decision(article)
-                self.assertEqual((decision_status, criteria), (decision.status, decision.selection_criteria))
+                self.assertEqual((decision_status, None), (decision.status, decision.selection_criteria))
                 self.assertEqual(f"Include with AI (run {run.pk}, jev-1.13.0): {comment}", decision.comments)
-        result = run.results.get(article=undecided)
+        result = run.results.get(article=not_met)
         self.assertEqual(
-            (ScreeningResult.UNDECIDED, 0.4, 0.6, {"I1": 0.96, "I2": 0.4}),
-            (result.outcome, result.p_include, result.p_exclude, result.probabilities),
-        )
-        rejection = run.results.get(article=rejected)
-        self.assertEqual(
-            (0.06, 0.94, self.about.pk), (rejection.p_include, rejection.p_exclude, rejection.selection_criteria_id)
+            (ScreeningResult.UNDECIDED, 0.06, None, None, {"I1": 0.06, "I2": 0.9}),
+            (result.outcome, result.p_include, result.p_exclude, result.selection_criteria_id, result.probabilities),
         )
 
-    def test_each_threshold_decides_its_side(self):
-        articles = [self.article(title=title) for title in ("Met 0.93", "Not met 0.15", "Met 0.97", "Not met 0.05")]
-        run = self.start(accept_threshold=0.95, reject_threshold=0.85)
-        answers = [inclusion_answer({"I1": p, "I2": 0.99}) for p in (0.93, 0.15, 0.97, 0.05)]
-        self.step(run, answers)
-        self.assertEqual(
-            ["undecided", "excluded", "included", "excluded"],
-            [run.results.get(article=article).outcome for article in articles],
-        )
-        lenient = self.start(accept_threshold=0.9, reject_threshold=0.9, statuses=["U", "A", "R"])
-        self.step(lenient, answers)
-        self.assertEqual(
-            ["included", "undecided", "included", "excluded"],
-            [lenient.results.get(article=article).outcome for article in articles],
-        )
-        # Rejecting what is not clearly in: at 1 - accept threshold nothing is left undecided.
-        strict = self.start(accept_threshold=0.95, reject_threshold=0.05, statuses=["U", "A", "R"])
+    def test_the_threshold_is_inclusive_and_configurable(self):
+        articles = [self.article(title=title) for title in ("0.93", "0.05", "0.95", "0.5")]
+        answers = [inclusion_answer({"I1": p, "I2": 0.99}) for p in (0.93, 0.05, 0.95, 0.5)]
+        strict = self.start(threshold=0.95)
         self.step(strict, answers)
         self.assertEqual(
-            ["excluded", "excluded", "included", "excluded"],
+            ["undecided", "undecided", "included", "undecided"],
             [strict.results.get(article=article).outcome for article in articles],
         )
-        low = self.start(accept_threshold=0.85, reject_threshold=0.2, statuses=["U", "A", "R"])
-        self.step(low, [inclusion_answer({"I1": p, "I2": 0.99}) for p in (0.80, 0.82, 0.85, 0.5)])
+        lenient = self.start(threshold=0.9)
+        self.step(lenient, answers)
         self.assertEqual(
-            ["excluded", "undecided", "included", "excluded"],  # 0.80 is at the threshold: rejected
-            [low.results.get(article=article).outcome for article in articles],
+            ["included", "undecided", "included", "undecided"],
+            [lenient.results.get(article=article).outcome for article in articles],
         )
+        self.assertFalse(self.review.article_set.filter(status=Article.REJECTED).exists())
 
     def test_a_criterion_clearly_met_does_not_make_up_for_a_weak_one(self):
         article = self.article()
@@ -742,18 +689,20 @@ class TestInclusion(AiScreeningTestCase):
         theirs = self.article(title="Accepted by the owner", status=Article.ACCEPTED, updated_by=self.owner)
         rejected = self.article(title="Rejected by this reviewer in phase 1")
         duplicated = self.article(title="Duplicate", status=Article.DUPLICATED)
-        self.step(self.start(statuses=["U"]), [BOTH_MET, I1_NOT_MET])
+        self.step(super().start(), [KEEP, EXCLUDE_E1])  # phase 1 by the same reviewer: R and U only
+        self.step(self.start(statuses=["U"]), [BOTH_MET])
         own.refresh_from_db()
-        self.assertEqual(Article.ACCEPTED, own.status)
+        rejected.refresh_from_db()
+        self.assertEqual((Article.ACCEPTED, Article.REJECTED), (own.status, rejected.status))
 
         run = self.start(statuses=["U", "R", "A", "D"])
         self.assertEqual(4, run.total)
-        self.step(run, [I2_UNSURE, I1_NOT_MET, BOTH_MET, I1_NOT_MET])
+        self.step(run, [I2_UNSURE, I1_NOT_MET, BOTH_MET, BOTH_MET])
         for article, status, decision_status in (
             (own, Article.UNCLASSIFIED, "U"),  # its own acceptance, undecided now: back to unclassified
-            (theirs, Article.ACCEPTED, "R"),  # someone else's: kept, the reviewer's decision recorded
-            (rejected, Article.ACCEPTED, "A"),  # its own rejection, accepted now
-            (duplicated, Article.DUPLICATED, "R"),
+            (theirs, Article.ACCEPTED, "U"),  # someone else's: kept, the reviewer's decision recorded
+            (rejected, Article.REJECTED, "A"),  # even its own rejection: Include with AI never changes one
+            (duplicated, Article.DUPLICATED, "A"),
         ):
             with self.subTest(article=article.title):
                 article.refresh_from_db()

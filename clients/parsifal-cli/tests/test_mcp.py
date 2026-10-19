@@ -192,9 +192,8 @@ def test_ai_screening_run_tool(server, fake_api):
         "model",
         "statuses",
         "phase",
-        "accept_threshold",
-        "reject_threshold",
     } <= set(schema["properties"])
+    assert "accept_threshold" not in schema["properties"]
 
     result = json.loads(
         text_of(

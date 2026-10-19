@@ -29,10 +29,9 @@
   <div class="modal-body ai-screening-setup">
     {% if inclusion %}
       <p>
-        Jev reads the title, keywords and abstract of each study and answers, for <strong>each inclusion
-        criterion</strong>, whether the study meets it. In the name of the reviewer you choose, a study is
-        <strong>accepted when it clearly meets every criterion</strong>, rejected when it clearly does not meet one
-        (with that criterion as the reason), and otherwise left unclassified for you to decide.
+        Jev reads the title, keywords and abstract of each study and <strong>accepts the ones that clearly meet every
+        inclusion criterion</strong>, in the name of the reviewer you choose. It never rejects (that is phase 1's
+        job): the rest are left unclassified for you to decide.
       </p>
     {% else %}
       <p>
@@ -121,9 +120,6 @@
             <li><code>{{ option.key }}</code> {{ option.description }}</li>
           {% endfor %}
         </ul>
-        <p class="help-block small">
-          One yes/no question per criterion; Jev answers with the probability that the study meets it.
-        </p>
       {% else %}
         <h5><strong>Exclusion criteria</strong> <small>from the protocol; edit them in Planning</small></h5>
         <ul class="list-unstyled ai-criteria">
@@ -134,50 +130,26 @@
         </ul>
       {% endif %}
 
-      {% if inclusion %}
-        <div class="row">
-          <div class="col-sm-3">
-            <div class="form-group">
-              <label for="ai-accept-threshold" class="control-label">Accept threshold</label>
-              <input type="number" name="accept_threshold" id="ai-accept-threshold" class="form-control input-sm" value="{{ threshold|unlocalize }}" min="{{ min_threshold|unlocalize }}" max="{{ max_threshold|unlocalize }}" step="0.01" required>
-            </div>
-          </div>
-          <div class="col-sm-3">
-            <div class="form-group">
-              <label for="ai-reject-threshold" class="control-label">Reject threshold</label>
-              <input type="number" name="reject_threshold" id="ai-reject-threshold" class="form-control input-sm" value="{{ threshold|unlocalize }}" min="{{ min_reject_threshold|unlocalize }}" max="{{ max_threshold|unlocalize }}" step="0.01" required>
-            </div>
-          </div>
-          <div class="col-sm-6">
-            <p class="help-block small" style="margin-top: 25px;">
-              Accepted when the probability that the study meets each criterion is at least the accept threshold (the
-              weakest criterion decides, not the average); rejected when the probability that it does not meet one is
-              at least the reject threshold, i.e. it meets it with at most 1 − reject threshold (0.9: at most 0.10;
-              0.2: at most 0.80); otherwise left unclassified. Lower values decide more studies, and more of them by
-              mistake.
-            </p>
-            <p class="help-block small">
-              The reject threshold can go below 0.5, to reject the studies that are not clearly in, down to 1 − accept
-              threshold, where every study that is not accepted is rejected.
-            </p>
+      <div class="row">
+        <div class="col-sm-4">
+          <div class="form-group">
+            <label for="ai-threshold" class="control-label">Threshold</label>
+            <input type="number" name="threshold" id="ai-threshold" class="form-control input-sm" value="{{ threshold|unlocalize }}" min="{{ min_threshold|unlocalize }}" max="{{ max_threshold|unlocalize }}" step="0.01" required>
           </div>
         </div>
-      {% else %}
-        <div class="row">
-          <div class="col-sm-4">
-            <div class="form-group">
-              <label for="ai-threshold" class="control-label">Threshold</label>
-              <input type="number" name="threshold" id="ai-threshold" class="form-control input-sm" value="{{ threshold|unlocalize }}" min="{{ min_threshold|unlocalize }}" max="{{ max_threshold|unlocalize }}" step="0.01" required>
-            </div>
-          </div>
-          <div class="col-sm-8">
-            <p class="help-block small" style="margin-top: 25px;">
+        <div class="col-sm-8">
+          <p class="help-block small" style="margin-top: 25px;">
+            {% if inclusion %}
+              A study is accepted only when the probability that it meets each inclusion criterion is at least this
+              value (the weakest criterion decides, not the average). Lower values accept more studies, and more of
+              them by mistake.
+            {% else %}
               A study is rejected only when the probability that some exclusion criterion applies is at least this value.
               Lower values reject more studies, and more of them by mistake.
-            </p>
-          </div>
+            {% endif %}
+          </p>
         </div>
-      {% endif %}
+      </div>
 
       <div class="row">
         <div class="col-sm-4">
@@ -209,8 +181,8 @@
         Every study sent gets the reviewer's decision, so two reviewers that screen the same studies can be compared in
         Reviewer agreement.
         {% if inclusion %}
-          Only unclassified studies and those this reviewer accepted or rejected change status; duplicates and studies
-          classified by someone else keep theirs.
+          Only unclassified studies and those accepted by this reviewer change status; rejected studies, duplicates and
+          studies accepted by someone else keep theirs.
         {% else %}
           Only unclassified studies and those rejected by this reviewer change status; accepted studies, duplicates and
           studies rejected by someone else keep theirs.
@@ -226,8 +198,8 @@
           {% for rule in rules %}<li>{{ rule }}</li>{% endfor %}
           {% if inclusion %}
             <li>Each criterion is a yes/no question asked twice in the same request, with what a yes and a no mean in both orders, and the two probabilities averaged, in case that order sways the model.</li>
-            <li>Every study screened gets the reviewer's decision: accepted, rejected with the criterion it does not meet, or unclassified when the title and abstract do not settle it.</li>
-            <li>Status: the study takes the decision when it was unclassified or this reviewer had accepted or rejected it (back to unclassified when undecided now). Duplicates and studies classified by someone else keep their status.</li>
+            <li>Every study screened gets the reviewer's decision: accepted, or unclassified (undecided) when the title and abstract do not show that it meets every criterion. Nothing is rejected.</li>
+            <li>Status: an unclassified study is accepted when it meets every criterion; a study this reviewer had accepted goes back to unclassified if it does not now. Rejected studies, duplicates and studies accepted by someone else keep their status.</li>
           {% else %}
             <li>The criteria are asked in three different orders in the same request and the answers averaged, because the model tends to favour the first option when unsure.</li>
             <li>Every study screened gets the reviewer's decision: rejected with a criterion, or unclassified when no criterion applies.</li>
@@ -247,7 +219,6 @@
       {# The counts of the run's own phase are shown: Continue may pick up a run of the other phase. #}
       <span class="js-ai-labels" data-phase="inclusion">
         <span class="label label-success"><span class="js-ai-included">0</span> accepted</span>
-        <span class="label label-danger"><span class="js-ai-excluded">0</span> rejected</span>
         <span class="label label-default"><span class="js-ai-undecided">0</span> undecided (left unclassified)</span>
       </span>
       <span class="js-ai-labels" data-phase="exclusion">

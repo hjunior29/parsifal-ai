@@ -774,7 +774,6 @@ def ai_screening(request):
         "threshold": ai_screening_service.DEFAULT_THRESHOLD,
         "min_threshold": ai_screening_service.MIN_THRESHOLD,
         "max_threshold": ai_screening_service.MAX_THRESHOLD,
-        "min_reject_threshold": ai_screening_service.MIN_REJECT_THRESHOLD,
         "sources": [
             {"id": "", "name": "All sources"},
             *({"id": s.pk, "name": s.name} for s in review.sources.order_by("name")),
@@ -811,8 +810,6 @@ def ai_screening_start(request):
             context=context,
             guidance=request.POST.get("guidance", ""),
             threshold=request.POST.get("threshold"),
-            accept_threshold=request.POST.get("accept_threshold"),
-            reject_threshold=request.POST.get("reject_threshold"),
             source_id=request.POST.get("source-id") or None,
             statuses=request.POST.getlist("statuses"),
             phase=request.POST.get("phase"),

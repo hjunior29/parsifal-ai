@@ -112,8 +112,7 @@ $(function () {
     $.each(results, function (index, result) {
       var $item = $("<li>");
       if (result.outcome === "excluded") {
-        var reason = state.phase === "inclusion" ? result.criteria + " not met" : result.criteria;
-        $item.append($("<span class='label label-danger'>").text("Rejected · " + reason + " · " + result.p_exclude.toFixed(2)));
+        $item.append($("<span class='label label-danger'>").text("Rejected · " + result.criteria + " · " + result.p_exclude.toFixed(2)));
       } else if (result.outcome === "passed") {
         $item.append($("<span class='label label-default'>").text("Passed · " + result.p_exclude.toFixed(2)));
       } else if (result.outcome === "included") {
@@ -178,7 +177,7 @@ $(function () {
     render(state, []);
     var titles = {finished: "Finished.", cancelled: "Discarded: another run was started."};
     var summary = state.phase === "inclusion"
-      ? " " + state.included + " accepted, " + state.excluded + " rejected, " + state.undecided + " undecided (left unclassified)"
+      ? " " + state.included + " accepted, " + state.undecided + " undecided (left unclassified)"
       : " " + state.excluded + " rejected, " + state.passed + " passed (no criterion)";
     if (state.failed) { summary += ", " + state.failed + " errors (those studies keep the reviewer's previous decision)"; }
     $modal.find(".js-ai-status").empty()

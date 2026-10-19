@@ -1448,7 +1448,7 @@ OPERATIONS = (
             B(
                 "phase",
                 help="exclusion (default): reject when one exclusion criterion applies; inclusion: accept when every "
-                "inclusion criterion is met, reject when one is clearly not met, otherwise leave unclassified.",
+                "inclusion criterion is met, otherwise leave unclassified (it never rejects).",
             ),
             B("title", help="Review title sent as context (default: the review's)."),
             B("objective", TEXT),
@@ -1459,17 +1459,11 @@ OPERATIONS = (
             B("outcome"),
             B("context"),
             B("guidance", TEXT, help="Definitions or borderline cases that help apply the criteria."),
-            B("threshold", FLOAT, help="Exclusion: reject when 1 - p(none) is at least this (0.5–0.99, default 0.9)."),
             B(
-                "accept_threshold",
+                "threshold",
                 FLOAT,
-                help="Inclusion: accept when p(meets) of every criterion is at least this (0.5–0.99, default 0.9).",
-            ),
-            B(
-                "reject_threshold",
-                FLOAT,
-                help="Inclusion: reject when 1 - p(meets) of a criterion is at least this (default 0.9; from "
-                "1 - accept threshold, which rejects every study not accepted, to 0.99).",
+                help="0.5–0.99, default 0.9. Exclusion: reject when 1 - p(none) is at least this; inclusion: accept "
+                "when p(meets) of every criterion is at least this.",
             ),
             B("source_id", INT, help="Only this source (default: all)."),
             B(

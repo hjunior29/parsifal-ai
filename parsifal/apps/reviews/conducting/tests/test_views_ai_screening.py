@@ -60,7 +60,7 @@ class AiScreeningViewsBase(TestCase):
             "statuses": ["R", "U"],
         }
         data.update(extra)
-        return self.client.post(self.start_url, {name: value for name, value in data.items() if value is not None})
+        return self.client.post(self.start_url, data)
 
 
 class AiScreeningViewsTest(AiScreeningViewsBase):
@@ -266,12 +266,11 @@ class IncludeWithAiViewsTest(AiScreeningViewsBase):
         self.assertContains(response, "<code>I1</code> Implemented &lt;tool&gt;", html=False)
         self.assertNotContains(response, "<code>E1</code>", html=False)
         self.assertContains(response, '<input type="hidden" name="phase" value="inclusion">', html=False)
-        for name, minimum in (("accept_threshold", "0.5"), ("reject_threshold", "0.01")):
-            self.assertRegex(
-                response.content.decode(), rf'name="{name}" id="ai-{name.replace("_", "-")}"[^>]* min="{minimum}"'
-            )
-        self.assertNotContains(response, 'name="threshold"', html=False)
-        self.assertContains(response, "One yes/no question per criterion")
+        # The same window as Exclude with AI: one threshold, which accepts; nothing is rejected.
+        self.assertRegex(response.content.decode(), r'name="threshold" id="ai-threshold" [^>]* min="0.5" max="0.99"')
+        self.assertNotContains(response, "accept_threshold")
+        self.assertContains(response, "A study is accepted only when the probability that it meets each inclusion")
+        self.assertContains(response, "It never rejects")
         for code, checked in (("A", True), ("R", False), ("U", True), ("D", False)):
             self.assertContains(
                 response,
@@ -291,22 +290,19 @@ class IncludeWithAiViewsTest(AiScreeningViewsBase):
 
     def test_start_and_step_an_inclusion_run(self):
         self.connect()
-        response = self.start(phase="inclusion", threshold="0.9", statuses=["U", "A"])
+        response = self.start(phase="inclusion", threshold="0.2", statuses=["U", "A"])
         self.assertEqual(400, response.status_code)
-        self.assertIn("not threshold", response.json()["error"])
-        response = self.start(
-            phase="inclusion", threshold=None, accept_threshold="0.95", reject_threshold="0.8", statuses=["U", "A"]
-        )
+        self.assertIn("between 0.5 and 0.99", response.json()["error"])
+        response = self.start(phase="inclusion", threshold="0.95", statuses=["U", "A"])
         self.assertEqual(200, response.status_code, response.content)
         run = response.json()["run"]
         self.assertEqual(("inclusion", 1), (run["phase"], run["total"]))
-        parameters = ScreeningRun.objects.get(pk=run["id"]).parameters
-        self.assertEqual((0.95, 0.8), (parameters["accept_threshold"], parameters["reject_threshold"]))
+        self.assertEqual(0.95, ScreeningRun.objects.get(pk=run["id"]).parameters["threshold"])
         with mock.patch.object(jev, "evaluate", return_value=INCLUDE):
             body = self.client.post(self.step_url, {"review-id": self.review.pk, "run-id": run["id"]}).json()
         self.assertEqual(("finished", 1), (body["run"]["status"], body["run"]["included"]))
         self.assertEqual(
-            ("included", 0.95, 0.05), tuple(body["results"][0][k] for k in ("outcome", "p_include", "p_exclude"))
+            ("included", 0.95, None), tuple(body["results"][0][k] for k in ("outcome", "p_include", "p_exclude"))
         )
         self.article.refresh_from_db()
         self.assertEqual((Article.ACCEPTED, self.bot), (self.article.status, self.article.updated_by))

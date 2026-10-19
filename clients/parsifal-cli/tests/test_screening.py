@@ -173,16 +173,14 @@ def test_cli_run_include_with_ai(runner, fake_api):
             "4",
             "--phase",
             "inclusion",
-            "--accept-threshold",
+            "--threshold",
             "0.95",
-            "--reject-threshold",
-            "0.85",
         ],
     )
     assert result.exit_code == 0, result.output
-    assert "2/2 screened · 1 accepted · 0 rejected · 1 undecided · 0 errors" in result.output
+    assert "2/2 screened · 1 accepted · 1 undecided · 0 errors" in result.output
     assert bodies(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs") == [
-        {"reviewer_id": 4, "phase": "inclusion", "accept_threshold": 0.95, "reject_threshold": 0.85}
+        {"reviewer_id": 4, "phase": "inclusion", "threshold": 0.95}
     ]
 
 
@@ -191,5 +189,5 @@ def test_progress_line_per_phase():
         "2/2 screened · 1 rejected · 1 passed · 0 errors"
     )
     assert screening.progress_line(progressed(phase="inclusion", processed=2, included=2)) == (
-        "2/2 screened · 2 accepted · 0 rejected · 0 undecided · 0 errors"
+        "2/2 screened · 2 accepted · 0 undecided · 0 errors"
     )

@@ -840,8 +840,8 @@ class ScreeningRun(models.Model):
     phase = models.CharField(_("phase"), max_length=10, choices=PHASES, default=EXCLUSION)
     model = models.CharField(_("model"), max_length=100)
     # Snapshot of what was sent: review context, extra guidance, the criteria of the phase (key, id, description),
-    # thresholds (exclusion: threshold; inclusion: accept_threshold, reject_threshold) and scope. The criteria may
-    # change later; the snapshot says what Jev saw.
+    # threshold and scope. The criteria may change later; the snapshot says what Jev saw. (Inclusion runs made
+    # before Include with AI stopped rejecting kept accept_threshold and reject_threshold instead of threshold.)
     parameters = models.JSONField(_("parameters"), default=dict)
     status = models.CharField(_("status"), max_length=10, choices=STATUSES, default=RUNNING)
     total = models.PositiveIntegerField(_("studies to screen"), default=0)
@@ -872,10 +872,10 @@ class ScreeningResult(models.Model):
     ERROR = "error"
     OUTCOMES = (
         (PENDING, _("Pending")),
-        (EXCLUDED, _("Excluded")),  # both phases: rejected with a criterion
+        (EXCLUDED, _("Excluded")),  # exclusion: rejected with a criterion
         (PASSED, _("Passed to the next phase")),  # exclusion: no exclusion criterion applies
         (INCLUDED, _("Included")),  # inclusion: every inclusion criterion is met
-        (UNDECIDED, _("Undecided")),  # inclusion: neither clearly met nor clearly not met; left to the reviewers
+        (UNDECIDED, _("Undecided")),  # inclusion: not every inclusion criterion is clearly met; left to the reviewers
         (ERROR, _("Error")),
     )
 
@@ -884,8 +884,7 @@ class ScreeningResult(models.Model):
     # Status of the study when the run took it. The run only changes the study if it still has this status.
     previous_status = models.CharField(_("status before the run"), max_length=1, blank=True)
     outcome = models.CharField(_("outcome"), max_length=10, choices=OUTCOMES, default=PENDING)
-    # Exclusion: the probability that some exclusion criterion applies. Inclusion: the highest probability that an
-    # inclusion criterion is not met (1 - p_include).
+    # Exclusion: the probability that some exclusion criterion applies. Inclusion never rejects and leaves it empty.
     p_exclude = models.FloatField(_("probability used to reject"), null=True, blank=True)
     # Inclusion: the lowest probability that an inclusion criterion is met (every criterion must be met).
     p_include = models.FloatField(_("lowest probability that an inclusion criterion is met"), null=True, blank=True)

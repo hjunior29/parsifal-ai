@@ -268,20 +268,24 @@ reviewed (Akita, 2026-10-03).
   Helder dropped it the same day: it gave the model an escape that diluted
   p(meets) and could be read in more than one way, while the probability
   already shows doubt. Accept when the **lowest** p(meets) reaches the
-  **accept threshold** (an average would let a criterion clearly met make up
-  for a weak one); otherwise reject when 1 − p(meets) of that criterion reaches
-  the **reject threshold**, with it as the reason; otherwise leave the study
-  unclassified for the reviewers. The two thresholds are set separately per run
-  (default 0.9 each); the rules sent tell Jev that missing information is not a
-  "no". After a real run (257 studies, most left undecided) Helder wanted to
-  reject what is not clearly in, so the reject threshold may go below 0.5, down
-  to 1 − accept threshold, where nothing is left undecided (lower would overlap
-  the two and is refused); exclusion keeps 0.5–0.99. Helder may later prefer to reject everything not
-  accepted once Jev proves precise; the run keeps its rule
-  (`parameters.rule = keep_undecided`) for that. The decision replaces the
-  reviewer's phase-1 decision (same stage), so agreement compares the
-  reviewer's last word. The status also follows for studies this reviewer
-  accepted.
+  **threshold** (an average would let a criterion clearly met make up for a
+  weak one); otherwise the reviewer's decision is unclassified (outcome
+  `undecided`) and the study is left to the reviewers. **Include with AI never
+  rejects** (Helder, same day): excluding is phase 1's job, so phase 2 only
+  looks for what to include. That also makes it the mirror of phase 1 for
+  agreement: exclusion screens R + U and only rejects; inclusion screens A + U
+  and only accepts, so a second AI reviewer (another model or parameters)
+  screens the same studies and Cohen's kappa compares like with like. How the
+  undecided studies are settled (by hand or otherwise) is left for later; their
+  comment keeps Jev's p(meets) per criterion. The window is the exclusion one
+  with one threshold (0.5–0.99, default 0.9). The status rule mirrors
+  exclusion: it changes unclassified studies and those this reviewer accepted;
+  rejected studies are never touched. Before that, for a few hours, inclusion
+  had a separate accept and reject threshold (the reject one down to
+  1 − accept); runs made then keep `accept_threshold` and
+  `reject_threshold` in their parameters. The decision replaces the reviewer's
+  phase-1 decision (same stage), so agreement compares the reviewer's last
+  word.
 
 **Consequences.** Migrations `accounts.0002`, `accounts.0003` (encrypted key), `reviews.0042`, `reviews.0043`
 (reviewer, no agent kind), `reviews.0044` (`last_step_at`), `reviews.0045` (`phase`, `p_include`, outcomes
