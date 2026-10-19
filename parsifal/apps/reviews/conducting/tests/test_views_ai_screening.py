@@ -1,0 +1,127 @@
+import json
+import re
+from unittest import mock
+
+from django.test import TestCase
+from django.urls import reverse
+
+from parsifal.apps.accounts.models import Integration
+from parsifal.apps.authentication.tests.factories import UserFactory
+from parsifal.apps.core import jev
+from parsifal.apps.reviews.models import Article, ScreeningRun, SelectionCriteria
+from parsifal.apps.reviews.tests.factories import ArticleFactory, ReviewFactory, SourceFactory
+
+EXCLUDE = {
+    "model": "jev-1.13.0",
+    "answers": {f"exclusion_{n}": {"type": "choice", "probabilities": {"E1": 0.96, "none": 0.04}} for n in (1, 2)},
+}
+
+
+class AiScreeningViewsTest(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.source = SourceFactory()
+        cls.review = ReviewFactory(sources=[cls.source], objective="Our objective & scope")
+        cls.owner = cls.review.author
+        cls.outsider = UserFactory()
+        cls.criteria = SelectionCriteria.objects.create(
+            review=cls.review, criteria_type="E", description="Not about <software> engineering"
+        )
+        cls.article = ArticleFactory(review=cls.review, source=cls.source, title="A study", abstract="Text")
+        cls.form_url = reverse("reviews:conducting:ai_screening")
+        cls.start_url = reverse("reviews:conducting:ai_screening_start")
+        cls.step_url = reverse("reviews:conducting:ai_screening_step")
+        cls.cancel_url = reverse("reviews:conducting:ai_screening_cancel")
+
+    def setUp(self):
+        self.client.force_login(self.owner)
+
+    def connect(self):
+        Integration.objects.create(user=self.owner, provider=Integration.JEV, api_key="fake-key", model="jev-1.13.0")
+
+    def start(self, **extra):
+        data = {"review-id": self.review.pk, "context-objective": "Edited", "threshold": "0.9", "source-id": ""}
+        data.update(extra)
+        return self.client.post(self.start_url, data)
+
+    def test_button_on_the_all_sources_tab(self):
+        response = self.client.get(
+            reverse("reviews:conducting:source_articles"), {"review-id": self.review.pk, "source-id": "None"}
+        )
+        self.assertContains(response, "btn-ai-screening")
+        self.assertContains(response, "Exclude with AI")
+
+    def test_asks_for_the_key_first(self):
+        response = self.client.get(self.form_url, {"review-id": self.review.pk})
+        self.assertContains(response, reverse("settings:integrations"))
+        self.assertNotContains(response, "ai-screening-form")
+
+    def test_asks_for_exclusion_criteria_first(self):
+        self.connect()
+        empty = ReviewFactory(author=self.owner)
+        response = self.client.get(self.form_url, {"review-id": empty.pk})
+        self.assertContains(response, "The review has no exclusion criteria")
+
+    def test_setup_window_is_prefilled_and_criteria_are_read_only(self):
+        self.connect()
+        response = self.client.get(self.form_url, {"review-id": self.review.pk})
+        self.assertContains(response, 'id="ai-screening-form"')
+        self.assertContains(response, "Our objective &amp; scope")
+        self.assertContains(response, "<code>E1</code> Not about &lt;software&gt; engineering", html=False)
+        self.assertNotContains(response, 'name="criteria')
+        self.assertContains(response, "jev-1.13.0")
+        script = re.search(r'id="ai-screening-counts"[^>]*>(.*?)</script>', response.content.decode())
+        counts = json.loads(script.group(1))
+        self.assertEqual({"all": 1, "new": 1}, counts[""])
+
+    def test_members_only(self):
+        self.client.force_login(self.outsider)
+        self.assertEqual(403, self.client.get(self.form_url, {"review-id": self.review.pk}).status_code)
+        self.assertEqual(403, self.start().status_code)
+
+    def test_start_errors_are_json(self):
+        response = self.start()
+        self.assertEqual(400, response.status_code)
+        self.assertIn("Settings → Integrations", response.json()["error"])
+        self.connect()
+        response = self.start(threshold="0.2")
+        self.assertEqual(400, response.status_code)
+        self.assertIn("between 0.5 and 0.99", response.json()["error"])
+
+    def test_start_step_and_done(self):
+        self.connect()
+        response = self.start(guidance="Be strict.", rescreen="on")
+        self.assertEqual(200, response.status_code)
+        run = response.json()["run"]
+        self.assertEqual(("running", 1, 0), (run["status"], run["total"], run["processed"]))
+        self.assertEqual("Edited", ScreeningRun.objects.get(pk=run["id"]).parameters["context"]["objective"])
+
+        with mock.patch.object(jev, "evaluate", return_value=EXCLUDE):
+            response = self.client.post(self.step_url, {"review-id": self.review.pk, "run-id": run["id"]})
+        body = response.json()
+        self.assertEqual(
+            ("finished", 1, 1), (body["run"]["status"], body["run"]["excluded"], body["run"]["processed"])
+        )
+        self.assertEqual(
+            [{"title": "A study", "outcome": "excluded", "p_exclude": 0.96, "criteria": "E1", "error": ""}],
+            body["results"],
+        )
+        self.article.refresh_from_db()
+        self.assertEqual((Article.REJECTED, self.criteria), (self.article.status, self.article.selection_criteria))
+        self.assertEqual("Jev", self.article.updated_by.profile.get_screen_name())
+
+        with self.subTest(msg="the agent shows in Manage access, without a token button"):
+            response = self.client.get(reverse("manage_access", args=(self.owner.username, self.review.name)))
+            self.assertContains(response, '<span class="label label-info">Jev</span>', html=False)
+            self.assertNotContains(response, 'value="new_token"')
+            self.assertContains(response, "Studies it rejected stay rejected")
+
+    def test_cancel_and_unknown_run(self):
+        self.connect()
+        ArticleFactory(review=self.review, source=self.source)
+        run = self.start().json()["run"]
+        response = self.client.post(self.cancel_url, {"review-id": self.review.pk, "run-id": run["id"]})
+        self.assertEqual(("cancelled", 0), (response.json()["run"]["status"], response.json()["run"]["processed"]))
+        response = self.client.post(self.step_url, {"review-id": self.review.pk, "run-id": 999999})
+        self.assertEqual(400, response.status_code)
+        self.assertIn("not found", response.json()["error"])

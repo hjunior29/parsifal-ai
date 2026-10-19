@@ -1,0 +1,135 @@
+{% comment %}
+  Exclude with AI (phase 1 of study selection): contents of #modal-ai-screening. Three states driven by
+  conducting_ai_screening.js: setup (this form), progress and summary.
+{% endcomment %}
+{% load l10n %}
+<div class="modal-header">
+  <button type="button" class="close js-ai-close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+  <h4 class="modal-title">Exclude with AI <small>phase 1 · exclusion criteria only</small></h4>
+</div>
+
+{% if not integration %}
+  <div class="modal-body">
+    <p>Exclude with AI uses Jev, and needs your Jev API key.</p>
+    <p><a href="{% url 'settings:integrations' %}" class="btn btn-primary">Add the key in Settings → Integrations</a></p>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+  </div>
+{% elif not options %}
+  <div class="modal-body">
+    <p>The review has no exclusion criteria, so there is nothing to exclude studies with.</p>
+    <p><a href="{% url 'protocol' review.author.username review.name %}">Add exclusion criteria in Planning</a></p>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+  </div>
+{% else %}
+  <div class="modal-body ai-screening-setup">
+    <p>
+      Jev reads the title, keywords and abstract of each unclassified study and <strong>rejects the ones that clearly
+      meet an exclusion criterion</strong>, with that criterion as the reason and the review's Jev agent as the author.
+      Every other study stays unclassified for the next phase, with the inclusion criteria.
+    </p>
+    <div class="alert alert-danger js-ai-form-error" style="display: none;"></div>
+
+    <form id="ai-screening-form" onsubmit="return false;">
+      {% csrf_token %}
+      <input type="hidden" name="review-id" value="{{ review.id }}">
+
+      <h5><strong>Review context</strong> <small>prefilled from the review; changes apply to this run only and are kept in its log</small></h5>
+      {% for field in context_fields %}
+        <div class="form-group">
+          <label for="ai-context-{{ field.name }}" class="control-label">{{ field.label }}</label>
+          {% if field.multiline %}
+            <textarea name="context-{{ field.name }}" id="ai-context-{{ field.name }}" class="form-control input-sm" rows="{% if field.name == 'research_questions' %}4{% else %}3{% endif %}" maxlength="{{ field.limit }}">{{ field.value }}</textarea>
+            {% if field.name == "research_questions" %}<p class="help-block small">One question per line.</p>{% endif %}
+          {% else %}
+            <input type="text" name="context-{{ field.name }}" id="ai-context-{{ field.name }}" class="form-control input-sm" maxlength="{{ field.limit }}" value="{{ field.value }}">
+          {% endif %}
+        </div>
+      {% endfor %}
+      <div class="form-group">
+        <label for="ai-guidance" class="control-label">Extra guidance <small class="text-muted">(optional)</small></label>
+        <textarea name="guidance" id="ai-guidance" class="form-control input-sm" rows="3" maxlength="{{ guidance_length }}" placeholder="Definitions or borderline cases that help apply the criteria, e.g. &quot;Tertiary studies count as secondary studies.&quot;"></textarea>
+      </div>
+
+      <h5><strong>Exclusion criteria</strong> <small>from the protocol; edit them in Planning</small></h5>
+      <ul class="list-unstyled ai-criteria">
+        {% for option in options %}
+          <li><code>{{ option.key }}</code> {{ option.description }}</li>
+        {% endfor %}
+        <li class="text-muted"><code>none</code> {{ none_description }}</li>
+      </ul>
+
+      <div class="row">
+        <div class="col-sm-4">
+          <div class="form-group">
+            <label for="ai-threshold" class="control-label">Threshold</label>
+            <input type="number" name="threshold" id="ai-threshold" class="form-control input-sm" value="{{ threshold|unlocalize }}" min="{{ min_threshold|unlocalize }}" max="{{ max_threshold|unlocalize }}" step="0.01" required>
+          </div>
+        </div>
+        <div class="col-sm-8">
+          <p class="help-block small" style="margin-top: 25px;">
+            A study is rejected only when the probability that some exclusion criterion applies is at least this value.
+            Lower values reject more studies, and more of them by mistake.
+          </p>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-sm-6">
+          <div class="form-group">
+            <label for="ai-source" class="control-label">Studies</label>
+            <select name="source-id" id="ai-source" class="form-control input-sm">
+              {% for source in sources %}
+                <option value="{{ source.id }}">{{ source.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="col-sm-6">
+          <div class="checkbox" style="margin-top: 25px;">
+            <label><input type="checkbox" name="rescreen"> Also screen studies Jev has already evaluated</label>
+          </div>
+        </div>
+      </div>
+      {{ counts|json_script:"ai-screening-counts" }}
+
+      <details class="small text-muted">
+        <summary>What is sent to Jev, and what cannot be changed</summary>
+        <ul>
+          <li>Model: <code>{{ integration.model }}</code> (Settings → Integrations).</li>
+          <li>Per study: title, keywords and abstract only. Authors, venue and affiliations are never sent.</li>
+          <li>Task: {{ task }}</li>
+          {% for rule in rules %}<li>{{ rule }}</li>{% endfor %}
+          <li>The criteria are asked in three different orders in the same request and the answers averaged, because the model tends to favour the first option when unsure.</li>
+          <li>Only unclassified studies are sent. Studies already accepted, rejected or marked as duplicates are never touched.</li>
+        </ul>
+      </details>
+    </form>
+  </div>
+
+  <div class="modal-body ai-screening-progress" style="display: none;">
+    <p class="js-ai-status"><strong>Screening…</strong></p>
+    <div class="progress">
+      <div class="progress-bar progress-bar-striped active js-ai-bar" role="progressbar" style="width: 0%; min-width: 2em;">0%</div>
+    </div>
+    <p>
+      <span class="label label-danger"><span class="js-ai-excluded">0</span> rejected</span>
+      <span class="label label-default"><span class="js-ai-passed">0</span> passed to the next phase</span>
+      <span class="label label-warning"><span class="js-ai-failed">0</span> errors</span>
+      <span class="text-muted small"><span class="js-ai-processed">0</span> of <span class="js-ai-total">0</span></span>
+    </p>
+    <div class="alert alert-danger js-ai-run-error" style="display: none;"></div>
+    <ol class="list-unstyled small js-ai-log ai-log"></ol>
+  </div>
+
+  <div class="modal-footer">
+    <span class="pull-left text-muted small js-ai-count-line"><strong class="js-ai-count">0</strong> studies will be sent.</span>
+    <button type="button" class="btn btn-default js-ai-close" data-dismiss="modal">Cancel</button>
+    <button type="button" class="btn btn-primary js-ai-start">Start screening</button>
+    <button type="button" class="btn btn-warning js-ai-stop" style="display: none;">Stop</button>
+    <button type="button" class="btn btn-success js-ai-done" style="display: none;">Done</button>
+  </div>
+{% endif %}

@@ -63,7 +63,7 @@ Paths below are relative to `/api/v1`. `{rid}` = review id.
 | `GET /reviews/{rid}/members` | `members_list` (author and co-authors) |
 | `GET /reviews/{rid}/agents` · `POST {name}` (owner) · `POST /agents/{id}/token` (owner) · `DELETE /agents/{id}` (owner) | `agents_list` · `agents_create` · `agents_new_token` · `agents_delete` |
 
-An **agent** is an AI co-author with an account of its own, created for one review by its main author; there is no way to add an existing account. `POST /agents` answers with the agent's token, shown once. `POST /agents/{id}/token` revokes its tokens and issues a new one. **Deleting an agent is permanent: it deletes the account, its API tokens and everything recorded under it (screening decisions, quality assessments, extracted data). Studies it imported and classifications it made stay in the review, without an author.** Agents cannot create or delete agents, rename or delete the review.
+An **agent** is an AI co-author with an account of its own, created for one review by its main author; there is no way to add an existing account. `POST /agents` answers with the agent's token, shown once. `POST /agents/{id}/token` revokes its tokens and issues a new one. **Deleting an agent is permanent: it deletes the account, its API tokens and everything recorded under it (screening decisions, quality assessments, extracted data). Studies it imported and classifications it made stay in the review, without an author.** Agents cannot create or delete agents, rename or delete the review. Agents listed with `kind: "jev"` are the review's Jev agent, created by *Exclude with AI* in the web; it has no tokens (`POST /agents/{id}/token` answers 422).
 
 ### Protocol (planning)
 

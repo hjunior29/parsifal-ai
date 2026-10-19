@@ -206,3 +206,39 @@ the review deletes its agents.
 **Consequences.** Migration `reviews.0041`. The decision count, quality
 assessments and extractions of an agent are shown before deleting it.
 
+## AI exclusion screening with Jev (phase 1 of study selection)
+
+**Context.** Helder screens in two phases: first remove the studies that meet
+an exclusion criterion, then judge the rest against the inclusion criteria.
+Jev (TypeSafe) is a hosted decision model that returns a probability per
+allowed answer, cheap and fast enough to run over every title and abstract.
+Its known weaknesses (first-option bias, overconfidence when information is
+missing, sensitivity to wording) are documented in the analysis Helder
+reviewed (Akita, 2026-10-03).
+
+**Decision.**
+- Web first: *Exclude with AI* on the study selection page opens a window
+  prefilled from the review; the context fields are editable per run, the
+  exclusion criteria, the task, the rules and the study fields are not.
+- One reviewer (Jev), no second model. Per study, title + keywords + abstract
+  only; one `choice` question (criteria + `none`) asked in three rotated
+  orders in the same request and averaged. Reject when
+  `1 − p(none) ≥ threshold` (default 0.9), with the most probable criterion;
+  otherwise leave the study unclassified for the next phase.
+- Jev is a `ReviewAgent` of kind `jev`, created on the first run, without
+  tokens; it sets `Article.status`, `selection_criteria` and `updated_by`, and
+  records a `StudyDecision` for each rejection (probability in the comment).
+  Passed studies get no decision; the run log (`ScreeningRun`,
+  `ScreeningResult`) keeps every answer and the parameters snapshot.
+- The API key is per user in *Settings → Integrations*
+  (`accounts.Integration`), stored as given, never rendered back.
+  `JEV_API_URL` can point to a compatible server.
+- The browser drives the run in steps of 8 studies (4 concurrent requests),
+  so there is no task queue; the client retries 429/5xx/529 with backoff and a
+  rejected key fails the run.
+
+**Consequences.** Migrations `accounts.0002`, `reviews.0042`. API, CLI and MCP
+operations for the screening are not done yet (the API only exposes the agent
+`kind`). Thresholds should be checked against the reviewer's own decisions
+before relying on them.
+

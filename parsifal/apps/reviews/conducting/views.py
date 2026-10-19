@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum, Value
 from django.db.models.functions import Coalesce
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.context_processors import csrf
 from django.urls import reverse as r
@@ -15,6 +15,7 @@ from django.views.decorators.http import require_POST
 
 import xlwt
 
+from parsifal.apps.accounts.models import Integration
 from parsifal.apps.core.exceptions import DomainError
 from parsifal.apps.reviews.decorators import author_required
 from parsifal.apps.reviews.models import (
@@ -26,7 +27,15 @@ from parsifal.apps.reviews.models import (
     Source,
     StudyDecision,
 )
-from parsifal.apps.reviews.services import analytics, decisions, extraction, quality, reports, studies
+from parsifal.apps.reviews.services import (
+    ai_screening as ai_screening_service,
+    analytics,
+    decisions,
+    extraction,
+    quality,
+    reports,
+    studies,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -712,6 +721,104 @@ def consolidate(request):
     return render(
         request, "conducting/partial_conducting_agreement.html", _agreement_context(request, review, stage, result)
     )
+
+
+@author_required
+@login_required
+def ai_screening(request):
+    """Exclude with AI: the setup window, prefilled from the review (phase 1 of study selection)."""
+    review = get_object_or_404(Review, pk=request.GET.get("review-id"))
+    integration = Integration.objects.filter(user=request.user, provider=Integration.JEV).first()
+    counts = ai_screening_service.scope_counts(review)
+    defaults = ai_screening_service.default_context(review)
+    sources = [{"id": "", "name": "All sources", **counts[""]}]
+    for source in review.sources.order_by("name"):
+        sources.append({"id": source.pk, "name": source.name, **counts.get(str(source.pk), {"all": 0, "new": 0})})
+    context = {
+        "review": review,
+        "integration": integration,
+        "options": ai_screening_service.exclusion_options(review),
+        "context_fields": [
+            {"name": name, "label": label, "value": defaults[name], "limit": limit, "multiline": limit > 255}
+            for name, label, limit in ai_screening_service.CONTEXT_FIELDS
+        ],
+        "guidance_length": ai_screening_service.GUIDANCE_LENGTH,
+        "threshold": ai_screening_service.DEFAULT_THRESHOLD,
+        "min_threshold": ai_screening_service.MIN_THRESHOLD,
+        "max_threshold": ai_screening_service.MAX_THRESHOLD,
+        "sources": sources,
+        "counts": counts,
+        "task": ai_screening_service.TASK,
+        "rules": ai_screening_service.RULES,
+        "none_description": ai_screening_service.NONE_DESCRIPTION,
+    }
+    return render(request, "conducting/partial_conducting_ai_screening.html", context)
+
+
+def _ai_screening_error(error):
+    return JsonResponse({"error": str(error)}, status=400)
+
+
+@author_required
+@login_required
+@require_POST
+def ai_screening_start(request):
+    review = get_object_or_404(Review, pk=request.POST.get("review-id"))
+    context = {name: request.POST.get(f"context-{name}", "") for name, _, _ in ai_screening_service.CONTEXT_FIELDS}
+    try:
+        run = ai_screening_service.start_run(
+            review=review,
+            actor=request.user,
+            context=context,
+            guidance=request.POST.get("guidance", ""),
+            threshold=request.POST.get("threshold", ai_screening_service.DEFAULT_THRESHOLD),
+            source_id=request.POST.get("source-id") or None,
+            rescreen=request.POST.get("rescreen") == "on",
+        )
+    except DomainError as error:
+        return _ai_screening_error(error)
+    return JsonResponse({"run": ai_screening_service.progress(run)})
+
+
+@author_required
+@login_required
+@require_POST
+def ai_screening_step(request):
+    """Screen the next few studies of the run; the page calls this until the run is no longer running."""
+    review = get_object_or_404(Review, pk=request.POST.get("review-id"))
+    try:
+        run = ai_screening_service.get_run(review, request.POST.get("run-id"))
+        results = ai_screening_service.process_step(run=run, actor=request.user)
+    except DomainError as error:
+        return _ai_screening_error(error)
+    criteria = {option["id"]: option for option in run.parameters["criteria"]}
+    return JsonResponse(
+        {
+            "run": ai_screening_service.progress(run),
+            "results": [
+                {
+                    "title": result.article.title or result.article.bibtex_key,
+                    "outcome": result.outcome,
+                    "p_exclude": result.p_exclude,
+                    "criteria": criteria.get(result.selection_criteria_id, {}).get("key"),
+                    "error": result.error,
+                }
+                for result in results
+            ],
+        }
+    )
+
+
+@author_required
+@login_required
+@require_POST
+def ai_screening_cancel(request):
+    review = get_object_or_404(Review, pk=request.POST.get("review-id"))
+    try:
+        run = ai_screening_service.cancel_run(run=ai_screening_service.get_run(review, request.POST.get("run-id")))
+    except DomainError as error:
+        return _ai_screening_error(error)
+    return JsonResponse({"run": ai_screening_service.progress(run)})
 
 
 """

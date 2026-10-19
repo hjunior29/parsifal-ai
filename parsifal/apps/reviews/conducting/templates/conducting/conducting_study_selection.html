@@ -6,6 +6,12 @@
   {% compress css %}
     <link href="{% static 'css/fileupload/jquery.fileupload.css' %}" rel="stylesheet">
   {% endcompress %}
+  <style>
+    #modal-ai-screening .modal-body { max-height: 65vh; overflow-y: auto; }
+    #modal-ai-screening .ai-criteria li { margin-bottom: 4px; padding-left: 2.6em; text-indent: -2.6em; }
+    #modal-ai-screening .ai-log li { padding: 2px 0; border-bottom: 1px solid #eee; }
+    #modal-ai-screening details summary { cursor: pointer; margin-bottom: 6px; }
+  </style>
 {% endblock stylesheet %}
 
 {% block javascript %}
@@ -14,6 +20,7 @@
     <script src="{% static 'js/fileupload/jquery.iframe-transport.js' %}"></script>
     <script src="{% static 'js/fileupload/jquery.fileupload.js' %}"></script>
     <script src="{% static 'js/conducting_study_selection.js' %}"></script>
+    <script src="{% static 'js/conducting_ai_screening.js' %}"></script>
   {% endcompress %}
 {% endblock javascript %}
 
@@ -78,6 +85,12 @@
           <button type="button" class="btn btn-success btn-save-article">Save</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="modal-ai-screening" data-backdrop="static" data-keyboard="false">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content"></div>
     </div>
   </div>
 

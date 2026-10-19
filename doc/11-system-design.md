@@ -76,7 +76,8 @@ lookups raising `NotFound`, `check_length`, `require`, `reorder`):
 
 | Module | Functions (examples) | Replaces logic in |
 |--------|----------------------|-------------------|
-| `agents.py` | `create_agent(review, actor, name)`, `new_token(review, actor, agent_id)`, `delete_agent(review, actor, agent_id)`, `list_agents`, `stats` | `settings/views.py`, API |
+| `agents.py` | `create_agent(review, actor, name)`, `new_token(review, actor, agent_id)`, `delete_agent(review, actor, agent_id)`, `list_agents`, `stats`, `jev_agent(review)` | `settings/views.py`, API |
+| `ai_screening.py` | `default_context`, `exclusion_options`, `scope_counts`, `start_run`, `process_step`, `cancel_run`, `progress`; builds the Jev request (`questions`, `state`) and reads it (`combine`) | `conducting/views.py` (*Exclude with AI*); calls `core/jev.py` |
 | `reviews.py` | `create_review(actor, title, description)`, `update_review(review, **fields)`, `rename_review(review, name)`, `transfer_review(review, actor, to_user)`, `delete_review(review)`, `leave` | `reviews/views.py`, `settings/views.py` |
 | `protocol.py` | `set_objective`, `set_picoc`, questions CRUD + `reorder_questions(review, ids)`, keywords CRUD (+ synonyms), `import_picoc_keywords`, `generate_search_string(review) -> str`, `set_generic_search_string`, sources (`list_default_sources`, `attach_source`, `create_source`, `detach_source`), criteria CRUD | `planning/views.py` |
 | `quality.py` | QA questions/answers CRUD + reorder, `add_suggested_answers`, `max_score`, `set_cutoff`, `assess(article, question, answer, actor)`, `article_score`, `summary(review)` | `planning/views.py`, `conducting/views.py` |

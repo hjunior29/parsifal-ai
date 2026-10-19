@@ -2,7 +2,8 @@
 In-app documentation: Markdown files under ``content/`` rendered inside the site's layout.
 
 Only the features this fork adds are documented here (self-hosting, tokens, API, CLI, MCP, agents, mapping
-studies, multi-reviewer screening); the inherited review workflow is self-explanatory in the UI.
+studies, multi-reviewer screening, AI exclusion screening); the inherited review workflow is self-explanatory in
+the UI.
 """
 
 from dataclasses import dataclass
@@ -49,6 +50,12 @@ PAGES = (
         "Multiple reviewers and agreement",
         "Methodology",
         "Independent decisions, kappa, consolidation.",
+    ),
+    Page(
+        "ai-screening",
+        "Exclude with AI (Jev)",
+        "Methodology",
+        "Phase 1 of study selection: Jev rejects studies that clearly meet an exclusion criterion.",
     ),
 )
 

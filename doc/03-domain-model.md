@@ -158,6 +158,21 @@ group and marks the rest `D`.
   id. `get_value()` returns typed Python values (`""` on failure).
   `user` is never set.
 
+## AI exclusion screening
+
+- `ReviewAgent.kind`: `""` for an agent created by the owner, `"jev"` for the
+  review's Jev agent (created by the first run of *Exclude with AI*, no tokens).
+- `ScreeningRun(review, agent → User CASCADE, started_by SET_NULL, model,
+  parameters JSON, status running/finished/cancelled/failed, total, error,
+  created_at, finished_at)`. `parameters` is the snapshot of what was sent:
+  context, guidance, criteria (`key`, `id`, `description`), threshold, scope.
+- `ScreeningResult(run CASCADE, article CASCADE, outcome
+  pending/excluded/passed/error, p_exclude, probabilities JSON,
+  selection_criteria SET_NULL, model, error, processed_at)`, unique per
+  (run, article). Pending rows are deleted when a run ends.
+- `accounts.Integration(user, provider "jev", api_key, model)`, unique per
+  (user, provider).
+
 ## People and collaboration
 
 - `authentication.Profile` (table `auth_profile`): one-to-one with `User`,

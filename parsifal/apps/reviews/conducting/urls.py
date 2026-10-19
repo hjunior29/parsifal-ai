@@ -56,4 +56,8 @@ urlpatterns = [
     path("record_decision/", views.record_decision, name="record_decision"),
     path("agreement/", views.agreement, name="agreement"),
     path("consolidate/", views.consolidate, name="consolidate"),
+    path("ai_screening/", views.ai_screening, name="ai_screening"),
+    path("ai_screening/start/", views.ai_screening_start, name="ai_screening_start"),
+    path("ai_screening/step/", views.ai_screening_step, name="ai_screening_step"),
+    path("ai_screening/cancel/", views.ai_screening_cancel, name="ai_screening_cancel"),
 ]
