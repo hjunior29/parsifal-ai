@@ -19,7 +19,7 @@
           <div class="panel-heading">
             <h3 class="panel-title">{{ section }}</h3>
           </div>
-          <div class="list-group">
+          <div class="list-group docs-nav">
             {% for item in section_pages %}
               <a href="{% if item.slug == 'index' %}{% url 'docs:index' %}{% else %}{% url 'docs:page' item.slug %}{% endif %}" class="list-group-item{% if item.slug == page.slug %} active{% endif %}">
                 {{ item.title }}

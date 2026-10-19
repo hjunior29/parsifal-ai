@@ -519,4 +519,6 @@ select optgroup {
 .docs-content article code { white-space: pre-wrap; }
 .docs-content article blockquote { font-size: 14px; }
 .list-group-item .docs-summary { display: block; color: #999; font-size: 12px; margin-top: 2px; }
-.list-group-item.active .docs-summary { color: #e0e9f6; }
+/* The selected page: a light tint of the orange marker, with the summary still readable. */
+div.list-group.docs-nav a.list-group-item.active { background-color: #fdf3ea; color: #333; }
+div.list-group.docs-nav a.list-group-item.active .docs-summary { color: #8a6f5c; }
