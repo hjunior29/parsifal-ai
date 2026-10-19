@@ -102,3 +102,44 @@ def test_drive_stops_at_the_time_budget(fake_api):
     )
     assert (run["status"], run["processed"], seen) == ("running", 1, [1])
     assert screening.progress_line(run) == "1/2 screened · 1 rejected · 0 passed · 0 errors"
+
+
+def interrupted_routes(fake_api):
+    fake_api.route("POST", "/api/v1/reviews/7/ai-screening/runs", 201, dict(RUN, parameters={}))
+    fake_api.route("GET", "/api/v1/reviews/7/ai-screening/runs/3", 200, dict(RUN, parameters={}))
+    fake_api.route(
+        "POST",
+        "/api/v1/reviews/7/ai-screening/runs/3/step",
+        200,
+        {"run": progressed(error="Jev rejected the API key. Update it in Settings → Integrations."), "results": []},
+    )
+
+
+def test_drive_stops_when_the_run_is_interrupted(fake_api):
+    interrupted_routes(fake_api)
+    client = ApiClient(Settings(url="http://testserver", token="pfl_x"), transport=fake_api.transport)
+    run = screening.drive(client, 7, run_id=3)
+    assert len(bodies(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs/3/step")) == 1  # no endless loop
+    assert screening.interrupted(run).startswith("Jev rejected the API key")
+    assert screening.interrupted(progressed(status="finished", error="x")) == ""
+
+
+def test_cli_run_reports_an_interruption_and_how_to_continue(runner, fake_api):
+    interrupted_routes(fake_api)
+    result = invoke(runner, ["ai-screening", "run", "--review", "7"])
+    assert result.exit_code == 1
+    assert "Jev rejected the API key" in result.output
+    assert "continue it with --run 3" in result.output
+
+
+def test_ctrl_c_interrupts_without_cancelling(runner, fake_api, monkeypatch):
+    routes(fake_api)
+
+    def interrupt(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(screening, "drive", interrupt)
+    result = invoke(runner, ["ai-screening", "run", "--review", "7"])
+    assert result.exit_code == 1
+    assert "parsifal ai-screening run --review 7 --run 3" in result.output
+    assert not [r for r in fake_api.requests if r.url.path.endswith("/cancel")]

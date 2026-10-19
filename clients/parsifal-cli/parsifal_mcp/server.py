@@ -264,7 +264,12 @@ def screening_run(
     finally:
         client.close()
     run.pop("parameters", None)
-    if run["status"] == "running":
+    if screening.interrupted(run):
+        run["message"] = (
+            f"Interrupted: {run['error']} The run keeps the studies left ({screening.progress_line(run)}); once the "
+            f"problem is solved, call parsifal_ai_screening_run again with run_id={run['id']}."
+        )
+    elif run["status"] == "running":
         run["message"] = (
             f"Time budget reached ({screening.progress_line(run)}). Call parsifal_ai_screening_run again with "
             f"run_id={run['id']} to continue."

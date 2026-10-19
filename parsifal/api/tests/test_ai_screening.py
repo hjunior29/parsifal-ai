@@ -203,7 +203,7 @@ class TestAiScreeningApi(ApiTestCase):
             )
             self.assertIsNotNone(detail["finished_at"])
 
-    def test_validation_and_cancel(self):
+    def test_validation_and_continuing(self):
         start = self.review_path("/ai-screening/runs")
         me = {"reviewer_id": self.author.pk}
         self.assertEqual(422, self.api("post", start, {"threshold": 0.2, **me}).status_code)
@@ -221,16 +221,34 @@ class TestAiScreeningApi(ApiTestCase):
         self.assertEqual(
             422, self.api("post", self.review_path(f"/ai-screening/runs/{run['id']}/step"), {"size": 51}).status_code
         )
-        response = self.api("post", self.review_path(f"/ai-screening/runs/{run['id']}/cancel"))
-        self.assertEqual(("cancelled", 0), (response.json()["status"], response.json()["processed"]))
-        step = self.api("post", self.review_path(f"/ai-screening/runs/{run['id']}/step"), {}).json()
-        self.assertEqual(("cancelled", []), (step["run"]["status"], step["results"]))
+        with self.subTest(msg="setup shows the unfinished run; stepping it continues"):
+            setup = self.api("get", self.review_path("/ai-screening")).json()
+            self.assertEqual(
+                (run["id"], "running", False),
+                (setup["unfinished_run"]["id"], setup["unfinished_run"]["status"], setup["unfinished_run_active"]),
+            )
+            with mock.patch.object(jev, "evaluate", side_effect=[answer(0.1, 0.9), answer(0.1, 0.9)]):
+                step = self.api("post", self.review_path(f"/ai-screening/runs/{run['id']}/step"), {}).json()
+            self.assertEqual(("finished", 2), (step["run"]["status"], step["run"]["passed"]))
+            self.assertIsNone(self.api("get", self.review_path("/ai-screening")).json()["unfinished_run"])
+
+        with self.subTest(msg="there is no cancel: a new run discards an unfinished one"):
+            self.assertEqual(
+                404, self.api("post", self.review_path(f"/ai-screening/runs/{run['id']}/cancel")).status_code
+            )
+            left = self.api("post", start, me).json()
+            self.api("post", start, me)
+            self.assertEqual(
+                "cancelled", self.api("get", self.review_path(f"/ai-screening/runs/{left['id']}")).json()["status"]
+            )
+
         self.assertEqual(404, self.api("get", self.review_path("/ai-screening/runs/999999")).status_code)
         self.assertEqual(
             404,
             self.api(
                 "post",
-                self.review_path(f"/ai-screening/runs/{run['id']}/cancel"),
+                self.review_path(f"/ai-screening/runs/{run['id']}/step"),
+                {},
                 client=self.client_for(self.outsider),
             ).status_code,
         )

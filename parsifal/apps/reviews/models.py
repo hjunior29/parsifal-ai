@@ -821,10 +821,10 @@ class ScreeningRun(models.Model):
     CANCELLED = "cancelled"
     FAILED = "failed"
     STATUSES = (
-        (RUNNING, _("Running")),
+        (RUNNING, _("Running")),  # also while interrupted: it can be continued
         (FINISHED, _("Finished")),
-        (CANCELLED, _("Cancelled")),
-        (FAILED, _("Failed")),
+        (CANCELLED, _("Discarded")),  # a new run was started before this one finished
+        (FAILED, _("Failed")),  # runs from before runs could be continued
     )
 
     review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="screening_runs")
@@ -836,8 +836,11 @@ class ScreeningRun(models.Model):
     parameters = models.JSONField(_("parameters"), default=dict)
     status = models.CharField(_("status"), max_length=10, choices=STATUSES, default=RUNNING)
     total = models.PositiveIntegerField(_("studies to screen"), default=0)
+    # Why the run is waiting (Jev refused the key or was unavailable); cleared by the next step that works.
     error = models.CharField(_("error"), max_length=500, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    # When a step last ran: a running run without steps for a while was interrupted and can be continued.
+    last_step_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:

@@ -61,6 +61,23 @@ class ScreeningContextOut(Schema):
     context: str
 
 
+class ScreeningRunOut(Schema):
+    id: int
+    status: str  # running, finished, cancelled, failed
+    reviewer_id: int
+    reviewer: str  # username
+    model: str
+    total: int
+    processed: int
+    excluded: int
+    passed: int
+    failed: int
+    error: str
+    started_by: str | None
+    created_at: datetime
+    finished_at: datetime | None
+
+
 class ScreeningSetupOut(Schema):
     configured: bool  # whether you have a Jev API key
     model: str | None  # your default model
@@ -68,6 +85,8 @@ class ScreeningSetupOut(Schema):
     models_error: str  # why the list is empty, when Jev could not be asked
     reviewers: list[ScreeningReviewerOut]  # who you may screen as (the main author: anyone in the review)
     reviewer_id: int | None  # the reviewer the scopes were counted for
+    unfinished_run: ScreeningRunOut | None  # a run left half-way: step it to continue, or start a new one
+    unfinished_run_active: bool  # a step ran in the last seconds: something is driving it right now
     context: ScreeningContextOut  # defaults taken from the review; editable per run
     criteria: list[ScreeningOptionOut]  # fixed: the review's exclusion criteria
     none_description: str
@@ -101,23 +120,6 @@ class ScreeningStartIn(Schema):
 
 class ScreeningStepIn(Schema):
     size: int = 8  # studies screened in this step (1–50)
-
-
-class ScreeningRunOut(Schema):
-    id: int
-    status: str  # running, finished, cancelled, failed
-    reviewer_id: int
-    reviewer: str  # username
-    model: str
-    total: int
-    processed: int
-    excluded: int
-    passed: int
-    failed: int
-    error: str
-    started_by: str | None
-    created_at: datetime
-    finished_at: datetime | None
 
 
 class ScreeningRunDetailOut(ScreeningRunOut):

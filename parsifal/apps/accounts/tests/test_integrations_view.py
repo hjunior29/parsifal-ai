@@ -106,7 +106,7 @@ class TestIntegrationsView(TestCase):
 
         self.list_models.reset_mock()
         response = self.client.get(self.url)
-        self.list_models.assert_called_once_with(KEY)
+        self.list_models.assert_called_once_with(KEY, quick=True)  # one quick try while the page loads
         self.assertContains(
             response, '<option value="jev-1.14.0">jev-1.14.0 — Newest · 2026-10-14</option>', html=True
         )
@@ -171,7 +171,7 @@ class TestIntegrationsView(TestCase):
     def test_the_first_save_checks_the_model_against_the_new_key(self):
         response = self.client.post(self.url, {"action": "save", "api_key": KEY, "model": "jev-1.14.0"})
         self.assertEqual(302, response.status_code)
-        self.list_models.assert_called_with(KEY)
+        self.list_models.assert_called_with(KEY, quick=True)
         self.assertEqual("jev-1.14.0", Integration.objects.get(user=self.user).model)
         response = self.client.post(self.url, {"action": "save", "api_key": "fake-other-key-9876", "model": "jev-7"})
         self.assertContains(response, "Select a valid choice")

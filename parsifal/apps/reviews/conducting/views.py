@@ -744,9 +744,13 @@ def ai_screening(request):
     models, models_error = integrations.jev_models(request.user) if integration else ([], "")
     if integration and integration.model not in {model["name"] for model in models}:
         models = [*models, {"name": integration.model, "description": "", "release_date": ""}] if models else []
+    unfinished = ai_screening_service.unfinished_run(review)
     context = {
         "review": review,
         "integration": integration,
+        "unfinished": unfinished,
+        "unfinished_active": unfinished is not None and ai_screening_service.is_active(unfinished),
+        "unfinished_progress": ai_screening_service.progress(unfinished) if unfinished else None,
         "reviewers": reviewers,
         "selected_reviewer": selected,
         "models": [{"name": m["name"], "label": model_label(m)} for m in models],
@@ -824,18 +828,6 @@ def ai_screening_step(request):
             ],
         }
     )
-
-
-@author_required
-@login_required
-@require_POST
-def ai_screening_cancel(request):
-    review = get_object_or_404(Review, pk=request.POST.get("review-id"))
-    try:
-        run = ai_screening_service.cancel_run(run=ai_screening_service.get_run(review, request.POST.get("run-id")))
-    except DomainError as error:
-        return _ai_screening_error(error)
-    return JsonResponse({"run": ai_screening_service.progress(run)})
 
 
 """

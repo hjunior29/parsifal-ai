@@ -1,7 +1,7 @@
 """
 Exclude with AI (phase 1 of study selection) and the Jev integration it needs. The same operations as the web: the
-user's Jev key (Settings → Integrations) and runs started, advanced step by step and cancelled from the study
-selection page. Runs use the Jev key of whoever calls the endpoint.
+user's Jev key (Settings → Integrations) and runs started and advanced step by step from the study selection page;
+an interrupted run is continued by stepping it again. Runs use the Jev key of whoever calls the endpoint.
 """
 
 from ninja import Router
@@ -97,6 +97,7 @@ def ai_screening_setup(request, review_id: int, reviewer_id: int | None = None):
         last = ai_screening.last_reviewer_id(review)
         reviewer = next((member for member in choices if member.pk == last), None)
     counts = ai_screening.scope_counts(review, reviewer)
+    unfinished = ai_screening.unfinished_run(review)
     scopes = [{"source_id": None, "name": "All sources", "studies": counts[""]}]
     for source in review.sources.order_by("name"):
         scopes.append({"source_id": source.pk, "name": source.name, "studies": counts.get(str(source.pk), 0)})
@@ -115,6 +116,8 @@ def ai_screening_setup(request, review_id: int, reviewer_id: int | None = None):
             for member in choices
         ],
         reviewer_id=reviewer.pk if reviewer else None,
+        unfinished_run=_run_out(unfinished) if unfinished else None,
+        unfinished_run_active=bool(unfinished and ai_screening.is_active(unfinished)),
         context=ai_screening.default_context(review),
         criteria=ai_screening.exclusion_options(review),
         none_description=ai_screening.NONE_DESCRIPTION,
@@ -185,22 +188,13 @@ def ai_screening_step(request, review_id: int, run_id: int, payload: ScreeningSt
     """
     Screen the next studies of the run (size 1–50) with your Jev key. Studies at or above the threshold are rejected
     in the reviewer's name; the rest get the reviewer's "unclassified" decision and stay (or go back to)
-    unclassified. The run finishes when no study is left.
+    unclassified. The run finishes when no study is left. If Jev refuses the key or is unavailable, the run keeps
+    its remaining studies and ``run.error`` says why: call step again to continue (also for a run interrupted in the
+    web).
     """
     run = ai_screening.get_run(get_review(request, review_id), run_id)
     results = ai_screening.process_step(run=run, actor=request.auth, size=payload.size)
     return ScreeningStepOut(run=_run_out(run), results=results)
-
-
-@router.post(
-    "/reviews/{int:review_id}/ai-screening/runs/{int:run_id}/cancel",
-    response=ScreeningRunOut,
-    operation_id="ai_screening_cancel",
-)
-def ai_screening_cancel(request, review_id: int, run_id: int):
-    """Stop the run; what was already screened stays, the rest is not sent."""
-    run = ai_screening.get_run(get_review(request, review_id), run_id)
-    return _run_out(ai_screening.cancel_run(run=run))
 
 
 @router.get(

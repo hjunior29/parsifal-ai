@@ -53,7 +53,7 @@ def jev_api_key(user):
         )
 
 
-def test_jev(user, *, api_key=None):
+def test_jev(user, *, api_key=None, quick=False):
     """
     Ask Jev which models a key can use: ``api_key`` (a key being typed, not saved yet) or the saved one. Raises when
     there is no key or Jev refuses or fails.
@@ -64,7 +64,7 @@ def test_jev(user, *, api_key=None):
             raise ValidationError("Save an API key first.", field="api_key")
         api_key = jev_api_key(user)
     try:
-        return jev.list_models(api_key)
+        return jev.list_models(api_key, quick=quick) if quick else jev.list_models(api_key)
     except jev.JevError as error:
         if error.fatal:
             raise ValidationError(str(error), field="api_key")
@@ -77,7 +77,7 @@ def jev_models(user, *, api_key=None):
     Never raises; when Jev cannot be asked, ``models`` is empty and ``error`` says why.
     """
     try:
-        return test_jev(user, api_key=api_key), ""
+        return test_jev(user, api_key=api_key, quick=True), ""
     except (ValidationError, UpstreamError) as error:
         return [], str(error)
 

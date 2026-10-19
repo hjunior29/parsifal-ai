@@ -1433,7 +1433,7 @@ OPERATIONS = (
         "/reviews/{review_id}/ai-screening",
         ("ai-screening",),
         "setup",
-        "What a run would send: context (editable), criteria (fixed), Jev's models, reviewers, studies per scope.",
+        "What a run would send (context, criteria, Jev's models, reviewers, studies) and any unfinished run.",
         (REVIEW, Q("reviewer_id", INT, help="Count the studies for this reviewer.")),
     ),
     Operation(
@@ -1484,17 +1484,8 @@ OPERATIONS = (
         "/reviews/{review_id}/ai-screening/runs/{run_id}/step",
         ("ai-screening",),
         "step",
-        "Screen the next studies of the run with your Jev key, recording the reviewer's decisions.",
+        "Screen the next studies of the run (also continues an interrupted run), recording the reviewer's decisions.",
         (REVIEW, child_id("run_id", "Run id."), B("size", INT, help="Studies in this step (1–50, default 8).")),
-    ),
-    Operation(
-        "ai_screening_cancel",
-        "POST",
-        "/reviews/{review_id}/ai-screening/runs/{run_id}/cancel",
-        ("ai-screening",),
-        "cancel",
-        "Stop the run; what was already screened stays.",
-        (REVIEW, child_id("run_id", "Run id.")),
     ),
     Operation(
         "ai_screening_results",

@@ -95,3 +95,11 @@ class TestJevClient(SimpleTestCase):
                 models = jev.list_models("k", sleep=self.sleep)
                 self.assertEqual(["jev-1.13.0", "jev-1.14.0"], [model["name"] for model in models])
                 self.assertEqual({"name", "description", "release_date"}, set(models[0]))
+
+    def test_quick_lookups_try_once_with_a_short_timeout(self):
+        with mock.patch.object(requests, "request", side_effect=requests.ConnectionError("down")) as request:
+            with self.assertRaises(jev.JevError):
+                jev.list_models("k", sleep=self.sleep, quick=True)
+        self.assertEqual(1, request.call_count)
+        self.assertEqual(jev.QUICK_TIMEOUT, request.call_args.kwargs["timeout"])
+        self.sleep.assert_not_called()

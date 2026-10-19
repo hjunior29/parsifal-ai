@@ -17,6 +17,7 @@ TIMEOUT = 30  # seconds per HTTP request
 RETRY_STATUSES = {429, 500, 502, 503, 504, 529}  # rate limited, overloaded or a transient server error
 RETRY_DELAYS = (1, 2, 4)  # seconds; Retry-After wins when present, capped at MAX_RETRY_AFTER
 MAX_RETRY_AFTER = 10
+QUICK_TIMEOUT = 5  # seconds, for lookups made while a page loads (one try, no retries)
 
 
 class JevError(Exception):
@@ -51,13 +52,14 @@ def _detail(response):
     return str(body)[:200]
 
 
-def _request(method, path, api_key, *, json=None, sleep=time.sleep):
+def _request(method, path, api_key, *, json=None, sleep=time.sleep, quick=False):
     url = f"{base_url()}{path}"
     headers = {"Authorization": f"Bearer {api_key}"}
-    delays = list(RETRY_DELAYS)
+    delays = [] if quick else list(RETRY_DELAYS)
+    timeout = QUICK_TIMEOUT if quick else TIMEOUT
     while True:
         try:
-            response = requests.request(method, url, headers=headers, json=json, timeout=TIMEOUT)
+            response = requests.request(method, url, headers=headers, json=json, timeout=timeout)
         except requests.RequestException as error:
             if not delays:
                 raise JevError(f"Could not reach Jev ({error.__class__.__name__}).")
@@ -89,12 +91,13 @@ def evaluate(api_key, *, model, state, questions, sleep=time.sleep):
     return payload
 
 
-def list_models(api_key, *, sleep=time.sleep):
+def list_models(api_key, *, sleep=time.sleep, quick=False):
     """
     The models the key can use, as ``{"name", "description", "release_date"}`` in Jev's order (also a cheap way to
     check that the key works). ``GET /v1/models`` answers a list of model cards; wrapped lists are accepted too.
+    ``quick``: one try with a short timeout, for pages that ask while loading.
     """
-    payload = _request("GET", "/v1/models", api_key, sleep=sleep)
+    payload = _request("GET", "/v1/models", api_key, sleep=sleep, quick=quick)
     items = payload.get("data", payload.get("models", [])) if isinstance(payload, dict) else payload
     models = []
     for item in items if isinstance(items, list) else []:

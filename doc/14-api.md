@@ -150,14 +150,16 @@ with the criterion as reason; the human reviewer records theirs; both check
 | Method & path | operationId |
 |---------------|-------------|
 | `GET /integrations/jev` · `PUT {api_key?, model?}` · `POST /integrations/jev/test {api_key?}` · `DELETE` | `jev_integration_get` · `jev_integration_set` · `jev_integration_test` · `jev_integration_delete` — the caller's own key (Settings → Integrations); never returned, only `masked_key`. A blank value keeps the saved one. `test` lists Jev's models for the saved key, or for `api_key` without saving it (what Settings uses while you type), and answers 422 if Jev rejects the key, 502 if Jev fails |
-| `GET /reviews/{rid}/ai-screening?reviewer_id=` | `ai_screening_setup` — review context defaults, exclusion criteria as `E1…` + `none`, task, rules, threshold range, Jev's models for your key (asked now), who you may screen as, studies per scope for that reviewer |
+| `GET /reviews/{rid}/ai-screening?reviewer_id=` | `ai_screening_setup` — review context defaults, exclusion criteria as `E1…` + `none`, task, rules, threshold range, Jev's models for your key (asked now), who you may screen as, studies per scope for that reviewer, and `unfinished_run` (a run left half-way) with `unfinished_run_active` (driven right now elsewhere) |
 | `POST /reviews/{rid}/ai-screening/runs {reviewer_id, model?, title?, objective?, research_questions?, population?, intervention?, comparison?, outcome?, context?, guidance?, threshold?, source_id?}` | `ai_screening_start` (201) — decisions recorded as `reviewer_id` (only the main author may name another member); `model` defaults to yours; context fields left out take the review's values |
 | `POST /reviews/{rid}/ai-screening/runs/{id}/step {size?}` | `ai_screening_step` — screens the next 1–50 studies (default 8) with the caller's key; returns `{run, results[]}` |
-| `POST /reviews/{rid}/ai-screening/runs/{id}/cancel` | `ai_screening_cancel` |
 | `GET /reviews/{rid}/ai-screening/runs` · `GET /runs/{id}` · `GET /runs/{id}/results?outcome=` (paginated) | `ai_screening_runs_list` · `ai_screening_runs_get` (with the parameters snapshot) · `ai_screening_results` (probabilities, chosen criterion, errors) |
 
 A run does nothing until `step` is called; call it until `run.status` is no
-longer `running` (the web page does the same in the browser; the CLI command
+longer `running`. A run cannot be cancelled: if Jev refuses the key or is
+unavailable, the step returns with `run.error` set and the remaining studies
+kept, and stepping it again later continues it (with the parameters it started
+with); starting a new run discards an unfinished one (the web page does the same in the browser; the CLI command
 `ai-screening run` and the MCP tool `parsifal_ai_screening_run` loop for
 you). A run sends the unclassified studies plus those the reviewer rejected
 in an earlier run, and records the reviewer's decision for each: rejected with

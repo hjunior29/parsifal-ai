@@ -161,7 +161,8 @@ group and marks the rest `D`.
 ## AI exclusion screening
 
 - `ScreeningRun(review, reviewer → User CASCADE (the member the decisions are recorded as), started_by SET_NULL, model,
-  parameters JSON, status running/finished/cancelled/failed, total, error,
+  parameters JSON, status running (also while interrupted)/finished/cancelled (discarded by a newer run)/failed
+  (older runs only), total, error (why it waits), last_step_at (a step in the last 30 s means it is being driven),
   created_at, finished_at)`. `parameters` is the snapshot of what was sent:
   context, guidance, criteria (`key`, `id`, `description`), threshold, scope.
 - `ScreeningResult(run CASCADE, article CASCADE, previous_status (U, or R when the same reviewer

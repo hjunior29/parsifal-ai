@@ -18,7 +18,9 @@ sum to 1, the probability that *some* criterion applies is ``1 - p(none)``, even
   unclassified for the next phase.
 
 A run is driven in small steps (``process_step``) so that the page can show its progress, and every answer is kept
-in ``ScreeningResult`` for audit.
+in ``ScreeningResult`` for audit. A run cannot be stopped; when it is interrupted (page closed, connection lost, Jev
+refusing the key or unavailable) it keeps its remaining studies and is continued by calling ``process_step`` again,
+with the parameters it started with. Starting a new run discards an unfinished one.
 """
 
 from concurrent.futures import ThreadPoolExecutor
@@ -38,6 +40,7 @@ DEFAULT_THRESHOLD = 0.9
 MIN_THRESHOLD = 0.5
 MAX_THRESHOLD = 0.99
 STEP_SIZE = 8  # studies per step; one request each
+ACTIVE_FOR = 30  # seconds: a running run with a step this recent is being driven somewhere
 MAX_STEP_SIZE = 50
 WORKERS = 4  # concurrent requests to Jev within a step
 ORDERS = 3  # option orders asked per study
@@ -367,10 +370,24 @@ def _close(run, status, error=""):
     run.save(update_fields=["status", "error", "finished_at"])
 
 
-def cancel_run(*, run):
-    if run.status == ScreeningRun.RUNNING:
-        _close(run, ScreeningRun.CANCELLED)
+def unfinished_run(review):
+    """The review's run left half-way (page closed, connection lost, Jev unavailable), or None."""
+    run = review.screening_runs.filter(status=ScreeningRun.RUNNING).select_related("reviewer").first()
+    if run is None or not run.results.filter(outcome=ScreeningResult.PENDING).exists():
+        return None
     return run
+
+
+def is_active(run):
+    """Whether a step ran a moment ago, i.e. some page or client is driving the run right now."""
+    return run.last_step_at is not None and (timezone.now() - run.last_step_at).total_seconds() < ACTIVE_FOR
+
+
+def _interrupt(run, error):
+    """Keep the run (and its remaining studies) waiting to be continued, with the reason; it can be continued now."""
+    run.error = str(error)[:500]
+    run.last_step_at = None
+    run.save(update_fields=["error", "last_step_at"])
 
 
 def _ask(api_key, model, payload):
@@ -395,6 +412,8 @@ def process_step(*, run, actor, size=STEP_SIZE):
     if run.status != ScreeningRun.RUNNING:
         return []
     api_key = integrations.jev_api_key(actor)
+    run.last_step_at = timezone.now()
+    run.save(update_fields=["last_step_at"])
     pending = list(run.results.filter(outcome=ScreeningResult.PENDING).select_related("article", "run")[:size])
     if not pending:
         _close(run, ScreeningRun.FINISHED)
@@ -411,26 +430,35 @@ def process_step(*, run, actor, size=STEP_SIZE):
         futures = {pk: pool.submit(_ask, api_key, run.model, payload) for pk, payload in payloads.items()}
         responses = {pk: future.result() for pk, future in futures.items()}
 
+    # Jev refused the key: nothing is recorded and the run waits until it is continued with a working key.
     fatal = next((r for r in responses.values() if isinstance(r, jev.JevError) and r.fatal), None)
     if fatal is not None:
-        _close(run, ScreeningRun.FAILED, str(fatal))
+        _interrupt(run, fatal)
         return []
 
-    for result in pending:
-        _record(run, result, responses.get(result.pk))
+    # Jev unreachable, rate limited or overloaded even after the client's retries: those studies stay pending and are
+    # sent again by the next step. When no study of the step got through, the run waits instead of going on.
+    # Errors about one study (e.g. too long) are recorded as that study's error.
+    def unavailable(response):
+        return isinstance(response, jev.JevError) and (
+            response.status is None or response.status in jev.RETRY_STATUSES
+        )
 
-    # Jev unreachable, rate limited or overloaded for every request of the step, even after the client's retries:
-    # stop instead of burning through the rest of the studies. Errors about one study (e.g. too long) do not count.
-    unavailable = [
-        r
-        for r in responses.values()
-        if isinstance(r, jev.JevError) and (r.status is None or r.status in jev.RETRY_STATUSES)
-    ]
-    if responses and len(unavailable) == len(responses):
-        _close(run, ScreeningRun.FAILED, str(unavailable[-1]))
-    elif not run.results.filter(outcome=ScreeningResult.PENDING).exists():
+    recorded = []
+    for result in pending:
+        response = responses.get(result.pk)
+        if not unavailable(response):
+            _record(run, result, response)
+            recorded.append(result)
+    if responses and not recorded:
+        _interrupt(run, next(r for r in responses.values() if unavailable(r)))
+        return []
+    if run.error:
+        run.error = ""
+        run.save(update_fields=["error"])
+    if not run.results.filter(outcome=ScreeningResult.PENDING).exists():
         _close(run, ScreeningRun.FINISHED)
-    return pending
+    return recorded
 
 
 @transaction.atomic

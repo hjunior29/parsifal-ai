@@ -1,12 +1,12 @@
 /*
- * Exclude with AI (phase 1 of study selection). Opens the setup window, starts a run and then asks the server to
- * screen the next few studies until the run ends, showing progress as it goes. "Done" reloads the page so the
- * table shows the rejected studies.
+ * Exclude with AI (phase 1 of study selection). Opens the setup window, starts a run (or continues an unfinished
+ * one) and then asks the server to screen the next few studies until the run ends, showing progress as it goes.
+ * A run cannot be stopped; when it is interrupted (connection lost, Jev refusing the key or unavailable) the window
+ * offers to continue it. "Done" reloads the page so the table shows the rejected studies.
  */
 $(function () {
   var $modal = $("#modal-ai-screening");
   var run = null;
-  var stopping = false;
   var retries = 0;
 
   function reviewId() { return $("#review-id").val(); }
@@ -32,7 +32,6 @@ $(function () {
 
   $(document).on("click", ".btn-ai-screening", function () {
     run = null;
-    stopping = false;
     $.get("/reviews/conducting/ai_screening/", {"review-id": reviewId()}, function (html) {
       $modal.find(".modal-content").html(html);
       updateCount();
@@ -60,10 +59,21 @@ $(function () {
     });
   });
 
+  // Continue an unfinished run: from the notice of the setup window, or after an interruption in this window.
+  $modal.on("click", ".js-ai-continue", function () {
+    if (!run) { run = JSON.parse($("#ai-screening-unfinished").text()); }
+    showProgress(run);
+    step();
+  });
+
   function showProgress(state) {
     run = state;
-    $modal.find(".ai-screening-setup, .js-ai-start, .js-ai-close, .js-ai-count-line").hide();
-    $modal.find(".ai-screening-progress, .js-ai-stop").show();
+    retries = 0;
+    $modal.find(".ai-screening-setup, .js-ai-start, .js-ai-close, .js-ai-count-line, .js-ai-retry, .js-ai-done").hide();
+    $modal.find(".js-ai-run-error").hide();
+    $modal.find(".js-ai-status").empty().append($("<strong>").text("Screening…"));
+    $modal.find(".js-ai-bar").addClass("active progress-bar-striped");
+    $modal.find(".ai-screening-progress").show();
     window.addEventListener("beforeunload", warnBeforeLeaving);
     render(state, []);
   }
@@ -97,7 +107,6 @@ $(function () {
   }
 
   function step() {
-    if (stopping) { cancel(); return; }
     $.ajax({
       url: "/reviews/conducting/ai_screening/step/",
       type: "post",
@@ -106,45 +115,47 @@ $(function () {
     }).done(function (data) {
       retries = 0;
       render(data.run, data.results);
-      if (data.run.status === "running") { step(); } else { finish(data.run); }
+      if (data.run.status !== "running") {
+        finish(data.run);
+      } else if (data.run.error) {
+        interrupted(data.run.error);
+      } else {
+        step();
+      }
     }).fail(function (xhr) {
       retries += 1;
       if (retries <= 3) {
         setTimeout(step, 2000 * retries);
       } else {
-        finish($.extend({}, run, {status: "failed", error: errorMessage(xhr)}));
+        interrupted(errorMessage(xhr));
       }
     });
   }
 
-  function cancel() {
-    $.ajax({
-      url: "/reviews/conducting/ai_screening/cancel/",
-      type: "post",
-      data: {"review-id": reviewId(), "run-id": run.id, "csrfmiddlewaretoken": csrf()},
-      dataType: "json"
-    }).done(function (data) { finish(data.run); })
-      .fail(function () { finish($.extend({}, run, {status: "cancelled"})); });
+  function settle() {
+    window.removeEventListener("beforeunload", warnBeforeLeaving);
+    $modal.find(".js-ai-bar").removeClass("active progress-bar-striped");
+    $modal.find(".js-ai-done").show();
   }
 
-  $modal.on("click", ".js-ai-stop", function () {
-    stopping = true;
-    $(this).prop("disabled", true).text("Stopping…");
-  });
+  function interrupted(message) {
+    settle();
+    $modal.find(".js-ai-status").empty()
+      .append($("<strong>").text("Interrupted."))
+      .append(document.createTextNode(" " + run.processed + " of " + run.total + " screened; the rest waits. Continue now or later."));
+    $modal.find(".js-ai-run-error").text(message).show();
+    $modal.find(".js-ai-retry").show();
+  }
 
   function finish(state) {
-    window.removeEventListener("beforeunload", warnBeforeLeaving);
+    settle();
     render(state, []);
-    var titles = {finished: "Finished.", cancelled: "Stopped.", failed: "Stopped because of an error."};
+    var titles = {finished: "Finished.", cancelled: "Discarded: another run was started."};
     var summary = " " + state.excluded + " rejected, " + state.passed + " passed to the next phase";
-    if (state.failed) { summary += ", " + state.failed + " errors (they stay unclassified and are sent again next time)"; }
+    if (state.failed) { summary += ", " + state.failed + " errors (those studies keep the reviewer's previous decision)"; }
     $modal.find(".js-ai-status").empty()
       .append($("<strong>").text(titles[state.status] || "Stopped."))
       .append(document.createTextNode(summary + "."));
-    $modal.find(".js-ai-bar").removeClass("active progress-bar-striped");
-    if (state.error) { $modal.find(".js-ai-run-error").text(state.error).show(); }
-    $modal.find(".js-ai-stop").hide();
-    $modal.find(".js-ai-done").show();
   }
 
   $modal.on("click", ".js-ai-done", function () {

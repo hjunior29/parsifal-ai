@@ -1,6 +1,8 @@
+from datetime import timedelta
 from unittest import mock
 
 from django.test import TestCase
+from django.utils import timezone
 
 from parsifal.apps.accounts.models import Integration
 from parsifal.apps.authentication.tests.factories import UserFactory
@@ -363,28 +365,45 @@ class TestProcessStep(AiScreeningTestCase):
         self.assertEqual(Article.UNCLASSIFIED, too_long.status)
         self.assertFalse(StudyDecision.objects.filter(article=too_long).exists())
 
-    def test_a_rejected_key_fails_the_run(self):
-        self.article()
+    def test_a_rejected_key_interrupts_the_run_until_it_is_continued(self):
+        first = self.article()
         self.article()
         run = self.start()
         error = jev.JevError("Jev rejected the API key. Update it in Settings → Integrations.", status=401, fatal=True)
-        self.step(run, [error, error])
-        self.assertEqual(ScreeningRun.FAILED, run.status)
+        self.assertEqual([], self.step(run, [error, error])[0])
+        self.assertEqual((ScreeningRun.RUNNING, None), (run.status, run.last_step_at))
         self.assertIn("rejected the API key", run.error)
-        self.assertFalse(run.results.exists())
-        self.assertEqual(0, Article.objects.filter(review=self.review, status=Article.REJECTED).count())
+        self.assertEqual(2, run.results.filter(outcome=ScreeningResult.PENDING).count())
+        self.assertEqual(run, ai_screening.unfinished_run(self.review))
+        self.assertFalse(ai_screening.is_active(run))
+        first.refresh_from_db()
+        self.assertEqual(Article.UNCLASSIFIED, first.status)
 
-    def test_jev_unavailable_for_a_whole_step_fails_the_run(self):
+        self.step(run, [EXCLUDE_E2, KEEP])  # continued with a key that works
+        self.assertEqual((ScreeningRun.FINISHED, ""), (run.status, run.error))
+        self.assertEqual((1, 1), (ai_screening.progress(run)["excluded"], ai_screening.progress(run)["passed"]))
+        self.assertIsNone(ai_screening.unfinished_run(self.review))
+
+    def test_jev_unavailable_keeps_the_studies_for_later(self):
         for _ in range(3):
             self.article()
         run = self.start()
         unavailable = jev.JevError("Jev answered 529: overloaded", status=529)
         with mock.patch.object(jev, "evaluate", side_effect=[unavailable, unavailable]):
-            ai_screening.process_step(run=run, actor=self.owner, size=2)
+            self.assertEqual([], ai_screening.process_step(run=run, actor=self.owner, size=2))
         run.refresh_from_db()
-        self.assertEqual((ScreeningRun.FAILED, "Jev answered 529: overloaded"), (run.status, run.error))
-        progress = ai_screening.progress(run)
-        self.assertEqual((2, 2), (progress["failed"], progress["processed"]))
+        self.assertEqual((ScreeningRun.RUNNING, "Jev answered 529: overloaded"), (run.status, run.error))
+        self.assertEqual((0, 0), (ai_screening.progress(run)["processed"], ai_screening.progress(run)["failed"]))
+        self.assertEqual(3, run.results.filter(outcome=ScreeningResult.PENDING).count())
+
+        with self.subTest(msg="a partly unavailable step goes on; the unavailable study is sent again"):
+            with mock.patch.object(jev, "evaluate", side_effect=[KEEP, unavailable]):
+                recorded = ai_screening.process_step(run=run, actor=self.owner, size=2)
+            run.refresh_from_db()
+            self.assertEqual((1, ""), (len(recorded), run.error))
+            self.assertEqual(2, run.results.filter(outcome=ScreeningResult.PENDING).count())
+            self.step(run, [KEEP, KEEP])
+            self.assertEqual((ScreeningRun.FINISHED, 3), (run.status, ai_screening.progress(run)["passed"]))
 
     def test_a_study_classified_meanwhile_keeps_its_status(self):
         accepted = self.article()
@@ -411,16 +430,33 @@ class TestProcessStep(AiScreeningTestCase):
         article.refresh_from_db()
         self.assertEqual(Article.UNCLASSIFIED, article.status)
 
-    def test_cancel(self):
+    def test_an_unfinished_run_is_continued_or_discarded(self):
         self.article()
         self.article()
         run = self.start()
+        self.assertIsNone(run.last_step_at)
+        self.assertEqual(run, ai_screening.unfinished_run(self.review))  # page closed before the first step
         with mock.patch.object(jev, "evaluate", return_value=KEEP):
             ai_screening.process_step(run=run, actor=self.owner, size=1)
-        ai_screening.cancel_run(run=run)
-        self.assertEqual(ScreeningRun.CANCELLED, run.status)
-        self.assertEqual((2, 1), (run.total, ai_screening.progress(run)["processed"]))
-        self.assertEqual([], ai_screening.process_step(run=run, actor=self.owner))
+        run.refresh_from_db()
+        self.assertTrue(ai_screening.is_active(run))  # being driven right now
+        ScreeningRun.objects.filter(pk=run.pk).update(last_step_at=timezone.now() - timedelta(minutes=5))
+        run.refresh_from_db()
+        self.assertFalse(ai_screening.is_active(run))
+
+        with self.subTest(msg="continued with the parameters it started with"):
+            with mock.patch.object(jev, "evaluate", return_value=KEEP) as evaluate:
+                ai_screening.process_step(run=run, actor=self.owner, size=8)
+            self.assertEqual(run.model, evaluate.call_args.kwargs["model"])
+            run.refresh_from_db()
+            self.assertEqual((ScreeningRun.FINISHED, 2), (run.status, ai_screening.progress(run)["processed"]))
+
+        with self.subTest(msg="a new run discards an unfinished one"):
+            left = self.start()
+            self.start()
+            left.refresh_from_db()
+            self.assertEqual(ScreeningRun.CANCELLED, left.status)
+            self.assertFalse(left.results.filter(outcome=ScreeningResult.PENDING).exists())
 
 
 class TestScope(AiScreeningTestCase):

@@ -1,6 +1,6 @@
 {% comment %}
   Exclude with AI (phase 1 of study selection): contents of #modal-ai-screening. Three states driven by
-  conducting_ai_screening.js: setup (this form), progress and summary.
+  conducting_ai_screening.js: setup (this form, with a Continue for an unfinished run), progress and summary.
 {% endcomment %}
 {% load l10n %}
 <div class="modal-header">
@@ -31,6 +31,20 @@
       exclusion criterion</strong>, with that criterion as the reason, in the name of the reviewer you choose. Every
       other study stays unclassified for the next phase, with the inclusion criteria.
     </p>
+    {% if unfinished %}
+      <div class="alert alert-warning">
+        {% if unfinished_active %}
+          A run in the name of <strong>{{ unfinished.reviewer.profile.get_screen_name }}</strong> is in progress in
+          another window ({{ unfinished_progress.processed }} of {{ unfinished_progress.total }} studies).
+        {% else %}
+          The run in the name of <strong>{{ unfinished.reviewer.profile.get_screen_name }}</strong> stopped at
+          {{ unfinished_progress.processed }} of {{ unfinished_progress.total }} studies{% if unfinished.error %}: {{ unfinished.error }}{% else %}.{% endif %}
+          <button type="button" class="btn btn-warning btn-sm js-ai-continue" style="margin-left: 6px;">Continue</button>
+        {% endif %}
+        <br><small>It continues with the model, context and threshold it started with. Starting a new run below discards it.</small>
+      </div>
+      {{ unfinished_progress|json_script:"ai-screening-unfinished" }}
+    {% endif %}
     <div class="alert alert-danger js-ai-form-error" style="display: none;"></div>
 
     <form id="ai-screening-form" onsubmit="return false;">
@@ -164,7 +178,7 @@
     <span class="pull-left text-muted small js-ai-count-line"><strong class="js-ai-count">0</strong> studies will be sent.</span>
     <button type="button" class="btn btn-default js-ai-close" data-dismiss="modal">Cancel</button>
     <button type="button" class="btn btn-primary js-ai-start">Start screening</button>
-    <button type="button" class="btn btn-warning js-ai-stop" style="display: none;">Stop</button>
+    <button type="button" class="btn btn-warning js-ai-continue js-ai-retry" style="display: none;">Continue</button>
     <button type="button" class="btn btn-success js-ai-done" style="display: none;">Done</button>
   </div>
 {% endif %}

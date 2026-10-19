@@ -1,7 +1,9 @@
 """
 Drive an "Exclude with AI" run to its end, as the study selection page does in the browser: start a run (or pick up
-an existing one) and call the step operation until the run is no longer running. Shared by
-``parsifal ai-screening run`` and the ``parsifal_ai_screening_run`` MCP tool.
+an existing one) and call the step operation until the run is no longer running. A run cannot be stopped; when it
+is interrupted (Jev refusing the key or unavailable) it keeps its remaining studies and ``run["error"]`` says why,
+and the same call with its id continues it. Shared by ``parsifal ai-screening run`` and the
+``parsifal_ai_screening_run`` MCP tool.
 """
 
 import time
@@ -24,8 +26,9 @@ def drive(
     clock=time.monotonic,
 ):
     """
-    Returns the run as it stands when it stops running, or when ``max_seconds`` have passed (the run then keeps
-    the status "running" and can be continued with its id). ``on_step(run, results)`` is called after each step.
+    Returns the run as it stands when it is no longer running, when it is interrupted (``run["error"]``), or when
+    ``max_seconds`` have passed; in the last two cases it keeps the status "running" and is continued with its id.
+    ``on_step(run, results)`` is called after each step.
     """
     review_id = client.resolve_review(review_id)
     if run_id is None:
@@ -42,11 +45,14 @@ def drive(
         run = step["run"]
         if on_step is not None:
             on_step(run, step["results"])
+        if run["status"] == "running" and run.get("error"):
+            break
     return run
 
 
-def cancel(client, review_id, run_id):
-    return client.call(BY_ID["ai_screening_cancel"], {"review_id": client.resolve_review(review_id), "run_id": run_id})
+def interrupted(run):
+    """Why a run that is still running stopped advancing (Jev refused the key or was unavailable), or ""."""
+    return run.get("error", "") if run.get("status") == "running" else ""
 
 
 def progress_line(run):

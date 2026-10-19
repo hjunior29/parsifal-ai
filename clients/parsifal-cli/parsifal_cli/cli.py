@@ -251,15 +251,23 @@ def _ai_screening_run_command():
 
             result = screening.drive(client, review, run_id=current["id"], step_size=step_size, on_step=on_step)
         except KeyboardInterrupt:
-            result = screening.cancel(client, review, current["id"]) if current.get("id") else None
-            typer.echo("Stopped: the run was cancelled; what was screened stays.", err=True)
+            if current.get("id"):
+                typer.echo(
+                    f"Interrupted: run {current['id']} keeps the studies left. Continue with "
+                    f"`parsifal ai-screening run --review {review} --run {current['id']}`.",
+                    err=True,
+                )
+            raise typer.Exit(code=EXIT_ERROR)
         except (ApiError, ConnectionFailed) as exc:
             error(str(exc))
             raise typer.Exit(code=exc.exit_code)
         finally:
             client.close()
-        if result is not None:
-            render(result, state.json)
+        render(result, state.json)
+        reason = screening.interrupted(result)
+        if reason:
+            error(f"{reason} Run {result['id']} keeps the studies left; continue it with --run {result['id']}.")
+            raise typer.Exit(code=EXIT_ERROR)
 
     parameters = [
         inspect.Parameter(
@@ -295,7 +303,7 @@ def _ai_screening_run_command():
     handler.__annotations__ = {p.name: p.annotation for p in parameters}
     handler.__doc__ = (
         "Start an Exclude with AI run (or continue one with --run) and screen until it ends, printing the progress. "
-        "Ctrl-C cancels the run."
+        "Ctrl-C only interrupts: the run keeps the studies left and --run continues it."
     )
     return handler
 

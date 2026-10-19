@@ -9,7 +9,7 @@ from parsifal.apps.accounts.models import Integration
 from parsifal.apps.authentication.tests.factories import UserFactory
 from parsifal.apps.core import jev
 from parsifal.apps.reviews.models import Article, ScreeningRun, SelectionCriteria, StudyDecision
-from parsifal.apps.reviews.services import agents
+from parsifal.apps.reviews.services import agents, ai_screening
 from parsifal.apps.reviews.tests.factories import ArticleFactory, ReviewFactory, SourceFactory
 
 MODELS = [
@@ -38,7 +38,6 @@ class AiScreeningViewsTest(TestCase):
         cls.form_url = reverse("reviews:conducting:ai_screening")
         cls.start_url = reverse("reviews:conducting:ai_screening_start")
         cls.step_url = reverse("reviews:conducting:ai_screening_step")
-        cls.cancel_url = reverse("reviews:conducting:ai_screening_cancel")
 
     def setUp(self):
         self.client.force_login(self.owner)
@@ -103,7 +102,7 @@ class AiScreeningViewsTest(TestCase):
             self.assertContains(response, f"({self.owner.username}) · you")
 
         with self.subTest(msg="models listed by Jev when the window opens, the default selected"):
-            self.list_models.assert_called_with("fake-key")
+            self.list_models.assert_called_with("fake-key", quick=True)
             self.assertContains(
                 response, '<option value="jev-1.13.0" selected>jev-1.13.0 — Stable · 2026-08-01</option>', html=True
             )
@@ -164,12 +163,53 @@ class AiScreeningViewsTest(TestCase):
             response = self.client.get(self.form_url, {"review-id": self.review.pk})
             self.assertContains(response, f'<option value="{self.bot.pk}" selected>', html=False)
 
-    def test_cancel_and_unknown_run(self):
+    def test_an_unfinished_run_is_offered_to_continue(self):
         self.connect()
-        ArticleFactory(review=self.review, source=self.source)
+        response = self.client.get(self.form_url, {"review-id": self.review.pk})
+        self.assertNotContains(response, 'js-ai-continue"', html=False)  # nothing unfinished yet
+        self.assertNotContains(response, "Stop")
+
+        run = self.start().json()["run"]  # the page was closed before the first step
+        response = self.client.get(self.form_url, {"review-id": self.review.pk})
+        self.assertContains(response, "stopped at")
+        self.assertContains(response, "0 of 1 studies")
+        self.assertContains(response, "Starting a new run below discards it.")
+        script = re.search(r'id="ai-screening-unfinished"[^>]*>(.*?)</script>', response.content.decode())
+        self.assertEqual(
+            (run["id"], "running"), (json.loads(script.group(1))["id"], json.loads(script.group(1))["status"])
+        )
+
+        with self.subTest(msg="continuing is stepping the same run"):
+            with mock.patch.object(jev, "evaluate", return_value=EXCLUDE):
+                body = self.client.post(self.step_url, {"review-id": self.review.pk, "run-id": run["id"]}).json()
+            self.assertEqual(("finished", 1), (body["run"]["status"], body["run"]["excluded"]))
+
+    def test_a_run_driven_elsewhere_is_not_offered(self):
+        self.connect()
+        ArticleFactory(review=self.review, source=self.source, title="Another", abstract="x")
+        run = ScreeningRun.objects.get(pk=self.start().json()["run"]["id"])
+        with mock.patch.object(jev, "evaluate", return_value=EXCLUDE):
+            ai_screening.process_step(run=run, actor=self.owner, size=1)  # another window drives it
+        response = self.client.get(self.form_url, {"review-id": self.review.pk})
+        self.assertContains(response, "is in progress in")
+        self.assertNotContains(response, "js-ai-continue btn", html=False)
+        self.assertNotContains(response, 'class="btn btn-warning btn-sm js-ai-continue"', html=False)
+
+    def test_interruptions_are_reported_and_unknown_runs_rejected(self):
+        self.connect()
         run = self.start().json()["run"]
-        response = self.client.post(self.cancel_url, {"review-id": self.review.pk, "run-id": run["id"]})
-        self.assertEqual(("cancelled", 0), (response.json()["run"]["status"], response.json()["run"]["processed"]))
+        error = jev.JevError("Jev rejected the API key. Update it in Settings → Integrations.", status=401, fatal=True)
+        with mock.patch.object(jev, "evaluate", side_effect=error):
+            body = self.client.post(self.step_url, {"review-id": self.review.pk, "run-id": run["id"]}).json()
+        self.assertEqual(("running", [], 0), (body["run"]["status"], body["results"], body["run"]["processed"]))
+        self.assertIn("rejected the API key", body["run"]["error"])
         response = self.client.post(self.step_url, {"review-id": self.review.pk, "run-id": 999999})
         self.assertEqual(400, response.status_code)
         self.assertIn("not found", response.json()["error"])
+        self.assertFalse(hasattr(views_module(), "ai_screening_cancel"))
+
+
+def views_module():
+    from parsifal.apps.reviews.conducting import views
+
+    return views

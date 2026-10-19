@@ -245,11 +245,16 @@ reviewed (Akita, 2026-10-03).
   hashed like Parsifal's own API tokens), never rendered back.
   `JEV_API_URL` can point to a compatible server.
 - The browser drives the run in steps of 8 studies (4 concurrent requests),
-  so there is no task queue; the client retries 429/5xx/529 with backoff and a
-  rejected key fails the run.
+  so there is no task queue; the client retries 429/5xx/529 with backoff.
+- A run cannot be stopped (2026-10-19). An interruption (page closed,
+  connection lost, Jev refusing the key or unavailable) leaves it running with
+  its remaining studies and `error`; the window offers **Continue** (stepping
+  it again, same parameters) unless a step ran in the last 30 s
+  (`last_step_at`, driven elsewhere). Starting a new run discards it. The
+  cancel operation was removed from the web, API, CLI and MCP.
 
 **Consequences.** Migrations `accounts.0002`, `accounts.0003` (encrypted key), `reviews.0042`, `reviews.0043`
-(reviewer, no agent kind). The API, CLI and
+(reviewer, no agent kind), `reviews.0044` (`last_step_at`). The API, CLI and
 MCP mirror the web one to one (`jev_integration_*`, `ai_screening_*`); runs use
 the Jev key of the caller. The CLI command `ai-screening run` and the MCP tool
 `parsifal_ai_screening_run` loop over the steps like the web page does.

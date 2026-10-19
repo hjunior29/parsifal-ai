@@ -207,3 +207,13 @@ def test_ai_screening_run_tool_reports_still_running(server, fake_api, monkeypat
     )
     assert result["status"] == "running"
     assert "run_id=3 to continue" in result["message"]
+
+
+def test_ai_screening_run_tool_reports_an_interruption(server, fake_api):
+    from tests.test_screening import interrupted_routes
+
+    interrupted_routes(fake_api)
+    result = json.loads(text_of(run(server.call_tool("parsifal_ai_screening_run", {"review_id": 7, "run_id": 3}))))
+    assert result["status"] == "running"
+    assert result["message"].startswith("Interrupted: Jev rejected the API key")
+    assert "run_id=3" in result["message"]

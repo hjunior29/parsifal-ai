@@ -159,8 +159,7 @@ Action endpoints under `/reviews/conducting/`, guard **A** unless noted:
 | `export_results/` | POST | `review-id` | `articles.xls` |
 | `ai_screening/` | GET | `review-id` | frag of the *Exclude with AI* window (setup form prefilled from the review, or a pointer to Settings → Integrations / Planning) |
 | `ai_screening/start/` | POST | `review-id`, `context-<field>` (title, objective, research_questions, population, intervention, comparison, outcome, context), `guidance`, `threshold`, `source-id` (empty = all), `reviewer-id`, `model` | JSON `{run}` or 400 `{error}`; opens a `ScreeningRun` |
-| `ai_screening/step/` | POST | `review-id`, `run-id` | JSON `{run, results[]}`; screens the next 8 studies |
-| `ai_screening/cancel/` | POST | `review-id`, `run-id` | JSON `{run}` |
+| `ai_screening/step/` | POST | `review-id`, `run-id` | JSON `{run, results[]}`; screens the next 8 studies; also continues an interrupted run (the window offers it) |
 | `save_quality_assessment/` | POST | `article-id`, `question-id`, `answer-id` | Upsert assessment; text score (**no review scoping**) |
 | `quality_assessment_detailed/` | GET | `review-id` | frag per-article tables (order from session) |
 | `quality_assessment_summary/` | GET | `review-id` | frag |

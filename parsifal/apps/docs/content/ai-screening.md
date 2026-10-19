@@ -50,8 +50,14 @@ AI**. The window shows what will be sent:
   those this reviewer rejected in an earlier run; nothing is skipped because it
   was screened before.
 
-**Start screening** sends the studies a few at a time and shows the progress.
-**Stop** ends the run after the current batch. **Done** reloads the page.
+**Start screening** sends the studies a few at a time and shows the progress
+until the run ends; there is no stop button. **Done** reloads the page.
+
+If a run is interrupted — the page was closed, the connection dropped, Jev
+refused the key or was unavailable — it keeps the studies it had left. The next
+time you open the window it says where the run stopped and offers **Continue**,
+which goes on with the model, context and threshold the run started with.
+Starting a new run instead discards the unfinished one.
 
 ## From the API, CLI and MCP
 
@@ -70,8 +76,9 @@ parsifal ai-screening results --review R --id RUN --outcome excluded
 ```
 
 `ai-screening run` starts a run and screens until it ends, printing the
-progress (Ctrl-C cancels the run). The step-by-step operations are also there:
-`start`, then `step --id RUN` until the run is no longer running, or `cancel`.
+progress. Ctrl-C, or an interruption from Jev, leaves the run waiting:
+`ai-screening run --run RUN` continues it. The step-by-step operations are also
+there: `start`, then `step --id RUN` until the run is no longer running.
 In MCP, `parsifal_ai_screening_run` does the same in one call and says when to
 call again with `run_id`. Context fields you leave out take the review's
 values.
