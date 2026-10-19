@@ -83,9 +83,9 @@ def _run_out(run, detail=False):
 def ai_screening_setup(request, review_id: int, phase: str = "exclusion"):
     """
     What a run of ``phase`` would send: the review context (editable per run), the criteria (fixed; exclusion: E1,
-    E2… plus none in one question; inclusion: I1, I2…, one question each answered meets, not_met or unclear), the
-    task and rules (fixed), Jev's models for your key, who you may screen as, and how many studies each source has
-    per status (a run sends the statuses you choose).
+    E2… plus none in one choice question; inclusion: I1, I2…, one yes/no question each, answered with the
+    probability that the study meets it), the task and rules (fixed), the thresholds' range, Jev's models for your
+    key, who you may screen as, and how many studies each source has per status (a run sends the statuses you choose).
     """
     review = get_review(request, review_id)
     phase = ai_screening.clean_phase(phase)
@@ -129,8 +129,7 @@ def ai_screening_setup(request, review_id: int, phase: str = "exclusion"):
         context=ai_screening.default_context(review),
         criteria=ai_screening.criteria_options(review, phase),
         none_description="" if inclusion else ai_screening.NONE_DESCRIPTION,
-        answers=[ai_screening.MEETS, ai_screening.NOT_MET, ai_screening.UNCLEAR] if inclusion else [],
-        unclear_description=ai_screening.UNCLEAR_DESCRIPTION if inclusion else "",
+        question_type=ai_screening.INCLUSION_QUESTION if inclusion else "choice",
         task=task,
         rules=list(rules),
         sent_fields=list(ai_screening.SENT_FIELDS),
@@ -154,10 +153,11 @@ def ai_screening_start(request, review_id: int, payload: ScreeningStartIn):
     """
     Open a run of ``phase`` (exclusion, default, or inclusion) in the name of ``reviewer_id`` over the studies in
     scope with ``statuses`` (U, R, A, D; default R and U for exclusion, A and U for inclusion); the reviewer's earlier
-    decisions on them are rewritten. Only unclassified studies and those this reviewer classified change status
-    (exclusion: its rejections; inclusion: its acceptances and rejections); the others only get the reviewer's
-    decision. Only the main author may name another member. Nothing is screened yet: call the step operation until
-    the run is no longer running.
+    decisions on them are rewritten. Thresholds (0.5–0.99, default 0.9): ``threshold`` for exclusion;
+    ``accept_threshold`` and ``reject_threshold`` for inclusion (the other phase's are refused). Only unclassified
+    studies and those this reviewer classified change status (exclusion: its rejections; inclusion: its acceptances
+    and rejections); the others only get the reviewer's decision. Only the main author may name another member.
+    Nothing is screened yet: call the step operation until the run is no longer running.
     """
     review = get_review(request, review_id)
     fields = payload.dict()
@@ -170,6 +170,8 @@ def ai_screening_start(request, review_id: int, payload: ScreeningStartIn):
         context=context,
         guidance=payload.guidance,
         threshold=payload.threshold,
+        accept_threshold=payload.accept_threshold,
+        reject_threshold=payload.reject_threshold,
         source_id=payload.source_id,
         statuses=payload.statuses,
         phase=payload.phase,
@@ -205,10 +207,10 @@ def ai_screening_step(request, review_id: int, run_id: int, payload: ScreeningSt
     """
     Screen the next studies of the run (size 1–50) with your Jev key. Exclusion: studies whose p_exclude reaches the
     threshold get the reviewer's "rejected" decision, the rest "unclassified". Inclusion: "accepted" when the lowest
-    p(meets) reaches it, else "rejected" when some p(not_met) reaches it (that criterion is the reason), else
-    "unclassified". The status follows as described in the start operation. The run finishes when no study is
-    left. If Jev refuses the key or is unavailable, the run keeps its remaining studies and ``run.error`` says why:
-    call step again to continue (also for a run interrupted in the web).
+    p(meets) (p_include) reaches accept_threshold, else "rejected" when 1 - p_include reaches reject_threshold (the
+    weakest criterion is the reason), else "unclassified". The status follows as described in the start operation.
+    The run finishes when no study is left. If Jev refuses the key or is unavailable, the run keeps its remaining
+    studies and ``run.error`` says why: call step again to continue (also for a run interrupted in the web).
     """
     run = ai_screening.get_run(get_review(request, review_id), run_id)
     results = ai_screening.process_step(run=run, actor=request.auth, size=payload.size)

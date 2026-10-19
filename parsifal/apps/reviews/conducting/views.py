@@ -787,7 +787,6 @@ def ai_screening(request):
         "task": task,
         "rules": rules,
         "none_description": ai_screening_service.NONE_DESCRIPTION,
-        "unclear_description": ai_screening_service.UNCLEAR_DESCRIPTION,
     }
     return render(request, "conducting/partial_conducting_ai_screening.html", context)
 
@@ -810,7 +809,9 @@ def ai_screening_start(request):
             model=request.POST.get("model"),
             context=context,
             guidance=request.POST.get("guidance", ""),
-            threshold=request.POST.get("threshold", ai_screening_service.DEFAULT_THRESHOLD),
+            threshold=request.POST.get("threshold"),
+            accept_threshold=request.POST.get("accept_threshold"),
+            reject_threshold=request.POST.get("reject_threshold"),
             source_id=request.POST.get("source-id") or None,
             statuses=request.POST.getlist("statuses"),
             phase=request.POST.get("phase"),

@@ -162,11 +162,27 @@ def test_cli_run_include_with_ai(runner, fake_api):
         200,
         {"run": dict(inclusion, status="finished", processed=2, included=1, undecided=1), "results": []},
     )
-    result = invoke(runner, ["ai-screening", "run", "--review", "7", "--reviewer-id", "4", "--phase", "inclusion"])
+    result = invoke(
+        runner,
+        [
+            "ai-screening",
+            "run",
+            "--review",
+            "7",
+            "--reviewer-id",
+            "4",
+            "--phase",
+            "inclusion",
+            "--accept-threshold",
+            "0.95",
+            "--reject-threshold",
+            "0.85",
+        ],
+    )
     assert result.exit_code == 0, result.output
     assert "2/2 screened · 1 accepted · 0 rejected · 1 undecided · 0 errors" in result.output
     assert bodies(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs") == [
-        {"reviewer_id": 4, "phase": "inclusion"}
+        {"reviewer_id": 4, "phase": "inclusion", "accept_threshold": 0.95, "reject_threshold": 0.85}
     ]
 
 

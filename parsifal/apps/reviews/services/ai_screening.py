@@ -16,24 +16,26 @@ A run records the reviewer's decision on every study it screens, but changes a s
 study is unclassified, or was rejected (exclusion) or accepted or rejected (inclusion) by this same reviewer.
 Duplicates and studies classified by someone else keep their status.
 
-Every question is asked in three option orders within the same request (Jev tends to favour the first option when
-unsure) and the answers are averaged.
+Every question is asked in several orders of its options within the same request (Jev tends to favour the first
+option when unsure) and the answers are averaged.
 
-Exclusion: the exclusion criteria plus a "none" option go in one choice question. Because the probabilities of a
-choice sum to 1, the probability that *some* criterion applies is ``1 - p(none)``, even when two criteria split it.
-Then:
+Exclusion: the exclusion criteria plus a "none" option go in one choice question, in three orders. Because the
+probabilities of a choice sum to 1, the probability that *some* criterion applies is ``1 - p(none)``, even when two
+criteria split it. Then:
 
 - ``1 - p(none) >= threshold``: the reviewer's decision is "rejected" with the most probable criterion, and the
   study is rejected with it (when the run may change its status).
 - otherwise: the reviewer's decision is "unclassified" (no criterion applies) and the study stays, or goes back to,
   unclassified for the next phase (when the run may change its status).
 
-Inclusion: one choice question per inclusion criterion, answered meets, not_met or unclear. Every criterion must be
-met, so the lowest p(meets) decides (an average would let a criterion that is clearly met make up for one that is
-not). Then:
+Inclusion: one yes/no question (Jev's "noul") per inclusion criterion, with its yes and no descriptions in both
+orders; the answer is the probability that the study meets the criterion, p(meets), and ``1 - p(meets)`` that it
+does not. There is no "unclear" answer: doubt shows as a probability away from 0 and 1. Every criterion must be met,
+so the lowest p(meets) decides (an average would let a criterion that is clearly met make up for one that is not).
+Then:
 
-- lowest ``p(meets) >= threshold``: the reviewer's decision is "accepted" (and the study is accepted).
-- otherwise, some ``p(not_met) >= threshold``: "rejected" with that criterion as the reason.
+- lowest ``p(meets) >= accept_threshold``: the reviewer's decision is "accepted" (and the study is accepted).
+- otherwise, lowest ``1 - p(meets) >= reject_threshold``: "rejected" with that criterion as the reason.
 - otherwise: "unclassified"; the title and abstract do not settle it, so it is left to the reviewers.
 
 A run is driven in small steps (``process_step``) so that the page can show its progress, and every answer is kept
@@ -62,7 +64,7 @@ STEP_SIZE = 8  # studies per step; one request each
 ACTIVE_FOR = 30  # seconds: a running run with a step this recent is being driven somewhere
 MAX_STEP_SIZE = 50
 WORKERS = 4  # concurrent requests to Jev within a step
-ORDERS = 3  # option orders asked per study
+ORDERS = 3  # option orders of the exclusion question asked per study
 NONE = "none"
 
 # Review context sent with every study; editable before a run, defaults taken from the review.
@@ -101,12 +103,14 @@ INCLUSION_TASK = (
     "the study meet this inclusion criterion?"
 )
 INCLUSION_RULES = (
-    "Choose meets only if the title, keywords or abstract explicitly support that the study meets the criterion.",
-    "Choose not_met only if the title, keywords or abstract explicitly show that the study does not meet it.",
-    "If the title, keywords and abstract do not give enough information to decide, choose unclear.",
+    "Answer yes only if the title, keywords or abstract explicitly support that the study meets the criterion.",
+    "Answer no only if the title, keywords or abstract explicitly show that the study does not meet it.",
+    "Missing information is not a no: if the title, keywords and abstract do not give enough information to decide, "
+    "the answer is uncertain.",
 )
-MEETS, NOT_MET, UNCLEAR = "meets", "not_met", "unclear"
-UNCLEAR_DESCRIPTION = "The title, keywords and abstract do not give enough information to decide."
+INCLUSION_QUESTION = "noul"  # Jev's yes/no question: the answer is the probability of yes
+YES, NO = "true", "false"  # keys of a yes/no question's descriptions
+INCLUSION_ORDERS = ((YES, NO), (NO, YES))
 # Inclusion: what happens to a study that is neither clearly in nor clearly out. Only "keep_undecided" exists: it
 # stays unclassified for the reviewers (kept in the run so that a stricter rule can be added later).
 RULE_KEEP_UNDECIDED = "keep_undecided"
@@ -206,11 +210,10 @@ def task_and_rules(phase):
 
 
 def answer_descriptions(option):
-    """The options of an inclusion criterion's question."""
+    """What a yes and a no mean in an inclusion criterion's question."""
     return {
-        MEETS: f"The study meets the inclusion criterion: {option['description']}",
-        NOT_MET: f"The study does not meet the inclusion criterion: {option['description']}",
-        UNCLEAR: UNCLEAR_DESCRIPTION,
+        YES: f"The study meets the inclusion criterion: {option['description']}",
+        NO: f"The study does not meet the inclusion criterion: {option['description']}",
     }
 
 
@@ -263,14 +266,46 @@ def _clean_context(context, guidance):
     return cleaned, check_length(str(guidance or "").strip(), GUIDANCE_LENGTH, field="guidance")
 
 
-def _clean_threshold(threshold):
+THRESHOLD_NAMES = {
+    "threshold": "threshold",
+    "accept_threshold": "accept threshold",
+    "reject_threshold": "reject threshold",
+}
+
+
+def _clean_threshold(threshold, field="threshold"):
+    name = THRESHOLD_NAMES[field]
+    if threshold is None:
+        return DEFAULT_THRESHOLD
     try:
         threshold = round(float(threshold), 4)
     except (TypeError, ValueError):
-        raise ValidationError("The threshold must be a number.", field="threshold")
+        raise ValidationError(f"The {name} must be a number.", field=field)
     if not MIN_THRESHOLD <= threshold <= MAX_THRESHOLD:
-        raise ValidationError(f"The threshold must be between {MIN_THRESHOLD} and {MAX_THRESHOLD}.", field="threshold")
+        raise ValidationError(f"The {name} must be between {MIN_THRESHOLD} and {MAX_THRESHOLD}.", field=field)
     return threshold
+
+
+def clean_thresholds(phase, *, threshold=None, accept_threshold=None, reject_threshold=None):
+    """
+    The thresholds of a run, each 0.5–0.99 (default 0.9). Exclusion takes ``threshold`` (reject when some exclusion
+    criterion applies with at least this probability); inclusion takes ``accept_threshold`` (accept when every
+    inclusion criterion is met with at least this probability) and ``reject_threshold`` (reject when one is not met
+    with at least this probability). Passing the other phase's thresholds is an error, not silently ignored.
+    """
+    if phase == INCLUSION:
+        if threshold is not None:
+            raise ValidationError(
+                "An inclusion run takes accept_threshold and reject_threshold, not threshold.", field="threshold"
+            )
+        return {
+            "accept_threshold": _clean_threshold(accept_threshold, "accept_threshold"),
+            "reject_threshold": _clean_threshold(reject_threshold, "reject_threshold"),
+        }
+    for field, value in (("accept_threshold", accept_threshold), ("reject_threshold", reject_threshold)):
+        if value is not None:
+            raise ValidationError(f"An exclusion run takes threshold, not {field}.", field=field)
+    return {"threshold": _clean_threshold(threshold)}
 
 
 # Request ------------------------------------------------------------------------------------------------------------
@@ -318,28 +353,23 @@ def questions(options, context, guidance):
 
 
 def inclusion_question_ids(options):
-    """{criterion key: the ids of its question in each order}, e.g. {"I1": ["inclusion_i1_1", …]}."""
+    """{criterion key: the ids of its question in each order}, e.g. {"I1": ["inclusion_i1_1", "inclusion_i1_2"]}."""
     return {
-        option["key"]: [f"inclusion_{option['key'].lower()}_{order}" for order in range(1, ORDERS + 1)]
+        option["key"]: [f"inclusion_{option['key'].lower()}_{order}" for order in range(1, len(INCLUSION_ORDERS) + 1)]
         for option in options
     }
 
 
-def _answer_orders():
-    answers = [MEETS, NOT_MET, UNCLEAR]
-    return [answers[shift:] + answers[:shift] for shift in range(ORDERS)]
-
-
 def inclusion_questions(options, context, guidance):
-    """One choice question per inclusion criterion (meets, not_met, unclear), in every order."""
+    """One yes/no question per inclusion criterion (yes = the study meets it), in both orders of its descriptions."""
     asked = {}
     ids = inclusion_question_ids(options)
     for option in options:
         body = dict(instructions(context, guidance, INCLUSION), criterion=f"{option['key']}: {option['description']}")
         descriptions = answer_descriptions(option)
-        for question_id, order in zip(ids[option["key"]], _answer_orders()):
+        for question_id, order in zip(ids[option["key"]], INCLUSION_ORDERS):
             asked[question_id] = {
-                "type": "choice",
+                "type": INCLUSION_QUESTION,
                 "instructions": body,
                 "criteria": {answer: descriptions[answer] for answer in order},
             }
@@ -377,23 +407,19 @@ def combine(response, options):
 
 def combine_inclusion(response, options):
     """
-    Average each inclusion criterion's answers over the orders asked. Returns (probabilities {key: {meets, not_met,
-    unclear}}, the weakest criterion: lowest p(meets), the most clearly failed one: highest p(not_met)).
+    Average each inclusion criterion's probability of yes over the orders asked. Returns (probabilities {key:
+    p(meets)}, the weakest criterion: the lowest p(meets), which is also the one most clearly not met).
     """
     ids = inclusion_question_ids(options)
     probabilities = {
-        option["key"]: _average(
-            response, ids[option["key"]], [MEETS, NOT_MET, UNCLEAR], f"the question about {option['key']}"
-        )
+        option["key"]: _average_yes(response, ids[option["key"]], f"the question about {option['key']}")
         for option in options
     }
-    weakest = min(probabilities, key=lambda key: probabilities[key][MEETS])
-    failed = max(probabilities, key=lambda key: probabilities[key][NOT_MET])
-    return probabilities, weakest, failed
+    return probabilities, min(probabilities, key=probabilities.get)
 
 
 def _average(response, question_ids, keys, about):
-    """Each key's probability averaged over the questions Jev answered."""
+    """Each key's probability averaged over the choice questions Jev answered."""
     totals = dict.fromkeys(keys, 0.0)
     answered = 0
     for question_id in question_ids:
@@ -410,6 +436,23 @@ def _average(response, question_ids, keys, about):
     if not answered:
         raise jev.JevError(f"Jev did not answer {about}.")
     return {key: round(total / answered, 4) for key, total in totals.items()}
+
+
+def _average_yes(response, question_ids, about):
+    """The probability of yes averaged over the yes/no questions Jev answered."""
+    values = []
+    for question_id in question_ids:
+        answer = response["answers"].get(question_id)
+        value = answer.get(INCLUSION_QUESTION) if isinstance(answer, dict) else None
+        if value is None:
+            continue
+        try:
+            values.append(min(max(float(value), 0.0), 1.0))
+        except (TypeError, ValueError):
+            raise jev.JevError("Jev returned probabilities that are not numbers.")
+    if not values:
+        raise jev.JevError(f"Jev did not answer {about}.")
+    return round(sum(values) / len(values), 4)
 
 
 # Runs ---------------------------------------------------------------------------------------------------------------
@@ -460,7 +503,9 @@ def start_run(
     model=None,
     context=None,
     guidance="",
-    threshold=DEFAULT_THRESHOLD,
+    threshold=None,
+    accept_threshold=None,
+    reject_threshold=None,
     source_id=None,
     statuses=None,
     phase=EXCLUSION,
@@ -469,8 +514,8 @@ def start_run(
     Check the settings, take the studies in scope and open a run of ``phase`` (exclusion or inclusion);
     ``process_step`` does the work. The decisions are recorded as ``reviewer_id``; the calls use the actor's Jev key
     and ``model`` (default: the actor's default model). Context fields left out (or None) take the review's values;
-    an empty string sends the field empty. ``statuses`` picks the studies sent (codes U, R, A, D; default: see
-    ``clean_statuses``).
+    an empty string sends the field empty. The thresholds are the phase's (see ``clean_thresholds``). ``statuses``
+    picks the studies sent (codes U, R, A, D; default: see ``clean_statuses``).
     """
     phase = clean_phase(phase)
     integrations.jev_api_key(actor)  # a key the actor can use, before anything else
@@ -482,7 +527,9 @@ def start_run(
     merged = default_context(review)
     merged.update({name: value for name, value in (context or {}).items() if value is not None})
     context, guidance = _clean_context(merged, guidance)
-    threshold = _clean_threshold(threshold)
+    thresholds = clean_thresholds(
+        phase, threshold=threshold, accept_threshold=accept_threshold, reject_threshold=reject_threshold
+    )
     statuses = clean_statuses(statuses, phase)
     if source_id in ("", None):
         source_id = None
@@ -500,10 +547,10 @@ def start_run(
         "context": context,
         "guidance": guidance,
         "criteria": options,
-        "threshold": threshold,
+        **thresholds,
         "source_id": int(source_id) if source_id else None,
         "statuses": statuses,
-        "orders": ORDERS if phase == INCLUSION else len(_orders(options)),
+        "orders": len(INCLUSION_ORDERS) if phase == INCLUSION else len(_orders(options)),
     }
     if phase == INCLUSION:
         parameters["rule"] = RULE_KEEP_UNDECIDED
@@ -657,21 +704,20 @@ def _apply_exclusion(run, result, response):
 
 
 def _apply_inclusion(run, result, response):
-    probabilities, weakest, failed = combine_inclusion(response, run.parameters["criteria"])
-    threshold = run.parameters["threshold"]
+    probabilities, weakest = combine_inclusion(response, run.parameters["criteria"])
     result.probabilities = probabilities
-    result.p_include = probabilities[weakest][MEETS]
-    result.p_exclude = probabilities[failed][NOT_MET]
+    result.p_include = probabilities[weakest]
+    result.p_exclude = round(1.0 - result.p_include, 4)
     result.model = str(response.get("model") or run.model)[:100]
-    meets = ", ".join(f"{key} {answers[MEETS]:.2f}" for key, answers in probabilities.items())
-    if result.p_include >= threshold:
+    meets = ", ".join(f"{key} {p_meets:.2f}" for key, p_meets in probabilities.items())
+    if result.p_include >= run.parameters["accept_threshold"]:
         _accept(run, result, f"meets every inclusion criterion — meets: {meets}")
         result.outcome = ScreeningResult.INCLUDED
-    elif result.p_exclude >= threshold:
-        if _reject(run, result, failed, f"{failed} not met, p(not met) = {result.p_exclude:.2f} — meets: {meets}"):
+    elif result.p_exclude >= run.parameters["reject_threshold"]:
+        if _reject(run, result, weakest, f"{weakest} not met (meet {result.p_include:.2f}) — meets: {meets}"):
             result.outcome = ScreeningResult.EXCLUDED
         else:
-            _criterion_gone(result, failed)
+            _criterion_gone(result, weakest)
     else:
         _undecided(run, result, f"undecided, weakest {weakest} (meet {result.p_include:.2f}) — meets: {meets}")
         result.outcome = ScreeningResult.UNDECIDED

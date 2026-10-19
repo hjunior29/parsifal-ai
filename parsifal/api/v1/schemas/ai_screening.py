@@ -100,11 +100,11 @@ class ScreeningSetupOut(Schema):
     context: ScreeningContextOut  # defaults taken from the review; editable per run
     criteria: list[ScreeningOptionOut]  # fixed: the review's criteria of the phase
     none_description: str  # exclusion: the "none" option
-    answers: list[str]  # inclusion: the answers of each criterion's question (meets, not_met, unclear)
-    unclear_description: str  # inclusion: what "unclear" means
+    question_type: str  # Jev question: "choice" (exclusion: one for all criteria) or "noul" (inclusion: yes/no each)
     task: str
     rules: list[str]
     sent_fields: list[str]
+    # Range and default of the thresholds: threshold (exclusion), accept_threshold and reject_threshold (inclusion).
     threshold_default: float
     threshold_min: float
     threshold_max: float
@@ -129,7 +129,9 @@ class ScreeningStartIn(Schema):
     phase: str = "exclusion"  # exclusion (Exclude with AI) or inclusion (Include with AI)
     model: str | None = None  # default: your default model
     guidance: str = ""
-    threshold: float = 0.9
+    threshold: float | None = None  # exclusion: reject when 1 - p(none) is at least this (default 0.9)
+    accept_threshold: float | None = None  # inclusion: accept when every p(meets) is at least this (default 0.9)
+    reject_threshold: float | None = None  # inclusion: reject when some 1 - p(meets) is at least this (default 0.9)
     source_id: int | None = None
     statuses: list[str] | None = None  # studies sent: any of U, R, A, D (default R and U; inclusion: A and U)
 
@@ -139,7 +141,7 @@ class ScreeningStepIn(Schema):
 
 
 class ScreeningRunDetailOut(ScreeningRunOut):
-    parameters: dict  # snapshot of what was sent: context, guidance, criteria, threshold, source and statuses
+    parameters: dict  # snapshot of what was sent: context, guidance, criteria, thresholds, source and statuses
 
 
 class ScreeningResultOut(Schema):
@@ -147,11 +149,11 @@ class ScreeningResultOut(Schema):
     title: str | None
     previous_status: str  # the study's status when the run took it (U, R, A or D)
     outcome: str  # excluded, passed (exclusion), included, undecided (inclusion), error, pending
-    p_exclude: float | None  # exclusion: 1 - p(none); inclusion: the highest p(not_met); averaged over the orders
+    p_exclude: float | None  # exclusion: 1 - p(none), averaged over the orders; inclusion: 1 - p_include
     p_include: float | None  # inclusion: the lowest p(meets) over the criteria
     criteria_key: str | None  # E1… or I1… of the criterion the study was rejected with
     selection_criteria_id: int | None
-    probabilities: dict | None  # exclusion: {option: p}; inclusion: {criterion: {meets, not_met, unclear}}
+    probabilities: dict | None  # exclusion: {option: p}; inclusion: {criterion: p(meets)}
     model: str
     error: str
     processed_at: datetime | None

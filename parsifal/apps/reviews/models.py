@@ -840,7 +840,8 @@ class ScreeningRun(models.Model):
     phase = models.CharField(_("phase"), max_length=10, choices=PHASES, default=EXCLUSION)
     model = models.CharField(_("model"), max_length=100)
     # Snapshot of what was sent: review context, extra guidance, the criteria of the phase (key, id, description),
-    # threshold and scope. The criteria may change later; the snapshot says what Jev saw.
+    # thresholds (exclusion: threshold; inclusion: accept_threshold, reject_threshold) and scope. The criteria may
+    # change later; the snapshot says what Jev saw.
     parameters = models.JSONField(_("parameters"), default=dict)
     status = models.CharField(_("status"), max_length=10, choices=STATUSES, default=RUNNING)
     total = models.PositiveIntegerField(_("studies to screen"), default=0)
@@ -884,11 +885,11 @@ class ScreeningResult(models.Model):
     previous_status = models.CharField(_("status before the run"), max_length=1, blank=True)
     outcome = models.CharField(_("outcome"), max_length=10, choices=OUTCOMES, default=PENDING)
     # Exclusion: the probability that some exclusion criterion applies. Inclusion: the highest probability that an
-    # inclusion criterion is not met.
+    # inclusion criterion is not met (1 - p_include).
     p_exclude = models.FloatField(_("probability used to reject"), null=True, blank=True)
     # Inclusion: the lowest probability that an inclusion criterion is met (every criterion must be met).
     p_include = models.FloatField(_("lowest probability that an inclusion criterion is met"), null=True, blank=True)
-    # Exclusion: {option: p}. Inclusion: {criterion key: {"meets": p, "not_met": p, "unclear": p}}.
+    # Exclusion: {option: p}. Inclusion: {criterion key: p(meets)}, the probability of yes of its question.
     probabilities = models.JSONField(_("probability of each option"), null=True, blank=True)
     selection_criteria = models.ForeignKey(SelectionCriteria, null=True, blank=True, on_delete=models.SET_NULL)
     model = models.CharField(_("model version that answered"), max_length=100, blank=True)

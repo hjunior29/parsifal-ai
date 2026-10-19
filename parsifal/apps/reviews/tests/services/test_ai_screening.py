@@ -184,6 +184,8 @@ class TestStartRun(AiScreeningTestCase):
             self.start(threshold=0.3)
         with self.assertRaisesMessage(ValidationError, "must be a number"):
             self.start(threshold="high")
+        with self.assertRaisesMessage(ValidationError, "An exclusion run takes threshold, not accept_threshold"):
+            self.start(accept_threshold=0.9)
         with self.assertRaises(ValidationError):
             self.start(guidance="x" * (ai_screening.GUIDANCE_LENGTH + 1))
         with self.assertRaises(NotFound):
@@ -377,6 +379,7 @@ class TestProcessStep(AiScreeningTestCase):
 
     def test_threshold_is_inclusive_and_configurable(self):
         article = self.article()
+        self.assertEqual(0.9, self.start().parameters["threshold"])
         run = self.start(threshold=0.97)
         self.step(run, [EXCLUDE_E2])
         article.refresh_from_db()
@@ -540,21 +543,23 @@ class TestScope(AiScreeningTestCase):
         self.assertEqual((Article.REJECTED, None), (article.status, article.updated_by))
 
 
+def yes_no(probabilities_by_question, model="jev-1.13.0"):
+    return {
+        "model": model,
+        "answers": {question_id: {"type": "noul", "noul": p} for question_id, p in probabilities_by_question.items()},
+    }
+
+
 def inclusion_answer(by_criterion, model="jev-1.13.0"):
-    """The same answer in the three orders: {"I1": (meets, not_met, unclear), …}."""
-    return answer(
-        {
-            f"inclusion_{key.lower()}_{order}": {"meets": meets, "not_met": not_met, "unclear": unclear}
-            for key, (meets, not_met, unclear) in by_criterion.items()
-            for order in (1, 2, 3)
-        },
-        model=model,
+    """The same probability of yes (the study meets it) in both orders: {"I1": p, …}."""
+    return yes_no(
+        {f"inclusion_{key.lower()}_{order}": p for key, p in by_criterion.items() for order in (1, 2)}, model=model
     )
 
 
-BOTH_MET = inclusion_answer({"I1": (0.95, 0.03, 0.02), "I2": (0.97, 0.01, 0.02)})
-I1_NOT_MET = inclusion_answer({"I1": (0.03, 0.94, 0.03), "I2": (0.90, 0.05, 0.05)})
-I2_UNCLEAR = inclusion_answer({"I1": (0.96, 0.02, 0.02), "I2": (0.40, 0.05, 0.55)})
+BOTH_MET = inclusion_answer({"I1": 0.95, "I2": 0.97})
+I1_NOT_MET = inclusion_answer({"I1": 0.06, "I2": 0.90})
+I2_UNSURE = inclusion_answer({"I1": 0.96, "I2": 0.40})
 
 
 class TestInclusion(AiScreeningTestCase):
@@ -570,7 +575,7 @@ class TestInclusion(AiScreeningTestCase):
     def start(self, **kwargs):
         return super().start(**{"phase": "inclusion", **kwargs})
 
-    def test_one_question_per_criterion_in_three_orders(self):
+    def test_one_yes_no_question_per_criterion_in_both_orders(self):
         options = ai_screening.inclusion_options(self.review)
         self.assertEqual(
             [
@@ -580,25 +585,20 @@ class TestInclusion(AiScreeningTestCase):
             options,
         )
         questions = ai_screening.inclusion_questions(options, ai_screening.default_context(self.review), "Be strict.")
+        self.assertEqual(["inclusion_i1_1", "inclusion_i1_2", "inclusion_i2_1", "inclusion_i2_2"], list(questions))
         self.assertEqual(
-            [
-                "inclusion_i1_1",
-                "inclusion_i1_2",
-                "inclusion_i1_3",
-                "inclusion_i2_1",
-                "inclusion_i2_2",
-                "inclusion_i2_3",
-            ],
-            list(questions),
-        )
-        self.assertEqual(
-            [["meets", "not_met", "unclear"], ["not_met", "unclear", "meets"], ["unclear", "meets", "not_met"]],
-            [list(questions[f"inclusion_i2_{order}"]["criteria"]) for order in (1, 2, 3)],
+            [["true", "false"], ["false", "true"]],
+            [list(questions[f"inclusion_i2_{order}"]["criteria"]) for order in (1, 2)],
         )
         question = questions["inclusion_i2_1"]
-        self.assertEqual("choice", question["type"])
-        self.assertEqual("The study meets the inclusion criterion: Implemented tool", question["criteria"]["meets"])
-        self.assertEqual(ai_screening.UNCLEAR_DESCRIPTION, question["criteria"]["unclear"])
+        self.assertEqual("noul", question["type"])
+        self.assertEqual(
+            {
+                "true": "The study meets the inclusion criterion: Implemented tool",
+                "false": "The study does not meet the inclusion criterion: Implemented tool",
+            },
+            question["criteria"],
+        )
         body = question["instructions"]
         self.assertEqual(
             ("I2: Implemented tool", ai_screening.INCLUSION_TASK, list(ai_screening.INCLUSION_RULES), "Be strict."),
@@ -606,27 +606,40 @@ class TestInclusion(AiScreeningTestCase):
         )
         self.assertEqual("Find studies about screening automation.", body["review"]["objective"])
 
-    def test_combine_takes_the_weakest_criterion(self):
+    def test_combine_averages_the_orders_and_takes_the_weakest_criterion(self):
         options = ai_screening.inclusion_options(self.review)
-        response = answer(
-            {
-                "inclusion_i1_1": {"meets": 1.0, "not_met": 0.0, "unclear": 0.0},
-                "inclusion_i1_2": {"meets": 1.0, "not_met": 0.0, "unclear": 0.0},
-                "inclusion_i2_1": {"meets": 0.9, "not_met": 0.0, "unclear": 0.1},
-                "inclusion_i2_2": {"meets": 0.7, "not_met": 0.2, "unclear": 0.1},
-            }
-        )
-        probabilities, weakest, failed = ai_screening.combine_inclusion(response, options)
-        self.assertEqual(
-            {
-                "I1": {"meets": 1.0, "not_met": 0.0, "unclear": 0.0},
-                "I2": {"meets": 0.8, "not_met": 0.1, "unclear": 0.1},
-            },
-            probabilities,
-        )
-        self.assertEqual(("I2", "I2"), (weakest, failed))
+        response = yes_no({"inclusion_i1_1": 1.0, "inclusion_i1_2": 1.0, "inclusion_i2_1": 0.9, "inclusion_i2_2": 0.7})
+        self.assertEqual(({"I1": 1.0, "I2": 0.8}, "I2"), ai_screening.combine_inclusion(response, options))
+        with self.subTest(msg="an order left unanswered is not counted"):
+            response = yes_no({"inclusion_i1_1": 0.9, "inclusion_i2_2": 0.5})
+            self.assertEqual(({"I1": 0.9, "I2": 0.5}, "I2"), ai_screening.combine_inclusion(response, options))
         with self.assertRaisesMessage(jev.JevError, "did not answer the question about I2"):
-            ai_screening.combine_inclusion(answer({"inclusion_i1_1": {"meets": 1.0}}), options)
+            ai_screening.combine_inclusion(yes_no({"inclusion_i1_1": 1.0}), options)
+        with self.assertRaisesMessage(jev.JevError, "not numbers"):
+            ai_screening.combine_inclusion(yes_no({"inclusion_i1_1": "yes", "inclusion_i2_1": 1.0}), options)
+
+    def test_thresholds(self):
+        self.article()
+        run = self.start(accept_threshold="0.95", reject_threshold=0.8)
+        self.assertEqual(
+            (0.95, 0.8, False, 2),
+            (
+                run.parameters["accept_threshold"],
+                run.parameters["reject_threshold"],
+                "threshold" in run.parameters,
+                run.parameters["orders"],
+            ),
+        )
+        defaults = self.start()
+        self.assertEqual(
+            (0.9, 0.9), (defaults.parameters["accept_threshold"], defaults.parameters["reject_threshold"])
+        )
+        with self.assertRaisesMessage(ValidationError, "accept threshold must be between 0.5 and 0.99"):
+            self.start(accept_threshold=0.3)
+        with self.assertRaisesMessage(ValidationError, "reject threshold must be a number"):
+            self.start(reject_threshold="")
+        with self.assertRaisesMessage(ValidationError, "takes accept_threshold and reject_threshold, not threshold"):
+            self.start(threshold=0.9)
 
     def test_accepts_when_every_criterion_is_met_rejects_when_one_is_not_and_leaves_the_rest(self):
         accepted = self.article(title="Accepted")
@@ -637,7 +650,7 @@ class TestInclusion(AiScreeningTestCase):
         self.assertEqual(("inclusion", 3), (run.phase, run.total))  # unclassified and accepted, by default
         self.assertEqual((["A", "U"], "keep_undecided"), (run.parameters["statuses"], run.parameters["rule"]))
 
-        self.step(run, [BOTH_MET, I1_NOT_MET, I2_UNCLEAR])
+        self.step(run, [BOTH_MET, I1_NOT_MET, I2_UNSURE])
 
         progress = ai_screening.progress(run)
         self.assertEqual(
@@ -646,7 +659,7 @@ class TestInclusion(AiScreeningTestCase):
         )
         for article, status, criteria, decision_status, comment in (
             (accepted, Article.ACCEPTED, None, "A", "meets every inclusion criterion — meets: I1 0.95, I2 0.97."),
-            (rejected, Article.REJECTED, self.about, "R", "I1 not met, p(not met) = 0.94 — meets: I1 0.03, I2 0.90."),
+            (rejected, Article.REJECTED, self.about, "R", "I1 not met (meet 0.06) — meets: I1 0.06, I2 0.90."),
             (
                 undecided,
                 Article.UNCLASSIFIED,
@@ -663,14 +676,34 @@ class TestInclusion(AiScreeningTestCase):
                 self.assertEqual(f"Include with AI (run {run.pk}, jev-1.13.0): {comment}", decision.comments)
         result = run.results.get(article=undecided)
         self.assertEqual(
-            (ScreeningResult.UNDECIDED, 0.4, 0.05, {"meets": 0.4, "not_met": 0.05, "unclear": 0.55}),
-            (result.outcome, result.p_include, result.p_exclude, result.probabilities["I2"]),
+            (ScreeningResult.UNDECIDED, 0.4, 0.6, {"I1": 0.96, "I2": 0.4}),
+            (result.outcome, result.p_include, result.p_exclude, result.probabilities),
+        )
+        rejection = run.results.get(article=rejected)
+        self.assertEqual(
+            (0.06, 0.94, self.about.pk), (rejection.p_include, rejection.p_exclude, rejection.selection_criteria_id)
+        )
+
+    def test_each_threshold_decides_its_side(self):
+        articles = [self.article(title=title) for title in ("Met 0.93", "Not met 0.15", "Met 0.97", "Not met 0.05")]
+        run = self.start(accept_threshold=0.95, reject_threshold=0.85)
+        answers = [inclusion_answer({"I1": p, "I2": 0.99}) for p in (0.93, 0.15, 0.97, 0.05)]
+        self.step(run, answers)
+        self.assertEqual(
+            ["undecided", "excluded", "included", "excluded"],
+            [run.results.get(article=article).outcome for article in articles],
+        )
+        lenient = self.start(accept_threshold=0.9, reject_threshold=0.9, statuses=["U", "A", "R"])
+        self.step(lenient, answers)
+        self.assertEqual(
+            ["included", "undecided", "included", "excluded"],
+            [lenient.results.get(article=article).outcome for article in articles],
         )
 
     def test_a_criterion_clearly_met_does_not_make_up_for_a_weak_one(self):
         article = self.article()
         run = self.start()
-        self.step(run, [inclusion_answer({"I1": (1.0, 0.0, 0.0), "I2": (0.8, 0.1, 0.1)})])  # average 0.9
+        self.step(run, [inclusion_answer({"I1": 1.0, "I2": 0.8})])  # average 0.9
         article.refresh_from_db()
         self.assertEqual((Article.UNCLASSIFIED, "undecided"), (article.status, run.results.get().outcome))
 
@@ -685,7 +718,7 @@ class TestInclusion(AiScreeningTestCase):
 
         run = self.start(statuses=["U", "R", "A", "D"])
         self.assertEqual(4, run.total)
-        self.step(run, [I2_UNCLEAR, I1_NOT_MET, BOTH_MET, I1_NOT_MET])
+        self.step(run, [I2_UNSURE, I1_NOT_MET, BOTH_MET, I1_NOT_MET])
         for article, status, decision_status in (
             (own, Article.UNCLASSIFIED, "U"),  # its own acceptance, undecided now: back to unclassified
             (theirs, Article.ACCEPTED, "R"),  # someone else's: kept, the reviewer's decision recorded

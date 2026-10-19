@@ -262,12 +262,18 @@ reviewed (Akita, 2026-10-03).
   exclusion one, with the same window, reviewer, model, statuses (default
   U + A) and continuation. A study must meet *every* inclusion criterion, which
   one choice question cannot express (it picks one option), so each criterion
-  gets its own `choice` question — meets / not_met / unclear — in three answer
-  orders. Accept when the **lowest** p(meets) reaches the threshold (an average
-  would let a criterion clearly met make up for a weak one); otherwise reject
-  when some p(not_met) reaches it, with that criterion as the reason; otherwise
-  leave the study unclassified for the reviewers, so nothing is rejected for
-  lack of information. Helder may later prefer to reject everything not
+  gets its own **yes/no** question (Jev's `noul`, which its documentation
+  recommends for checking independent conditions), asked with its yes and no
+  descriptions in both orders. The first version had a third answer, "unclear";
+  Helder dropped it the same day: it gave the model an escape that diluted
+  p(meets) and could be read in more than one way, while the probability
+  already shows doubt. Accept when the **lowest** p(meets) reaches the
+  **accept threshold** (an average would let a criterion clearly met make up
+  for a weak one); otherwise reject when 1 − p(meets) of that criterion reaches
+  the **reject threshold**, with it as the reason; otherwise leave the study
+  unclassified for the reviewers. The two thresholds are set separately per run
+  (default 0.9 each); the rules sent tell Jev that missing information is not a
+  "no". Helder may later prefer to reject everything not
   accepted once Jev proves precise; the run keeps its rule
   (`parameters.rule = keep_undecided`) for that. The decision replaces the
   reviewer's phase-1 decision (same stage), so agreement compares the

@@ -1459,7 +1459,17 @@ OPERATIONS = (
             B("outcome"),
             B("context"),
             B("guidance", TEXT, help="Definitions or borderline cases that help apply the criteria."),
-            B("threshold", FLOAT, help="Reject when 1 - p(none) is at least this (0.5–0.99, default 0.9)."),
+            B("threshold", FLOAT, help="Exclusion: reject when 1 - p(none) is at least this (0.5–0.99, default 0.9)."),
+            B(
+                "accept_threshold",
+                FLOAT,
+                help="Inclusion: accept when p(meets) of every criterion is at least this (0.5–0.99, default 0.9).",
+            ),
+            B(
+                "reject_threshold",
+                FLOAT,
+                help="Inclusion: reject when 1 - p(meets) of a criterion is at least this (0.5–0.99, default 0.9).",
+            ),
             B("source_id", INT, help="Only this source (default: all)."),
             B(
                 "statuses",

@@ -9,7 +9,8 @@ Study selection by a model, in two phases, in the name of a reviewer you choose:
    rest unclassified for you.
 
 [Jev](https://docs.typesafe.ai/models) is TypeSafe's decision model: it does not
-write text, it returns the probability of each allowed answer.
+write text, it returns the probability of each allowed answer (of yes, for a
+yes/no question).
 
 ## Setting it up
 
@@ -48,8 +49,11 @@ be sent:
   the criteria.
 - **Criteria**: from the protocol, read-only. Exclusion: options `E1`, `E2`…
   plus `none` ("no criterion clearly applies, or there is not enough
-  information"). Inclusion: `I1`, `I2`…, one question each.
-- **Threshold** (default 0.9, from 0.5 to 0.99).
+  information"). Inclusion: `I1`, `I2`…, one yes/no question each.
+- **Thresholds** (default 0.9, from 0.5 to 0.99): how sure Jev must be.
+  Exclusion has one, to reject. Inclusion has two: the **accept threshold**
+  and the **reject threshold**, set separately (for instance accept only above
+  0.95 but reject from 0.85).
 - **Studies**: all sources or one, and the **statuses** to send — any mix of
   accepted, rejected, unclassified and duplicated (*All* checks every one). The
   default is rejected + unclassified for exclusion, so a second reviewer
@@ -64,8 +68,8 @@ until the run ends; there is no stop button. **Done** reloads the page.
 If a run is interrupted — the page was closed, the connection dropped, Jev
 refused the key or was unavailable — it keeps the studies it had left. The next
 time you open the window it says where the run stopped and offers **Continue**,
-which goes on with the settings the run started with (model, context, threshold,
-studies). Starting a new run, of either phase, discards the unfinished one.
+which goes on with the settings the run started with (model, context,
+thresholds, studies). Starting a new run, of either phase, discards the unfinished one.
 
 ## From the API, CLI and MCP
 
@@ -80,7 +84,7 @@ parsifal integration jev test
 parsifal ai-screening setup --review R                        # what the window shows (reviewers, models, studies per status…)
 parsifal ai-screening run --review R --reviewer-id U --model jev-1.13.0 --threshold 0.9 --guidance @notes.txt
 parsifal ai-screening run --review R --reviewer-id U --statuses U --statuses R --statuses A   # statuses to send (default R and U)
-parsifal ai-screening run --review R --reviewer-id U --phase inclusion                       # Include with AI (default A and U)
+parsifal ai-screening run --review R --reviewer-id U --phase inclusion --accept-threshold 0.95 --reject-threshold 0.85   # Include with AI (default A and U)
 parsifal ai-screening runs --review R
 parsifal ai-screening results --review R --id RUN --outcome excluded
 ```
@@ -130,24 +134,30 @@ with no title or abstract) keep the reviewer's previous decision.
 
 ## What happens to each study: inclusion
 
-Every inclusion criterion gets its own question, answered `meets`, `not_met`
-or `unclear` ("the title, keywords and abstract do not give enough information
-to decide"), each asked in three answer orders and averaged. All criteria must
-be met, so the **weakest** criterion decides — not the average, which would let
-a criterion that is clearly met make up for one that is not:
+Every inclusion criterion gets its own **yes/no question** ("does the study
+meet it?"), and Jev answers with the probability of yes, `p(meets)`; the
+probability that it is not met is `1 − p(meets)`. There is no "unclear" answer:
+doubt shows as a probability away from 0 and 1. Each question is asked twice in
+the same request, with what a yes and a no mean in both orders, and the two
+answers are averaged. All criteria must be met, so the **weakest** criterion
+decides — not the average, which would let a criterion that is clearly met make
+up for one that is not:
 
 | Answers | Reviewer's decision |
 |---|---|
-| The lowest `p(meets)` ≥ threshold | **accepted** |
-| Otherwise, some criterion with `p(not_met)` ≥ threshold | **rejected**, with that criterion as the reason |
-| Otherwise (something unclear, or nothing strong enough) | **unclassified**: left to you |
+| The lowest `p(meets)` ≥ accept threshold | **accepted** |
+| Otherwise, the lowest `1 − p(meets)` ≥ reject threshold | **rejected**, with that criterion as the reason |
+| Otherwise (nothing strong enough either way) | **unclassified**: left to you |
 
-So nothing is accepted for lack of information, and nothing is rejected for
-it either. The comment says what Jev answered for every criterion:
+With both thresholds at 0.9, a study is accepted when every criterion is at
+0.90 or more, rejected when one is at 0.10 or less, and left to you in between.
+The rules sent to Jev tell it that missing information is not a "no", so a
+study is not rejected because its abstract does not mention a criterion. The
+comment says what Jev answered for every criterion:
 
 ```
 Include with AI (run 12, jev-1.13.0): meets every inclusion criterion — meets: I1 0.97, I2 0.95.
-Include with AI (run 12, jev-1.13.0): I1 not met, p(not met) = 0.94 — meets: I1 0.03, I2 0.90.
+Include with AI (run 12, jev-1.13.0): I1 not met (meet 0.06) — meets: I1 0.06, I2 0.90.
 Include with AI (run 12, jev-1.13.0): undecided, weakest I2 (meet 0.40) — meets: I1 0.96, I2 0.40.
 ```
 
@@ -172,7 +182,7 @@ rejected, without an author.
 
 Start with one source and read what it rejected (filter *Rejected*; the
 *Reviewers* tab shows Jev's probability). If it rejects studies you would keep,
-raise the threshold or add guidance and run again as the same reviewer: its
+raise the (reject) threshold or add guidance and run again as the same reviewer: its
 earlier rejections are screened again and rewritten. A study you mark yourself
 is no longer this reviewer's to change. To try another model or guidance
 without touching the first results, run it as another reviewer and compare

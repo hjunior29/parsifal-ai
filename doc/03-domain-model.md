@@ -164,7 +164,8 @@ group and marks the rest `D`.
   parameters JSON, status running (also while interrupted)/finished/cancelled (discarded by a newer run)/failed
   (older runs only), total, error (why it waits), last_step_at (a step in the last 30 s means it is being driven),
   created_at, finished_at)`. `parameters` is the snapshot of what was sent:
-  context, guidance, criteria (`key`, `id`, `description`), threshold, scope.
+  context, guidance, criteria (`key`, `id`, `description`), thresholds (exclusion `threshold`; inclusion
+  `accept_threshold`, `reject_threshold`), scope.
 - `ScreeningResult(run CASCADE, article CASCADE, previous_status (U, or R when the same reviewer
   had rejected it; the run only changes the study if it still has it), outcome
   pending/excluded/passed/error, p_exclude, probabilities JSON,

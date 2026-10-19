@@ -258,12 +258,8 @@ class TestAiScreeningApi(AiScreeningApiBase):
         )
 
 
-def inclusion_answer(meets, not_met, unclear, model="jev-1.13.0"):
-    probabilities = {"meets": meets, "not_met": not_met, "unclear": unclear}
-    return {
-        "model": model,
-        "answers": {f"inclusion_i1_{n}": {"type": "choice", "probabilities": probabilities} for n in (1, 2, 3)},
-    }
+def inclusion_answer(meets, model="jev-1.13.0"):
+    return {"model": model, "answers": {f"inclusion_i1_{n}": {"type": "noul", "noul": meets} for n in (1, 2)}}
 
 
 class TestIncludeWithAiApi(AiScreeningApiBase):
@@ -278,31 +274,38 @@ class TestIncludeWithAiApi(AiScreeningApiBase):
         body = self.api("get", self.review_path("/ai-screening"), QUERY_STRING="phase=inclusion").json()
         self.assertEqual("inclusion", body["phase"])
         self.assertEqual([{"key": "I1", "id": self.inclusion.pk, "description": "Implemented tool"}], body["criteria"])
-        self.assertEqual((["meets", "not_met", "unclear"], ""), (body["answers"], body["none_description"]))
+        self.assertEqual(("noul", ""), (body["question_type"], body["none_description"]))
         self.assertIn("inclusion", body["task"])
         self.assertEqual(["A", "U"], body["statuses_default"])
         self.assertEqual(2, body["scopes"][0]["studies"])
         exclusion = self.api("get", self.review_path("/ai-screening")).json()
         self.assertEqual(
-            ("exclusion", [], ["R", "U"]), (exclusion["phase"], exclusion["answers"], exclusion["statuses_default"])
+            ("exclusion", "choice", ["R", "U"]),
+            (exclusion["phase"], exclusion["question_type"], exclusion["statuses_default"]),
         )
         self.assertEqual(
             422, self.api("get", self.review_path("/ai-screening"), QUERY_STRING="phase=maybe").status_code
         )
 
     def test_inclusion_run(self):
-        response = self.api(
-            "post", self.review_path("/ai-screening/runs"), {"reviewer_id": self.author.pk, "phase": "inclusion"}
+        start = self.review_path("/ai-screening/runs")
+        inclusion = {"reviewer_id": self.author.pk, "phase": "inclusion"}
+        refused = self.api("post", start, {**inclusion, "threshold": 0.9})
+        self.assertEqual(422, refused.status_code)
+        self.assertIn("not threshold", refused.json()["detail"])
+        self.assertEqual(422, self.api("post", start, {**inclusion, "reject_threshold": 0.3}).status_code)
+        self.assertEqual(
+            422, self.api("post", start, {"reviewer_id": self.author.pk, "accept_threshold": 0.9}).status_code
         )
+        response = self.api("post", start, {**inclusion, "accept_threshold": 0.95, "reject_threshold": 0.85})
         self.assertEqual(201, response.status_code, response.content)
         run = response.json()
         self.assertEqual(("inclusion", 2, ["A", "U"]), (run["phase"], run["total"], run["parameters"]["statuses"]))
+        self.assertEqual((0.95, 0.85), (run["parameters"]["accept_threshold"], run["parameters"]["reject_threshold"]))
 
         with (
             mock.patch.object(ai_screening, "WORKERS", 1),
-            mock.patch.object(
-                jev, "evaluate", side_effect=[inclusion_answer(0.02, 0.95, 0.03), inclusion_answer(0.96, 0.01, 0.03)]
-            ),
+            mock.patch.object(jev, "evaluate", side_effect=[inclusion_answer(0.05), inclusion_answer(0.96)]),
         ):
             step = self.api("post", self.review_path(f"/ai-screening/runs/{run['id']}/step"), {"size": 2}).json()
         self.assertEqual(
@@ -310,10 +313,10 @@ class TestIncludeWithAiApi(AiScreeningApiBase):
         )
         rejected, accepted = step["results"]
         self.assertEqual(
-            ("excluded", "I1", 0.95, 0.02),
+            ("excluded", "I1", 0.95, 0.05),
             (rejected["outcome"], rejected["criteria_key"], rejected["p_exclude"], rejected["p_include"]),
         )
-        self.assertEqual({"I1": {"meets": 0.96, "not_met": 0.01, "unclear": 0.03}}, accepted["probabilities"])
+        self.assertEqual({"I1": 0.96}, accepted["probabilities"])
         self.assertEqual(
             {self.secondary.pk: "R", self.primary.pk: "A"},
             dict(StudyDecision.objects.filter(user=self.author).values_list("article_id", "status")),
