@@ -67,6 +67,7 @@ class AgentOut(Schema):
     id: int  # the agent's user id
     name: str
     username: str
+    kind: str  # "" for an agent created by the owner, "jev" for the review's Jev agent (no tokens)
     created_at: datetime
     decisions: int
     quality_assessments: int

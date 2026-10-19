@@ -789,9 +789,19 @@ class ReviewAgent(models.Model):
     its tokens and everything stored under it.
     """
 
+    # An agent the owner created (it works through the API with its own token), or the review's Jev agent, created
+    # by the first AI exclusion screening: it has no token, Parsifal calls Jev and records the decisions as it.
+    AGENT = ""
+    JEV = "jev"
+    KINDS = (
+        (AGENT, _("AI agent")),
+        (JEV, _("Jev")),
+    )
+
     review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="agents")
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="agent_of")
     name = models.CharField(_("name"), max_length=50)
+    kind = models.CharField(_("kind"), max_length=20, choices=KINDS, blank=True, default=AGENT)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -807,3 +817,76 @@ class ReviewAgent(models.Model):
 def delete_agent_account(sender, instance, **kwargs):
     """The agent's account never outlives its place in the review (also when the whole review is deleted)."""
     User.objects.filter(pk=instance.user_id).delete()
+
+
+class ScreeningRun(models.Model):
+    """
+    One AI exclusion screening (phase 1 of study selection): what was sent to the model, its progress and how it
+    ended. It belongs to the review's Jev agent, so deleting the agent deletes its runs with its decisions.
+    """
+
+    RUNNING = "running"
+    FINISHED = "finished"
+    CANCELLED = "cancelled"
+    FAILED = "failed"
+    STATUSES = (
+        (RUNNING, _("Running")),
+        (FINISHED, _("Finished")),
+        (CANCELLED, _("Cancelled")),
+        (FAILED, _("Failed")),
+    )
+
+    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="screening_runs")
+    agent = models.ForeignKey(User, on_delete=models.CASCADE, related_name="screening_runs")
+    started_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    model = models.CharField(_("model"), max_length=100)
+    # Snapshot of what was sent: review context, extra guidance, exclusion criteria (key, id, description),
+    # threshold and scope. The criteria may change later; the snapshot says what Jev saw.
+    parameters = models.JSONField(_("parameters"), default=dict)
+    status = models.CharField(_("status"), max_length=10, choices=STATUSES, default=RUNNING)
+    total = models.PositiveIntegerField(_("studies to screen"), default=0)
+    error = models.CharField(_("error"), max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = _("screening run")
+        verbose_name_plural = _("screening runs")
+        ordering = ("-created_at", "-pk")
+
+    def __str__(self):
+        return f"Screening run {self.pk} ({self.get_status_display()})"
+
+
+class ScreeningResult(models.Model):
+    """What the model answered for one study in a run, kept for audit whether or not the study was rejected."""
+
+    PENDING = "pending"
+    EXCLUDED = "excluded"
+    PASSED = "passed"
+    ERROR = "error"
+    OUTCOMES = (
+        (PENDING, _("Pending")),
+        (EXCLUDED, _("Excluded")),
+        (PASSED, _("Passed to the next phase")),
+        (ERROR, _("Error")),
+    )
+
+    run = models.ForeignKey(ScreeningRun, on_delete=models.CASCADE, related_name="results")
+    article = models.ForeignKey(Article, on_delete=models.CASCADE, related_name="screening_results")
+    outcome = models.CharField(_("outcome"), max_length=10, choices=OUTCOMES, default=PENDING)
+    p_exclude = models.FloatField(_("probability that an exclusion criterion applies"), null=True, blank=True)
+    probabilities = models.JSONField(_("probability of each option"), null=True, blank=True)
+    selection_criteria = models.ForeignKey(SelectionCriteria, null=True, blank=True, on_delete=models.SET_NULL)
+    model = models.CharField(_("model version that answered"), max_length=100, blank=True)
+    error = models.CharField(_("error"), max_length=500, blank=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = _("screening result")
+        verbose_name_plural = _("screening results")
+        ordering = ("run_id", "pk")
+        constraints = (models.UniqueConstraint(fields=("run", "article"), name="unique_screening_result_per_run"),)
+
+    def __str__(self):
+        return f"{self.article_id}: {self.get_outcome_display()}"
