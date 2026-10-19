@@ -37,6 +37,16 @@ Koch: slight, fair, moderate, substantial, almost perfect). Report the initial
 kappa, discuss the disagreements and resolve them — the guidelines ask for
 exactly this.
 
+On the web, **Reviewer agreement** (Conducting → Study Selection) shows the
+same report. Click a study in its list of disagreements to open it on its
+*Reviewers* tab, with every reviewer's decision and comment; set the status
+there, and **Back to agreement** returns to the list. `decision disagreements`
+returns each study in full (with its id), so `decision article --article ID`
+does the same from the CLI.
+
+To find a study in the list, the search box next to *Action* filters it by
+title, DOI or BibTeX key (`article list --q` in the CLI, `q` in the API).
+
 ## Consolidating
 
 ```bash

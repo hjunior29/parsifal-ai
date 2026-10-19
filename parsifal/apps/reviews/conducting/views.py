@@ -874,8 +874,8 @@ def build_article_table_row(article):
     if article.created_at:
         date = article.created_at.strftime("%d %b %Y %H:%M:%S")
 
-    row = """<tr oid="{0}" article-status="{1}">
-            <td><input type="checkbox" value="{0}""></td>
+    row = """<tr oid="{0}" article-status="{1}" article-doi="{10}">
+            <td style="text-align: center;"><input type="checkbox" value="{0}"></td>
             <td>{2}</td>
             <td>{3}</td>
             <td>{4}</td>
@@ -895,6 +895,7 @@ def build_article_table_row(article):
         name,
         date,
         article.get_status_html(),
+        escape(article.doi or ""),
     )
     return row
 

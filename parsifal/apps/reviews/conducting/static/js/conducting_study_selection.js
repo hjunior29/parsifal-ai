@@ -90,22 +90,17 @@ $(function () {
     return false;
   });
 
-  $.fn.loadActiveArticle = function () {
-    var article_id = $(".source-articles tbody tr.active").attr("oid");
+  /* Loads the active row's article, or ``articleId`` (an article that may not be in this tab), and then opens
+     ``tab`` (e.g. "tab-reviewers") when given. */
+  $.fn.loadActiveArticle = function (articleId, tab) {
+    var article_id = articleId || $(".source-articles tbody tr.active").attr("oid");
     var review_id = $("#review-id").val();
     var container = $(this);
 
-    var total_articles = $(".source-articles tbody tr:visible").length;
-    var current_article = 0;
-    $(".source-articles tbody tr:visible").each(function () {
-      current_article++;
-      if ($(this).attr("oid") == article_id) {
-        return false;
-      }
-    });
-
-    $("#modal-article span.current-article").text(current_article);
-    $("#modal-article span.total-articles").text(total_articles);
+    var rows = $(".source-articles tbody tr:visible").not(".no-data");
+    var position = rows.index(rows.filter("[oid=" + article_id + "]")) + 1;
+    $("#modal-article span.current-article").text(position || "–");
+    $("#modal-article span.total-articles").text(rows.length);
 
     $.ajax({
       url: '/reviews/conducting/article_details/',
@@ -132,6 +127,9 @@ $(function () {
           }
         }).prop('disabled', !$.support.fileInput).parent().addClass($.support.fileInput ? undefined : 'disabled');
 
+        if (tab) {
+          $(container).find("a[href='#" + tab + "']").click();
+        }
       },
       complete: function () {
         $(container).spinner();
@@ -139,13 +137,19 @@ $(function () {
     });
   };
 
+  /* Opens an article in the details window. Its row, when this tab has it, becomes the active one, so that
+     Previous/Next go on from there. */
+  function openArticle(articleId, tab) {
+    $(".source-articles tbody tr").removeClass("active");
+    $(".source-articles tbody tr[oid=" + articleId + "]").addClass("active");
+    $("#modal-article .modal-body").css("height", $(window).height() * 0.7);
+    $("#modal-article .modal-body").loadActiveArticle(articleId, tab);
+    $("#modal-article").modal('show');
+  }
+
   $(".source-tab-content").on("click", "tbody tr", function () {
     if (!$(this).hasClass("no-data")) {
-      $(".source-articles tbody tr").removeClass("active");
-      $(this).addClass("active");
-      $("#modal-article .modal-body").css("height", $(window).height() * 0.7);
-      $("#modal-article .modal-body").loadActiveArticle();
-      $("#modal-article").modal('show');
+      openArticle($(this).attr("oid"));
     }
   });
 
@@ -246,6 +250,30 @@ $(function () {
     }
   });
 
+  /* A disagreement opens the article on its Reviewers tab, to resolve it; "Back to agreement" returns to the
+     agreement window at the same stage. */
+  var agreementStage = null;
+
+  $("#modal-agreement").on("click", ".js-open-article", function (event) {
+    event.preventDefault();
+    var articleId = $(this).attr("data-article-id");
+    agreementStage = $("#modal-agreement #agreement-stage").val() || "";
+    $("#modal-agreement").one("hidden.bs.modal", function () {
+      $("#btn-back-to-agreement").show();
+      openArticle(articleId, "tab-reviewers");
+    }).modal("hide");
+  });
+
+  $("#btn-back-to-agreement").click(function () {
+    var stage = agreementStage;
+    $("#modal-article").one("hidden.bs.modal", function () { loadAgreement(stage); }).modal("hide");
+  });
+
+  $("#modal-article").on("hidden.bs.modal", function () {
+    $("#btn-back-to-agreement").hide();
+    agreementStage = null;
+  });
+
   $("body").keydown(function (event) {
     var keyCode = event.which?event.which:event.keyCode;
 
@@ -257,7 +285,7 @@ $(function () {
         $(".source-articles tbody tr").removeClass("active");
       }
     }
-    else if (!$("body").hasClass("modal-open")) {
+    else if (!$("body").hasClass("modal-open") && !$(event.target).is("input[type=search], input[type=text], textarea")) {
       if (keyCode == UP_ARROW_KEY) {
         event.preventDefault();
         move(BACKWARD);
@@ -273,6 +301,9 @@ $(function () {
   });
 
   function move(step) {
+    if ($(".source-articles tbody tr:visible").not(".no-data").length === 0) {
+      return;  // every row is filtered out
+    }
     var active = $(".source-articles tbody tr.active").index();
     var old_active = active;
     var size = $(".source-articles tbody tr").length;
@@ -357,21 +388,49 @@ $(function () {
     }
   });
 
-  function filter_articles(status) {
-    if (status === "ALL") {
-      $(".source-articles table tbody tr").show();
-    }
-    else {
-      $(".source-articles table tbody tr").hide();
-      $(".source-articles table tbody tr[article-status=" + status + "]").show();
-    }
-    $(".source-tab-content input[type=checkbox]").prop("checked", false);
-    $(".source-articles tbody tr").removeClass("active");
+  /* Rows shown: those with the status chosen in "Show" that match the search (title, DOI or BibTeX key). A row
+     that gets hidden is unselected, so that an action never applies to rows out of sight. */
+  var DOI_PREFIX = /^(?:(?:https?:\/\/)?(?:dx\.)?doi\.org\/|doi:\s*)/i;
+
+  function applyFilters() {
+    var content = $(".source-tab-content");
+    var status = content.find("input[name=filter]:checked").val() || "ALL";
+    var query = $.trim(content.find(".js-article-search").val() || "").toLowerCase();
+    var doi = query.replace(DOI_PREFIX, "");
+    var rows = content.find(".source-articles table tbody tr").not(".no-data");
+    var shown = 0;
+    rows.each(function () {
+      var row = $(this);
+      var cells = row.children("td");
+      var matches = (status === "ALL" || row.attr("article-status") === status) && (
+        !query ||
+        cells.eq(1).text().toLowerCase().indexOf(query) !== -1 ||
+        cells.eq(2).text().toLowerCase().indexOf(query) !== -1 ||
+        (row.attr("article-doi") || "").toLowerCase().indexOf(doi) !== -1
+      );
+      row.toggle(matches);
+      if (matches) {
+        shown++;
+      } else {
+        row.removeClass("active").find("input[type=checkbox]").prop("checked", false);
+      }
+    });
+    content.find(".js-no-match").toggle(rows.length > 0 && shown === 0);
+    var checked = content.find(".source-articles tbody tr:visible td input[type=checkbox]:checked").length;
+    $("#ck-all-articles").prop("checked", shown > 0 && checked === shown);
+    updateSelectedArticlesCount();
   }
 
   $(".source-tab-content").on("click", "input[name=filter]", function () {
-    filter_articles($(this).val());
-    updateSelectedArticlesCount();
+    $(".source-tab-content input[type=checkbox]").prop("checked", false);
+    $(".source-articles tbody tr").removeClass("active");
+    applyFilters();
+  });
+
+  var searchTimer = null;
+  $(".source-tab-content").on("input", ".js-article-search", function () {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(applyFilters, 150);
   });
 
   $(".source-tab-content").on("click", "table tbody tr td input[type=checkbox]", function (event) {

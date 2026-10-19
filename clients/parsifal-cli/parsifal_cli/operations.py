@@ -941,7 +941,7 @@ OPERATIONS = (
             REVIEW,
             Q("source_id", INT),
             Q("status", help="U, A, R or D."),
-            Q("q", help="Title contains."),
+            Q("q", help="Search the title, DOI and BibTeX key (contains, ignoring case)."),
             Q("finished_data_extraction", BOOL),
         ),
         paginated=True,

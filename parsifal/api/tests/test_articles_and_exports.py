@@ -46,6 +46,12 @@ class TestArticlesApi(ApiTestCase):
         body = self.api("get", self.review_path("/articles?status=A")).json()
         self.assertEqual(["Chosen"], [a["title"] for a in body["items"]])
         self.assertEqual(422, self.api("get", self.review_path("/articles?status=Z")).status_code)
+        ArticleFactory(review=self.review, source=self.source, title="By DOI", doi="10.1000/xyz.42")
+        ArticleFactory(review=self.review, source=self.source, title="By key", bibtex_key="Doe2024Mapping")
+        for query, titles in (("chosen", ["Chosen"]), ("doi.org/10.1000/XYZ", ["By DOI"]), ("doe2024", ["By key"])):
+            with self.subTest(q=query):
+                items = self.api("get", self.review_path("/articles"), QUERY_STRING=f"q={query}").json()["items"]
+                self.assertEqual(titles, [a["title"] for a in items])
 
     def test_create_get_update_delete(self):
         criteria = SelectionCriteriaFactory(review=self.review)

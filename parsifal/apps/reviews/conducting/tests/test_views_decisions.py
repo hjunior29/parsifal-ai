@@ -2,6 +2,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from parsifal.apps.authentication.tests.factories import UserFactory
+from parsifal.apps.reviews.conducting.views import build_article_table_row
 from parsifal.apps.reviews.models import Article, StudyDecision
 from parsifal.apps.reviews.tests.factories import (
     ArticleFactory,
@@ -21,6 +22,17 @@ class TestDecisionViews(TestCase):
         cls.review = ReviewFactory(author=cls.human, co_authors=[cls.agent], sources=[cls.source])
         cls.criteria = SelectionCriteriaFactory(review=cls.review, description="Relevant")
         cls.a1, cls.a2 = ArticleFactory.create_batch(2, review=cls.review, source=cls.source)
+
+    def test_study_list_has_a_search_box_and_each_row_its_doi(self):
+        Article.objects.filter(pk=self.a1.pk).update(doi='10.1/"x"')
+        self.client.force_login(self.human)
+        response = self.client.get(
+            reverse("reviews:conducting:source_articles"), {"review-id": self.review.pk, "source-id": "None"}
+        )
+        self.assertContains(response, 'placeholder="Search title, DOI or BibTeX key"', html=False)
+        self.assertContains(response, f'<tr oid="{self.a1.pk}" article-status="U" article-doi="10.1/&quot;x&quot;">')
+        self.a1.refresh_from_db()
+        self.assertIn('article-doi="10.1/&quot;x&quot;"', build_article_table_row(self.a1))  # row after a save
 
     def test_article_details_shows_reviewers_tab(self):
         StudyDecision.objects.create(review=self.review, article=self.a1, user=self.agent, status="A")
@@ -83,6 +95,9 @@ class TestDecisionViews(TestCase):
         self.assertContains(response, "agent × alice")
         self.assertContains(response, "Cohen")
         self.assertContains(response, self.a2.title)  # the disagreement
+        # each disagreement opens its article (on the Reviewers tab, from the page's script)
+        self.assertContains(response, f'class="js-open-article" data-article-id="{self.a2.pk}"', html=False)
+        self.assertNotContains(response, f'data-article-id="{self.a1.pk}"', html=False)
         self.assertEqual(
             400,
             self.client.get(

@@ -49,12 +49,13 @@
 
   <h4>Disagreements <small>({{ disagreements|length }})</small></h4>
   {% if disagreements %}
+    <p class="help-block">Click an article to open it on its <em>Reviewers</em> tab; <em>Back to agreement</em> brings you here again.</p>
     <table class="table table-condensed table-hover">
       <thead><tr><th>Article</th><th>Decisions</th></tr></thead>
       <tbody>
         {% for row in disagreements %}
-          <tr>
-            <td>{{ row.article.title }}</td>
+          <tr class="js-open-article" data-article-id="{{ row.article.pk }}" title="Open the article">
+            <td><a href="#">{{ row.article.title|default:row.article.bibtex_key }}</a></td>
             <td>
               {% for decision in row.decisions %}
                 <span class="label {% if decision.status == 'A' %}label-success{% elif decision.status == 'R' %}label-danger{% else %}label-default{% endif %}" title="{{ decision.comments }}">{{ decision.user.username }}: {{ decision.get_status_display }}</span>

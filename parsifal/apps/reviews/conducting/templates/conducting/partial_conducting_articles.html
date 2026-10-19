@@ -20,7 +20,10 @@
         </button>
       </div>
     {% endif %}
-    <div class="studies-action" style="margin: 10px 0;">
+    <div class="studies-action clearfix" style="margin: 10px 0;">
+      <div class="pull-right studies-search">
+        <input type="search" class="form-control js-article-search" placeholder="Search title, DOI or BibTeX key" aria-label="Search title, DOI or BibTeX key" autocomplete="off">
+      </div>
       <strong>Action:</strong>
       <select class="select-action form-control" style="width: 200px; display: inline-block;">
         <option value="">Select...</option>
@@ -70,7 +73,7 @@
       </thead>
       <tbody>
         {% for article in articles %}
-          <tr oid="{{ article.id }}" article-status="{{ article.status }}">
+          <tr oid="{{ article.id }}" article-status="{{ article.status }}" article-doi="{{ article.doi|default_if_none:'' }}">
             <td style="text-align: center;"><input type="checkbox" value="{{ article.id }}"></td>
             <td>{{ article.bibtex_key }}</td>
             <td>{{ article.title }}</td>
@@ -88,5 +91,6 @@
         {% endfor %}
       </tbody>
     </table>
+    <p class="text-muted js-no-match" style="display: none;">No articles match the search.</p>
   </div>
 </div>

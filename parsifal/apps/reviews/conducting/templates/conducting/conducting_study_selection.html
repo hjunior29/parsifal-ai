@@ -11,6 +11,12 @@
     #modal-ai-screening .ai-criteria li { margin-bottom: 4px; padding-left: 2.6em; text-indent: -2.6em; }
     #modal-ai-screening .ai-log li { padding: 2px 0; border-bottom: 1px solid #eee; }
     #modal-ai-screening details summary { cursor: pointer; margin-bottom: 6px; }
+    .studies-search input { width: 320px; }
+    @media (max-width: 767px) {
+      .studies-search { float: none !important; margin-bottom: 10px; }
+      .studies-search input { width: 100%; }
+    }
+    #modal-agreement .js-open-article { cursor: pointer; }
   </style>
 {% endblock stylesheet %}
 
@@ -79,6 +85,9 @@
               </label>
             </div>
           </div>
+          <button type="button" class="btn btn-default" id="btn-back-to-agreement" style="display: none;">
+            <span class="glyphicon glyphicon-arrow-left"></span> Back to agreement
+          </button>
           <button type="button" class="btn btn-primary" id="btn-previous">Previous</button>
           <button type="button" class="btn btn-primary" id="btn-next">Next</button>
           <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>

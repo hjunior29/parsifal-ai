@@ -217,6 +217,22 @@ class TestArticleCrud(TestCase):
         with self.subTest(msg="by query"):
             self.assertEqual("Beta study", studies.list_articles(self.review, query="beta").get().title)
 
+    def test_search_title_doi_and_bibtex_key(self):
+        doi = ArticleFactory(review=self.review, source=self.source, title="One", doi="10.1145/3368089.3409741")
+        key = ArticleFactory(review=self.review, source=self.source, title="Two", bibtex_key="Smith2021Screening")
+        title = ArticleFactory(review=self.review, source=self.source, title="Screening with LLMs", bibtex_key="x")
+        for query, expected in (
+            ("10.1145/3368089", {doi}),
+            ("https://doi.org/10.1145/3368089.3409741", {doi}),
+            ("doi: 10.1145/3368089.3409741", {doi}),
+            ("smith2021", {key}),
+            ("  SCREENING ", {key, title}),
+            ("nothing like it", set()),
+        ):
+            with self.subTest(query=query):
+                self.assertEqual(expected, set(studies.list_articles(self.review, query=query)))
+        self.assertEqual(3, studies.list_articles(self.review, query="   ").count())
+
 
 class TestClearArticles(TestCase):
     @classmethod

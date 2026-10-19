@@ -30,7 +30,10 @@ def articles_list(
     q: str | None = None,
     finished_data_extraction: bool | None = None,
 ):
-    """Articles of the review; ``status`` is U (unclassified), A (accepted), R (rejected) or D (duplicated)."""
+    """
+    Articles of the review; ``status`` is U (unclassified), A (accepted), R (rejected) or D (duplicated); ``q``
+    searches the title, DOI and BibTeX key (a DOI may be pasted as a doi.org link).
+    """
     review = get_review(request, review_id)
     return studies.list_articles(
         review, source_id=source_id, status=status, query=q, finished_data_extraction=finished_data_extraction

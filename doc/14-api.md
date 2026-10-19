@@ -100,7 +100,7 @@ select-many takes the full list of lookup ids in `values` (set semantics).
 
 | Method & path | operationId |
 |---------------|-------------|
-| `GET /reviews/{rid}/articles?source_id=&status=U|A|R|D&q=&finished_data_extraction=&limit=&offset=` | `articles_list` |
+| `GET /reviews/{rid}/articles?source_id=&status=U|A|R|D&q=&finished_data_extraction=&limit=&offset=` | `articles_list` — `q` searches the title, DOI (also pasted as a doi.org link) and BibTeX key |
 | `POST /reviews/{rid}/articles {source_id, …fields}` | `articles_create` |
 | `GET/PATCH/DELETE /reviews/{rid}/articles/{aid}` | `articles_get` · `articles_update` · `articles_delete` |
 | `POST /reviews/{rid}/articles/status {ids[], status, selection_criteria_id?, comments?}` | `articles_set_status` |

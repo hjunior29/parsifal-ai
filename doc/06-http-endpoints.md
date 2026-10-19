@@ -149,7 +149,7 @@ Action endpoints under `/reviews/conducting/`, guard **A** unless noted:
 | `import/bibtex_raw_content/` | POST | `review-id`, `source-id`, `bibtex_file` (text) | same |
 | `import/clear/` | POST | `review-id`, `source-id` | redirect to import page; deletes every study of the source |
 | `new_article/` | GET | `review-id`, `source-id` | frag empty article form |
-| `source_articles/` | GET | `review-id`, `source-id` (`None` = all) | frag table of articles |
+| `source_articles/` | GET | `review-id`, `source-id` (`None` = all) | frag table of articles (the browser filters it by status and by a search on title, DOI or BibTeX key) |
 | `article_details/` | GET | `review-id`, `article-id` | frag details form |
 | `save_article_details/` | POST | `review-id`, `article-id` (`None` to create; then `source-id`), `bibtex-key`, `title`, `author`, `journal`, `year`, `pages`, `volume`, `abstract`, `document-type`, `doi`, `url`, `affiliation`, `author_keywords`, `keywords`, `publisher`, `issn`, `language`, `note`, `comments`, `status` (`U/R/A/D`), `selection_criteria` (id or empty) | frag `<tr>`; sets `updated_by` |
 | `multiple_articles_action/accept/` · `reject/` · `unclassify/` · `duplicated/` · `remove/` | POST | `review-id`, `article_ids` (`"1|2|3"`) | Bulk status update / delete, scoped to review |

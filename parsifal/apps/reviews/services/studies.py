@@ -7,6 +7,7 @@ from dataclasses import dataclass, field as dataclass_field
 from difflib import SequenceMatcher
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils.text import slugify
 
 import bibtexparser
@@ -289,13 +290,24 @@ def list_articles(review, *, source_id=None, status=None, query=None, finished_d
         queryset = queryset.filter(status=_validate_status(status))
     if finished_data_extraction is not None:
         queryset = queryset.filter(finished_data_extraction=finished_data_extraction)
-    if query:
-        queryset = queryset.filter(title__icontains=query)
+    if query and query.strip():
+        queryset = queryset.filter(search_filter(query))
     return queryset
 
 
+def search_filter(query):
+    """
+    Articles whose title, DOI or BibTeX key contains ``query`` (ignoring case); a DOI may be pasted as a doi.org link
+    or with a ``doi:`` prefix.
+    """
+    query = query.strip()
+    doi = DOI_PREFIX.sub("", query).strip()
+    found = Q(title__icontains=query) | Q(bibtex_key__icontains=query)
+    return found | Q(doi__icontains=doi) if doi else found
+
+
 DASHES = re.compile("[\u2010-\u2015\u2212]")
-DOI_PREFIX = re.compile(r"^(?:https?://(?:dx\.)?doi\.org/|doi:\s*)", re.I)
+DOI_PREFIX = re.compile(r"^(?:(?:https?://)?(?:dx\.)?doi\.org/|doi:\s*)", re.I)
 # Titles that share a DOI but are less similar than this are flagged for a manual check.
 TITLE_SIMILARITY = 0.8
 
