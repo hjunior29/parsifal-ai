@@ -95,7 +95,7 @@ class TestDecisionViews(TestCase):
         self.assertContains(response, "agent × alice")
         self.assertContains(response, "Cohen")
         self.assertContains(response, self.a2.title)  # the disagreement
-        # each disagreement opens its article (on the Reviewers tab, from the page's script)
+        # each disagreement opens its article's details (from the page's script)
         self.assertContains(response, f'class="js-open-article" data-article-id="{self.a2.pk}"', html=False)
         self.assertNotContains(response, f'data-article-id="{self.a1.pk}"', html=False)
         self.assertEqual(

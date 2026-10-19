@@ -90,9 +90,8 @@ $(function () {
     return false;
   });
 
-  /* Loads the active row's article, or ``articleId`` (an article that may not be in this tab), and then opens
-     ``tab`` (e.g. "tab-reviewers") when given. */
-  $.fn.loadActiveArticle = function (articleId, tab) {
+  /* Loads the active row's article, or ``articleId`` (an article that may not be in this tab). */
+  $.fn.loadActiveArticle = function (articleId) {
     var article_id = articleId || $(".source-articles tbody tr.active").attr("oid");
     var review_id = $("#review-id").val();
     var container = $(this);
@@ -127,9 +126,6 @@ $(function () {
           }
         }).prop('disabled', !$.support.fileInput).parent().addClass($.support.fileInput ? undefined : 'disabled');
 
-        if (tab) {
-          $(container).find("a[href='#" + tab + "']").click();
-        }
       },
       complete: function () {
         $(container).spinner();
@@ -139,11 +135,11 @@ $(function () {
 
   /* Opens an article in the details window. Its row, when this tab has it, becomes the active one, so that
      Previous/Next go on from there. */
-  function openArticle(articleId, tab) {
+  function openArticle(articleId) {
     $(".source-articles tbody tr").removeClass("active");
     $(".source-articles tbody tr[oid=" + articleId + "]").addClass("active");
     $("#modal-article .modal-body").css("height", $(window).height() * 0.7);
-    $("#modal-article .modal-body").loadActiveArticle(articleId, tab);
+    $("#modal-article .modal-body").loadActiveArticle(articleId);
     $("#modal-article").modal('show');
   }
 
@@ -250,8 +246,8 @@ $(function () {
     }
   });
 
-  /* A disagreement opens the article on its Reviewers tab, to resolve it; "Back to agreement" returns to the
-     agreement window at the same stage. */
+  /* A disagreement opens the article's details, to read it before deciding (the decisions are on its Reviewers
+     tab); "Back to agreement" returns to the agreement window at the same stage. */
   var agreementStage = null;
 
   $("#modal-agreement").on("click", ".js-open-article", function (event) {
@@ -260,7 +256,7 @@ $(function () {
     agreementStage = $("#modal-agreement #agreement-stage").val() || "";
     $("#modal-agreement").one("hidden.bs.modal", function () {
       $("#btn-back-to-agreement").show();
-      openArticle(articleId, "tab-reviewers");
+      openArticle(articleId);
     }).modal("hide");
   });
 

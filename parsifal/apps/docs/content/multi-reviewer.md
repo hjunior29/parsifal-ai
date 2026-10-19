@@ -38,9 +38,9 @@ kappa, discuss the disagreements and resolve them — the guidelines ask for
 exactly this.
 
 On the web, **Reviewer agreement** (Conducting → Study Selection) shows the
-same report. Click a study in its list of disagreements to open it on its
-*Reviewers* tab, with every reviewer's decision and comment; set the status
-there, and **Back to agreement** returns to the list. `decision disagreements`
+same report. Click a study in its list of disagreements to open its details
+and read it; its *Reviewers* tab has every reviewer's decision and comment. Set
+the status there, and **Back to agreement** returns to the list. `decision disagreements`
 returns each study in full (with its id), so `decision article --article ID`
 does the same from the CLI.
 
