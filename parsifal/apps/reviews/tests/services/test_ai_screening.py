@@ -9,7 +9,7 @@ from parsifal.apps.authentication.tests.factories import UserFactory
 from parsifal.apps.core import jev
 from parsifal.apps.core.exceptions import NotFound, PermissionDenied, UpstreamError, ValidationError
 from parsifal.apps.reviews.models import Article, ScreeningResult, ScreeningRun, SelectionCriteria, StudyDecision
-from parsifal.apps.reviews.services import agents, ai_screening
+from parsifal.apps.reviews.services import agents, ai_screening, decisions
 from parsifal.apps.reviews.tests.factories import ArticleFactory, QuestionFactory, ReviewFactory, SourceFactory
 
 MODELS = [
@@ -73,7 +73,11 @@ class AiScreeningTestCase(TestCase):
         return ai_screening.start_run(**defaults)
 
     def step(self, run, responses):
-        with mock.patch.object(jev, "evaluate", side_effect=responses) as evaluate:
+        # One worker, so that the responses are given to the studies in order.
+        with (
+            mock.patch.object(jev, "evaluate", side_effect=responses) as evaluate,
+            mock.patch.object(ai_screening, "WORKERS", 1),
+        ):
             results = ai_screening.process_step(run=run, actor=self.owner)
         run.refresh_from_db()
         return results, evaluate
@@ -184,8 +188,14 @@ class TestStartRun(AiScreeningTestCase):
             self.start(guidance="x" * (ai_screening.GUIDANCE_LENGTH + 1))
         with self.assertRaises(NotFound):
             self.start(source_id=SourceFactory().pk)
-        with self.assertRaisesMessage(ValidationError, "no studies to screen"):
+        with self.assertRaisesMessage(ValidationError, "no studies with these statuses"):
             self.start(source_id=self.other_source.pk)
+        with self.assertRaisesMessage(ValidationError, "no studies with these statuses"):
+            self.start(statuses=["A", "D"])
+        with self.assertRaisesMessage(ValidationError, "Unknown status X"):
+            self.start(statuses=["U", "X"])
+        with self.assertRaisesMessage(ValidationError, "Choose the statuses"):
+            self.start(statuses=[])
         empty = ReviewFactory(author=self.owner)
         with self.assertRaisesMessage(ValidationError, "no exclusion criteria"):
             self.start(review=empty, reviewer_id=self.owner.pk)
@@ -205,7 +215,8 @@ class TestStartRun(AiScreeningTestCase):
     def test_opens_a_run_with_a_snapshot_and_the_reviewer(self):
         first = self.article()
         self.article(source=self.other_source)
-        self.article(status=Article.ACCEPTED)
+        accepted = self.article(status=Article.ACCEPTED)
+        duplicated = self.article(status=Article.DUPLICATED)
         context = dict(ai_screening.default_context(self.review), objective="  Edited objective  ")
         run = self.start(context=context, guidance="Be strict.", threshold="0.85", source_id=str(self.source.pk))
 
@@ -214,10 +225,18 @@ class TestStartRun(AiScreeningTestCase):
         self.assertEqual([(first.pk, "U")], list(run.results.values_list("article_id", "previous_status")))
         self.assertEqual("Edited objective", run.parameters["context"]["objective"])
         self.assertEqual(
-            ("Be strict.", 0.85, self.source.pk),
-            tuple(run.parameters[k] for k in ("guidance", "threshold", "source_id")),
+            ("Be strict.", 0.85, self.source.pk, ["R", "U"]),
+            tuple(run.parameters[k] for k in ("guidance", "threshold", "source_id", "statuses")),
         )
         self.assertEqual(["E1", "E2"], [option["key"] for option in run.parameters["criteria"]])
+
+        with self.subTest(msg="the statuses chosen pick the studies"):
+            chosen = self.start(statuses=["d", "A"], source_id=self.source.pk)
+            self.assertEqual(["A", "D"], chosen.parameters["statuses"])
+            self.assertEqual(
+                {accepted.pk: "A", duplicated.pk: "D"},
+                dict(chosen.results.values_list("article_id", "previous_status")),
+            )
 
         with self.subTest(msg="context fields left out take the review's values"):
             partial = self.start(context={"objective": "Only this changed", "population": None})
@@ -228,6 +247,9 @@ class TestStartRun(AiScreeningTestCase):
             run.refresh_from_db()
             self.assertEqual(ScreeningRun.CANCELLED, run.status)
             self.assertFalse(run.results.exists())
+
+        with self.subTest(msg="every status"):
+            self.assertEqual(4, self.start(statuses=["U", "R", "A", "D"]).total)
 
 
 class TestProcessStep(AiScreeningTestCase):
@@ -305,19 +327,42 @@ class TestProcessStep(AiScreeningTestCase):
                 self.assertIn(f"run {second.pk}", decision.comments)
         self.assertEqual(3, StudyDecision.objects.filter(user=self.bot).count())
 
-    def test_another_reviewer_does_not_get_studies_rejected_by_someone_else(self):
-        rejected = self.article()
-        kept = self.article()
-        self.step(self.start(), [EXCLUDE_E2, KEEP])
+    def test_another_reviewer_screens_the_same_studies_without_changing_the_first_ones_rejections(self):
+        rejected_then_kept = self.article(title="A")
+        rejected_twice = self.article(title="B")
+        kept_then_rejected = self.article(title="C")
+        self.step(self.start(), [EXCLUDE_E2, EXCLUDE_E2, KEEP])
 
         run = self.start(reviewer_id=self.other_bot.pk)
-        self.assertEqual([kept.pk], list(run.results.values_list("article_id", flat=True)))
-        self.step(run, [EXCLUDE_E1])
-        kept.refresh_from_db()
-        self.assertEqual((Article.REJECTED, self.other_bot), (kept.status, kept.updated_by))
-        self.assertEqual("U", self.decision(kept).status)  # the first reviewer's decision is its own
-        self.assertEqual("R", self.decision(kept, self.other_bot).status)
-        self.assertFalse(StudyDecision.objects.filter(article=rejected, user=self.other_bot).exists())
+        self.assertEqual(3, run.total)  # the studies the first reviewer rejected are sent too
+        self.step(run, [KEEP, EXCLUDE_E1, EXCLUDE_E1])
+
+        for article, status, criteria, updated_by, first, second in (
+            (rejected_then_kept, Article.REJECTED, self.english, self.bot, "R", "U"),
+            (rejected_twice, Article.REJECTED, self.english, self.bot, "R", "R"),
+            (kept_then_rejected, Article.REJECTED, self.secondary, self.other_bot, "U", "R"),
+        ):
+            with self.subTest(article=article.title):
+                article.refresh_from_db()
+                self.assertEqual(
+                    (status, criteria, updated_by), (article.status, article.selection_criteria, article.updated_by)
+                )
+                self.assertEqual(first, self.decision(article).status)  # each reviewer keeps its own decision
+                self.assertEqual(second, self.decision(article, self.other_bot).status)
+        agreement = decisions.agreement(review=self.review, user_a_id=self.bot.pk, user_b_id=self.other_bot.pk)
+        self.assertEqual((3, 1), (agreement["compared"], agreement["agreed"]))
+
+    def test_accepted_and_duplicated_studies_keep_their_status(self):
+        accepted = self.article(status=Article.ACCEPTED, updated_by=self.bot)
+        duplicated = self.article(status=Article.DUPLICATED)
+        run = self.start(statuses=["A", "D"])
+        self.step(run, [EXCLUDE_E2, KEEP])
+        accepted.refresh_from_db()
+        duplicated.refresh_from_db()
+        self.assertEqual((Article.ACCEPTED, None), (accepted.status, accepted.selection_criteria))
+        self.assertEqual(Article.DUPLICATED, duplicated.status)
+        self.assertEqual(("R", "U"), (self.decision(accepted).status, self.decision(duplicated).status))
+        self.assertEqual((1, 1), (ai_screening.progress(run)["excluded"], ai_screening.progress(run)["passed"]))
 
     def test_the_owner_can_screen_as_themselves(self):
         article = self.article()
@@ -460,24 +505,26 @@ class TestProcessStep(AiScreeningTestCase):
 
 
 class TestScope(AiScreeningTestCase):
-    def test_counts_per_reviewer_and_source(self):
+    def test_counts_per_source_and_status(self):
         self.article()
-        rejected = self.article()
+        self.article()
+        self.article(status=Article.ACCEPTED)
         self.article(source=self.other_source)
-        self.step(self.start(source_id=self.source.pk), [KEEP, EXCLUDE_E2])
+        self.step(self.start(source_id=self.source.pk, statuses=["U"]), [KEEP, EXCLUDE_E2])
         self.assertEqual(
-            {"": 3, str(self.source.pk): 2, str(self.other_source.pk): 1},
-            ai_screening.scope_counts(self.review, self.bot),
-        )
-        self.assertEqual(
-            {"": 2, str(self.source.pk): 1, str(self.other_source.pk): 1},
-            ai_screening.scope_counts(self.review, self.other_bot),
-        )
-        self.assertEqual(
-            ai_screening.scope_counts(self.review, self.other_bot), ai_screening.scope_counts(self.review)
+            {
+                "": {"A": 1, "R": 1, "U": 2, "D": 0},
+                str(self.source.pk): {"A": 1, "R": 1, "U": 1, "D": 0},
+                str(self.other_source.pk): {"A": 0, "R": 0, "U": 1, "D": 0},
+            },
+            ai_screening.scope_counts(self.review),
         )
         self.assertEqual(self.bot.pk, ai_screening.last_reviewer_id(self.review))
-        self.assertEqual(Article.REJECTED, Article.objects.get(pk=rejected.pk).status)
+
+    def test_clean_statuses(self):
+        self.assertEqual(["R", "U"], ai_screening.clean_statuses(None))
+        self.assertEqual(["A", "R", "U", "D"], ai_screening.clean_statuses(["u", "D", " r ", "A", "U"]))
+        self.assertEqual(["U"], ai_screening.clean_statuses("U"))
 
     def test_deleting_the_reviewer_agent_deletes_its_runs_and_decisions(self):
         article = self.article()

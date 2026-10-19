@@ -104,31 +104,25 @@ class TestAiScreeningApi(ApiTestCase):
                 for k in ("threshold_default", "threshold_min", "threshold_max", "step_size_default", "step_size_max")
             ),
         )
+        by_status = {"A": 0, "R": 0, "U": 2, "D": 0}
         self.assertEqual(
             [
-                {"source_id": None, "name": "All sources", "studies": 2},
-                {"source_id": self.source.pk, "name": self.source.name, "studies": 2},
+                {"source_id": None, "name": "All sources", "studies": 2, "by_status": by_status},
+                {"source_id": self.source.pk, "name": self.source.name, "studies": 2, "by_status": by_status},
             ],
             body["scopes"],
+        )
+        self.assertEqual(
+            (["A", "R", "U", "D"], ["R", "U"]),
+            ([status["status"] for status in body["statuses"]], body["statuses_default"]),
         )
         self.assertEqual((MODELS, ""), (body["models"], body["models_error"]))
         self.assertEqual({self.author.pk, self.co_author.pk}, {reviewer["id"] for reviewer in body["reviewers"]})
         self.assertIsNone(body["reviewer_id"])
-        counted = self.api("get", self.review_path("/ai-screening"), QUERY_STRING=f"reviewer_id={self.co_author.pk}")
-        self.assertEqual(self.co_author.pk, counted.json()["reviewer_id"])
 
         other = self.api("get", self.review_path("/ai-screening"), client=self.client_for(self.co_author)).json()
         self.assertEqual((False, None, []), (other["configured"], other["model"], other["models"]))
         self.assertEqual([self.co_author.pk], [reviewer["id"] for reviewer in other["reviewers"]])
-        self.assertEqual(
-            403,
-            self.api(
-                "get",
-                self.review_path("/ai-screening"),
-                client=self.client_for(self.co_author),
-                QUERY_STRING=f"reviewer_id={self.author.pk}",
-            ).status_code,
-        )
         self.assertEqual(
             404, self.api("get", self.review_path("/ai-screening"), client=self.client_for(self.outsider)).status_code
         )
@@ -145,9 +139,12 @@ class TestAiScreeningApi(ApiTestCase):
             ("running", 2, 0, "jev-1.14.0"), (run["status"], run["total"], run["processed"], run["model"])
         )
         self.assertEqual((self.co_author.pk, self.co_author.username), (run["reviewer_id"], run["reviewer"]))
-        self.assertEqual("Edited", run["parameters"]["context"]["objective"])
         self.assertEqual(
-            "Find screening tools.", self.api("get", self.review_path("/ai-screening")).json()["context"]["objective"]
+            ("Edited", ["R", "U"]), (run["parameters"]["context"]["objective"], run["parameters"]["statuses"])
+        )
+        setup = self.api("get", self.review_path("/ai-screening")).json()
+        self.assertEqual(
+            ("Find screening tools.", self.co_author.pk), (setup["context"]["objective"], setup["reviewer_id"])
         )
         self.assertEqual(self.author.username, run["started_by"])
 
@@ -209,6 +206,10 @@ class TestAiScreeningApi(ApiTestCase):
         self.assertEqual(422, self.api("post", start, {"threshold": 0.2, **me}).status_code)
         self.assertEqual(422, self.api("post", start, {}).status_code)  # reviewer_id is required
         self.assertEqual(422, self.api("post", start, {"model": "jev-9", **me}).status_code)
+        self.assertEqual(422, self.api("post", start, {"statuses": ["X"], **me}).status_code)
+        no_studies = self.api("post", start, {"statuses": ["A", "D"], **me})
+        self.assertEqual(422, no_studies.status_code)
+        self.assertIn("no studies with these statuses", no_studies.json()["detail"])
         co_author = self.client_for(self.co_author)
         no_key = self.api("post", start, {"reviewer_id": self.co_author.pk}, client=co_author)
         self.assertEqual(422, no_key.status_code)

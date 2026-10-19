@@ -1433,8 +1433,8 @@ OPERATIONS = (
         "/reviews/{review_id}/ai-screening",
         ("ai-screening",),
         "setup",
-        "What a run would send (context, criteria, Jev's models, reviewers, studies) and any unfinished run.",
-        (REVIEW, Q("reviewer_id", INT, help="Count the studies for this reviewer.")),
+        "What a run would send (context, criteria, Jev's models, reviewers, studies per status), any unfinished run.",
+        (REVIEW,),
     ),
     Operation(
         "ai_screening_start",
@@ -1442,7 +1442,7 @@ OPERATIONS = (
         "/reviews/{review_id}/ai-screening/runs",
         ("ai-screening",),
         "start",
-        "Open a run as a reviewer (unclassified studies + its own earlier rejections); then step until it ends.",
+        "Open a run as a reviewer over the studies with the chosen statuses; then step until it ends.",
         (
             REVIEW,
             B("title", help="Review title sent as context (default: the review's)."),
@@ -1456,6 +1456,12 @@ OPERATIONS = (
             B("guidance", TEXT, help="Definitions or borderline cases that help apply the criteria."),
             B("threshold", FLOAT, help="Reject when 1 - p(none) is at least this (0.5–0.99, default 0.9)."),
             B("source_id", INT, help="Only this source (default: all)."),
+            B(
+                "statuses",
+                LIST_STR,
+                help="Send the studies with these statuses: U, R, A, D (repeat; default R and U). Only U and the "
+                "reviewer's own rejections change status.",
+            ),
             B("reviewer_id", INT, True, "Member of the review the decisions are recorded as (see setup)."),
             B("model", help="Jev model for this run (default: your default model)."),
         ),

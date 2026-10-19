@@ -37,10 +37,16 @@ class ScreeningOptionOut(Schema):
     description: str
 
 
+class ScreeningStatusOut(Schema):
+    status: str  # U, R, A or D, as sent in ``statuses``
+    name: str
+
+
 class ScreeningScopeOut(Schema):
     source_id: int | None  # None = all sources
     name: str
-    studies: int  # what a run would send: unclassified + rejected by the reviewer in an earlier run
+    studies: int  # what a run with the default statuses would send
+    by_status: dict[str, int]  # studies per status (U, R, A, D): add up the statuses you send
 
 
 class ScreeningReviewerOut(Schema):
@@ -84,7 +90,7 @@ class ScreeningSetupOut(Schema):
     models: list[JevModelOut]  # as listed by Jev for your key, asked now
     models_error: str  # why the list is empty, when Jev could not be asked
     reviewers: list[ScreeningReviewerOut]  # who you may screen as (the main author: anyone in the review)
-    reviewer_id: int | None  # the reviewer the scopes were counted for
+    reviewer_id: int | None  # the reviewer of the latest run, preselected by the web
     unfinished_run: ScreeningRunOut | None  # a run left half-way: step it to continue, or start a new one
     unfinished_run_active: bool  # a step ran in the last seconds: something is driving it right now
     context: ScreeningContextOut  # defaults taken from the review; editable per run
@@ -96,6 +102,8 @@ class ScreeningSetupOut(Schema):
     threshold_default: float
     threshold_min: float
     threshold_max: float
+    statuses: list[ScreeningStatusOut]  # statuses of the studies a run may send
+    statuses_default: list[str]  # sent when ``statuses`` is left out: R and U
     scopes: list[ScreeningScopeOut]
     step_size_default: int
     step_size_max: int
@@ -116,6 +124,7 @@ class ScreeningStartIn(Schema):
     guidance: str = ""
     threshold: float = 0.9
     source_id: int | None = None
+    statuses: list[str] | None = None  # studies sent: any of U, R, A, D (default R and U)
 
 
 class ScreeningStepIn(Schema):
@@ -123,13 +132,13 @@ class ScreeningStepIn(Schema):
 
 
 class ScreeningRunDetailOut(ScreeningRunOut):
-    parameters: dict  # snapshot of what was sent: context, guidance, criteria, threshold, scope
+    parameters: dict  # snapshot of what was sent: context, guidance, criteria, threshold, source and statuses
 
 
 class ScreeningResultOut(Schema):
     article_id: int
     title: str | None
-    previous_status: str  # U or R (rejected by the same reviewer earlier) when the run took the study
+    previous_status: str  # the study's status when the run took it (U, R, A or D)
     outcome: str  # excluded, passed, error, pending
     p_exclude: float | None  # 1 - p(none), averaged over the option orders
     criteria_key: str | None  # E1, E2… of the criterion Jev chose, when the study was rejected

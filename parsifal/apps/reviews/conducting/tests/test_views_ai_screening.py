@@ -57,6 +57,7 @@ class AiScreeningViewsTest(TestCase):
             "context-objective": "Edited",
             "threshold": "0.9",
             "source-id": "",
+            "statuses": ["R", "U"],
         }
         data.update(extra)
         return self.client.post(self.start_url, data)
@@ -89,8 +90,17 @@ class AiScreeningViewsTest(TestCase):
         self.assertNotContains(response, 'name="rescreen"')
         script = re.search(r'id="ai-screening-counts"[^>]*>(.*?)</script>', response.content.decode())
         counts = json.loads(script.group(1))
-        self.assertEqual({str(self.owner.pk), str(self.bot.pk)}, set(counts))
-        self.assertEqual(1, counts[str(self.bot.pk)][""])
+        unclassified = {"A": 0, "R": 0, "U": 1, "D": 0}
+        self.assertEqual({"": unclassified, str(self.source.pk): unclassified}, counts)
+
+        with self.subTest(msg="statuses to send: rejected and unclassified by default"):
+            for code, checked in (("A", False), ("R", True), ("U", True), ("D", False)):
+                self.assertContains(
+                    response,
+                    f'<input type="checkbox" name="statuses" value="{code}"{" checked" if checked else ""}>',
+                    html=False,
+                )
+            self.assertContains(response, "js-ai-all-statuses")
 
         with self.subTest(msg="reviewers to choose from, none preselected before the first run"):
             self.assertContains(response, '<option value="">Choose the reviewer…</option>', html=True)
@@ -133,6 +143,10 @@ class AiScreeningViewsTest(TestCase):
         self.assertIn("between 0.5 and 0.99", response.json()["error"])
         response = self.start(**{"reviewer-id": ""})
         self.assertIn("Choose the reviewer", response.json()["error"])
+        response = self.start(statuses=[])
+        self.assertIn("Choose the statuses", response.json()["error"])
+        response = self.start(statuses=["A", "D"])
+        self.assertIn("no studies with these statuses", response.json()["error"])
 
     def test_start_step_and_done(self):
         self.connect()
@@ -140,7 +154,8 @@ class AiScreeningViewsTest(TestCase):
         self.assertEqual(200, response.status_code, response.content)
         run = response.json()["run"]
         self.assertEqual(("running", 1, 0), (run["status"], run["total"], run["processed"]))
-        self.assertEqual("Edited", ScreeningRun.objects.get(pk=run["id"]).parameters["context"]["objective"])
+        parameters = ScreeningRun.objects.get(pk=run["id"]).parameters
+        self.assertEqual(("Edited", ["R", "U"]), (parameters["context"]["objective"], parameters["statuses"]))
 
         with mock.patch.object(jev, "evaluate", return_value=EXCLUDE):
             response = self.client.post(self.step_url, {"review-id": self.review.pk, "run-id": run["id"]})

@@ -50,7 +50,7 @@ parsifal me
    `article set-status ...` changes the consolidated status directly — use it only when asked to.
    Exclude with AI (only when the human asks): `ai-screening run --review R --reviewer-id <your user id>` lets Jev
    reject the studies that clearly meet an exclusion criterion, recording the decisions as you (needs a Jev key:
-   `integration jev set --api-key -`); check them with `ai-screening results --review R --id RUN --outcome excluded`.
+   `integration jev set --api-key -`; `--statuses` picks the studies sent, default R and U); check them with `ai-screening results --review R --id RUN --outcome excluded`.
    `test-set get --review R` tells whether the known papers were found by the search.
 5. Quality assessment (accepted articles): `quality assess --review R --article A --question-id Q --answer-id ANS`;
    `quality summary --review R` shows scores against the cutoff. Final selection = accepted AND score > cutoff.

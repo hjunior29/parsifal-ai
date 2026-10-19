@@ -22,10 +22,21 @@ $(function () {
     event.returnValue = "";
   }
 
+  // Studies sent = those of the chosen source with one of the checked statuses (counts: source -> status -> n).
   function updateCount() {
     var counts = JSON.parse($("#ai-screening-counts").text() || "{}");
+    var bySource = counts[$("#ai-source").val() || ""] || {};
     var reviewer = $("#ai-reviewer").val();
-    var total = reviewer ? ((counts[reviewer] || {})[$("#ai-source").val() || ""] || 0) : 0;
+    var $statuses = $modal.find("input[name=statuses]");
+    var $checked = $statuses.filter(":checked");
+    var total = 0;
+    $modal.find(".js-ai-status-count").each(function () {
+      $(this).text(bySource[$(this).data("status")] || 0);
+    });
+    $checked.each(function () { total += bySource[this.value] || 0; });
+    $modal.find(".js-ai-all-statuses")
+      .prop("checked", $checked.length === $statuses.length)
+      .prop("indeterminate", $checked.length > 0 && $checked.length < $statuses.length);
     $modal.find(".js-ai-count").text(reviewer ? total : "—");
     $modal.find(".js-ai-start").prop("disabled", !reviewer || total === 0);
   }
@@ -39,7 +50,12 @@ $(function () {
     });
   });
 
-  $modal.on("change", "#ai-source, #ai-reviewer", updateCount);
+  $modal.on("change", "#ai-source, #ai-reviewer, input[name=statuses]", updateCount);
+
+  $modal.on("change", ".js-ai-all-statuses", function () {
+    $modal.find("input[name=statuses]").prop("checked", this.checked);
+    updateCount();
+  });
 
   $modal.on("click", ".js-ai-start", function () {
     var $button = $(this).prop("disabled", true);
@@ -151,7 +167,7 @@ $(function () {
     settle();
     render(state, []);
     var titles = {finished: "Finished.", cancelled: "Discarded: another run was started."};
-    var summary = " " + state.excluded + " rejected, " + state.passed + " passed to the next phase";
+    var summary = " " + state.excluded + " rejected, " + state.passed + " passed (no criterion)";
     if (state.failed) { summary += ", " + state.failed + " errors (those studies keep the reviewer's previous decision)"; }
     $modal.find(".js-ai-status").empty()
       .append($("<strong>").text(titles[state.status] || "Stopped."))

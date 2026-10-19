@@ -5,17 +5,22 @@ affiliations.
 
 Every run is made in the name of a **reviewer** chosen by whoever starts it (the main author may pick any member of
 the review, anyone else only themselves), so one person can screen as several reviewers and compare them. A run
-sends the unclassified studies plus those this reviewer rejected in an earlier run, and rewrites this reviewer's
-decisions: nothing is skipped because it was evaluated before.
+sends the studies with the chosen statuses (default: unclassified and rejected) and rewrites this reviewer's
+decisions: nothing is skipped because it was evaluated before, so two reviewers can screen the same studies and be
+compared (Reviewer agreement).
+
+A run records the reviewer's decision on every study it screens, but changes a study's **status** only when the
+study is unclassified, or rejected by this same reviewer. Accepted studies, duplicates and studies rejected by
+someone else keep their status.
 
 The exclusion criteria plus a "none" option go in one choice question, asked in three option orders within the
 same request (Jev tends to favour the first option when unsure) and averaged. Because the probabilities of a choice
 sum to 1, the probability that *some* criterion applies is ``1 - p(none)``, even when two criteria split it. Then:
 
 - ``1 - p(none) >= threshold``: the reviewer's decision is "rejected" with the most probable criterion, and the
-  study is rejected with it.
+  study is rejected with it (when the run may change its status).
 - otherwise: the reviewer's decision is "unclassified" (no criterion applies) and the study stays, or goes back to,
-  unclassified for the next phase.
+  unclassified for the next phase (when the run may change its status).
 
 A run is driven in small steps (``process_step``) so that the page can show its progress, and every answer is kept
 in ``ScreeningResult`` for audit. A run cannot be stopped; when it is interrupted (page closed, connection lost, Jev
@@ -76,6 +81,15 @@ NONE_DESCRIPTION = (
 )
 SENT_FIELDS = ("title", "keywords", "abstract")
 
+# Statuses of the studies a run may send, in the order the window lists them.
+STATUSES = (
+    (Article.ACCEPTED, "Accepted"),
+    (Article.REJECTED, "Rejected"),
+    (Article.UNCLASSIFIED, "Unclassified"),
+    (Article.DUPLICATED, "Duplicated"),
+)
+DEFAULT_STATUSES = (Article.REJECTED, Article.UNCLASSIFIED)
+
 
 # Setup ---------------------------------------------------------------------------------------------------------------
 
@@ -134,34 +148,42 @@ def exclusion_options(review):
     ]
 
 
-def _rejected_by(review, reviewer):
-    """Studies still rejected as ``reviewer`` decided in an earlier run (nobody changed them since)."""
-    excluded = ScreeningResult.objects.filter(
-        run__review=review, run__reviewer=reviewer, outcome=ScreeningResult.EXCLUDED
-    ).values("article_id")
-    return Q(status=Article.REJECTED, updated_by=reviewer, pk__in=excluded)
+def clean_statuses(statuses):
+    """The statuses of the studies to send: codes U, R, A, D; None means the default (rejected and unclassified)."""
+    if statuses is None:
+        return list(DEFAULT_STATUSES)
+    if isinstance(statuses, str):
+        statuses = [statuses]
+    codes = dict(STATUSES)
+    chosen = {str(status).strip().upper() for status in statuses if str(status).strip()}
+    unknown = sorted(chosen - set(codes))
+    if unknown:
+        raise ValidationError(f"Unknown status {', '.join(unknown)}: use U, R, A or D.", field="statuses")
+    if not chosen:
+        raise ValidationError("Choose the statuses of the studies to send.", field="statuses")
+    return [code for code, _label in STATUSES if code in chosen]
 
 
-def eligible_articles(review, *, reviewer, source_id=None):
-    """
-    What a run as ``reviewer`` sends: the unclassified studies plus those the reviewer rejected in an earlier run.
-    Studies accepted, marked as duplicates or rejected by anyone else are never sent.
-    """
-    articles = review.article_set.filter(Q(status=Article.UNCLASSIFIED) | _rejected_by(review, reviewer))
+def eligible_articles(review, *, statuses=DEFAULT_STATUSES, source_id=None):
+    """What a run sends: the studies with ``statuses``, from one source or all of them."""
+    articles = review.article_set.filter(status__in=statuses)
     if source_id:
         articles = articles.filter(source_id=source_id)
     return articles.order_by("pk")
 
 
-def scope_counts(review, reviewer=None):
-    """How many studies a run would send, per scope: {"": all sources, "<source id>": n}."""
-    if reviewer is None:
-        articles = review.article_set.filter(status=Article.UNCLASSIFIED)
-    else:
-        articles = eligible_articles(review, reviewer=reviewer)
-    counts = {"": articles.count()}
-    for row in articles.order_by().values("source_id").annotate(n=Count("pk")):
-        counts[str(row["source_id"])] = row["n"]
+def scope_counts(review):
+    """
+    Studies per scope and status, to count what a run would send: {"": {"U": n, …}, "<source id>": {"U": n, …}},
+    every status present (0 when there is none).
+    """
+    empty = {code: 0 for code, _label in STATUSES}
+    counts = {"": dict(empty)}
+    for row in review.article_set.order_by().values("source_id", "status").annotate(n=Count("pk")):
+        if row["status"] not in empty:
+            continue
+        counts[""][row["status"]] += row["n"]
+        counts.setdefault(str(row["source_id"]), dict(empty))[row["status"]] = row["n"]
     return counts
 
 
@@ -313,11 +335,13 @@ def start_run(
     guidance="",
     threshold=DEFAULT_THRESHOLD,
     source_id=None,
+    statuses=None,
 ):
     """
     Check the settings, take the studies in scope and open a run; ``process_step`` does the work. The decisions are
     recorded as ``reviewer_id``; the calls use the actor's Jev key and ``model`` (default: the actor's default model).
-    Context fields left out (or None) take the review's values; an empty string sends the field empty.
+    Context fields left out (or None) take the review's values; an empty string sends the field empty. ``statuses``
+    picks the studies sent (codes U, R, A, D; default rejected and unclassified).
     """
     integrations.jev_api_key(actor)  # a key the actor can use, before anything else
     reviewer = get_reviewer(review, actor, reviewer_id)
@@ -329,13 +353,14 @@ def start_run(
     merged.update({name: value for name, value in (context or {}).items() if value is not None})
     context, guidance = _clean_context(merged, guidance)
     threshold = _clean_threshold(threshold)
+    statuses = clean_statuses(statuses)
     if source_id in ("", None):
         source_id = None
     elif not review.sources.filter(pk=source_id).exists():
         raise NotFound(f"Source {source_id!r} not found in this review.")
-    articles = list(eligible_articles(review, reviewer=reviewer, source_id=source_id).values_list("pk", "status"))
+    articles = list(eligible_articles(review, statuses=statuses, source_id=source_id).values_list("pk", "status"))
     if not articles:
-        raise ValidationError("There are no studies to screen in this scope.", field="source_id")
+        raise ValidationError("There are no studies with these statuses in this scope.", field="statuses")
 
     # One run at a time per review: a run left behind (page closed mid-way) is closed now.
     for stale in review.screening_runs.filter(status=ScreeningRun.RUNNING):
@@ -352,6 +377,7 @@ def start_run(
             "criteria": options,
             "threshold": threshold,
             "source_id": int(source_id) if source_id else None,
+            "statuses": statuses,
             "orders": len(_orders(options)),
         },
         total=len(articles),
@@ -492,8 +518,14 @@ def _record(run, result, response):
     result.save()
 
 
-def _unchanged(run, result):
-    """The study, if nobody changed its status since the run took it (else it is left as it is)."""
+def _changeable(run, result):
+    """
+    The study, if the run may change its status: it was unclassified, or rejected by the run's reviewer, when the run
+    took it, and nobody changed it since. Accepted studies, duplicates and studies rejected by someone else keep
+    their status (the reviewer's decision is recorded all the same).
+    """
+    if result.previous_status not in (Article.UNCLASSIFIED, Article.REJECTED):
+        return run.review.article_set.none()
     articles = run.review.article_set.filter(pk=result.article_id, status=result.previous_status)
     if result.previous_status == Article.REJECTED:
         articles = articles.filter(updated_by=run.reviewer)
@@ -514,14 +546,14 @@ def _decide(run, result, status, criteria_id, comments):
 
 def _reject(run, result, key):
     """
-    Reject the study as the run's reviewer, with the criterion ``key``. A study someone else classified while the
-    run was going keeps its status (the reviewer's decision is still recorded). False when the criterion is gone.
+    Record the reviewer's "rejected" decision with the criterion ``key``, and reject the study with it when the run
+    may change its status (see ``_changeable``). False when the criterion is gone.
     """
     criteria_id = next(option["id"] for option in run.parameters["criteria"] if option["key"] == key)
     if not run.review.selectioncriteria_set.filter(pk=criteria_id).exists():
         return False
     result.selection_criteria_id = criteria_id
-    _unchanged(run, result).update(
+    _changeable(run, result).update(
         status=Article.REJECTED, selection_criteria_id=criteria_id, updated_by=run.reviewer, updated_at=timezone.now()
     )
     _decide(run, result, Article.REJECTED, criteria_id, key)
@@ -530,11 +562,11 @@ def _reject(run, result, key):
 
 def _pass(run, result):
     """
-    No criterion applies: the reviewer's decision becomes "unclassified", and a study this reviewer had rejected in
-    an earlier run goes back to unclassified.
+    No criterion applies: the reviewer's decision becomes "unclassified", and a study this reviewer had rejected
+    goes back to unclassified.
     """
     if result.previous_status == Article.REJECTED:
-        _unchanged(run, result).update(
+        _changeable(run, result).update(
             status=Article.UNCLASSIFIED, selection_criteria=None, updated_by=run.reviewer, updated_at=timezone.now()
         )
     _decide(run, result, Article.UNCLASSIFIED, None, "no exclusion criterion")

@@ -53,6 +53,10 @@ def test_cli_run_starts_and_screens_to_the_end(runner, fake_api):
             "0.95",
             "--guidance",
             "Be strict.",
+            "--statuses",
+            "R",
+            "--statuses",
+            "A",
             "--step-size",
             "10",
         ],
@@ -62,7 +66,7 @@ def test_cli_run_starts_and_screens_to_the_end(runner, fake_api):
     assert "1/2 screened · 1 rejected · 0 passed · 0 errors" in result.output
     assert '"status": "finished"' in result.output
     assert bodies(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs") == [
-        {"guidance": "Be strict.", "threshold": 0.95}
+        {"guidance": "Be strict.", "threshold": 0.95, "statuses": ["R", "A"]}
     ]
     assert bodies(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs/3/step") == [{"size": 10}, {"size": 10}]
 

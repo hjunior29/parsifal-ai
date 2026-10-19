@@ -736,8 +736,6 @@ def ai_screening(request):
         {"user": member, "is_agent": member.pk in agent_ids, "is_you": member.pk == request.user.pk}
         for member in ai_screening_service.reviewer_choices(review, request.user)
     ]
-    # Studies a run would send depend on the reviewer (it rewrites its own earlier rejections) and on the source.
-    counts = {str(row["user"].pk): ai_screening_service.scope_counts(review, row["user"]) for row in reviewers}
     selected = ai_screening_service.last_reviewer_id(review)
     if selected not in {row["user"].pk for row in reviewers}:
         selected = reviewers[0]["user"].pk if len(reviewers) == 1 else None
@@ -768,7 +766,12 @@ def ai_screening(request):
             {"id": "", "name": "All sources"},
             *({"id": s.pk, "name": s.name} for s in review.sources.order_by("name")),
         ],
-        "counts": counts,
+        "statuses": [
+            {"code": code, "label": label, "checked": code in ai_screening_service.DEFAULT_STATUSES}
+            for code, label in ai_screening_service.STATUSES
+        ],
+        # Studies per source and status: the page adds up the checked statuses of the chosen source.
+        "counts": ai_screening_service.scope_counts(review),
         "task": ai_screening_service.TASK,
         "rules": ai_screening_service.RULES,
         "none_description": ai_screening_service.NONE_DESCRIPTION,
@@ -796,6 +799,7 @@ def ai_screening_start(request):
             guidance=request.POST.get("guidance", ""),
             threshold=request.POST.get("threshold", ai_screening_service.DEFAULT_THRESHOLD),
             source_id=request.POST.get("source-id") or None,
+            statuses=request.POST.getlist("statuses"),
         )
     except DomainError as error:
         return _ai_screening_error(error)

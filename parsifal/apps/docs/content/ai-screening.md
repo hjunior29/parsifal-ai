@@ -2,8 +2,8 @@
 
 **Exclude with AI** is the first phase of study selection done by a model: Jev
 reads each study and rejects the ones that clearly meet one of the review's
-**exclusion criteria**, in the name of a reviewer you choose. Every other study
-stays unclassified, for the next phase with the inclusion criteria.
+**exclusion criteria**, in the name of a reviewer you choose. The rest are left
+for the next phase, with the inclusion criteria.
 
 [Jev](https://docs.typesafe.ai/models) is TypeSafe's decision model: it does not
 write text, it returns the probability of each allowed answer.
@@ -46,9 +46,12 @@ AI**. The window shows what will be sent:
   plus `none` ("no criterion clearly applies, or there is not enough
   information").
 - **Threshold** (default 0.9, from 0.5 to 0.99).
-- **Studies**: all sources or one. A run sends the unclassified studies plus
-  those this reviewer rejected in an earlier run; nothing is skipped because it
-  was screened before.
+- **Studies**: all sources or one, and the **statuses** to send — any mix of
+  accepted, rejected, unclassified and duplicated (*All* checks every one). The
+  default is rejected + unclassified, so a second reviewer screens the same
+  studies as the first one, including those the first one rejected. Each status
+  shows how many studies it has; nothing is skipped because it was screened
+  before.
 
 **Start screening** sends the studies a few at a time and shows the progress
 until the run ends; there is no stop button. **Done** reloads the page.
@@ -56,7 +59,8 @@ until the run ends; there is no stop button. **Done** reloads the page.
 If a run is interrupted — the page was closed, the connection dropped, Jev
 refused the key or was unavailable — it keeps the studies it had left. The next
 time you open the window it says where the run stopped and offers **Continue**,
-which goes on with the model, context and threshold the run started with.
+which goes on with the settings the run started with (model, context, threshold,
+studies).
 Starting a new run instead discards the unfinished one.
 
 ## From the API, CLI and MCP
@@ -69,8 +73,9 @@ screen as itself.
 ```bash
 parsifal integration jev set --api-key - --model jev-1.13.0   # Settings → Integrations
 parsifal integration jev test
-parsifal ai-screening setup --review R                        # what the window shows (reviewers, models…)
+parsifal ai-screening setup --review R                        # what the window shows (reviewers, models, studies per status…)
 parsifal ai-screening run --review R --reviewer-id U --model jev-1.13.0 --threshold 0.9 --guidance @notes.txt
+parsifal ai-screening run --review R --reviewer-id U --statuses U --statuses R --statuses A   # statuses to send (default R and U)
 parsifal ai-screening runs --review R
 parsifal ai-screening results --review R --id RUN --outcome excluded
 ```
@@ -94,11 +99,9 @@ Probabilities of the options add up to 1, so the probability that *some*
 criterion applies is `1 − p(none)`, even when two criteria split it. Then:
 
 - `1 − p(none)` ≥ threshold: the reviewer's decision is **rejected**, with the
-  most probable criterion as the reason, and the study is rejected with it (the
-  reviewer is its last editor).
+  most probable criterion as the reason.
 - otherwise: the reviewer's decision is **unclassified** ("no exclusion
-  criterion") and the study stays unclassified — or goes back to unclassified
-  if this reviewer had rejected it in an earlier run.
+  criterion").
 
 Every study screened gets the reviewer's decision, visible in the article's
 *Reviewers* tab with the probability in the comment. Recording the "no
@@ -106,10 +109,19 @@ criterion" decisions too is what lets two reviewers be compared: their
 agreement counts the studies both kept, not only those both rejected. Running
 again as the same reviewer rewrites its decisions.
 
-Studies accepted, marked as duplicates or rejected by anyone else are never sent
-nor changed, and a study someone classifies while the run is going keeps that
-status. Studies that failed (for example, with no title or abstract) keep the
-reviewer's previous decision.
+The study's **status** (what the table shows) follows the decision only when
+the study is unclassified, or was rejected by this same reviewer:
+
+| Status before the run | Rejected by the run | No criterion |
+|---|---|---|
+| Unclassified | rejected, with the criterion (the reviewer is its last editor) | stays unclassified |
+| Rejected by this reviewer | rejected, with the new criterion | back to unclassified |
+| Rejected by someone else, accepted, duplicated | kept | kept |
+
+So a second reviewer screens the first one's rejections without undoing them:
+where they differ shows up in *Reviewer agreement*. A study someone classifies
+while the run is going keeps that status. Studies that failed (for example,
+with no title or abstract) keep the reviewer's previous decision.
 
 ## Reviewers and agreement
 
@@ -127,4 +139,6 @@ Start with one source and read what it rejected (filter *Rejected*; the
 *Reviewers* tab shows Jev's probability). If it rejects studies you would keep,
 raise the threshold or add guidance and run again as the same reviewer: its
 earlier rejections are screened again and rewritten. A study you mark yourself
-is no longer this reviewer's to change.
+is no longer this reviewer's to change. To try another model or guidance
+without touching the first results, run it as another reviewer and compare
+the two.

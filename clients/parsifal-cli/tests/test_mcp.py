@@ -181,17 +181,33 @@ def test_ai_screening_run_tool(server, fake_api):
     tools = {tool.name: tool for tool in run(server.list_tools())}
     schema = tools["parsifal_ai_screening_run"].inputSchema
     assert schema["required"] == ["review_id"]
-    assert {"run_id", "step_size", "max_seconds", "threshold", "guidance", "objective", "reviewer_id", "model"} <= set(
-        schema["properties"]
-    )
+    assert {
+        "run_id",
+        "step_size",
+        "max_seconds",
+        "threshold",
+        "guidance",
+        "objective",
+        "reviewer_id",
+        "model",
+        "statuses",
+    } <= set(schema["properties"])
 
     result = json.loads(
-        text_of(run(server.call_tool("parsifal_ai_screening_run", {"review_id": 7, "threshold": 0.95})))
+        text_of(
+            run(
+                server.call_tool(
+                    "parsifal_ai_screening_run", {"review_id": 7, "threshold": 0.95, "statuses": ["R", "U", "A"]}
+                )
+            )
+        )
     )
     assert (result["id"], result["status"], result["excluded"]) == (RUN["id"], "finished", 1)
     assert result["message"] == "Run finished: 2/2 screened · 1 rejected · 1 passed · 0 errors."
     assert "parameters" not in result
-    assert bodies(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs") == [{"threshold": 0.95}]
+    assert bodies(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs") == [
+        {"threshold": 0.95, "statuses": ["R", "U", "A"]}
+    ]
 
 
 def test_ai_screening_run_tool_reports_still_running(server, fake_api, monkeypatch):

@@ -227,13 +227,19 @@ reviewed (Akita, 2026-10-03).
   otherwise leave the study unclassified for the next phase.
 - Every run is made in the name of a **reviewer** chosen when it starts
   (2026-10-19, replacing a dedicated "Jev" agent): the main author may pick
-  any member, anyone else only themselves. The run sends the unclassified
-  studies plus those this reviewer rejected earlier (nothing is skipped) and
-  records the reviewer's `StudyDecision` for every study: R with the criterion
-  (the study is rejected), or U "no exclusion criterion" (the study stays, or
-  goes back to, unclassified). Recording the U decisions is what makes two
-  reviewers comparable (kappa, unanimous consolidation). A study changed by
-  someone else meanwhile is left alone (`ScreeningResult.previous_status`).
+  any member, anyone else only themselves. The run records the reviewer's
+  `StudyDecision` for every study it sends (nothing is skipped): R with the
+  criterion, or U "no exclusion criterion". Recording the U decisions is what
+  makes two reviewers comparable (kappa, unanimous consolidation).
+- The studies sent are chosen by **status** (2026-10-19): any mix of U, R, A,
+  D, default R + U. At first a run sent only U plus the reviewer's own earlier
+  rejections, so the first reviewer's rejections never reached a second one and
+  their agreement compared only the studies the first had kept (kappa 0). The
+  study's status follows the decision only when it was U or rejected by the
+  same reviewer; accepted studies, duplicates and studies rejected by someone
+  else keep theirs, so screening as a second reviewer (e.g. another model)
+  never undoes the first one. A study changed by someone else meanwhile is
+  left alone (`ScreeningResult.previous_status`).
   The run log (`ScreeningRun`, `ScreeningResult`) keeps every answer and the
   parameters snapshot.
 - The model is chosen per run from Jev's own list (`GET /v1/models`, asked

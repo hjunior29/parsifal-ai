@@ -28,8 +28,8 @@
   <div class="modal-body ai-screening-setup">
     <p>
       Jev reads the title, keywords and abstract of each study and <strong>rejects the ones that clearly meet an
-      exclusion criterion</strong>, with that criterion as the reason, in the name of the reviewer you choose. Every
-      other study stays unclassified for the next phase, with the inclusion criteria.
+      exclusion criterion</strong>, with that criterion as the reason, in the name of the reviewer you choose. The
+      rest are left for the next phase, with the inclusion criteria.
     </p>
     {% if unfinished %}
       <div class="alert alert-warning">
@@ -41,7 +41,7 @@
           {{ unfinished_progress.processed }} of {{ unfinished_progress.total }} studies{% if unfinished.error %}: {{ unfinished.error }}{% else %}.{% endif %}
           <button type="button" class="btn btn-warning btn-sm js-ai-continue" style="margin-left: 6px;">Continue</button>
         {% endif %}
-        <br><small>It continues with the model, context and threshold it started with. Starting a new run below discards it.</small>
+        <br><small>It continues with the settings it started with (model, context, threshold, studies). Starting a new run below discards it.</small>
       </div>
       {{ unfinished_progress|json_script:"ai-screening-unfinished" }}
     {% endif %}
@@ -62,8 +62,8 @@
               {% endfor %}
             </select>
             <p class="help-block small">
-              The decisions are recorded in this reviewer's name. A reviewer that screened before screens everything
-              again and its earlier decisions are rewritten. Create more reviewers as AI agents in
+              The decisions are recorded in this reviewer's name; its earlier decisions on the studies sent are
+              rewritten. Create more reviewers as AI agents in
               <a href="{% url 'manage_access' review.author.username review.name %}">Manage access</a>.
             </p>
           </div>
@@ -127,9 +127,9 @@
       </div>
 
       <div class="row">
-        <div class="col-sm-6">
+        <div class="col-sm-4">
           <div class="form-group">
-            <label for="ai-source" class="control-label">Studies</label>
+            <label for="ai-source" class="control-label">Studies from</label>
             <select name="source-id" id="ai-source" class="form-control input-sm">
               {% for source in sources %}
                 <option value="{{ source.id }}">{{ source.name }}</option>
@@ -137,12 +137,26 @@
             </select>
           </div>
         </div>
-        <div class="col-sm-6">
-          <p class="help-block small" style="margin-top: 25px;">
-            Sent: the unclassified studies, plus those this reviewer rejected in an earlier run.
-          </p>
+        <div class="col-sm-8">
+          <div class="form-group ai-statuses">
+            <label class="control-label">With the status</label>
+            <div>
+              <label class="checkbox-inline"><input type="checkbox" class="js-ai-all-statuses"> All</label>
+              {% for status in statuses %}
+                <label class="checkbox-inline">
+                  <input type="checkbox" name="statuses" value="{{ status.code }}"{% if status.checked %} checked{% endif %}>
+                  {{ status.label }} <span class="text-muted">(<span class="js-ai-status-count" data-status="{{ status.code }}">0</span>)</span>
+                </label>
+              {% endfor %}
+            </div>
+          </div>
         </div>
       </div>
+      <p class="help-block small">
+        Every study sent gets the reviewer's decision, so two reviewers that screen the same studies can be compared in
+        Reviewer agreement. Only unclassified studies and those rejected by this reviewer change status; accepted
+        studies, duplicates and studies rejected by someone else keep theirs.
+      </p>
       {{ counts|json_script:"ai-screening-counts" }}
 
       <details class="small text-muted">
@@ -152,8 +166,8 @@
           <li>Task: {{ task }}</li>
           {% for rule in rules %}<li>{{ rule }}</li>{% endfor %}
           <li>The criteria are asked in three different orders in the same request and the answers averaged, because the model tends to favour the first option when unsure.</li>
-          <li>Studies accepted, marked as duplicates or rejected by anyone else are never sent nor changed.</li>
-          <li>Every study screened gets the reviewer's decision: rejected with a criterion, or unclassified when no criterion applies. A study this reviewer had rejected before goes back to unclassified if no criterion applies now.</li>
+          <li>Every study screened gets the reviewer's decision: rejected with a criterion, or unclassified when no criterion applies.</li>
+          <li>Status: an unclassified study is rejected when a criterion applies; a study this reviewer had rejected takes the new criterion, or goes back to unclassified if no criterion applies now. Accepted studies, duplicates and studies rejected by someone else keep their status.</li>
         </ul>
       </details>
     </form>
@@ -166,7 +180,7 @@
     </div>
     <p>
       <span class="label label-danger"><span class="js-ai-excluded">0</span> rejected</span>
-      <span class="label label-default"><span class="js-ai-passed">0</span> passed to the next phase</span>
+      <span class="label label-default"><span class="js-ai-passed">0</span> passed (no criterion)</span>
       <span class="label label-warning"><span class="js-ai-failed">0</span> errors</span>
       <span class="text-muted small"><span class="js-ai-processed">0</span> of <span class="js-ai-total">0</span></span>
     </p>
