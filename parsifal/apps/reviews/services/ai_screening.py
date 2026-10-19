@@ -19,6 +19,7 @@ from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
 
+from parsifal.apps.accounts import services as integrations
 from parsifal.apps.accounts.models import Integration
 from parsifal.apps.core import jev
 from parsifal.apps.core.exceptions import NotFound, ValidationError
@@ -335,7 +336,7 @@ def process_step(*, run, actor, size=STEP_SIZE):
         raise ValidationError(f"size must be between 1 and {MAX_STEP_SIZE}.", field="size")
     if run.status != ScreeningRun.RUNNING:
         return []
-    integration = integration_for(actor)
+    api_key = integrations.jev_api_key(actor)
     pending = list(run.results.filter(outcome=ScreeningResult.PENDING).select_related("article", "run")[:size])
     if not pending:
         _close(run, ScreeningRun.FINISHED)
@@ -349,7 +350,7 @@ def process_step(*, run, actor, size=STEP_SIZE):
         if article_state is not None:
             payloads[result.pk] = {"state": article_state, "questions": asked}
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
-        futures = {pk: pool.submit(_ask, integration.api_key, run.model, payload) for pk, payload in payloads.items()}
+        futures = {pk: pool.submit(_ask, api_key, run.model, payload) for pk, payload in payloads.items()}
         responses = {pk: future.result() for pk, future in futures.items()}
 
     fatal = next((r for r in responses.values() if isinstance(r, jev.JevError) and r.fatal), None)

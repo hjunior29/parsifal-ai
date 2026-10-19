@@ -21,7 +21,7 @@ template). `DATABASE_URL` is parsed by `dj-database-url`.
 
 | Variable | Default (base.py) | Used by | Fork relevance |
 |----------|-------------------|---------|----------------|
-| `SECRET_KEY` | `"parsifal.settings.local"` | Django | Must be set in self-hosted deployments. |
+| `SECRET_KEY` | `"parsifal.settings.local"` | Django, `core/crypto.py` | Must be set in self-hosted deployments. It also derives the key that encrypts the users' Jev API keys: after changing it, each user saves their Jev key again (API tokens are hashed and not affected). |
 | `DEBUG` | `True` | Django | |
 | `ALLOWED_HOSTS` | `127.0.0.1,localhost` (CSV) | Django | |
 | `ADMINS` | `""` (`name,email;name,email`) | Django error mail | |

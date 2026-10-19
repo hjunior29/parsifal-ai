@@ -1,6 +1,6 @@
 from unittest import mock
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from parsifal.apps.accounts.models import Integration
@@ -38,6 +38,11 @@ class TestIntegrationsView(TestCase):
         self.client.post(self.url, {"action": "save", "api_key": f" {KEY} ", "model": "jev-1.13.0"})
         integration = Integration.objects.get(user=self.user, provider=Integration.JEV)
         self.assertEqual((KEY, "jev-1.13.0"), (integration.api_key, integration.model))
+
+        with self.subTest(msg="stored encrypted"):
+            stored = Integration.objects.values_list("api_key_encrypted", "key_hint").get(pk=integration.pk)
+            self.assertNotIn(KEY, stored[0])
+            self.assertEqual("cdef", stored[1])
 
         with self.subTest(msg="the key is never rendered back"):
             response = self.client.get(self.url)
@@ -79,3 +84,9 @@ class TestIntegrationsView(TestCase):
         with mock.patch.object(jev, "list_models", side_effect=error):
             response = self.client.post(self.url, {"action": "test"}, follow=True)
         self.assertContains(response, "Jev rejected the API key.")
+
+    def test_a_key_saved_under_another_secret_key_must_be_saved_again(self):
+        with override_settings(SECRET_KEY="the-secret-key-before-rotation"):
+            Integration.objects.create(user=self.user, provider=Integration.JEV, api_key=KEY, model="jev-1.13.0")
+        response = self.client.post(self.url, {"action": "test"}, follow=True)
+        self.assertContains(response, "can no longer be decrypted")

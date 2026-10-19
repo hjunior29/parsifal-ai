@@ -170,7 +170,9 @@ group and marks the rest `D`.
   pending/excluded/passed/error, p_exclude, probabilities JSON,
   selection_criteria SET_NULL, model, error, processed_at)`, unique per
   (run, article). Pending rows are deleted when a run ends.
-- `accounts.Integration(user, provider "jev", api_key, model)`, unique per
+- `accounts.Integration(user, provider "jev", api_key_encrypted, key_hint, model)`: the key is encrypted
+  with a key derived from `SECRET_KEY` (`core/crypto.py`, Fernet), `key_hint` keeps its last 4 characters for
+  display, `model` is the default model. Unique per
   (user, provider).
 
 ## People and collaboration

@@ -231,7 +231,9 @@ reviewed (Akita, 2026-10-03).
   Passed studies get no decision; the run log (`ScreeningRun`,
   `ScreeningResult`) keeps every answer and the parameters snapshot.
 - The API key is per user in *Settings → Integrations*
-  (`accounts.Integration`), stored as given, never rendered back.
+  (`accounts.Integration`), encrypted at rest with a key derived from
+  `SECRET_KEY` (it must be readable to be sent to Jev, so it cannot be
+  hashed like Parsifal's own API tokens), never rendered back.
   `JEV_API_URL` can point to a compatible server.
 - The browser drives the run in steps of 8 studies (4 concurrent requests),
   so there is no task queue; the client retries 429/5xx/529 with backoff and a

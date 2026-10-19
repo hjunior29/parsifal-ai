@@ -17,7 +17,9 @@ write text, it returns the probability of each allowed answer.
    checks that Jev accepts it.
 3. Write the exclusion criteria in **Planning**. Jev works best in English.
 
-The key is stored in this instance's database and is never shown again in full.
+The key is stored encrypted (with a key derived from the instance's `SECRET_KEY`) and is never shown again in
+full; if `SECRET_KEY` changes, save the Jev key again. Parsifal's own API tokens are stored as hashes, so not
+even Parsifal can read them back.
 Calls are billed to it.
 
 ## Running it

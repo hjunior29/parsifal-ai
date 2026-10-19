@@ -21,7 +21,7 @@ class ApiTokenAdmin(admin.ModelAdmin):
 class IntegrationAdmin(admin.ModelAdmin):
     list_display = ("user", "provider", "model", "masked_key", "updated_at")
     list_select_related = ("user",)
-    exclude = ("api_key",)  # never rendered back; users replace it in Settings → Integrations
+    exclude = ("api_key_encrypted", "key_hint")  # never rendered; users replace it in Settings → Integrations
     readonly_fields = ("masked_key", "created_at", "updated_at")
     raw_id_fields = ("user",)
 

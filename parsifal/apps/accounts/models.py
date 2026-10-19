@@ -6,6 +6,8 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from parsifal.apps.core import crypto
+
 TOKEN_PREFIX = "pfl_"
 
 
@@ -81,19 +83,22 @@ class ApiToken(models.Model):
 class Integration(models.Model):
     """
     A third-party service the user connected, with the API key Parsifal uses to call it on the user's behalf. Only
-    Jev (TypeSafe), used by the AI exclusion screening, for now. The key is stored as given, so whoever can read the
-    database can read it; the pages show only its last characters and the API never returns it.
+    Jev (TypeSafe), used by the AI exclusion screening, for now. The key is stored encrypted (``core.crypto``, derived
+    from SECRET_KEY) because it has to be sent to the service; the pages show only its last characters and the API
+    never returns it.
     """
 
     JEV = "jev"
     PROVIDERS = ((JEV, "Jev (TypeSafe)"),)
+    API_KEY_LENGTH = 500
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="integrations", verbose_name=_("user")
     )
     provider = models.CharField(_("provider"), max_length=20, choices=PROVIDERS)
-    api_key = models.CharField(_("API key"), max_length=500)
-    model = models.CharField(_("model"), max_length=100)
+    api_key_encrypted = models.TextField(_("API key (encrypted)"))
+    key_hint = models.CharField(_("last characters of the API key"), max_length=4, blank=True)
+    model = models.CharField(_("default model"), max_length=100)
     created_at = models.DateTimeField(_("created at"), auto_now_add=True)
     updated_at = models.DateTimeField(_("updated at"), auto_now=True)
 
@@ -106,5 +111,15 @@ class Integration(models.Model):
         return f"{self.get_provider_display()} ({self.user})"
 
     @property
+    def api_key(self):
+        """The decrypted key; raises ``crypto.DecryptionError`` if SECRET_KEY changed since it was saved."""
+        return crypto.decrypt(self.api_key_encrypted)
+
+    @api_key.setter
+    def api_key(self, value):
+        self.api_key_encrypted = crypto.encrypt(value)
+        self.key_hint = value[-4:] if len(value) > 8 else ""
+
+    @property
     def masked_key(self):
-        return f"…{self.api_key[-4:]}" if len(self.api_key) > 8 else "…"
+        return f"…{self.key_hint}"
