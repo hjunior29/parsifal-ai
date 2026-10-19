@@ -25,8 +25,13 @@ template). `DATABASE_URL` is parsed by `dj-database-url`.
 | `DEBUG` | `True` | Django | |
 | `ALLOWED_HOSTS` | `127.0.0.1,localhost` (CSV) | Django | |
 | `ADMINS` | `""` (`name,email;name,email`) | Django error mail | |
-| `PARSIFAL_DATA_DIR` | `<repo root>/data` (created on startup) | settings | Holds the SQLite file, `media/` and (by default) collected `static/`. Added in phase 0. |
+| `PARSIFAL_DATA_DIR` | `<repo root>/data` (created on startup) | settings | Holds the SQLite file, `files/` (the studies' PDFs, unless they go to a bucket), `media/` and (by default) collected `static/`. Added in phase 0. |
 | `PARSIFAL_STATIC_ROOT` | `<PARSIFAL_DATA_DIR>/static` | settings | Phase 6. Docker collects into `/app/staticfiles`, outside the data volume. |
+| `PARSIFAL_PDF_MAX_MB` | `50` | `services/full_texts.py` | Largest PDF accepted per study. |
+| `PARSIFAL_FILES_BUCKET` | empty | `STORAGES["files"]` | When set, the studies' PDFs go to this S3-compatible bucket (django-storages `S3Storage`, `requirements/s3.txt`) instead of `<PARSIFAL_DATA_DIR>/files`. Private bucket, SigV4 links that expire. |
+| `AWS_ENDPOINT_URL_S3`, `AWS_REGION` | empty | `STORAGES["files"]` | The bucket's endpoint and region. |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | empty | boto3 | Read by boto3 from the environment; never copied into the settings. |
+| `PARSIFAL_FILES_PREFIX`, `PARSIFAL_FILES_LINK_SECONDS` | empty, `300` | `STORAGES["files"]` | Folder inside the bucket; lifetime of the signed links the browser is sent to. |
 | `DATABASE_URL` | `sqlite:///<PARSIFAL_DATA_DIR>/parsifal.sqlite3` (upstream: a Postgres URL) | `dj_database_url` | SQLite connections get `journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=30000`, `foreign_keys=ON` via `core/database.py` (ADR-001). |
 | `LANGUAGE_CODE` | `en-us` | i18n | `LANGUAGES` lists en-us and pt-br but `parsifal/locale/` does not exist in the repo. |
 | `TIME_ZONE` | `UTC` | | |
@@ -47,7 +52,8 @@ Other notable constants in `base.py`:
 - `AUTHENTICATION_BACKENDS = ("parsifal.apps.authentication.backends.CaseInsensitiveUsernameOrEmailModelBackend",)` — login with username **or** e-mail, case-insensitive.
 - `ABSOLUTE_URL_OVERRIDES["auth.user"] = /<username>/` — a user's "profile" is their review list.
 - `LOGIN_REDIRECT_URL = "login_redirect"` → `/<username>/`.
-- `STATIC_ROOT = PARSIFAL_DATA_DIR / "static"` and `MEDIA_ROOT = PARSIFAL_DATA_DIR / "media"` (upstream kept them two levels above the repository root to match its `/home/parsifal/{parsifal,static,media}` layout).
+- `STATIC_ROOT = PARSIFAL_DATA_DIR / "static"` and `MEDIA_ROOT = PARSIFAL_DATA_DIR / "media"` (upstream kept them two levels above the repository root to match its `/home/parsifal/{parsifal,static,media}` layout). `MEDIA_ROOT` is no longer served (nothing public is uploaded).
+- `STORAGES["files"]` — where the studies' PDFs are kept: `FileSystemStorage` at `PARSIFAL_DATA_DIR / "files"`, or `S3Storage` when `PARSIFAL_FILES_BUCKET` is set. Code reaches it through `core.models.files_storage()`; the test settings point it at a temporary folder.
 - `DATA_UPLOAD_MAX_MEMORY_SIZE = 10 MB` — limits BibTeX uploads posted as form data.
 - `SITE_ID = 1` — `django.contrib.sites` is used by `invites` to build absolute invite links.
 - `DEFAULT_AUTO_FIELD = BigAutoField`.

@@ -1,9 +1,10 @@
 # 16 — Self-hosting
 
 A Parsifal instance is **one process and one directory**: Django served by
-gunicorn (static files through WhiteNoise, media through Django) and a data
-directory holding the SQLite database, uploaded pictures and backups. No
-PostgreSQL, Redis, nginx or workers are required.
+gunicorn (static files through WhiteNoise) and a data directory holding the
+SQLite database, the studies' PDFs and backups. No PostgreSQL, Redis, nginx or
+workers are required. The PDFs may go to an S3-compatible bucket instead
+(see [Full texts](#full-texts-pdfs)).
 
 ## Option A — Docker (recommended)
 
@@ -71,7 +72,7 @@ still show the nginx + supervisor layout if you prefer a front web server.
 | `SECRET_KEY` | insecure placeholder | **Required** for any reachable instance; `init` warns when missing. |
 | `DEBUG` | `True` (`False` in Docker) | Never `True` on a reachable instance. |
 | `ALLOWED_HOSTS` | `127.0.0.1,localhost` (`*` in Docker) | Comma-separated host names. |
-| `PARSIFAL_DATA_DIR` | `./data` (`/data` in Docker) | Database, media, backups. |
+| `PARSIFAL_DATA_DIR` | `./data` (`/data` in Docker) | Database, the studies' PDFs (`files/`), backups. |
 | `PARSIFAL_STATIC_ROOT` | `<data dir>/static` (`/app/staticfiles` in Docker) | Collected static files served by WhiteNoise. |
 | `COMPRESS_ENABLED` | `False` | django-compressor bundling; off so WhiteNoise serves the collected files as they are. |
 | `DATABASE_URL` | `sqlite:///<data dir>/parsifal.sqlite3` | Only SQLite is supported. |
@@ -80,6 +81,27 @@ still show the nginx + supervisor layout if you prefer a front web server.
 | `CSRF_TRUSTED_ORIGINS` | empty | Needed when the public origin differs from the host Django sees. |
 | `EMAIL_*`, `DEFAULT_FROM_EMAIL` | console backend | SMTP delivery. |
 | `GUNICORN_WORKERS`, `GUNICORN_TIMEOUT`, `PORT` | `2`, `120`, `8000` | Container only. |
+| `PARSIFAL_PDF_MAX_MB` | `50` | Largest PDF accepted per study. |
+| `PARSIFAL_FILES_BUCKET` | empty | Keep the PDFs in this S3-compatible bucket instead of `<data dir>/files`. |
+| `AWS_ENDPOINT_URL_S3`, `AWS_REGION` | empty | The bucket's endpoint and region (Tigris: `https://fly.storage.tigris.dev`, `auto`). |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | empty | The bucket's credentials, read by boto3 (never stored in the settings). |
+| `PARSIFAL_FILES_PREFIX`, `PARSIFAL_FILES_LINK_SECONDS` | empty, `300` | Folder inside the bucket; how long a link to a PDF lasts. |
+
+## Full texts (PDFs)
+
+Each study may have one PDF (the *Full text* tab of the study, or
+`parsifal article pdf upload`). By default the files are kept in
+`<data dir>/files/`, a folder that is never served directly: the browser reads
+a PDF through a route that checks the reader is a member of the review.
+
+To keep them in a bucket (Tigris, Cloudflare R2, MinIO, AWS S3), set
+`PARSIFAL_FILES_BUCKET` and the `AWS_*` variables above. The Docker image and
+`requirements/production.txt` include the client (`requirements/s3.txt`); a
+plain-Python install for development needs `pip install -r requirements/s3.txt`.
+The bucket stays private: the browser is sent to a signed link that expires
+after `PARSIFAL_FILES_LINK_SECONDS`, and the API streams the file. Changing
+where the files live does not move the existing ones — copy them over first
+(same keys, under `PARSIFAL_FILES_PREFIX`).
 
 ## Backups and restore
 
@@ -91,8 +113,9 @@ python manage.py restore --file backups/parsifal-20261015-120000.sqlite3 --yes
 
 `backup` uses SQLite's online backup API through a dedicated connection, so it
 is safe while the application is running (WAL mode). `restore` replaces the
-live database contents; stop other processes first. Uploaded pictures are
-plain files under `<data dir>/media/` — include them in your backup routine.
+live database contents; stop other processes first. `backup` copies the
+database only: the studies' PDFs are plain files under `<data dir>/files/` —
+include that folder in your backup routine (a bucket is backed up on its own).
 
 ## Upgrading
 
@@ -122,7 +145,8 @@ claude mcp add parsifal -e PARSIFAL_URL=$PARSIFAL_URL -e PARSIFAL_TOKEN=$PARSIFA
 - `PARSIFAL_HTTPS=True` behind TLS; keep sign-up closed unless needed.
 - Tokens are hashed at rest; revoke them from Settings → API tokens when a
   machine is retired.
-- The `/media/` route serves only uploaded profile pictures; the `/admin/`
-  site is available to superusers — protect it at the proxy if exposed to the
-  internet.
+- Nothing under the data directory is served as is: PDFs go through a route
+  that checks review membership (or a signed bucket link that expires). The
+  `/admin/` site is available to superusers — protect it at the proxy if
+  exposed to the internet.
 - Restrict the data directory's permissions; it contains everything.

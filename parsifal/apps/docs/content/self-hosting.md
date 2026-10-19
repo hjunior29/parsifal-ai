@@ -1,7 +1,7 @@
 # Self-hosting
 
 A Parsifal instance is one process and one directory. The database is SQLite;
-uploaded pictures, backups and (by default) collected static files live in the
+the studies' PDFs, backups and (by default) collected static files live in the
 **data directory** (`PARSIFAL_DATA_DIR`, `./data` or `/data` in Docker).
 
 ## Docker
@@ -38,11 +38,32 @@ gunicorn parsifal.wsgi:application --bind 0.0.0.0:8000 --workers 2
 | `SECRET_KEY` | insecure placeholder | Required for any reachable instance. |
 | `DEBUG` | `True` (`False` in Docker) | Never `True` when reachable by others. |
 | `ALLOWED_HOSTS` | `127.0.0.1,localhost` (`*` in Docker) | Host names of the instance. |
-| `PARSIFAL_DATA_DIR` | `./data` (`/data`) | Database, media, backups. |
+| `PARSIFAL_DATA_DIR` | `./data` (`/data`) | Database, the studies' PDFs (`files/`), backups. |
 | `PARSIFAL_ALLOW_SIGNUP` | `False` | Open registration. |
 | `PARSIFAL_HTTPS` | `False` | Secure cookies, HSTS and HTTPS redirect when behind TLS. |
 | `CSRF_TRUSTED_ORIGINS` | empty | Public origin when it differs from the host Django sees. |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL` | console | Without `EMAIL_HOST`, e-mails (password reset) are written to the log. |
+| `PARSIFAL_PDF_MAX_MB` | `50` | Largest PDF accepted per study. |
+| `PARSIFAL_FILES_BUCKET` | empty | Keep the PDFs in an S3-compatible bucket (next section). |
+
+## Full texts in a bucket
+
+Each study may have one PDF, kept in `<data dir>/files/` and read only through
+a route that checks the reader is a member of the review. To keep the PDFs in
+a bucket instead (Tigris, Cloudflare R2, MinIO, AWS S3), set:
+
+```
+PARSIFAL_FILES_BUCKET=my-papers
+AWS_ENDPOINT_URL_S3=https://fly.storage.tigris.dev   # your provider's endpoint
+AWS_REGION=auto
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+```
+
+The bucket stays private: the browser gets a signed link that expires (5
+minutes, `PARSIFAL_FILES_LINK_SECONDS`). The Docker image already has the S3
+client; a plain-Python install needs `pip install -r requirements/s3.txt`.
+Existing PDFs are not moved when you switch: copy them over first.
 
 ## HTTPS
 
@@ -58,7 +79,8 @@ python manage.py restore --file <backup> --yes # replaces the live database; sto
 ```
 
 `backup` uses SQLite's online backup API and is safe while the application
-runs. Back up the whole data directory to keep uploaded pictures too.
+runs. It copies the database only: back up the whole data directory to keep the
+studies' PDFs (`files/`) too.
 
 ## Upgrading
 

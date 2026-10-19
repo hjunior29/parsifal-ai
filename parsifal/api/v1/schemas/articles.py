@@ -3,6 +3,25 @@ from datetime import datetime
 from ninja import Schema
 
 
+class PdfOut(Schema):
+    """The study's full text; download it from GET /reviews/{review_id}/articles/{article_id}/pdf."""
+
+    filename: str
+    content_type: str
+    size: int
+    sha256: str
+    uploaded_by: str | None = None
+    uploaded_at: datetime
+
+    @staticmethod
+    def resolve_uploaded_by(obj):
+        return obj.uploaded_by.username if obj.uploaded_by else None
+
+    @staticmethod
+    def resolve_uploaded_at(obj):
+        return obj.created_at
+
+
 class ArticleOut(Schema):
     id: int
     bibtex_key: str
@@ -30,6 +49,7 @@ class ArticleOut(Schema):
     found_via_id: int | None = None
     comments: str | None = None
     finished_data_extraction: bool
+    pdf: PdfOut | None = None  # the full text, when one was uploaded
     created_at: datetime | None = None
     updated_at: datetime | None = None
     created_by: str | None = None

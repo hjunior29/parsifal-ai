@@ -296,3 +296,33 @@ the Jev key of the caller. The CLI command `ai-screening run` and the MCP tool
 Thresholds should be checked against the reviewer's own decisions before
 relying on them.
 
+
+## Full texts: one PDF per study, in a private folder or an S3-compatible bucket
+
+**Context.** Helder wants the whole analysis inside Parsifal, so the accepted
+studies' PDFs should live next to them. Storage must stay simple: a folder
+when the instance runs locally, an object store such as Tigris when it runs in
+the cloud. The PDFs are copyrighted and private to the review.
+
+**Decision.** `Article.pdf` points at a generic `core.StoredFile` row (key in
+the storage, uploaded name, size, SHA-256, uploader). One PDF per study, any
+status may have one; no automatic fetching by DOI. Files live in the "files"
+storage: `FileSystemStorage` at `<data dir>/files`, or django-storages'
+`S3Storage` when `PARSIFAL_FILES_BUCKET` is set (private bucket, SigV4 links
+that expire, credentials read by boto3 from the environment and never put in
+the settings). The study window gets a *Full text* tab that frames the PDF
+with the browser's own viewer and opens it in a new tab; that route checks
+review membership and sends the file (folder) or redirects to a signed link
+(bucket). The API streams the file in both cases, so clients need no redirect
+handling. The `/media/` route, which served anything under `MEDIA_ROOT`
+without a login, was removed: nothing public is uploaded any more.
+
+**Consequences.** Migrations `core.0004` and `reviews.0046`;
+`requirements/s3.txt` (part of `production.txt`, so of the Docker image).
+Operations `articles_pdf_upload`, `articles_pdf_download`,
+`articles_pdf_delete` (CLI `article pdf upload|download|delete`). Attaching a
+PDF saves only `pdf`, keeping `updated_by`, which AI screening uses to decide
+which statuses a run may change. `manage.py backup` still copies only the
+database: `<data dir>/files` must be backed up with it. Switching between
+folder and bucket does not move existing files. The unused jQuery File Upload
+plugin and the commented-out "Files" tab were removed.

@@ -122,10 +122,25 @@ The candidate study inside a review (despite the name, any BibTeX entry type).
 | Bibliographic | `title` (≤1000, indexed), `author`, `journal`, `year` (CharField ≤10, indexed), `pages`, `volume`, `abstract` (≤4000), `document_type`, `doi` (≤50), `url` (≤500), `affiliation`, `author_keywords`, `keywords`, `publisher`, `issn`, `language`, `note` |
 | Selection | `status` ∈ {`U` Unclassified (default), `R` Rejected, `A` Accepted, `D` Duplicated}, `selection_criteria` FK (SET_NULL), `comments` (≤2000) |
 | Extraction | `finished_data_extraction` bool |
+| Full text | `pdf` OneToOne → `core.StoredFile` (nullable, SET_NULL): the study's PDF, any status may have one |
 | Audit | `created_at`, `updated_at`, `created_by`, `updated_by` |
 
 Methods: `get_score()` (Σ QA answer weights), `get_quality_assesment()`,
 `get_status_html()` (Bootstrap label markup).
+
+### Full text (`core.StoredFile`)
+
+One uploaded file and where it is kept: `key` (its name in the "files"
+storage, unique), `filename` (as uploaded, given back on download),
+`content_type`, `size`, `sha256`, `uploaded_by` (SET_NULL), `created_at`.
+`Article.pdf` points at it; `services.full_texts` attaches, replaces and
+removes it. Only PDFs are accepted (judged by the `%PDF-` header in the first
+1024 bytes), up to `PARSIFAL_PDF_MAX_MB`. Attaching saves `pdf` alone, so the
+article's `updated_by` — who set the status, which AI screening relies on — is
+untouched. Deleting the row deletes the stored object once the transaction
+commits; deleting the article (also through its source or its review) deletes
+the row. The storage is a private folder (`<data dir>/files`) or an
+S3-compatible bucket (`PARSIFAL_FILES_BUCKET`).
 
 Status transitions are unconstrained: any status can be set directly through
 `save_article_details` or the bulk actions

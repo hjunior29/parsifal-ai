@@ -13,7 +13,7 @@ from parsifal.apps.core.constants import Environments
 
 BASE_DIR = Path(__file__).resolve(strict=True).parent.parent
 
-# Writable directory holding the SQLite database, uploaded media and collected static files.
+# Writable directory holding the SQLite database, uploaded files and collected static files.
 # Defaults to <repository root>/data so a self-hosted instance keeps all its state in one place.
 PARSIFAL_DATA_DIR = Path(config("PARSIFAL_DATA_DIR", default=str(BASE_DIR.parent / "data")))
 PARSIFAL_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -190,6 +190,39 @@ STORAGES = {
     # self-hosted instance needs no separate web server for /static/.
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
 }
+
+
+# ==============================================================================
+# UPLOADED FILES (the studies' full texts)
+# ==============================================================================
+
+# The full texts (one PDF per study) are private: they never go under MEDIA_ROOT, which is served without a login.
+# They live in <data dir>/files, or in an S3-compatible bucket (Tigris, Cloudflare R2, MinIO, AWS S3) when
+# PARSIFAL_FILES_BUCKET is set; that needs requirements/s3.txt. The bucket's credentials are read by boto3 from
+# AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY and never enter the settings.
+PARSIFAL_FILES_BUCKET = config("PARSIFAL_FILES_BUCKET", default="")
+if PARSIFAL_FILES_BUCKET:
+    STORAGES["files"] = {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "bucket_name": PARSIFAL_FILES_BUCKET,
+            "endpoint_url": config("AWS_ENDPOINT_URL_S3", default=None),
+            "region_name": config("AWS_REGION", default=None),
+            "location": config("PARSIFAL_FILES_PREFIX", default=""),
+            "default_acl": None,  # the bucket stays private: files are read through links that expire
+            "querystring_auth": True,
+            "querystring_expire": config("PARSIFAL_FILES_LINK_SECONDS", default=300, cast=int),
+            "signature_version": "s3v4",  # the only one R2 and Tigris accept
+            "file_overwrite": False,
+        },
+    }
+else:
+    STORAGES["files"] = {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "OPTIONS": {"location": str(PARSIFAL_DATA_DIR / "files")},
+    }
+
+PARSIFAL_PDF_MAX_MB = config("PARSIFAL_PDF_MAX_MB", default=50, cast=int)
 
 
 # ==============================================================================

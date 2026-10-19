@@ -34,6 +34,7 @@ like the CLI. The server only talks to the API; it never touches the database.
 | `parsifal_workflow_guide` | The planning → conducting → reporting guide. |
 | `parsifal_ai_screening_run` | Exclude with AI in one call: Jev rejects the studies that clearly meet an exclusion criterion; with `phase="inclusion"`, Include with AI: accepts those that clearly meet every inclusion criterion and never rejects (`threshold` is how sure Jev must be to reject, or to accept; continue with `run_id` if the time budget runs out). |
 | `parsifal_export_*` | Save CSV/XLSX/JSON/DOCX files (`output_path`). |
+| `parsifal_articles_pdf_upload`, `parsifal_articles_pdf_download`, `parsifal_articles_pdf_delete` | The study's PDF: upload a local file (`file` is its path), save it to `output_path`, or delete it. |
 
 Tool annotations tell the client which tools are read-only, idempotent or
 destructive, so it can ask you before deleting anything. `review_id` accepts a

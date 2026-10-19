@@ -29,7 +29,7 @@ document at `/api/v1/openapi.json`.
 | Protocol | `/questions`, `/keywords` (+ `/import-picoc`), `/search-string` (+ `/generate`), `/sources` (+ `/search-strings`, `/{id}/search-string`, `/{id}/search`), `/criteria` |
 | Quality assessment | `/quality/questions`, `/quality/answers` (+ `/suggested`), `/quality/max-score`, `/quality/cutoff`, `/quality/summary`, `/articles/{id}/quality` |
 | Data extraction | `/extraction/fields`, `/articles/{id}/extraction` (+ `/done`) |
-| Articles | `/articles` (list, create), `/articles/{id}`, `/articles/status`, `/articles/import`, `/articles/import/file`, `/articles/duplicates` (+ `/resolve`) |
+| Articles | `/articles` (list, create), `/articles/{id}`, `/articles/status`, `/articles/import`, `/articles/import/file`, `/articles/duplicates` (+ `/resolve`), `/articles/{id}/pdf` (POST multipart `file`, GET, DELETE: the study's PDF; each article carries `pdf` or `null`) |
 | Classification (optional) | `/facets` (+ templates, categories), `/articles/{id}/classification`, `/analytics/facets/{id}/frequencies`, `/analytics/facet-matrix`, `/test-set`, `/checklist` |
 | Multiple reviewers | `/decisions`, `/articles/{id}/decisions`, `/decisions/agreement`, `/decisions/disagreements`, `/decisions/consolidate` |
 | Exclude and include with AI (Jev) | `/integrations/jev` (+ `/test`; not review-scoped), `/ai-screening?phase=`, `/ai-screening/runs` (+ `/{id}`, `/{id}/step`, `/{id}/results`; `phase` exclusion or inclusion) — see [Exclude and include with AI](/docs/ai-screening/) |

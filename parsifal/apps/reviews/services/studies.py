@@ -198,7 +198,11 @@ def import_bibtex(*, review, source_id, content, actor=None):
 
 
 def get_article(*, review, article_id):
-    return get_child(review.article_set.select_related("source", "selection_criteria"), article_id, label="Article")
+    return get_child(
+        review.article_set.select_related("source", "selection_criteria", "pdf__uploaded_by"),
+        article_id,
+        label="Article",
+    )
 
 
 def _apply_fields(article, fields):
@@ -283,7 +287,9 @@ def set_status(*, review, article_ids, status, selection_criteria_id=None, comme
 
 
 def list_articles(review, *, source_id=None, status=None, query=None, finished_data_extraction=None):
-    queryset = review.article_set.select_related("source", "selection_criteria").order_by("title", "pk")
+    queryset = review.article_set.select_related("source", "selection_criteria", "pdf__uploaded_by").order_by(
+        "title", "pk"
+    )
     if source_id is not None:
         queryset = queryset.filter(source_id=source_id)
     if status is not None:

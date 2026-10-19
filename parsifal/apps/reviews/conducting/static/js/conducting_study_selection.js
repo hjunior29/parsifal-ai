@@ -10,38 +10,6 @@ function isScrolledIntoView(elem) {
 
 $(function () {
 
-  $("body").on("click", ".js-start-upload", function () {
-    $(this).siblings("input[type='file']").click();
-  });
-
-  $("body").on("change", "#id_article_file", function () {
-
-    var data = new FormData();
-    data.append("article_file", $(this)[0].files[0]);
-
-    $.ajax({
-      url: '/reviews/conducting/articles/upload/',
-      data: data,
-      cache: false,
-      contentType: false,
-      processData: false,
-      type: 'post',
-      beforeSend: function () {
-        $.parsifal.pageLoading();
-      },
-      success: function (data) {
-        $("#tab-files").html(data);
-      },
-      error: function () {
-
-      },
-      complete: function () {
-        $.parsifal.pageLoading();
-      }
-    });
-
-  });
-
   $(".source-tab-content").on("click", ".btn-add-manual", function () {
     var container = $("#modal-add-article .modal-body");
     var review_id = $("#review-id").val();
@@ -111,21 +79,6 @@ $(function () {
       },
       success: function (data) {
         $(container).html(data);
-
-        $('#fileupload').fileupload({
-          url: '/reviews/conducting/articles/upload/',
-          dataType: 'json',
-          done: function (e, data) {
-            data.result.forEach(function (uploadedFile) {
-              $("#files").append("<li class='list-group-item'>" + uploadedFile.name + "</li>");
-            });
-          },
-          progressall: function (e, data) {
-            var progress = parseInt(data.loaded / data.total * 100, 10);
-            $('#progress .progress-bar').css('width', progress + '%');
-          }
-        }).prop('disabled', !$.support.fileInput).parent().addClass($.support.fileInput ? undefined : 'disabled');
-
       },
       complete: function () {
         $(container).spinner();
@@ -177,6 +130,63 @@ $(function () {
       },
       complete: function () { btn.prop("disabled", false); }
     });
+  });
+
+  /* Full text tab: the PDF is fetched only when the tab is opened, not with every article of Previous/Next. */
+  function loadPdfFrame() {
+    var frame = $("#modal-article .article-pdf-frame");
+    if (frame.length && !frame.attr("src") && $("#modal-article #tab-full-text").hasClass("active")) {
+      frame.attr("src", frame.data("src"));
+    }
+  }
+
+  $("#modal-article").on("shown.bs.tab", "a[href='#tab-full-text']", loadPdfFrame);
+
+  function postPdf(url, data, title) {
+    data.append("csrfmiddlewaretoken", $("#article-details [name=csrfmiddlewaretoken]").val());
+    data.append("review-id", $("#modal-article #review-id").val());
+    data.append("article-id", $("#modal-article #article-id").val());
+    var buttons = $("#modal-article #article-pdf button");
+    $.ajax({
+      url: url,
+      type: 'post',
+      data: data,
+      cache: false,
+      contentType: false,
+      processData: false,
+      beforeSend: function () { buttons.prop("disabled", true); },
+      success: function (html) {
+        $("#modal-article #article-pdf").replaceWith(html);
+        var tab = $("#modal-article a[href='#tab-full-text']");
+        tab.find(".glyphicon").remove();
+        if ($("#modal-article .article-pdf-frame").length) {
+          tab.append(' <span class="glyphicon glyphicon-file" title="Has a PDF"></span>');
+        }
+        loadPdfFrame();
+      },
+      error: function (xhr) {
+        $.parsifal.alert(title, requestError(xhr));
+      },
+      complete: function () { buttons.prop("disabled", false); }
+    });
+  }
+
+  $("#modal-article").on("click", ".js-choose-pdf", function () {
+    $("#modal-article .js-pdf-file").val("").click();
+  });
+
+  $("#modal-article").on("change", ".js-pdf-file", function () {
+    if (this.files.length) {
+      var data = new FormData();
+      data.append("pdf", this.files[0]);
+      postPdf('/reviews/conducting/article_pdf/upload/', data, "Could not upload the PDF");
+    }
+  });
+
+  $("#modal-article").on("click", ".js-remove-pdf", function () {
+    if (confirm("Remove the PDF of this study? The file is deleted.")) {
+      postPdf('/reviews/conducting/article_pdf/remove/', new FormData(), "Could not remove the PDF");
+    }
   });
 
   var agreementConsolidated = false;

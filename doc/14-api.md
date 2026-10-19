@@ -107,6 +107,11 @@ select-many takes the full list of lookup ids in `values` (set semantics).
 | `POST /reviews/{rid}/articles/import {source_id, bibtex}` · `POST /articles/import/file` (multipart `source_id`, `file`) | `articles_import` · `articles_import_file` → `{imported, failed, warnings[], article_ids[]}` |
 | `GET /reviews/{rid}/articles/duplicates` · `POST /duplicates/resolve {ids?}` | `articles_duplicates` · `articles_resolve_duplicates` |
 | `POST /reviews/{rid}/articles/delete {ids}` · `POST /articles/clear {source_id, status?}` | `articles_delete_batch` · `articles_clear` (bulk delete; `clear` empties one source, e.g. after importing the wrong export) |
+| `POST /reviews/{rid}/articles/{aid}/pdf` (multipart `file`) · `GET …/pdf` · `DELETE …/pdf` | `articles_pdf_upload` → `201 {filename, content_type, size, sha256, uploaded_by, uploaded_at}` · `articles_pdf_download` (the file, `Content-Disposition: attachment` with the uploaded name; streamed from the bucket too) · `articles_pdf_delete` → 204 |
+
+The study's full text: one PDF per study, any status, up to `PARSIFAL_PDF_MAX_MB` (50 MB by default); anything
+else is a 422 on `file`. Uploading again replaces it; the status and `updated_by` are untouched. Every article
+carries `pdf` (that object, or `null`); 404 when downloading or deleting a PDF that does not exist.
 
 ### Classification, search documentation, test set, checklist (optional for any review; phase 7)
 

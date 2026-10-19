@@ -87,6 +87,29 @@ def test_download_tool_saves_file(server, fake_api, tmp_path):
     assert out.read_bytes().startswith(b"PK")
 
 
+def test_full_text_tools_read_and_write_local_files(server, fake_api, tmp_path):
+    tools = {tool.name: tool for tool in run(server.list_tools())}
+    upload = tools["parsifal_articles_pdf_upload"].inputSchema
+    assert set(upload["required"]) == {"review_id", "article_id", "file"}
+    assert tools["parsifal_articles_pdf_delete"].annotations.destructiveHint is True
+
+    paper = tmp_path / "paper.pdf"
+    paper.write_bytes(b"%PDF-1.4 tiny")
+    fake_api.route("POST", "/api/v1/reviews/5/articles/9/pdf", 201, {"filename": "paper.pdf", "size": 13})
+    result = run(
+        server.call_tool("parsifal_articles_pdf_upload", {"review_id": 5, "article_id": 9, "file": str(paper)})
+    )
+    assert json.loads(text_of(result))["filename"] == "paper.pdf"
+    sent = fake_api.requests[-1]
+    assert sent.headers["Content-Type"].startswith("multipart/form-data")
+    assert b'filename="paper.pdf"' in sent.content and b"%PDF-1.4 tiny" in sent.content
+
+    fake_api.route("GET", "/api/v1/reviews/5/articles/9/pdf", 200, b"%PDF-1.4 tiny")
+    out = tmp_path / "copy.pdf"
+    run(server.call_tool("parsifal_articles_pdf_download", {"review_id": 5, "article_id": 9, "output_path": str(out)}))
+    assert out.read_bytes() == b"%PDF-1.4 tiny"
+
+
 def test_screen_batch_and_protocol(server, fake_api):
     fake_api.route(
         "GET",

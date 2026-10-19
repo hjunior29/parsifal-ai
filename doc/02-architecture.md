@@ -18,7 +18,7 @@ Django URL conf (parsifal/urls.py + per-app urls.py)
                               │
                         PostgreSQL (upstream) / SQLite (fork)
                               │
-                     filesystem: MEDIA_ROOT (profile pictures, uploads)
+                     files: <data dir>/files or an S3-compatible bucket (the studies' PDFs)
 ```
 
 Everything that matters lives in the `reviews` app family
@@ -129,10 +129,12 @@ by review (see [13-known-issues.md](13-known-issues.md)).
 - Static files: app-level `static/` + project `parsifal/static/`, collected to
   `STATIC_ROOT` (two directories above the repo by default), compressed by
   django-compressor when `COMPRESS_ENABLED`.
-- Media: profile pictures at `MEDIA_ROOT/profile_pictures/<username>.jpg`
-  (path convention, no DB field); `SearchResult.imported_file` and
-  `DocumentFile.document_file` fields exist but the corresponding features are
-  not wired to any view.
+- Media: upstream kept profile pictures under `MEDIA_ROOT` (removed in the
+  fork, and `/media/` is no longer served); `DocumentFile.document_file` exists
+  but is not wired to any view.
+- Uploaded files: the studies' PDFs go to the "files" storage
+  (`STORAGES["files"]`: `<data dir>/files`, or an S3-compatible bucket), reached
+  through `core.models.files_storage()`; see `services/full_texts.py`.
 
 ## Request lifecycle example — accepting a study
 

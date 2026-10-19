@@ -1,0 +1,39 @@
+{% comment %}
+  Full text tab of the article modal: the study's PDF, shown by the browser's own viewer, or the field to upload it.
+  Rendered by article_details and re-rendered after an upload or a removal. The frame loads only when the tab opens.
+{% endcomment %}
+<div id="article-pdf" data-article-id="{{ article.id }}">
+  {% if pdf_message %}
+    <div class="alert alert-success">{{ pdf_message }}</div>
+  {% endif %}
+
+  {% if article.pdf %}
+    <div class="clearfix" style="margin-bottom: 10px;">
+      <div class="pull-left text-muted" style="padding-top: 5px;">
+        <span class="glyphicon glyphicon-file"></span>
+        <span class="article-pdf-name">{{ article.pdf.filename }}</span>
+        · {{ article.pdf.size|filesizeformat }}
+        · uploaded{% if article.pdf.uploaded_by %} by {{ article.pdf.uploaded_by.profile.get_screen_name }}{% endif %}
+        on {{ article.pdf.created_at|date:"SHORT_DATETIME_FORMAT" }}
+      </div>
+      <div class="pull-right">
+        <a href="{% url 'reviews:conducting:article_pdf' article.id %}" target="_blank" rel="noopener" class="btn btn-default btn-sm">
+          <span class="glyphicon glyphicon-new-window"></span> Open in a new tab
+        </a>
+        <button type="button" class="btn btn-default btn-sm js-choose-pdf">Replace</button>
+        <button type="button" class="btn btn-danger btn-sm js-remove-pdf">Remove</button>
+      </div>
+    </div>
+    <iframe class="article-pdf-frame" data-src="{% url 'reviews:conducting:article_pdf' article.id %}" title="Full text of the study"
+            style="width: 100%; height: 60vh; border: 1px solid #ddd;"></iframe>
+  {% else %}
+    <div class="text-center" style="padding: 40px 0;">
+      <p class="text-muted">This study has no PDF yet. Upload its full text to read it here.</p>
+      <button type="button" class="btn btn-primary js-choose-pdf">
+        <span class="glyphicon glyphicon-upload"></span> Upload PDF
+      </button>
+      <p class="help-block">PDF only, up to {{ pdf_max_mb }} MB. Any study may have one, whatever its status.</p>
+    </div>
+  {% endif %}
+  <input type="file" class="hide js-pdf-file" accept="application/pdf,.pdf">
+</div>

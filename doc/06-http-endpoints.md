@@ -55,7 +55,7 @@ Conventions used below:
 | `/settings/tokens/`, `/settings/tokens/<id>/revoke/`, `/settings/tokens/<id>/delete/` (revoked only) | L | API tokens (phase 3). |
 | `/settings/integrations/` (save/test/remove the Jev key, default model from Jev's list), `/settings/integrations/models/` (POST `api_key`: JSON list of Jev's models for a key being typed) | L | Integrations. |
 | `/api/v1/...` | token or session | JSON API — [14-api.md](14-api.md). |
-| `/media/<path>` | – | Uploaded pictures served by Django (phase 6). |
+| ~~`/media/<path>`~~ | – | No longer served: nothing public is uploaded, and the studies' PDFs live apart (`/reviews/conducting/articles/<id>/pdf/`). |
 
 ## 3. Reviews — lifecycle and membership
 
@@ -150,7 +150,10 @@ Action endpoints under `/reviews/conducting/`, guard **A** unless noted:
 | `import/clear/` | POST | `review-id`, `source-id` | redirect to import page; deletes every study of the source |
 | `new_article/` | GET | `review-id`, `source-id` | frag empty article form |
 | `source_articles/` | GET | `review-id`, `source-id` (`None` = all) | frag table of articles (the browser filters it by status and by a search on title, DOI or BibTeX key) |
-| `article_details/` | GET | `review-id`, `article-id` | frag details form |
+| `article_details/` | GET | `review-id`, `article-id` | frag details form (tabs Details, Comments, Full text, Reviewers) |
+| `articles/<article_id>/pdf/` | GET | — (L; 404 unless a member of the article's review and the article has a PDF) | The study's PDF, inline: sent from the server when kept in `<data dir>/files`, or a redirect to a signed bucket link that expires. `X-Frame-Options: SAMEORIGIN` (the Full text tab frames it) |
+| `article_pdf/upload/` | POST multipart | `review-id`, `article-id`, `pdf` | frag Full text tab; replaces the previous PDF; 400 text when not a PDF or too big |
+| `article_pdf/remove/` | POST | `review-id`, `article-id` | frag Full text tab; 400 text when there is no PDF |
 | `save_article_details/` | POST | `review-id`, `article-id` (`None` to create; then `source-id`), `bibtex-key`, `title`, `author`, `journal`, `year`, `pages`, `volume`, `abstract`, `document-type`, `doi`, `url`, `affiliation`, `author_keywords`, `keywords`, `publisher`, `issn`, `language`, `note`, `comments`, `status` (`U/R/A/D`), `selection_criteria` (id or empty) | frag `<tr>`; sets `updated_by` |
 | `multiple_articles_action/accept/` · `reject/` · `unclassify/` · `duplicated/` · `remove/` | POST | `review-id`, `article_ids` (`"1|2|3"`) | Bulk status update / delete, scoped to review |
 | `find_duplicates/` | GET | `review-id` | frag duplicate groups (DOI / title) |

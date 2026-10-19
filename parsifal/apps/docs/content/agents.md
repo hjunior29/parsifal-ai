@@ -28,7 +28,7 @@ records **who** did what, so the human author stays accountable for the review.
 | Planning | Draft objective and PICOC from your research idea; propose research questions, keywords and synonyms; generate and refine the search string; suggest inclusion/exclusion criteria, a quality checklist and extraction fields | `reviews_update`, `questions_create`, `keywords_create`, `search_string_generate`, `criteria_create`, `quality_questions_create`, `extraction_fields_create` |
 | Search | Document each source search (type, date, years, results); import BibTeX exports; detect duplicates | `source_search_update`, `articles_import`, `articles_duplicates`, `articles_resolve_duplicates` |
 | Selection | Screen titles and abstracts against the criteria, in batches, recording a decision and the criterion as reason | `articles_screen_batch`, `decisions_record` (recommended) or `articles_set_status` |
-| Quality assessment | Answer the checklist per accepted study, with notes | `article_quality_assess` |
+| Quality assessment | Read the study's PDF when it has one; answer the checklist per accepted study, with notes | `articles_pdf_download`, `article_quality_assess` |
 | Extraction / classification | Fill extraction fields; classify studies into facets | `article_extraction_set`, `article_classification_set` |
 | Reporting | Read analytics and exports, draft the report text around them | `analytics_*`, `export_*`, `reviews_overview` |
 
@@ -59,5 +59,6 @@ the report; both guidelines ask for it.
   many studies each reviewer decided at each stage.
 - Nothing leaves your instance, except with *Exclude/Include with AI*, which sends the
   title, keywords and abstract of each study to Jev (TypeSafe) with the caller's
-  key. Otherwise the agent reads abstracts from your database and writes
-  decisions back to it.
+  key. Otherwise the agent reads abstracts (and the PDFs you uploaded) from your
+  instance and writes decisions back to it. PDFs stay in the data directory, or
+  in your own bucket when the instance is configured with one.

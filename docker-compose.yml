@@ -5,7 +5,7 @@ services:
     ports:
       - "${PARSIFAL_PORT:-8000}:8000"
     volumes:
-      # Database (SQLite), uploaded media and backups live here. Back this directory up.
+      # Database (SQLite), the studies' PDFs and backups live here. Back this directory up.
       - ./data:/data
     env_file:
       - path: .env

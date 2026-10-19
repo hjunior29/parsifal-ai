@@ -24,9 +24,11 @@
         <a href="#tab-reviewers" aria-controls="tab-reviewers" role="tab" data-toggle="tab">Reviewers{% if decisions %} <span class="badge">{{ decisions|length }}</span>{% endif %}</a>
       </li>
       {% endif %}
-      {% comment %}<li role="presentation">
-        <a href="#tab-files" aria-controls="tab-files" role="tab" data-toggle="tab">Files</a>
-      </li>{% endcomment %}
+      {% if article.pk %}
+      <li role="presentation">
+        <a href="#tab-full-text" aria-controls="tab-full-text" role="tab" data-toggle="tab">Full text{% if article.pdf %} <span class="glyphicon glyphicon-file" title="Has a PDF"></span>{% endif %}</a>
+      </li>
+      {% endif %}
       {% if article.url %}
         <li class="pull-right">
           <a href="{{ article.url|default_if_none:'' }}" target="_blank" role="tab" title="Change the URL via Article URL">
@@ -150,9 +152,11 @@
           <textarea name="comments" class="form-control" id="comments" rows="5">{{ article.comments|default_if_none:'' }}</textarea>
         </div>
       </div>
-      {% comment %}<div role="tabpanel" class="tab-pane" id="tab-files">
-        {% include 'conducting/partial_article_files.html' %}
-      </div>{% endcomment %}
+      {% if article.pk %}
+      <div role="tabpanel" class="tab-pane" id="tab-full-text">
+        {% include 'conducting/partial_conducting_article_pdf.html' %}
+      </div>
+      {% endif %}
     </div>
   </div>
 </form>

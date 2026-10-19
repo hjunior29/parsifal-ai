@@ -3,9 +3,6 @@
 {% load compress static %}
 
 {% block stylesheet %}
-  {% compress css %}
-    <link href="{% static 'css/fileupload/jquery.fileupload.css' %}" rel="stylesheet">
-  {% endcompress %}
   <style>
     #modal-ai-screening .modal-body { max-height: 65vh; overflow-y: auto; }
     #modal-ai-screening .ai-criteria li { margin-bottom: 4px; padding-left: 2.6em; text-indent: -2.6em; }
@@ -22,9 +19,6 @@
 
 {% block javascript %}
   {% compress js %}
-    <script src="{% static 'js/fileupload/jquery.ui.widget.js' %}"></script>
-    <script src="{% static 'js/fileupload/jquery.iframe-transport.js' %}"></script>
-    <script src="{% static 'js/fileupload/jquery.fileupload.js' %}"></script>
     <script src="{% static 'js/conducting_study_selection.js' %}"></script>
     <script src="{% static 'js/conducting_ai_screening.js' %}"></script>
   {% endcompress %}

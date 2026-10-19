@@ -12,6 +12,8 @@ from django.utils.html import escape
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 
+from parsifal.apps.core.models import StoredFile
+
 
 class Source(models.Model):
     name = models.CharField(max_length=100)
@@ -313,6 +315,11 @@ class Article(models.Model):
         related_name="found_articles",
         verbose_name=_("found via search"),
     )
+    # The study's full text, any status may have one. Attaching it leaves updated_by alone: that says who set the
+    # status, which AI screening relies on.
+    pdf = models.OneToOneField(
+        StoredFile, null=True, blank=True, related_name="article", on_delete=models.SET_NULL, verbose_name="PDF"
+    )
     created_at = models.DateTimeField(auto_now_add=True, blank=True, null=True)
     updated_at = models.DateTimeField(auto_now=True, blank=True, null=True)
     created_by = models.ForeignKey(
@@ -357,6 +364,13 @@ class Article(models.Model):
             Article.DUPLICATED: "warning",
         }
         return '<span class="label label-{0}">{1}</span>'.format(label[self.status], self.get_status_display())
+
+
+@receiver(post_delete, sender=Article)
+def delete_article_pdf(sender, instance, **kwargs):
+    """The full text goes with its study (also when its source or the whole review is deleted)."""
+    if instance.pdf_id:
+        StoredFile.objects.filter(pk=instance.pdf_id).delete()
 
 
 class Keyword(models.Model):

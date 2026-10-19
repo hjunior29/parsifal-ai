@@ -1,3 +1,5 @@
+from django.http import FileResponse
+
 from ninja import File, Form, Router, UploadedFile
 from ninja.pagination import LimitOffsetPagination, paginate
 
@@ -11,11 +13,12 @@ from parsifal.api.v1.schemas.articles import (
     IdsIn,
     ImportIn,
     ImportOut,
+    PdfOut,
     ResolveIn,
     StatusIn,
 )
 from parsifal.api.v1.schemas.common import CountOut
-from parsifal.apps.reviews.services import studies
+from parsifal.apps.reviews.services import full_texts, studies
 
 router = Router(tags=["articles"])
 
@@ -149,11 +152,41 @@ def articles_delete(request, review_id: int, article_id: int):
     return 204, None
 
 
+@router.post(
+    "/reviews/{int:review_id}/articles/{int:article_id}/pdf",
+    response={201: PdfOut},
+    operation_id="articles_pdf_upload",
+)
+def articles_pdf_upload(request, review_id: int, article_id: int, file: File[UploadedFile]):
+    """
+    Upload the study's full text (multipart form: ``file``), replacing the one it had. PDF only, up to
+    PARSIFAL_PDF_MAX_MB (50 MB by default); any study may have one, whatever its status, and the status is untouched.
+    """
+    review = get_review(request, review_id)
+    return 201, full_texts.attach_pdf(review=review, article_id=article_id, file=file, actor=request.auth)
+
+
+@router.get("/reviews/{int:review_id}/articles/{int:article_id}/pdf", operation_id="articles_pdf_download")
+def articles_pdf_download(request, review_id: int, article_id: int):
+    """The study's PDF, with the name it was uploaded with (404 when it has none)."""
+    pdf = full_texts.get_pdf(review=get_review(request, review_id), article_id=article_id)
+    return FileResponse(pdf.open(), content_type=pdf.content_type, as_attachment=True, filename=pdf.filename)
+
+
+@router.delete(
+    "/reviews/{int:review_id}/articles/{int:article_id}/pdf", response={204: None}, operation_id="articles_pdf_delete"
+)
+def articles_pdf_delete(request, review_id: int, article_id: int):
+    """Delete the study's PDF (404 when it has none)."""
+    full_texts.remove_pdf(review=get_review(request, review_id), article_id=article_id)
+    return 204, None
+
+
 @router.post("/reviews/{int:review_id}/articles/delete", response=CountOut, operation_id="articles_delete_batch")
 def articles_delete_batch(request, review_id: int, payload: IdsIn):
     """
     Delete several articles at once (all ids must belong to the review, otherwise nothing is deleted). Their
-    decisions, quality assessments, extractions and classifications are deleted with them.
+    decisions, quality assessments, extractions, classifications and PDFs are deleted with them.
     """
     return CountOut(count=studies.delete_articles(review=get_review(request, review_id), article_ids=payload.ids))
 

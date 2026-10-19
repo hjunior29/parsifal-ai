@@ -55,6 +55,9 @@ parsifal me
    that clearly meet every one (`--threshold`, default 0.9) and leaves the rest unclassified for the human; it never
    rejects (default statuses A and U).
    `test-set get --review R` tells whether the known papers were found by the search.
+   Full texts: a study's `pdf` field says whether it has one; read it with
+   `article pdf download --review R --article A -o paper.pdf`. Attach one (any status, one per study, replaces the
+   previous) with `article pdf upload --review R --article A --file paper.pdf`.
 5. Quality assessment (accepted articles): `quality assess --review R --article A --question-id Q --answer-id ANS`;
    `quality summary --review R` shows scores against the cutoff. Final selection = accepted AND score > cutoff.
 6. Data extraction (final selection): `extraction set --review R --article A --field-id F --value "..."`

@@ -5,12 +5,13 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum, Value
 from django.db.models.functions import Coalesce
-from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.context_processors import csrf
 from django.urls import reverse as r
 from django.utils.html import escape
 from django.utils.translation import gettext as _
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_POST
 
 import xlwt
@@ -18,6 +19,7 @@ import xlwt
 from parsifal.apps.accounts import services as integrations
 from parsifal.apps.accounts.forms import model_label
 from parsifal.apps.core.exceptions import DomainError
+from parsifal.apps.core.models import files_are_local, files_storage
 from parsifal.apps.reviews.decorators import author_required
 from parsifal.apps.reviews.models import (
     Article,
@@ -33,6 +35,7 @@ from parsifal.apps.reviews.services import (
     analytics,
     decisions,
     extraction,
+    full_texts,
     quality,
     reports,
     studies,
@@ -623,12 +626,63 @@ def article_details(request):
     article_id = request.GET["article-id"]
 
     review = get_object_or_404(Review, pk=review_id)
-    article = get_object_or_404(Article, pk=article_id, review_id=review_id)
+    article = get_object_or_404(Article.objects.select_related("pdf__uploaded_by"), pk=article_id, review_id=review_id)
 
-    mendeley_files = []
-    context = {"review": review, "article": article, "mendeley_files": mendeley_files}
+    context = {"review": review, "article": article, "pdf_max_mb": full_texts.max_size_mb()}
     context.update(_decisions_context(request, review, article))
     return render(request, "conducting/partial_conducting_article_details.html", context)
+
+
+def _article_pdf_tab(request, review, article_id, message=None):
+    article = get_object_or_404(Article.objects.select_related("pdf__uploaded_by"), pk=article_id, review=review)
+    context = {"review": review, "article": article, "pdf_max_mb": full_texts.max_size_mb(), "pdf_message": message}
+    return render(request, "conducting/partial_conducting_article_pdf.html", context)
+
+
+@login_required
+@xframe_options_sameorigin
+def article_pdf(request, article_id):
+    """
+    The study's PDF for the browser to show (the Full text tab frames it). Kept on this server, it is sent from
+    here; kept in a bucket, the browser is sent to a link of the bucket that expires.
+    """
+    article = get_object_or_404(Article.objects.select_related("review", "pdf"), pk=article_id)
+    if not article.review.is_author_or_coauthor(request.user) or article.pdf is None:
+        raise Http404
+    if files_are_local():
+        return FileResponse(article.pdf.open(), content_type=article.pdf.content_type, filename=article.pdf.filename)
+    return redirect(files_storage().url(article.pdf.key))
+
+
+@author_required
+@login_required
+@require_POST
+def upload_article_pdf(request):
+    """Attach (or replace) the study's PDF; returns the Full text tab."""
+    review = get_object_or_404(Review, pk=request.POST.get("review-id"))
+    try:
+        upload = request.FILES.get("pdf")
+        if upload is None:
+            raise DomainError("Choose a PDF to upload.")
+        full_texts.attach_pdf(
+            review=review, article_id=request.POST.get("article-id"), file=upload, actor=request.user
+        )
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
+    return _article_pdf_tab(request, review, request.POST.get("article-id"), message="The PDF was uploaded.")
+
+
+@author_required
+@login_required
+@require_POST
+def remove_article_pdf(request):
+    """Delete the study's PDF; returns the Full text tab."""
+    review = get_object_or_404(Review, pk=request.POST.get("review-id"))
+    try:
+        full_texts.remove_pdf(review=review, article_id=request.POST.get("article-id"))
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
+    return _article_pdf_tab(request, review, request.POST.get("article-id"), message="The PDF was removed.")
 
 
 def _decisions_context(request, review, article, message=None):

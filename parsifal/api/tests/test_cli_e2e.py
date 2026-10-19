@@ -8,6 +8,7 @@ from django.test import LiveServerTestCase, override_settings
 
 from parsifal.apps.accounts.models import ApiToken
 from parsifal.apps.authentication.tests.factories import UserFactory
+from parsifal.apps.core.tests.files import PDF, TemporaryFilesMixin
 from parsifal.apps.reviews.tests.factories import DefaultSourceFactory
 
 try:
@@ -21,7 +22,7 @@ DATA = Path(__file__).resolve().parents[2] / "apps" / "reviews" / "tests" / "dat
 
 
 @override_settings(ALLOWED_HOSTS=["*"])
-class TestCliAgainstLiveServer(LiveServerTestCase):
+class TestCliAgainstLiveServer(TemporaryFilesMixin, LiveServerTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -100,3 +101,15 @@ class TestCliAgainstLiveServer(LiveServerTestCase):
             csv_file = Path(folder) / "articles.csv"
             self.run_cli("export", "articles", "--review", ref, "--format", "csv", "-o", str(csv_file), parse=False)
             self.assertIn("Large language models", csv_file.read_text())
+
+            paper = Path(folder) / "paper.pdf"
+            paper.write_bytes(PDF)
+            pdf = ("--review", ref, "--article", ids[0])
+            uploaded = self.run_cli("article", "pdf", "upload", *pdf, "--file", str(paper))
+            self.assertEqual(("paper.pdf", len(PDF)), (uploaded["filename"], uploaded["size"]))
+            copy = Path(folder) / "copy.pdf"
+            self.run_cli("article", "pdf", "download", *pdf, "-o", str(copy), parse=False)
+            self.assertEqual(PDF, copy.read_bytes())
+            self.run_cli("article", "pdf", "delete", *pdf, "--yes", parse=False)
+            self.assertIsNone(self.run_cli("article", "get", "--review", ref, "--id", ids[0])["pdf"])
+            self.assertEqual([], self.stored_files())
