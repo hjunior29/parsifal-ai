@@ -120,11 +120,16 @@ with SQLite); it is documented so the design in
 
 ## Continuous integration
 
-| Workflow | Trigger | What it does |
-|----------|---------|--------------|
+Since 2026-10-18 every workflow runs **only when started by hand** (`workflow_dispatch`, Actions tab): automatic
+runs on push, pull request and schedule are off while the fork is in active development. Run the checks locally
+(see [09-testing.md](09-testing.md)). To turn them back on, restore the `on:` triggers listed below.
+
+| Workflow | Former trigger | What it does |
+|----------|----------------|--------------|
 | `.github/workflows/tox.yml` | push to `dev`, PR to `master`/`dev`, manual | Ubuntu 22.04, Python 3.10, `tox` (py310 tests + flake8 + isort + `makemigrations --check`). No database service needed. |
 | `.github/workflows/codecov.yml` | PR to `master`/`dev` | `coverage run manage.py test`, uploads to Codecov (`fail_ci_if_error: false` so a missing token does not block). |
 | `.github/workflows/codeql-analysis.yml` | push/PR to `master`/`dev`, weekly | CodeQL v3 for Python and JavaScript. |
+| `.github/workflows/docker.yml` | push to `dev`, PR to `master`/`dev`, manual | Builds the image and smoke-tests it. |
 
 Upstream's workflows installed PostgreSQL in CI; phase 0 removed that along
 with the Postgres default.
