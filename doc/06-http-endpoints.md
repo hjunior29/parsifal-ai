@@ -53,6 +53,7 @@ Conventions used below:
 |------|-------|---------|
 | `/docs/`, `/docs/<slug>/` | – | In-app documentation of the new features (phase 9). |
 | `/settings/tokens/`, `/settings/tokens/<id>/revoke/`, `/settings/tokens/<id>/delete/` (revoked only) | L | API tokens (phase 3). |
+| `/settings/integrations/` (save/test/remove the Jev key, default model from Jev's list), `/settings/integrations/models/` (POST `api_key`: JSON list of Jev's models for a key being typed) | L | Integrations. |
 | `/api/v1/...` | token or session | JSON API — [14-api.md](14-api.md). |
 | `/media/<path>` | – | Uploaded pictures served by Django (phase 6). |
 

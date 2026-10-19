@@ -6,6 +6,7 @@ from django.utils.translation import gettext, gettext_lazy as _
 
 from parsifal.apps.accounts.models import ApiToken
 from parsifal.apps.authentication.models import Profile
+from parsifal.apps.core import jev
 
 
 class UserEmailForm(forms.ModelForm):
@@ -78,11 +79,21 @@ class JevIntegrationForm(forms.Form):
         ),
     )
 
-    def __init__(self, *args, has_key=False, models=(), current_model=None, **kwargs):
+    def __init__(self, *args, has_key=False, models=(), current_model=None, models_error="", **kwargs):
         super().__init__(*args, **kwargs)
         self.has_key = has_key
         if has_key:
             self.fields["api_key"].help_text = _("Leave blank to keep the current key.")
+        self.fields["model"].widget.attrs["id"] = "jev-model"
+        if not models and not models_error:
+            # No key to ask Jev with yet: a select holding the default, filled with Jev's list as soon as a key is
+            # pasted (the page asks Jev with the key being typed, before it is saved).
+            default = current_model or jev.DEFAULT_MODEL
+            self.fields["model"].label = _("Default model")
+            self.fields["model"].help_text = _("Paste the API key to load the models Jev lists for it.")
+            self.fields["model"].widget = forms.Select(
+                attrs={"class": "form-control", "id": "jev-model"}, choices=[(default, default)]
+            )
         if models:
             # Jev's own list, asked when the page loads; the saved default stays selectable even if Jev dropped it.
             choices = [(m["name"], model_label(m)) for m in models]
@@ -91,7 +102,7 @@ class JevIntegrationForm(forms.Form):
             self.fields["model"] = forms.ChoiceField(
                 label=_("Default model"),
                 choices=choices,
-                widget=forms.Select(attrs={"class": "form-control"}),
+                widget=forms.Select(attrs={"class": "form-control", "id": "jev-model"}),
                 help_text=_(
                     "Models available to your key, as listed by Jev. This is the default for Exclude with AI; each "
                     "run can use another one. Prefer a pinned version (jev-1.13.0) over an alias like jev-latest."

@@ -64,7 +64,7 @@ mirror the API parameters in kebab-case; `--review` accepts a numeric id or
 | `checklist` | `get`, `set --key --applied/--no-applied [--notes]` |
 | `decision` | `list [--stage --user-id --article-id --status]`, `record --ids … --status [--stage --selection-criteria-id --comments]`, `remove-mine --article`, `article --article`, `summary`, `agreement [--user-a-id --user-b-id]`, `disagreements`, `consolidate [--rule unanimous|any_include|majority] [--ids …]` |
 | `export` | `articles --format csv|xlsx|json -o FILE`, `extraction --format … -o FILE`, `report [--sections …] -o FILE` |
-| `integration jev` | `show`, `set [--api-key -|@file|KEY] [--model jev-1.13.0]`, `test`, `remove` (your own Jev key) |
+| `integration jev` | `show`, `set [--api-key -|@file|KEY] [--model jev-1.13.0]`, `test [--api-key -]` (Jev's models for the saved key or for one you are about to save), `remove` (your own Jev key) |
 | `ai-screening` | `setup`, `start --reviewer-id U [--model M --objective … --guidance … --threshold 0.9 --source-id S]`, `step --id RUN [--size 8]`, `cancel --id RUN`, `runs`, `show --id RUN`, `results --id RUN [--outcome excluded|passed|error]`; composite `run` (the options of `start`, plus `--run RUN` to continue and `--step-size`, default 25) starts a run and screens until it ends, printing progress to stderr; Ctrl-C cancels it |
 
 Conventions:

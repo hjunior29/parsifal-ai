@@ -23,6 +23,10 @@ class JevModelOut(Schema):
     release_date: str
 
 
+class JevTestIn(Schema):
+    api_key: str | None = None  # test this key instead of the saved one (nothing is saved)
+
+
 class JevTestOut(Schema):
     models: list[JevModelOut]  # as listed by Jev for your key
 

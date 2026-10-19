@@ -129,3 +129,49 @@ class TestIntegrationsView(TestCase):
             response = self.client.get(self.url)
             self.assertContains(response, "Could not load the list of models from Jev")
             self.assertContains(response, 'name="model" value="jev-1.12.0"')
+
+    def test_without_a_key_the_select_waits_for_one(self):
+        response = self.client.get(self.url)
+        self.list_models.assert_not_called()
+        self.assertContains(response, '<select name="model" class="form-control" id="jev-model">', html=False)
+        self.assertContains(response, '<option value="jev-1.13.0" selected>jev-1.13.0</option>', html=True)
+        self.assertContains(response, "Paste the API key to load the models Jev lists for it.")
+        self.assertContains(response, reverse("settings:integration_models"))
+
+    def test_models_for_the_key_being_typed(self):
+        url = reverse("settings:integration_models")
+        response = self.client.post(url, {"api_key": " fake-typed-key-1234 "})
+        self.list_models.assert_called_once_with("fake-typed-key-1234")
+        self.assertEqual(
+            {
+                "models": [
+                    {"name": "jev-1.13.0", "label": "jev-1.13.0 — Stable · 2026-08-01"},
+                    {"name": "jev-1.14.0", "label": "jev-1.14.0 — Newest · 2026-10-14"},
+                ]
+            },
+            response.json(),
+        )
+        self.assertFalse(Integration.objects.exists())  # nothing is saved
+
+        response = self.client.post(url, {"api_key": ""})
+        self.assertEqual((400, "Save an API key first."), (response.status_code, response.json()["error"]))
+
+        Integration.objects.create(user=self.user, provider=Integration.JEV, api_key=KEY, model="jev-1.13.0")
+        self.list_models.reset_mock()
+        self.client.post(url, {"api_key": ""})
+        self.list_models.assert_called_once_with(KEY)
+
+        self.list_models.side_effect = jev.JevError("Jev rejected the API key.", status=401, fatal=True)
+        response = self.client.post(url, {"api_key": "fake-wrong-key-0000"})
+        self.assertEqual((400, "Jev rejected the API key."), (response.status_code, response.json()["error"]))
+
+        self.client.logout()
+        self.assertEqual(302, self.client.post(url, {"api_key": "x"}).status_code)
+
+    def test_the_first_save_checks_the_model_against_the_new_key(self):
+        response = self.client.post(self.url, {"action": "save", "api_key": KEY, "model": "jev-1.14.0"})
+        self.assertEqual(302, response.status_code)
+        self.list_models.assert_called_with(KEY)
+        self.assertEqual("jev-1.14.0", Integration.objects.get(user=self.user).model)
+        response = self.client.post(self.url, {"action": "save", "api_key": "fake-other-key-9876", "model": "jev-7"})
+        self.assertContains(response, "Select a valid choice")

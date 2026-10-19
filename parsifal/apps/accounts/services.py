@@ -53,11 +53,16 @@ def jev_api_key(user):
         )
 
 
-def test_jev(user):
-    """Ask Jev which models the saved key can use; raises when there is no key or Jev refuses or fails."""
-    if get_jev(user) is None:
-        raise ValidationError("Save an API key first.", field="api_key")
-    api_key = jev_api_key(user)
+def test_jev(user, *, api_key=None):
+    """
+    Ask Jev which models a key can use: ``api_key`` (a key being typed, not saved yet) or the saved one. Raises when
+    there is no key or Jev refuses or fails.
+    """
+    api_key = (api_key or "").strip()
+    if not api_key:
+        if get_jev(user) is None:
+            raise ValidationError("Save an API key first.", field="api_key")
+        api_key = jev_api_key(user)
     try:
         return jev.list_models(api_key)
     except jev.JevError as error:
@@ -66,13 +71,13 @@ def test_jev(user):
         raise UpstreamError(str(error))
 
 
-def jev_models(user):
+def jev_models(user, *, api_key=None):
     """
-    Jev's models for the user's key, for the pages that let the user pick one: ``(models, error)``. Never raises;
-    when Jev cannot be asked, ``models`` is empty and ``error`` says why.
+    Jev's models for the user's key (or ``api_key``), for the pages that let the user pick one: ``(models, error)``.
+    Never raises; when Jev cannot be asked, ``models`` is empty and ``error`` says why.
     """
     try:
-        return test_jev(user), ""
+        return test_jev(user, api_key=api_key), ""
     except (ValidationError, UpstreamError) as error:
         return [], str(error)
 

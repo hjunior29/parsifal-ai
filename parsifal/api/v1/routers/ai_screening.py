@@ -11,6 +11,7 @@ from parsifal.api.deps import get_review
 from parsifal.api.v1.schemas.ai_screening import (
     JevIntegrationIn,
     JevIntegrationOut,
+    JevTestIn,
     JevTestOut,
     ScreeningResultOut,
     ScreeningRunDetailOut,
@@ -47,9 +48,12 @@ def jev_integration_set(request, payload: JevIntegrationIn):
 
 
 @router.post("/integrations/jev/test", response=JevTestOut, operation_id="jev_integration_test")
-def jev_integration_test(request):
-    """Check the saved key with Jev; returns the models it can use (422 if Jev rejects the key, 502 if Jev fails)."""
-    return JevTestOut(models=integrations.test_jev(request.auth))
+def jev_integration_test(request, payload: JevTestIn):
+    """
+    Ask Jev which models a key can use: ``api_key`` if given (nothing is saved), else your saved key. 422 if Jev
+    rejects the key, 502 if Jev fails.
+    """
+    return JevTestOut(models=integrations.test_jev(request.auth, api_key=payload.api_key))
 
 
 @router.delete("/integrations/jev", response={204: None}, operation_id="jev_integration_delete")

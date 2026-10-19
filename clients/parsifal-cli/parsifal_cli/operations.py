@@ -1415,7 +1415,8 @@ OPERATIONS = (
         "/integrations/jev/test",
         ("integration", "jev"),
         "test",
-        "Check the saved key with Jev and list the models it can use.",
+        "List the models Jev offers for your saved key, or for --api-key without saving it.",
+        (B("api_key", TEXT, help="Key to try instead of the saved one; '-' reads it from stdin."),),
     ),
     Operation(
         "jev_integration_delete",

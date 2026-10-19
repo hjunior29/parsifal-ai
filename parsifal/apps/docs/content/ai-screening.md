@@ -11,9 +11,11 @@ write text, it returns the probability of each allowed answer.
 ## Setting it up
 
 1. Create an API key in your TypeSafe account.
-2. In **Settings → Integrations**, paste the key and save. The page then asks Jev
-   for the models your key can use (every time it loads) and you pick the
-   **default model**, which is saved; each run can still use another one. Prefer
+2. In **Settings → Integrations**, paste the key: the page asks Jev right away
+   for the models that key can use and shows them in the **Default model**
+   select. Choose one and save; from then on the list is asked again every time
+   the page loads, so you can change the default whenever you want. Each run can
+   still use another model. Prefer
    a pinned version (`jev-1.13.0`): aliases such as `jev-latest` change without
    notice and make the screening impossible to reproduce. **Test the key**
    checks that Jev accepts it.

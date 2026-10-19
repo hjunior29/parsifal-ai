@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.messages.views import SuccessMessageMixin
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils.translation import gettext, gettext_lazy as _
@@ -8,7 +9,7 @@ from django.views import View
 from django.views.generic import FormView, RedirectView, UpdateView
 
 from parsifal.apps.accounts import services
-from parsifal.apps.accounts.forms import ApiTokenForm, JevIntegrationForm, ProfileForm, UserEmailForm
+from parsifal.apps.accounts.forms import ApiTokenForm, JevIntegrationForm, ProfileForm, UserEmailForm, model_label
 from parsifal.apps.accounts.models import ApiToken
 from parsifal.apps.core import jev
 from parsifal.apps.core.exceptions import DomainError
@@ -76,6 +77,17 @@ class ApiTokenDeleteView(LoginRequiredMixin, View):
         return redirect("settings:tokens")
 
 
+class IntegrationModelsView(LoginRequiredMixin, View):
+    """Jev's models for the key being typed (or the saved one), so the page fills the select before saving."""
+
+    def post(self, request):
+        try:
+            models = services.test_jev(request.user, api_key=request.POST.get("api_key"))
+        except DomainError as error:
+            return JsonResponse({"error": str(error)}, status=400)
+        return JsonResponse({"models": [{"name": m["name"], "label": model_label(m)} for m in models]})
+
+
 class IntegrationsView(LoginRequiredMixin, View):
     """
     Third-party services the user connected. Jev: save or replace the API key and the model, check that the key
@@ -84,9 +96,11 @@ class IntegrationsView(LoginRequiredMixin, View):
 
     template_name = "accounts/integrations.html"
 
-    def _models(self, integration):
-        """Jev's model list, asked on every page load (only with a saved key)."""
-        return services.jev_models(self.request.user) if integration else ([], "")
+    def _models(self, integration, api_key=None):
+        """Jev's model list, asked on every page load: with the key being saved, else the saved one."""
+        if api_key or integration:
+            return services.jev_models(self.request.user, api_key=api_key)
+        return [], ""
 
     def _render(self, form=None, models=None, models_error=""):
         integration = services.get_jev(self.request.user)
@@ -97,6 +111,7 @@ class IntegrationsView(LoginRequiredMixin, View):
                 has_key=integration is not None,
                 models=models,
                 current_model=integration.model if integration else None,
+                models_error=models_error,
             )
         context = {"jev": integration, "form": form, "models_error": models_error}
         return render(self.request, self.template_name, context)
@@ -122,12 +137,13 @@ class IntegrationsView(LoginRequiredMixin, View):
                 )
             return redirect("settings:integrations")
         integration = services.get_jev(request.user)
-        models, models_error = self._models(integration)
+        models, models_error = self._models(integration, api_key=request.POST.get("api_key", "").strip() or None)
         form = JevIntegrationForm(
             request.POST,
             has_key=integration is not None,
             models=models,
             current_model=integration.model if integration else None,
+            models_error=models_error,
         )
         if not form.is_valid():
             return self._render(form, models, models_error)

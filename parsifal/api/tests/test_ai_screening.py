@@ -28,7 +28,7 @@ class TestJevIntegrationApi(ApiTestCase):
             self.api("get", "/integrations/jev").json(),
         )
         self.assertEqual(422, self.api("put", "/integrations/jev", {"model": "jev-1.13.0"}).status_code)
-        self.assertEqual(422, self.api("post", "/integrations/jev/test").status_code)
+        self.assertEqual(422, self.api("post", "/integrations/jev/test", {}).status_code)
 
         response = self.api("put", "/integrations/jev", {"api_key": f" {KEY} "})
         self.assertEqual(200, response.status_code)
@@ -45,15 +45,19 @@ class TestJevIntegrationApi(ApiTestCase):
         with self.subTest(msg="test the key"):
             card = {"name": "jev-1.13.0", "description": "Stable", "release_date": "2026-08-01"}
             with mock.patch.object(jev, "list_models", return_value=[card]) as list_models:
-                response = self.api("post", "/integrations/jev/test")
+                response = self.api("post", "/integrations/jev/test", {})
             self.assertEqual({"models": [card]}, response.json())
             list_models.assert_called_once_with(KEY)
+            with mock.patch.object(jev, "list_models", return_value=[card]) as list_models:
+                response = self.api("post", "/integrations/jev/test", {"api_key": "fake-unsaved-key-1111"})
+            list_models.assert_called_once_with("fake-unsaved-key-1111")
+            self.assertEqual(KEY, Integration.objects.get(user=self.author).api_key)  # nothing saved
             rejected = jev.JevError("Jev rejected the API key.", status=401, fatal=True)
             with mock.patch.object(jev, "list_models", side_effect=rejected):
-                response = self.api("post", "/integrations/jev/test")
+                response = self.api("post", "/integrations/jev/test", {})
             self.assertEqual((422, "api_key"), (response.status_code, response.json()["field"]))
             with mock.patch.object(jev, "list_models", side_effect=jev.JevError("Could not reach Jev (Timeout).")):
-                response = self.api("post", "/integrations/jev/test")
+                response = self.api("post", "/integrations/jev/test", {})
             self.assertEqual((502, "upstream_error"), (response.status_code, response.json()["code"]))
 
         with self.subTest(msg="per user"):
