@@ -811,10 +811,17 @@ def delete_agent_account(sender, instance, **kwargs):
 
 class ScreeningRun(models.Model):
     """
-    One AI exclusion screening (phase 1 of study selection): what was sent to the model, its progress and how it
-    ended. The decisions are recorded as ``reviewer``, chosen when the run starts; deleting that account deletes its
-    runs with its decisions.
+    One AI screening of study selection, by exclusion criteria (phase 1) or by inclusion criteria (phase 2): what was
+    sent to the model, its progress and how it ended. The decisions are recorded as ``reviewer``, chosen when the run
+    starts; deleting that account deletes its runs with its decisions.
     """
+
+    EXCLUSION = "exclusion"
+    INCLUSION = "inclusion"
+    PHASES = (
+        (EXCLUSION, _("Exclude with AI")),  # rejects a study when one exclusion criterion applies
+        (INCLUSION, _("Include with AI")),  # accepts a study when every inclusion criterion is met
+    )
 
     RUNNING = "running"
     FINISHED = "finished"
@@ -830,8 +837,9 @@ class ScreeningRun(models.Model):
     review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="screening_runs")
     reviewer = models.ForeignKey(User, on_delete=models.CASCADE, related_name="screening_runs")
     started_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    phase = models.CharField(_("phase"), max_length=10, choices=PHASES, default=EXCLUSION)
     model = models.CharField(_("model"), max_length=100)
-    # Snapshot of what was sent: review context, extra guidance, exclusion criteria (key, id, description),
+    # Snapshot of what was sent: review context, extra guidance, the criteria of the phase (key, id, description),
     # threshold and scope. The criteria may change later; the snapshot says what Jev saw.
     parameters = models.JSONField(_("parameters"), default=dict)
     status = models.CharField(_("status"), max_length=10, choices=STATUSES, default=RUNNING)
@@ -858,21 +866,29 @@ class ScreeningResult(models.Model):
     PENDING = "pending"
     EXCLUDED = "excluded"
     PASSED = "passed"
+    INCLUDED = "included"
+    UNDECIDED = "undecided"
     ERROR = "error"
     OUTCOMES = (
         (PENDING, _("Pending")),
-        (EXCLUDED, _("Excluded")),
-        (PASSED, _("Passed to the next phase")),
+        (EXCLUDED, _("Excluded")),  # both phases: rejected with a criterion
+        (PASSED, _("Passed to the next phase")),  # exclusion: no exclusion criterion applies
+        (INCLUDED, _("Included")),  # inclusion: every inclusion criterion is met
+        (UNDECIDED, _("Undecided")),  # inclusion: neither clearly met nor clearly not met; left to the reviewers
         (ERROR, _("Error")),
     )
 
     run = models.ForeignKey(ScreeningRun, on_delete=models.CASCADE, related_name="results")
     article = models.ForeignKey(Article, on_delete=models.CASCADE, related_name="screening_results")
-    # Status of the study when the run took it: unclassified, or rejected by the same reviewer in an earlier run.
-    # The run only changes the study if it still has this status.
+    # Status of the study when the run took it. The run only changes the study if it still has this status.
     previous_status = models.CharField(_("status before the run"), max_length=1, blank=True)
     outcome = models.CharField(_("outcome"), max_length=10, choices=OUTCOMES, default=PENDING)
-    p_exclude = models.FloatField(_("probability that an exclusion criterion applies"), null=True, blank=True)
+    # Exclusion: the probability that some exclusion criterion applies. Inclusion: the highest probability that an
+    # inclusion criterion is not met.
+    p_exclude = models.FloatField(_("probability used to reject"), null=True, blank=True)
+    # Inclusion: the lowest probability that an inclusion criterion is met (every criterion must be met).
+    p_include = models.FloatField(_("lowest probability that an inclusion criterion is met"), null=True, blank=True)
+    # Exclusion: {option: p}. Inclusion: {criterion key: {"meets": p, "not_met": p, "unclear": p}}.
     probabilities = models.JSONField(_("probability of each option"), null=True, blank=True)
     selection_criteria = models.ForeignKey(SelectionCriteria, null=True, blank=True, on_delete=models.SET_NULL)
     model = models.CharField(_("model version that answered"), max_length=100, blank=True)

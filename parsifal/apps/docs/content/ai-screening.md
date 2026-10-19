@@ -1,9 +1,12 @@
-# Exclude with AI (Jev)
+# Exclude and include with AI (Jev)
 
-**Exclude with AI** is the first phase of study selection done by a model: Jev
-reads each study and rejects the ones that clearly meet one of the review's
-**exclusion criteria**, in the name of a reviewer you choose. The rest are left
-for the next phase, with the inclusion criteria.
+Study selection by a model, in two phases, in the name of a reviewer you choose:
+
+1. **Exclude with AI**: Jev rejects the studies that clearly meet one of the
+   review's **exclusion criteria**. One criterion is enough.
+2. **Include with AI**: Jev accepts the studies that clearly meet **every**
+   **inclusion criterion**, rejects those that clearly fail one, and leaves the
+   rest unclassified for you.
 
 [Jev](https://docs.typesafe.ai/models) is TypeSafe's decision model: it does not
 write text, it returns the probability of each allowed answer.
@@ -19,7 +22,7 @@ write text, it returns the probability of each allowed answer.
    a pinned version (`jev-1.13.0`): aliases such as `jev-latest` change without
    notice and make the screening impossible to reproduce. **Test the key**
    checks that Jev accepts it.
-3. Write the exclusion criteria in **Planning**. Jev works best in English.
+3. Write the exclusion and inclusion criteria in **Planning**. Jev works best in English.
 
 The key is stored encrypted (with a key derived from the instance's `SECRET_KEY`) and is never shown again in
 full; if `SECRET_KEY` changes, save the Jev key again. Parsifal's own API tokens are stored as hashes, so not
@@ -28,7 +31,8 @@ even Parsifal can read them back. Calls are billed to the key.
 ## Running it
 
 On **Conducting → Study Selection**, tab *All Sources*, click **Exclude with
-AI**. The window shows what will be sent:
+AI** or **Include with AI**. The window is the same for both and shows what will
+be sent:
 
 - **Reviewer**: the member of the review the decisions are recorded as. The
   main author can choose anyone in the review (themselves or any AI agent);
@@ -42,16 +46,17 @@ AI**. The window shows what will be sent:
   and the run's log keeps what was sent.
 - **Extra guidance** (optional): definitions or borderline cases that help apply
   the criteria.
-- **Exclusion criteria**: from the protocol, read-only, as options `E1`, `E2`…
+- **Criteria**: from the protocol, read-only. Exclusion: options `E1`, `E2`…
   plus `none` ("no criterion clearly applies, or there is not enough
-  information").
+  information"). Inclusion: `I1`, `I2`…, one question each.
 - **Threshold** (default 0.9, from 0.5 to 0.99).
 - **Studies**: all sources or one, and the **statuses** to send — any mix of
   accepted, rejected, unclassified and duplicated (*All* checks every one). The
-  default is rejected + unclassified, so a second reviewer screens the same
-  studies as the first one, including those the first one rejected. Each status
-  shows how many studies it has; nothing is skipped because it was screened
-  before.
+  default is rejected + unclassified for exclusion, so a second reviewer
+  screens the same studies as the first one, including those the first one
+  rejected; and unclassified + accepted for inclusion, the studies that are
+  still in. Each status shows how many studies it has; nothing is skipped
+  because it was screened before.
 
 **Start screening** sends the studies a few at a time and shows the progress
 until the run ends; there is no stop button. **Done** reloads the page.
@@ -60,8 +65,7 @@ If a run is interrupted — the page was closed, the connection dropped, Jev
 refused the key or was unavailable — it keeps the studies it had left. The next
 time you open the window it says where the run stopped and offers **Continue**,
 which goes on with the settings the run started with (model, context, threshold,
-studies).
-Starting a new run instead discards the unfinished one.
+studies). Starting a new run, of either phase, discards the unfinished one.
 
 ## From the API, CLI and MCP
 
@@ -76,6 +80,7 @@ parsifal integration jev test
 parsifal ai-screening setup --review R                        # what the window shows (reviewers, models, studies per status…)
 parsifal ai-screening run --review R --reviewer-id U --model jev-1.13.0 --threshold 0.9 --guidance @notes.txt
 parsifal ai-screening run --review R --reviewer-id U --statuses U --statuses R --statuses A   # statuses to send (default R and U)
+parsifal ai-screening run --review R --reviewer-id U --phase inclusion                       # Include with AI (default A and U)
 parsifal ai-screening runs --review R
 parsifal ai-screening results --review R --id RUN --outcome excluded
 ```
@@ -88,7 +93,7 @@ In MCP, `parsifal_ai_screening_run` does the same in one call and says when to
 call again with `run_id`. Context fields you leave out take the review's
 values.
 
-## What happens to each study
+## What happens to each study: exclusion
 
 For every study Jev receives the **title, keywords and abstract only** (never
 authors, venue or affiliations). One multiple-choice question with the criteria
@@ -122,6 +127,36 @@ So a second reviewer screens the first one's rejections without undoing them:
 where they differ shows up in *Reviewer agreement*. A study someone classifies
 while the run is going keeps that status. Studies that failed (for example,
 with no title or abstract) keep the reviewer's previous decision.
+
+## What happens to each study: inclusion
+
+Every inclusion criterion gets its own question, answered `meets`, `not_met`
+or `unclear` ("the title, keywords and abstract do not give enough information
+to decide"), each asked in three answer orders and averaged. All criteria must
+be met, so the **weakest** criterion decides — not the average, which would let
+a criterion that is clearly met make up for one that is not:
+
+| Answers | Reviewer's decision |
+|---|---|
+| The lowest `p(meets)` ≥ threshold | **accepted** |
+| Otherwise, some criterion with `p(not_met)` ≥ threshold | **rejected**, with that criterion as the reason |
+| Otherwise (something unclear, or nothing strong enough) | **unclassified**: left to you |
+
+So nothing is accepted for lack of information, and nothing is rejected for
+it either. The comment says what Jev answered for every criterion:
+
+```
+Include with AI (run 12, jev-1.13.0): meets every inclusion criterion — meets: I1 0.97, I2 0.95.
+Include with AI (run 12, jev-1.13.0): I1 not met, p(not met) = 0.94 — meets: I1 0.03, I2 0.90.
+Include with AI (run 12, jev-1.13.0): undecided, weakest I2 (meet 0.40) — meets: I1 0.96, I2 0.40.
+```
+
+Both phases record the reviewer's decision at the *title and abstract* stage,
+so the inclusion decision replaces the "no exclusion criterion" one: the
+reviewer's last word on the study is what *Reviewer agreement* compares. The
+status follows the decision when the study was unclassified, or accepted or
+rejected by this same reviewer (back to unclassified when undecided now);
+duplicates and studies classified by someone else keep theirs.
 
 ## Reviewers and agreement
 

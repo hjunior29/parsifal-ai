@@ -1,26 +1,40 @@
 """
-AI exclusion screening, phase 1 of study selection. Jev reads the title, keywords and abstract of each study and
-says which exclusion criterion, if any, the study meets. Nothing else about the study is sent: no authors, venue or
-affiliations.
+AI screening of study selection, in two phases. Jev reads the title, keywords and abstract of each study (nothing
+else: no authors, venue or affiliations) and answers about the review's criteria:
+
+- **Exclude with AI** (phase 1): which exclusion criterion, if any, the study meets. One is enough to reject it.
+- **Include with AI** (phase 2): whether the study meets each inclusion criterion. All of them must be met to accept
+  it.
 
 Every run is made in the name of a **reviewer** chosen by whoever starts it (the main author may pick any member of
 the review, anyone else only themselves), so one person can screen as several reviewers and compare them. A run
-sends the studies with the chosen statuses (default: unclassified and rejected) and rewrites this reviewer's
-decisions: nothing is skipped because it was evaluated before, so two reviewers can screen the same studies and be
-compared (Reviewer agreement).
+sends the studies with the chosen statuses (default: unclassified and rejected for exclusion, unclassified and
+accepted for inclusion) and rewrites this reviewer's decisions: nothing is skipped because it was evaluated before, so
+two reviewers can screen the same studies and be compared (Reviewer agreement).
 
 A run records the reviewer's decision on every study it screens, but changes a study's **status** only when the
-study is unclassified, or rejected by this same reviewer. Accepted studies, duplicates and studies rejected by
-someone else keep their status.
+study is unclassified, or was rejected (exclusion) or accepted or rejected (inclusion) by this same reviewer.
+Duplicates and studies classified by someone else keep their status.
 
-The exclusion criteria plus a "none" option go in one choice question, asked in three option orders within the
-same request (Jev tends to favour the first option when unsure) and averaged. Because the probabilities of a choice
-sum to 1, the probability that *some* criterion applies is ``1 - p(none)``, even when two criteria split it. Then:
+Every question is asked in three option orders within the same request (Jev tends to favour the first option when
+unsure) and the answers are averaged.
+
+Exclusion: the exclusion criteria plus a "none" option go in one choice question. Because the probabilities of a
+choice sum to 1, the probability that *some* criterion applies is ``1 - p(none)``, even when two criteria split it.
+Then:
 
 - ``1 - p(none) >= threshold``: the reviewer's decision is "rejected" with the most probable criterion, and the
   study is rejected with it (when the run may change its status).
 - otherwise: the reviewer's decision is "unclassified" (no criterion applies) and the study stays, or goes back to,
   unclassified for the next phase (when the run may change its status).
+
+Inclusion: one choice question per inclusion criterion, answered meets, not_met or unclear. Every criterion must be
+met, so the lowest p(meets) decides (an average would let a criterion that is clearly met make up for one that is
+not). Then:
+
+- lowest ``p(meets) >= threshold``: the reviewer's decision is "accepted" (and the study is accepted).
+- otherwise, some ``p(not_met) >= threshold``: "rejected" with that criterion as the reason.
+- otherwise: "unclassified"; the title and abstract do not settle it, so it is left to the reviewers.
 
 A run is driven in small steps (``process_step``) so that the page can show its progress, and every answer is kept
 in ``ScreeningResult`` for audit. A run cannot be stopped; when it is interrupted (page closed, connection lost, Jev
@@ -64,6 +78,9 @@ CONTEXT_FIELDS = (
 )
 GUIDANCE_LENGTH = 2000
 
+EXCLUSION, INCLUSION = ScreeningRun.EXCLUSION, ScreeningRun.INCLUSION
+LABELS = {EXCLUSION: "Exclude with AI", INCLUSION: "Include with AI"}
+
 # Fixed parts of the request: these define the method and are not editable.
 TASK = (
     "Screening for a systematic review, phase 1 (exclusion only), from the title, keywords and abstract of a study: "
@@ -79,6 +96,20 @@ NONE_DESCRIPTION = (
     "No exclusion criterion is clearly supported by the title, keywords or abstract, or they do not give enough "
     "information to decide."
 )
+INCLUSION_TASK = (
+    "Screening for a systematic review, phase 2 (inclusion), from the title, keywords and abstract of a study: does "
+    "the study meet this inclusion criterion?"
+)
+INCLUSION_RULES = (
+    "Choose meets only if the title, keywords or abstract explicitly support that the study meets the criterion.",
+    "Choose not_met only if the title, keywords or abstract explicitly show that the study does not meet it.",
+    "If the title, keywords and abstract do not give enough information to decide, choose unclear.",
+)
+MEETS, NOT_MET, UNCLEAR = "meets", "not_met", "unclear"
+UNCLEAR_DESCRIPTION = "The title, keywords and abstract do not give enough information to decide."
+# Inclusion: what happens to a study that is neither clearly in nor clearly out. Only "keep_undecided" exists: it
+# stays unclassified for the reviewers (kept in the run so that a stricter rule can be added later).
+RULE_KEEP_UNDECIDED = "keep_undecided"
 SENT_FIELDS = ("title", "keywords", "abstract")
 
 # Statuses of the studies a run may send, in the order the window lists them.
@@ -88,7 +119,10 @@ STATUSES = (
     (Article.UNCLASSIFIED, "Unclassified"),
     (Article.DUPLICATED, "Duplicated"),
 )
-DEFAULT_STATUSES = (Article.REJECTED, Article.UNCLASSIFIED)
+DEFAULT_STATUSES = {
+    EXCLUSION: (Article.REJECTED, Article.UNCLASSIFIED),
+    INCLUSION: (Article.UNCLASSIFIED, Article.ACCEPTED),
+}
 
 
 # Setup ---------------------------------------------------------------------------------------------------------------
@@ -140,6 +174,13 @@ def default_context(review):
     }
 
 
+def clean_phase(phase):
+    phase = str(phase or EXCLUSION).strip().lower()
+    if phase not in LABELS:
+        raise ValidationError(f"phase must be {EXCLUSION} or {INCLUSION}.", field="phase")
+    return phase
+
+
 def exclusion_options(review):
     """The review's exclusion criteria as the options of the question: E1, E2… in the order the review lists them."""
     return [
@@ -148,10 +189,38 @@ def exclusion_options(review):
     ]
 
 
-def clean_statuses(statuses):
-    """The statuses of the studies to send: codes U, R, A, D; None means the default (rejected and unclassified)."""
+def inclusion_options(review):
+    """The review's inclusion criteria, one question each: I1, I2… in the order the review lists them."""
+    return [
+        {"key": f"I{index}", "id": criteria.pk, "description": criteria.description}
+        for index, criteria in enumerate(review.get_inclusion_criterias(), start=1)
+    ]
+
+
+def criteria_options(review, phase):
+    return inclusion_options(review) if phase == INCLUSION else exclusion_options(review)
+
+
+def task_and_rules(phase):
+    return (INCLUSION_TASK, INCLUSION_RULES) if phase == INCLUSION else (TASK, RULES)
+
+
+def answer_descriptions(option):
+    """The options of an inclusion criterion's question."""
+    return {
+        MEETS: f"The study meets the inclusion criterion: {option['description']}",
+        NOT_MET: f"The study does not meet the inclusion criterion: {option['description']}",
+        UNCLEAR: UNCLEAR_DESCRIPTION,
+    }
+
+
+def clean_statuses(statuses, phase=EXCLUSION):
+    """
+    The statuses of the studies to send: codes U, R, A, D; None means the phase's default (exclusion: rejected and
+    unclassified; inclusion: unclassified and accepted).
+    """
     if statuses is None:
-        return list(DEFAULT_STATUSES)
+        return [code for code, _label in STATUSES if code in DEFAULT_STATUSES[phase]]
     if isinstance(statuses, str):
         statuses = [statuses]
     codes = dict(STATUSES)
@@ -164,7 +233,7 @@ def clean_statuses(statuses):
     return [code for code, _label in STATUSES if code in chosen]
 
 
-def eligible_articles(review, *, statuses=DEFAULT_STATUSES, source_id=None):
+def eligible_articles(review, *, statuses=DEFAULT_STATUSES[EXCLUSION], source_id=None):
     """What a run sends: the studies with ``statuses``, from one source or all of them."""
     articles = review.article_set.filter(status__in=statuses)
     if source_id:
@@ -207,7 +276,7 @@ def _clean_threshold(threshold):
 # Request ------------------------------------------------------------------------------------------------------------
 
 
-def instructions(context, guidance):
+def instructions(context, guidance, phase=EXCLUSION):
     review = {}
     for name, _label, _limit in CONTEXT_FIELDS:
         value = context.get(name)
@@ -215,7 +284,8 @@ def instructions(context, guidance):
             review[name] = [line.strip() for line in value.splitlines() if line.strip()]
         elif value:
             review[name] = value
-    body = {"review": review, "task": TASK, "rules": list(RULES)}
+    task, rules = task_and_rules(phase)
+    body = {"review": review, "task": task, "rules": list(rules)}
     if guidance:
         body["guidance"] = guidance
     return body
@@ -247,6 +317,41 @@ def questions(options, context, guidance):
     }
 
 
+def inclusion_question_ids(options):
+    """{criterion key: the ids of its question in each order}, e.g. {"I1": ["inclusion_i1_1", …]}."""
+    return {
+        option["key"]: [f"inclusion_{option['key'].lower()}_{order}" for order in range(1, ORDERS + 1)]
+        for option in options
+    }
+
+
+def _answer_orders():
+    answers = [MEETS, NOT_MET, UNCLEAR]
+    return [answers[shift:] + answers[:shift] for shift in range(ORDERS)]
+
+
+def inclusion_questions(options, context, guidance):
+    """One choice question per inclusion criterion (meets, not_met, unclear), in every order."""
+    asked = {}
+    ids = inclusion_question_ids(options)
+    for option in options:
+        body = dict(instructions(context, guidance, INCLUSION), criterion=f"{option['key']}: {option['description']}")
+        descriptions = answer_descriptions(option)
+        for question_id, order in zip(ids[option["key"]], _answer_orders()):
+            asked[question_id] = {
+                "type": "choice",
+                "instructions": body,
+                "criteria": {answer: descriptions[answer] for answer in order},
+            }
+    return asked
+
+
+def phase_questions(phase, options, context, guidance):
+    if phase == INCLUSION:
+        return inclusion_questions(options, context, guidance)
+    return questions(options, context, guidance)
+
+
 def state(article):
     """What Jev reads about a study, or None when there is nothing to read."""
     values = {
@@ -265,9 +370,33 @@ def combine(response, options):
     Average each option's probability over the orders asked. Returns (probabilities, p_exclude, best criterion key).
     """
     keys = [option["key"] for option in options]
-    totals = dict.fromkeys(keys + [NONE], 0.0)
+    probabilities = _average(response, question_ids(options), keys + [NONE], "the exclusion question")
+    p_exclude = round(min(max(1.0 - probabilities[NONE], 0.0), 1.0), 4)
+    return probabilities, p_exclude, max(keys, key=lambda key: probabilities[key])
+
+
+def combine_inclusion(response, options):
+    """
+    Average each inclusion criterion's answers over the orders asked. Returns (probabilities {key: {meets, not_met,
+    unclear}}, the weakest criterion: lowest p(meets), the most clearly failed one: highest p(not_met)).
+    """
+    ids = inclusion_question_ids(options)
+    probabilities = {
+        option["key"]: _average(
+            response, ids[option["key"]], [MEETS, NOT_MET, UNCLEAR], f"the question about {option['key']}"
+        )
+        for option in options
+    }
+    weakest = min(probabilities, key=lambda key: probabilities[key][MEETS])
+    failed = max(probabilities, key=lambda key: probabilities[key][NOT_MET])
+    return probabilities, weakest, failed
+
+
+def _average(response, question_ids, keys, about):
+    """Each key's probability averaged over the questions Jev answered."""
+    totals = dict.fromkeys(keys, 0.0)
     answered = 0
-    for question_id in question_ids(options):
+    for question_id in question_ids:
         answer = response["answers"].get(question_id)
         probabilities = answer.get("probabilities") if isinstance(answer, dict) else None
         if not isinstance(probabilities, dict):
@@ -279,10 +408,8 @@ def combine(response, options):
             raise jev.JevError("Jev returned probabilities that are not numbers.")
         answered += 1
     if not answered:
-        raise jev.JevError("Jev did not answer the exclusion question.")
-    probabilities = {key: round(total / answered, 4) for key, total in totals.items()}
-    p_exclude = round(min(max(1.0 - probabilities[NONE], 0.0), 1.0), 4)
-    return probabilities, p_exclude, max(keys, key=lambda key: probabilities[key])
+        raise jev.JevError(f"Jev did not answer {about}.")
+    return {key: round(total / answered, 4) for key, total in totals.items()}
 
 
 # Runs ---------------------------------------------------------------------------------------------------------------
@@ -336,24 +463,27 @@ def start_run(
     threshold=DEFAULT_THRESHOLD,
     source_id=None,
     statuses=None,
+    phase=EXCLUSION,
 ):
     """
-    Check the settings, take the studies in scope and open a run; ``process_step`` does the work. The decisions are
-    recorded as ``reviewer_id``; the calls use the actor's Jev key and ``model`` (default: the actor's default model).
-    Context fields left out (or None) take the review's values; an empty string sends the field empty. ``statuses``
-    picks the studies sent (codes U, R, A, D; default rejected and unclassified).
+    Check the settings, take the studies in scope and open a run of ``phase`` (exclusion or inclusion);
+    ``process_step`` does the work. The decisions are recorded as ``reviewer_id``; the calls use the actor's Jev key
+    and ``model`` (default: the actor's default model). Context fields left out (or None) take the review's values;
+    an empty string sends the field empty. ``statuses`` picks the studies sent (codes U, R, A, D; default: see
+    ``clean_statuses``).
     """
+    phase = clean_phase(phase)
     integrations.jev_api_key(actor)  # a key the actor can use, before anything else
     reviewer = get_reviewer(review, actor, reviewer_id)
     model = _clean_model(actor, model)
-    options = exclusion_options(review)
+    options = criteria_options(review, phase)
     if not options:
-        raise ValidationError("The review has no exclusion criteria. Add them in Planning first.", field="criteria")
+        raise ValidationError(f"The review has no {phase} criteria. Add them in Planning first.", field="criteria")
     merged = default_context(review)
     merged.update({name: value for name, value in (context or {}).items() if value is not None})
     context, guidance = _clean_context(merged, guidance)
     threshold = _clean_threshold(threshold)
-    statuses = clean_statuses(statuses)
+    statuses = clean_statuses(statuses, phase)
     if source_id in ("", None):
         source_id = None
     elif not review.sources.filter(pk=source_id).exists():
@@ -366,20 +496,24 @@ def start_run(
     for stale in review.screening_runs.filter(status=ScreeningRun.RUNNING):
         _close(stale, ScreeningRun.CANCELLED)
 
+    parameters = {
+        "context": context,
+        "guidance": guidance,
+        "criteria": options,
+        "threshold": threshold,
+        "source_id": int(source_id) if source_id else None,
+        "statuses": statuses,
+        "orders": ORDERS if phase == INCLUSION else len(_orders(options)),
+    }
+    if phase == INCLUSION:
+        parameters["rule"] = RULE_KEEP_UNDECIDED
     run = ScreeningRun.objects.create(
         review=review,
         reviewer=reviewer,
         started_by=actor,
+        phase=phase,
         model=model,
-        parameters={
-            "context": context,
-            "guidance": guidance,
-            "criteria": options,
-            "threshold": threshold,
-            "source_id": int(source_id) if source_id else None,
-            "statuses": statuses,
-            "orders": len(_orders(options)),
-        },
+        parameters=parameters,
         total=len(articles),
     )
     ScreeningResult.objects.bulk_create(
@@ -446,7 +580,7 @@ def process_step(*, run, actor, size=STEP_SIZE):
         return []
 
     options = run.parameters["criteria"]
-    asked = questions(options, run.parameters["context"], run.parameters["guidance"])
+    asked = phase_questions(run.phase, options, run.parameters["context"], run.parameters["guidance"])
     payloads = {}
     for result in pending:
         article_state = state(result.article)
@@ -497,42 +631,82 @@ def _record(run, result, response):
         result.outcome = ScreeningResult.ERROR
         result.error = str(response)[:500]
     else:
-        options = run.parameters["criteria"]
         try:
-            probabilities, p_exclude, best = combine(response, options)
+            if run.phase == INCLUSION:
+                _apply_inclusion(run, result, response)
+            else:
+                _apply_exclusion(run, result, response)
         except jev.JevError as error:
             result.outcome = ScreeningResult.ERROR
             result.error = str(error)
-        else:
-            result.probabilities = probabilities
-            result.p_exclude = p_exclude
-            result.model = str(response.get("model") or run.model)[:100]
-            if p_exclude < run.parameters["threshold"]:
-                _pass(run, result)
-                result.outcome = ScreeningResult.PASSED
-            elif _reject(run, result, best):
-                result.outcome = ScreeningResult.EXCLUDED
-            else:
-                result.outcome = ScreeningResult.ERROR
-                result.error = f"Criterion {best} was deleted from the review during the run."
     result.save()
+
+
+def _apply_exclusion(run, result, response):
+    probabilities, p_exclude, best = combine(response, run.parameters["criteria"])
+    result.probabilities = probabilities
+    result.p_exclude = p_exclude
+    result.model = str(response.get("model") or run.model)[:100]
+    if p_exclude < run.parameters["threshold"]:
+        _pass(run, result, f"no exclusion criterion, p(exclude) = {p_exclude:.2f}")
+        result.outcome = ScreeningResult.PASSED
+    elif _reject(run, result, best, f"{best}, p(exclude) = {p_exclude:.2f}"):
+        result.outcome = ScreeningResult.EXCLUDED
+    else:
+        _criterion_gone(result, best)
+
+
+def _apply_inclusion(run, result, response):
+    probabilities, weakest, failed = combine_inclusion(response, run.parameters["criteria"])
+    threshold = run.parameters["threshold"]
+    result.probabilities = probabilities
+    result.p_include = probabilities[weakest][MEETS]
+    result.p_exclude = probabilities[failed][NOT_MET]
+    result.model = str(response.get("model") or run.model)[:100]
+    meets = ", ".join(f"{key} {answers[MEETS]:.2f}" for key, answers in probabilities.items())
+    if result.p_include >= threshold:
+        _accept(run, result, f"meets every inclusion criterion — meets: {meets}")
+        result.outcome = ScreeningResult.INCLUDED
+    elif result.p_exclude >= threshold:
+        if _reject(run, result, failed, f"{failed} not met, p(not met) = {result.p_exclude:.2f} — meets: {meets}"):
+            result.outcome = ScreeningResult.EXCLUDED
+        else:
+            _criterion_gone(result, failed)
+    else:
+        _undecided(run, result, f"undecided, weakest {weakest} (meet {result.p_include:.2f}) — meets: {meets}")
+        result.outcome = ScreeningResult.UNDECIDED
+
+
+def _criterion_gone(result, key):
+    result.outcome = ScreeningResult.ERROR
+    result.error = f"Criterion {key} was deleted from the review during the run."
 
 
 def _changeable(run, result):
     """
-    The study, if the run may change its status: it was unclassified, or rejected by the run's reviewer, when the run
-    took it, and nobody changed it since. Accepted studies, duplicates and studies rejected by someone else keep
-    their status (the reviewer's decision is recorded all the same).
+    The study, if the run may change its status: it was unclassified, or classified by the run's reviewer (rejected,
+    in an exclusion run; accepted or rejected, in an inclusion run), when the run took it, and nobody changed it
+    since. Duplicates and studies classified by someone else keep their status (the reviewer's decision is recorded
+    all the same); an exclusion run never changes an accepted study.
     """
-    if result.previous_status not in (Article.UNCLASSIFIED, Article.REJECTED):
+    changeable = {Article.UNCLASSIFIED, Article.REJECTED}
+    if run.phase == INCLUSION:
+        changeable.add(Article.ACCEPTED)
+    if result.previous_status not in changeable:
         return run.review.article_set.none()
     articles = run.review.article_set.filter(pk=result.article_id, status=result.previous_status)
-    if result.previous_status == Article.REJECTED:
+    if result.previous_status != Article.UNCLASSIFIED:
         articles = articles.filter(updated_by=run.reviewer)
     return articles
 
 
-def _decide(run, result, status, criteria_id, comments):
+def _set_status(run, result, status, criteria_id=None):
+    _changeable(run, result).update(
+        status=status, selection_criteria_id=criteria_id, updated_by=run.reviewer, updated_at=timezone.now()
+    )
+
+
+def _decide(run, result, status, criteria_id, detail):
     decisions.record_decision(
         review=run.review,
         article_id=result.article_id,
@@ -540,11 +714,11 @@ def _decide(run, result, status, criteria_id, comments):
         status=status,
         stage=StudyDecision.TITLE_ABSTRACT,
         criteria_id=criteria_id,
-        comments=f"Exclude with AI (run {run.pk}, {result.model}): {comments}, p(exclude) = {result.p_exclude:.2f}.",
+        comments=f"{LABELS[run.phase]} (run {run.pk}, {result.model}): {detail}.",
     )
 
 
-def _reject(run, result, key):
+def _reject(run, result, key, detail):
     """
     Record the reviewer's "rejected" decision with the criterion ``key``, and reject the study with it when the run
     may change its status (see ``_changeable``). False when the criterion is gone.
@@ -553,23 +727,35 @@ def _reject(run, result, key):
     if not run.review.selectioncriteria_set.filter(pk=criteria_id).exists():
         return False
     result.selection_criteria_id = criteria_id
-    _changeable(run, result).update(
-        status=Article.REJECTED, selection_criteria_id=criteria_id, updated_by=run.reviewer, updated_at=timezone.now()
-    )
-    _decide(run, result, Article.REJECTED, criteria_id, key)
+    _set_status(run, result, Article.REJECTED, criteria_id)
+    _decide(run, result, Article.REJECTED, criteria_id, detail)
     return True
 
 
-def _pass(run, result):
+def _pass(run, result, detail):
     """
-    No criterion applies: the reviewer's decision becomes "unclassified", and a study this reviewer had rejected
-    goes back to unclassified.
+    Exclusion, no criterion applies: the reviewer's decision becomes "unclassified", and a study this reviewer had
+    rejected goes back to unclassified.
     """
     if result.previous_status == Article.REJECTED:
-        _changeable(run, result).update(
-            status=Article.UNCLASSIFIED, selection_criteria=None, updated_by=run.reviewer, updated_at=timezone.now()
-        )
-    _decide(run, result, Article.UNCLASSIFIED, None, "no exclusion criterion")
+        _set_status(run, result, Article.UNCLASSIFIED)
+    _decide(run, result, Article.UNCLASSIFIED, None, detail)
+
+
+def _accept(run, result, detail):
+    """Inclusion, every criterion is met: the reviewer's decision is "accepted", and so is the study."""
+    _set_status(run, result, Article.ACCEPTED)
+    _decide(run, result, Article.ACCEPTED, None, detail)
+
+
+def _undecided(run, result, detail):
+    """
+    Inclusion, neither clearly met nor clearly not met: the reviewer's decision becomes "unclassified", and a study
+    this reviewer had accepted or rejected goes back to unclassified.
+    """
+    if result.previous_status in (Article.ACCEPTED, Article.REJECTED):
+        _set_status(run, result, Article.UNCLASSIFIED)
+    _decide(run, result, Article.UNCLASSIFIED, None, detail)
 
 
 def progress(run):
@@ -577,7 +763,9 @@ def progress(run):
     counts = run.results.aggregate(
         excluded=Count("pk", filter=Q(outcome=ScreeningResult.EXCLUDED)),
         passed=Count("pk", filter=Q(outcome=ScreeningResult.PASSED)),
+        included=Count("pk", filter=Q(outcome=ScreeningResult.INCLUDED)),
+        undecided=Count("pk", filter=Q(outcome=ScreeningResult.UNDECIDED)),
         failed=Count("pk", filter=Q(outcome=ScreeningResult.ERROR)),
     )
-    counts["processed"] = counts["excluded"] + counts["passed"] + counts["failed"]
-    return {"id": run.pk, "status": run.status, "total": run.total, "error": run.error, **counts}
+    counts["processed"] = sum(counts.values())
+    return {"id": run.pk, "phase": run.phase, "status": run.status, "total": run.total, "error": run.error, **counts}

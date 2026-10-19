@@ -206,7 +206,7 @@ the review deletes its agents.
 **Consequences.** Migration `reviews.0041`. The decision count, quality
 assessments and extractions of an agent are shown before deleting it.
 
-## AI exclusion screening with Jev (phase 1 of study selection)
+## AI screening with Jev (phases 1 and 2 of study selection)
 
 **Context.** Helder screens in two phases: first remove the studies that meet
 an exclusion criterion, then judge the rest against the inclusion criteria.
@@ -258,9 +258,25 @@ reviewed (Akita, 2026-10-03).
   it again, same parameters) unless a step ran in the last 30 s
   (`last_step_at`, driven elsewhere). Starting a new run discards it. The
   cancel operation was removed from the web, API, CLI and MCP.
+- **Include with AI** (phase 2, 2026-10-19), a run `phase` next to the
+  exclusion one, with the same window, reviewer, model, statuses (default
+  U + A) and continuation. A study must meet *every* inclusion criterion, which
+  one choice question cannot express (it picks one option), so each criterion
+  gets its own `choice` question — meets / not_met / unclear — in three answer
+  orders. Accept when the **lowest** p(meets) reaches the threshold (an average
+  would let a criterion clearly met make up for a weak one); otherwise reject
+  when some p(not_met) reaches it, with that criterion as the reason; otherwise
+  leave the study unclassified for the reviewers, so nothing is rejected for
+  lack of information. Helder may later prefer to reject everything not
+  accepted once Jev proves precise; the run keeps its rule
+  (`parameters.rule = keep_undecided`) for that. The decision replaces the
+  reviewer's phase-1 decision (same stage), so agreement compares the
+  reviewer's last word. The status also follows for studies this reviewer
+  accepted.
 
 **Consequences.** Migrations `accounts.0002`, `accounts.0003` (encrypted key), `reviews.0042`, `reviews.0043`
-(reviewer, no agent kind), `reviews.0044` (`last_step_at`). The API, CLI and
+(reviewer, no agent kind), `reviews.0044` (`last_step_at`), `reviews.0045` (`phase`, `p_include`, outcomes
+`included` and `undecided`). The API, CLI and
 MCP mirror the web one to one (`jev_integration_*`, `ai_screening_*`); runs use
 the Jev key of the caller. The CLI command `ai-screening run` and the MCP tool
 `parsifal_ai_screening_run` loop over the steps like the web page does.

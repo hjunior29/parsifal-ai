@@ -727,8 +727,16 @@ def consolidate(request):
 @author_required
 @login_required
 def ai_screening(request):
-    """Exclude with AI: the setup window, prefilled from the review (phase 1 of study selection)."""
+    """
+    Exclude with AI (phase 1 of study selection) or Include with AI (phase 2, ``phase=inclusion``): the setup
+    window, prefilled from the review.
+    """
     review = get_object_or_404(Review, pk=request.GET.get("review-id"))
+    try:
+        phase = ai_screening_service.clean_phase(request.GET.get("phase"))
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
+    task, rules = ai_screening_service.task_and_rules(phase)
     integration = integrations.get_jev(request.user)
     defaults = ai_screening_service.default_context(review)
     agent_ids = ai_screening_service.agent_ids(review)
@@ -745,15 +753,19 @@ def ai_screening(request):
     unfinished = ai_screening_service.unfinished_run(review)
     context = {
         "review": review,
+        "phase": phase,
+        "inclusion": phase == ai_screening_service.INCLUSION,
+        "label": ai_screening_service.LABELS[phase],
         "integration": integration,
         "unfinished": unfinished,
+        "unfinished_label": ai_screening_service.LABELS[unfinished.phase] if unfinished else "",
         "unfinished_active": unfinished is not None and ai_screening_service.is_active(unfinished),
         "unfinished_progress": ai_screening_service.progress(unfinished) if unfinished else None,
         "reviewers": reviewers,
         "selected_reviewer": selected,
         "models": [{"name": m["name"], "label": model_label(m)} for m in models],
         "models_error": models_error,
-        "options": ai_screening_service.exclusion_options(review),
+        "options": ai_screening_service.criteria_options(review, phase),
         "context_fields": [
             {"name": name, "label": label, "value": defaults[name], "limit": limit, "multiline": limit > 255}
             for name, label, limit in ai_screening_service.CONTEXT_FIELDS
@@ -767,14 +779,15 @@ def ai_screening(request):
             *({"id": s.pk, "name": s.name} for s in review.sources.order_by("name")),
         ],
         "statuses": [
-            {"code": code, "label": label, "checked": code in ai_screening_service.DEFAULT_STATUSES}
+            {"code": code, "label": label, "checked": code in ai_screening_service.DEFAULT_STATUSES[phase]}
             for code, label in ai_screening_service.STATUSES
         ],
         # Studies per source and status: the page adds up the checked statuses of the chosen source.
         "counts": ai_screening_service.scope_counts(review),
-        "task": ai_screening_service.TASK,
-        "rules": ai_screening_service.RULES,
+        "task": task,
+        "rules": rules,
         "none_description": ai_screening_service.NONE_DESCRIPTION,
+        "unclear_description": ai_screening_service.UNCLEAR_DESCRIPTION,
     }
     return render(request, "conducting/partial_conducting_ai_screening.html", context)
 
@@ -800,6 +813,7 @@ def ai_screening_start(request):
             threshold=request.POST.get("threshold", ai_screening_service.DEFAULT_THRESHOLD),
             source_id=request.POST.get("source-id") or None,
             statuses=request.POST.getlist("statuses"),
+            phase=request.POST.get("phase"),
         )
     except DomainError as error:
         return _ai_screening_error(error)
@@ -825,6 +839,7 @@ def ai_screening_step(request):
                     "title": result.article.title or result.article.bibtex_key,
                     "outcome": result.outcome,
                     "p_exclude": result.p_exclude,
+                    "p_include": result.p_include,
                     "criteria": ai_screening_service.criteria_key(run, result.selection_criteria_id),
                     "error": result.error,
                 }

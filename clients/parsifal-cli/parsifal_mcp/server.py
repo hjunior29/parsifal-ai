@@ -236,13 +236,16 @@ def workflow_guide():
 
 
 SCREENING_RUN_DESCRIPTION = (
-    "Exclude with AI (phase 1 of study selection), in one call: starts a run (or continues run_id) and screens with "
-    "Jev until the run ends or max_seconds pass. reviewer_id is the member of the review the decisions are recorded "
-    "as (only the main author may name someone else; see parsifal_ai_screening_setup). A run sends the studies with "
-    "the given statuses (U, R, A, D; default R and U) and rewrites the reviewer's decisions on them: studies whose "
-    "probability of meeting some exclusion criterion reaches the threshold get a 'rejected' decision with that "
-    "criterion, the rest an 'unclassified' decision. Only unclassified studies and those rejected by this reviewer "
-    "change status, so two reviewers can screen the same studies and be compared (parsifal_decisions_agreement). "
+    "Exclude with AI (phase 1 of study selection, phase='exclusion', the default) or Include with AI (phase 2, "
+    "phase='inclusion'), in one call: starts a run (or continues run_id) and screens with Jev until the run ends or "
+    "max_seconds pass. reviewer_id is the member of the review the decisions are recorded as (only the main author "
+    "may name someone else; see parsifal_ai_screening_setup). A run sends the studies with the given statuses (U, R, "
+    "A, D; default R and U for exclusion, A and U for inclusion) and rewrites the reviewer's decisions on them. "
+    "Exclusion: 'rejected' with the criterion when the probability that some exclusion criterion applies reaches the "
+    "threshold, else 'unclassified'. Inclusion: 'accepted' when every inclusion criterion is met (the lowest "
+    "probability reaches the threshold), 'rejected' when one is clearly not met, else 'unclassified'. Only "
+    "unclassified studies and those this reviewer classified change status, so two reviewers can screen the same "
+    "studies and be compared (parsifal_decisions_agreement). "
     "Uses the Jev API key of the token's user (parsifal_jev_integration_set). Start fields left out take the "
     "review's values. If the result says it is still running, call again with run_id."
 )

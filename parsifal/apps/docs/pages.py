@@ -53,7 +53,7 @@ PAGES = (
     ),
     Page(
         "ai-screening",
-        "Exclude with AI (Jev)",
+        "Exclude and include with AI (Jev)",
         "Methodology",
         "Phase 1 of study selection: Jev rejects studies that clearly meet an exclusion criterion.",
     ),

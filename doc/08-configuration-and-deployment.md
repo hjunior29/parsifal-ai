@@ -34,7 +34,7 @@ template). `DATABASE_URL` is parsed by `dj-database-url`.
 | ~~`ELSEVIER_API_KEY`~~ | — | — | Scopus search removed (cleanup round, 2026-10-16). |
 | `PARSIFAL_ALLOW_SIGNUP` | `False` | `SignUpView`, header, cover page | Added in phase 1. When `False`, `/signup/` answers 403 unless the request carries a pending invite code; the admin creates accounts (`createsuperuser`, admin site) or users arrive through co-author invites. |
 | `PARSIFAL_ENVIRONMENT` | `local` | context processor, `environment` command | Keep. |
-| `JEV_API_URL` | `https://api.typesafe.ai` | `core/jev.py` | Base URL of Jev for *Exclude with AI*; can point to a compatible server. The API key is per user, in Settings → Integrations. |
+| `JEV_API_URL` | `https://api.typesafe.ai` | `core/jev.py` | Base URL of Jev for *Exclude/Include with AI*; can point to a compatible server. The API key is per user, in Settings → Integrations. |
 | `PARSIFAL_HTTPS` | `False` | `production.py` | Phase 6. Enables secure cookies, HSTS and the HTTPS redirect. |
 | `CSRF_TRUSTED_ORIGINS` | empty (CSV) | `production.py` | Phase 6. |
 | `EMAIL_BACKEND`, `DEFAULT_FROM_EMAIL`, `SERVER_EMAIL` | console backend / `Parsifal <noreply@localhost>` | `production.py` | Phase 6. SMTP is used automatically when `EMAIL_HOST` is set. |

@@ -32,7 +32,7 @@ document at `/api/v1/openapi.json`.
 | Articles | `/articles` (list, create), `/articles/{id}`, `/articles/status`, `/articles/import`, `/articles/import/file`, `/articles/duplicates` (+ `/resolve`) |
 | Classification (optional) | `/facets` (+ templates, categories), `/articles/{id}/classification`, `/analytics/facets/{id}/frequencies`, `/analytics/facet-matrix`, `/test-set`, `/checklist` |
 | Multiple reviewers | `/decisions`, `/articles/{id}/decisions`, `/decisions/agreement`, `/decisions/disagreements`, `/decisions/consolidate` |
-| Exclude with AI (Jev) | `/integrations/jev` (+ `/test`; not review-scoped), `/ai-screening`, `/ai-screening/runs` (+ `/{id}`, `/{id}/step`, `/{id}/results`) — see [Exclude with AI](/docs/ai-screening/) |
+| Exclude and include with AI (Jev) | `/integrations/jev` (+ `/test`; not review-scoped), `/ai-screening?phase=`, `/ai-screening/runs` (+ `/{id}`, `/{id}/step`, `/{id}/results`; `phase` exclusion or inclusion) — see [Exclude and include with AI](/docs/ai-screening/) |
 | Library (personal, not review-scoped) | `/library/folders` (+ `/{id}/documents`, `/remove`, `/move`), `/library/documents` (+ `/delete`), `/library/import` (+ `/file`) |
 | Analytics and exports | `/analytics/selection-by-source`, `/analytics/final-by-year`, `/export/articles.{csv,xlsx,json}`, `/export/extraction.{csv,xlsx,json}`, `/export/report.docx` |
 

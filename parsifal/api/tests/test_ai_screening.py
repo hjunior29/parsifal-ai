@@ -4,6 +4,7 @@ from parsifal.api.tests.base import ApiTestCase
 from parsifal.apps.accounts.models import Integration
 from parsifal.apps.core import jev
 from parsifal.apps.reviews.models import Article, SelectionCriteria, StudyDecision
+from parsifal.apps.reviews.services import ai_screening
 from parsifal.apps.reviews.tests.factories import ArticleFactory
 
 KEY = "fake-jev-key-0123456789abcdef"
@@ -70,7 +71,7 @@ class TestJevIntegrationApi(ApiTestCase):
         self.assertEqual(204, self.api("delete", "/integrations/jev").status_code)
 
 
-class TestAiScreeningApi(ApiTestCase):
+class AiScreeningApiBase(ApiTestCase):
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()
@@ -89,6 +90,8 @@ class TestAiScreeningApi(ApiTestCase):
         self.secondary = ArticleFactory(review=self.review, source=self.source, title="A survey", abstract="x")
         self.primary = ArticleFactory(review=self.review, source=self.source, title="An experiment", abstract="y")
 
+
+class TestAiScreeningApi(AiScreeningApiBase):
     def test_setup(self):
         body = self.api("get", self.review_path("/ai-screening")).json()
         self.assertEqual((True, "jev-1.13.0"), (body["configured"], body["model"]))
@@ -251,5 +254,81 @@ class TestAiScreeningApi(ApiTestCase):
                 self.review_path(f"/ai-screening/runs/{run['id']}/step"),
                 {},
                 client=self.client_for(self.outsider),
+            ).status_code,
+        )
+
+
+def inclusion_answer(meets, not_met, unclear, model="jev-1.13.0"):
+    probabilities = {"meets": meets, "not_met": not_met, "unclear": unclear}
+    return {
+        "model": model,
+        "answers": {f"inclusion_i1_{n}": {"type": "choice", "probabilities": probabilities} for n in (1, 2, 3)},
+    }
+
+
+class TestIncludeWithAiApi(AiScreeningApiBase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.inclusion = SelectionCriteria.objects.create(
+            review=cls.review, criteria_type="I", description="Implemented tool"
+        )
+
+    def test_setup_for_inclusion(self):
+        body = self.api("get", self.review_path("/ai-screening"), QUERY_STRING="phase=inclusion").json()
+        self.assertEqual("inclusion", body["phase"])
+        self.assertEqual([{"key": "I1", "id": self.inclusion.pk, "description": "Implemented tool"}], body["criteria"])
+        self.assertEqual((["meets", "not_met", "unclear"], ""), (body["answers"], body["none_description"]))
+        self.assertIn("inclusion", body["task"])
+        self.assertEqual(["A", "U"], body["statuses_default"])
+        self.assertEqual(2, body["scopes"][0]["studies"])
+        exclusion = self.api("get", self.review_path("/ai-screening")).json()
+        self.assertEqual(
+            ("exclusion", [], ["R", "U"]), (exclusion["phase"], exclusion["answers"], exclusion["statuses_default"])
+        )
+        self.assertEqual(
+            422, self.api("get", self.review_path("/ai-screening"), QUERY_STRING="phase=maybe").status_code
+        )
+
+    def test_inclusion_run(self):
+        response = self.api(
+            "post", self.review_path("/ai-screening/runs"), {"reviewer_id": self.author.pk, "phase": "inclusion"}
+        )
+        self.assertEqual(201, response.status_code, response.content)
+        run = response.json()
+        self.assertEqual(("inclusion", 2, ["A", "U"]), (run["phase"], run["total"], run["parameters"]["statuses"]))
+
+        with (
+            mock.patch.object(ai_screening, "WORKERS", 1),
+            mock.patch.object(
+                jev, "evaluate", side_effect=[inclusion_answer(0.02, 0.95, 0.03), inclusion_answer(0.96, 0.01, 0.03)]
+            ),
+        ):
+            step = self.api("post", self.review_path(f"/ai-screening/runs/{run['id']}/step"), {"size": 2}).json()
+        self.assertEqual(
+            ("finished", 1, 1, 0), tuple(step["run"][k] for k in ("status", "included", "excluded", "undecided"))
+        )
+        rejected, accepted = step["results"]
+        self.assertEqual(
+            ("excluded", "I1", 0.95, 0.02),
+            (rejected["outcome"], rejected["criteria_key"], rejected["p_exclude"], rejected["p_include"]),
+        )
+        self.assertEqual({"I1": {"meets": 0.96, "not_met": 0.01, "unclear": 0.03}}, accepted["probabilities"])
+        self.assertEqual(
+            {self.secondary.pk: "R", self.primary.pk: "A"},
+            dict(StudyDecision.objects.filter(user=self.author).values_list("article_id", "status")),
+        )
+        self.primary.refresh_from_db()
+        self.assertEqual(Article.ACCEPTED, self.primary.status)
+        self.assertEqual(
+            1,
+            self.api(
+                "get", self.review_path(f"/ai-screening/runs/{run['id']}/results"), QUERY_STRING="outcome=included"
+            ).json()["count"],
+        )
+        self.assertEqual(
+            422,
+            self.api(
+                "post", self.review_path("/ai-screening/runs"), {"reviewer_id": self.author.pk, "phase": "maybe"}
             ).status_code,
         )

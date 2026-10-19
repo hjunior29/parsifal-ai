@@ -145,15 +145,15 @@ with the criterion as reason; the human reviewer records theirs; both check
 `decisions_agreement` / `decisions_disagreements`; the human runs
 `decisions_consolidate` (or `articles_set_status` for individual overrides).
 
-### Exclude with AI (Jev) — phase 1 of study selection
+### Exclude and include with AI (Jev) — phases 1 and 2 of study selection
 
 | Method & path | operationId |
 |---------------|-------------|
 | `GET /integrations/jev` · `PUT {api_key?, model?}` · `POST /integrations/jev/test {api_key?}` · `DELETE` | `jev_integration_get` · `jev_integration_set` · `jev_integration_test` · `jev_integration_delete` — the caller's own key (Settings → Integrations); never returned, only `masked_key`. A blank value keeps the saved one. `test` lists Jev's models for the saved key, or for `api_key` without saving it (what Settings uses while you type), and answers 422 if Jev rejects the key, 502 if Jev fails |
-| `GET /reviews/{rid}/ai-screening` | `ai_screening_setup` — review context defaults, exclusion criteria as `E1…` + `none`, task, rules, threshold range, Jev's models for your key (asked now), who you may screen as, the statuses a run may send (`statuses`, `statuses_default` = R and U), studies per scope with `by_status`, and `unfinished_run` (a run left half-way) with `unfinished_run_active` (driven right now elsewhere) |
-| `POST /reviews/{rid}/ai-screening/runs {reviewer_id, model?, title?, objective?, research_questions?, population?, intervention?, comparison?, outcome?, context?, guidance?, threshold?, source_id?, statuses?}` | `ai_screening_start` (201) — decisions recorded as `reviewer_id` (only the main author may name another member); `model` defaults to yours; context fields left out take the review's values; `statuses` (any of U, R, A, D; default R and U) picks the studies sent |
+| `GET /reviews/{rid}/ai-screening?phase=exclusion|inclusion` | `ai_screening_setup` — review context defaults, the criteria of the phase (exclusion: `E1…` + `none`; inclusion: `I1…` with `answers` meets/not_met/unclear), task, rules, threshold range, Jev's models for your key (asked now), who you may screen as, the statuses a run may send (`statuses`, `statuses_default` = R and U, or A and U for inclusion), studies per scope with `by_status`, and `unfinished_run` (a run left half-way) with `unfinished_run_active` (driven right now elsewhere) |
+| `POST /reviews/{rid}/ai-screening/runs {reviewer_id, phase?, model?, title?, objective?, research_questions?, population?, intervention?, comparison?, outcome?, context?, guidance?, threshold?, source_id?, statuses?}` | `ai_screening_start` (201) — decisions recorded as `reviewer_id` (only the main author may name another member); `model` defaults to yours; context fields left out take the review's values; `statuses` (any of U, R, A, D; default R and U, or A and U for inclusion) picks the studies sent; `phase` is `exclusion` (default) or `inclusion` |
 | `POST /reviews/{rid}/ai-screening/runs/{id}/step {size?}` | `ai_screening_step` — screens the next 1–50 studies (default 8) with the caller's key; returns `{run, results[]}` |
-| `GET /reviews/{rid}/ai-screening/runs` · `GET /runs/{id}` · `GET /runs/{id}/results?outcome=` (paginated) | `ai_screening_runs_list` · `ai_screening_runs_get` (with the parameters snapshot) · `ai_screening_results` (probabilities, chosen criterion, errors) |
+| `GET /reviews/{rid}/ai-screening/runs` · `GET /runs/{id}` · `GET /runs/{id}/results?outcome=` (paginated) | `ai_screening_runs_list` · `ai_screening_runs_get` (with the parameters snapshot) · `ai_screening_results` (probabilities, `p_exclude`, `p_include`, criterion, errors; `outcome` excluded, passed, included, undecided, error, pending) |
 
 A run does nothing until `step` is called; call it until `run.status` is no
 longer `running`. A run cannot be cancelled: if Jev refuses the key or is
@@ -168,6 +168,12 @@ status follows only when it was unclassified (rejected, or stays unclassified)
 or rejected by this same reviewer (new criterion, or back to unclassified);
 accepted studies, duplicates and studies rejected by someone else keep theirs,
 so two reviewers can screen the same studies and be compared.
+
+An inclusion run asks one question per inclusion criterion (meets, not_met,
+unclear) and records "accepted" when the lowest `p(meets)` (`p_include`)
+reaches the threshold, else "rejected" with the criterion whose `p(not_met)`
+(`p_exclude`) reaches it, else "unclassified" (outcome `undecided`). Its status
+rule also lets it change the studies this reviewer accepted.
 
 ### Library (personal bibliography, independent from reviews)
 

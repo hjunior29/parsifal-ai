@@ -1,6 +1,7 @@
 /*
- * Exclude with AI (phase 1 of study selection). Opens the setup window, starts a run (or continues an unfinished
- * one) and then asks the server to screen the next few studies until the run ends, showing progress as it goes.
+ * Exclude with AI (phase 1 of study selection) and Include with AI (phase 2). Opens the setup window of the phase,
+ * starts a run (or continues an unfinished one) and then asks the server to screen the next few studies until the
+ * run ends, showing progress as it goes.
  * A run cannot be stopped; when it is interrupted (connection lost, Jev refusing the key or unavailable) the window
  * offers to continue it. "Done" reloads the page so the table shows the rejected studies.
  */
@@ -43,7 +44,8 @@ $(function () {
 
   $(document).on("click", ".btn-ai-screening", function () {
     run = null;
-    $.get("/reviews/conducting/ai_screening/", {"review-id": reviewId()}, function (html) {
+    var phase = $(this).data("phase") || "exclusion";
+    $.get("/reviews/conducting/ai_screening/", {"review-id": reviewId(), "phase": phase}, function (html) {
       $modal.find(".modal-content").html(html);
       updateCount();
       $modal.modal("show");
@@ -98,8 +100,11 @@ $(function () {
     run = state;
     var percent = state.total ? Math.round(100 * state.processed / state.total) : 100;
     $modal.find(".js-ai-bar").css("width", percent + "%").text(percent + "%");
+    $modal.find(".js-ai-labels").each(function () { $(this).toggle($(this).data("phase") === state.phase); });
     $modal.find(".js-ai-excluded").text(state.excluded);
     $modal.find(".js-ai-passed").text(state.passed);
+    $modal.find(".js-ai-included").text(state.included);
+    $modal.find(".js-ai-undecided").text(state.undecided);
     $modal.find(".js-ai-failed").text(state.failed);
     $modal.find(".js-ai-processed").text(state.processed);
     $modal.find(".js-ai-total").text(state.total);
@@ -107,9 +112,14 @@ $(function () {
     $.each(results, function (index, result) {
       var $item = $("<li>");
       if (result.outcome === "excluded") {
-        $item.append($("<span class='label label-danger'>").text("Rejected · " + result.criteria + " · " + result.p_exclude.toFixed(2)));
+        var reason = state.phase === "inclusion" ? result.criteria + " not met" : result.criteria;
+        $item.append($("<span class='label label-danger'>").text("Rejected · " + reason + " · " + result.p_exclude.toFixed(2)));
       } else if (result.outcome === "passed") {
         $item.append($("<span class='label label-default'>").text("Passed · " + result.p_exclude.toFixed(2)));
+      } else if (result.outcome === "included") {
+        $item.append($("<span class='label label-success'>").text("Accepted · " + result.p_include.toFixed(2)));
+      } else if (result.outcome === "undecided") {
+        $item.append($("<span class='label label-default'>").text("Undecided · " + result.p_include.toFixed(2)));
       } else {
         $item.append($("<span class='label label-warning'>").text("Error"));
         $item.attr("title", result.error);
@@ -167,7 +177,9 @@ $(function () {
     settle();
     render(state, []);
     var titles = {finished: "Finished.", cancelled: "Discarded: another run was started."};
-    var summary = " " + state.excluded + " rejected, " + state.passed + " passed (no criterion)";
+    var summary = state.phase === "inclusion"
+      ? " " + state.included + " accepted, " + state.excluded + " rejected, " + state.undecided + " undecided (left unclassified)"
+      : " " + state.excluded + " rejected, " + state.passed + " passed (no criterion)";
     if (state.failed) { summary += ", " + state.failed + " errors (those studies keep the reviewer's previous decision)"; }
     $modal.find(".js-ai-status").empty()
       .append($("<strong>").text(titles[state.status] || "Stopped."))

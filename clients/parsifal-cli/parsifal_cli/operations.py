@@ -1434,7 +1434,7 @@ OPERATIONS = (
         ("ai-screening",),
         "setup",
         "What a run would send (context, criteria, Jev's models, reviewers, studies per status), any unfinished run.",
-        (REVIEW,),
+        (REVIEW, Q("phase", help="exclusion (default) or inclusion.")),
     ),
     Operation(
         "ai_screening_start",
@@ -1442,9 +1442,14 @@ OPERATIONS = (
         "/reviews/{review_id}/ai-screening/runs",
         ("ai-screening",),
         "start",
-        "Open a run as a reviewer over the studies with the chosen statuses; then step until it ends.",
+        "Open an Exclude (or Include) with AI run as a reviewer over the chosen statuses; then step until it ends.",
         (
             REVIEW,
+            B(
+                "phase",
+                help="exclusion (default): reject when one exclusion criterion applies; inclusion: accept when every "
+                "inclusion criterion is met, reject when one is clearly not met, otherwise leave unclassified.",
+            ),
             B("title", help="Review title sent as context (default: the review's)."),
             B("objective", TEXT),
             B("research_questions", TEXT, help="One question per line."),
@@ -1459,8 +1464,8 @@ OPERATIONS = (
             B(
                 "statuses",
                 LIST_STR,
-                help="Send the studies with these statuses: U, R, A, D (repeat; default R and U). Only U and the "
-                "reviewer's own rejections change status.",
+                help="Send the studies with these statuses: U, R, A, D (repeat; default R and U, inclusion A and U). "
+                "Only U and the reviewer's own classifications change status.",
             ),
             B("reviewer_id", INT, True, "Member of the review the decisions are recorded as (see setup)."),
             B("model", help="Jev model for this run (default: your default model)."),

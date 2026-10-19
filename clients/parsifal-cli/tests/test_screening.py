@@ -7,12 +7,15 @@ from tests.conftest import invoke
 
 RUN = {
     "id": 3,
+    "phase": "exclusion",
     "status": "running",
     "model": "jev-1.13.0",
     "total": 2,
     "processed": 0,
     "excluded": 0,
     "passed": 0,
+    "included": 0,
+    "undecided": 0,
     "failed": 0,
     "error": "",
     "started_by": "alice",
@@ -147,3 +150,30 @@ def test_ctrl_c_interrupts_without_cancelling(runner, fake_api, monkeypatch):
     assert result.exit_code == 1
     assert "parsifal ai-screening run --review 7 --run 3" in result.output
     assert not [r for r in fake_api.requests if r.url.path.endswith("/cancel")]
+
+
+def test_cli_run_include_with_ai(runner, fake_api):
+    inclusion = dict(RUN, phase="inclusion")
+    fake_api.route("POST", "/api/v1/reviews/7/ai-screening/runs", 201, dict(inclusion, parameters={}))
+    fake_api.route("GET", "/api/v1/reviews/7/ai-screening/runs/3", 200, dict(inclusion, parameters={}))
+    fake_api.route(
+        "POST",
+        "/api/v1/reviews/7/ai-screening/runs/3/step",
+        200,
+        {"run": dict(inclusion, status="finished", processed=2, included=1, undecided=1), "results": []},
+    )
+    result = invoke(runner, ["ai-screening", "run", "--review", "7", "--reviewer-id", "4", "--phase", "inclusion"])
+    assert result.exit_code == 0, result.output
+    assert "2/2 screened · 1 accepted · 0 rejected · 1 undecided · 0 errors" in result.output
+    assert bodies(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs") == [
+        {"reviewer_id": 4, "phase": "inclusion"}
+    ]
+
+
+def test_progress_line_per_phase():
+    assert screening.progress_line(progressed(processed=2, excluded=1, passed=1)) == (
+        "2/2 screened · 1 rejected · 1 passed · 0 errors"
+    )
+    assert screening.progress_line(progressed(phase="inclusion", processed=2, included=2)) == (
+        "2/2 screened · 2 accepted · 0 rejected · 0 undecided · 0 errors"
+    )

@@ -14,9 +14,13 @@
             Export Articles
           </button>
         </form>
-        <button type="button" class="btn btn-sm btn-default btn-ai-screening" title="Phase 1: Jev rejects the unclassified studies that clearly meet an exclusion criterion">
+        <button type="button" class="btn btn-sm btn-default btn-ai-screening" data-phase="exclusion" title="Phase 1: Jev rejects the studies that clearly meet an exclusion criterion">
           <span class="glyphicon glyphicon-flash"></span>
           Exclude with AI
+        </button>
+        <button type="button" class="btn btn-sm btn-default btn-ai-screening" data-phase="inclusion" title="Phase 2: Jev accepts the studies that clearly meet every inclusion criterion">
+          <span class="glyphicon glyphicon-ok-circle"></span>
+          Include with AI
         </button>
       </div>
     {% endif %}

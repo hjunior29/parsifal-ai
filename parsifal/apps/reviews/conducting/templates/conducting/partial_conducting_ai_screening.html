@@ -1,16 +1,17 @@
 {% comment %}
-  Exclude with AI (phase 1 of study selection): contents of #modal-ai-screening. Three states driven by
-  conducting_ai_screening.js: setup (this form, with a Continue for an unfinished run), progress and summary.
+  Exclude with AI (phase 1 of study selection) and Include with AI (phase 2, ``inclusion``): contents of
+  #modal-ai-screening. Three states driven by conducting_ai_screening.js: setup (this form, with a Continue for an
+  unfinished run), progress and summary.
 {% endcomment %}
 {% load l10n %}
 <div class="modal-header">
   <button type="button" class="close js-ai-close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-  <h4 class="modal-title">Exclude with AI <small>phase 1 · exclusion criteria only</small></h4>
+  <h4 class="modal-title">{{ label }} <small>{% if inclusion %}phase 2 · inclusion criteria{% else %}phase 1 · exclusion criteria only{% endif %}</small></h4>
 </div>
 
 {% if not integration %}
   <div class="modal-body">
-    <p>Exclude with AI uses Jev, and needs your Jev API key.</p>
+    <p>{{ label }} uses Jev, and needs your Jev API key.</p>
     <p><a href="{% url 'settings:integrations' %}" class="btn btn-primary">Add the key in Settings → Integrations</a></p>
   </div>
   <div class="modal-footer">
@@ -18,26 +19,35 @@
   </div>
 {% elif not options %}
   <div class="modal-body">
-    <p>The review has no exclusion criteria, so there is nothing to exclude studies with.</p>
-    <p><a href="{% url 'protocol' review.author.username review.name %}">Add exclusion criteria in Planning</a></p>
+    <p>The review has no {{ phase }} criteria, so there is nothing to {% if inclusion %}include{% else %}exclude{% endif %} studies with.</p>
+    <p><a href="{% url 'protocol' review.author.username review.name %}">Add {{ phase }} criteria in Planning</a></p>
   </div>
   <div class="modal-footer">
     <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
   </div>
 {% else %}
   <div class="modal-body ai-screening-setup">
-    <p>
-      Jev reads the title, keywords and abstract of each study and <strong>rejects the ones that clearly meet an
-      exclusion criterion</strong>, with that criterion as the reason, in the name of the reviewer you choose. The
-      rest are left for the next phase, with the inclusion criteria.
-    </p>
+    {% if inclusion %}
+      <p>
+        Jev reads the title, keywords and abstract of each study and answers, for <strong>each inclusion
+        criterion</strong>, whether the study meets it. In the name of the reviewer you choose, a study is
+        <strong>accepted when it clearly meets every criterion</strong>, rejected when it clearly does not meet one
+        (with that criterion as the reason), and otherwise left unclassified for you to decide.
+      </p>
+    {% else %}
+      <p>
+        Jev reads the title, keywords and abstract of each study and <strong>rejects the ones that clearly meet an
+        exclusion criterion</strong>, with that criterion as the reason, in the name of the reviewer you choose. The
+        rest are left for the next phase, with the inclusion criteria.
+      </p>
+    {% endif %}
     {% if unfinished %}
       <div class="alert alert-warning">
         {% if unfinished_active %}
-          A run in the name of <strong>{{ unfinished.reviewer.profile.get_screen_name }}</strong> is in progress in
+          {% if unfinished.phase != phase %}An {{ unfinished_label }} run{% else %}A run{% endif %} in the name of <strong>{{ unfinished.reviewer.profile.get_screen_name }}</strong> is in progress in
           another window ({{ unfinished_progress.processed }} of {{ unfinished_progress.total }} studies).
         {% else %}
-          The run in the name of <strong>{{ unfinished.reviewer.profile.get_screen_name }}</strong> stopped at
+          The {% if unfinished.phase != phase %}{{ unfinished_label }} {% endif %}run in the name of <strong>{{ unfinished.reviewer.profile.get_screen_name }}</strong> stopped at
           {{ unfinished_progress.processed }} of {{ unfinished_progress.total }} studies{% if unfinished.error %}: {{ unfinished.error }}{% else %}.{% endif %}
           <button type="button" class="btn btn-warning btn-sm js-ai-continue" style="margin-left: 6px;">Continue</button>
         {% endif %}
@@ -50,6 +60,7 @@
     <form id="ai-screening-form" onsubmit="return false;">
       {% csrf_token %}
       <input type="hidden" name="review-id" value="{{ review.id }}">
+      <input type="hidden" name="phase" value="{{ phase }}">
 
       <div class="row">
         <div class="col-sm-6">
@@ -103,13 +114,26 @@
         <textarea name="guidance" id="ai-guidance" class="form-control input-sm" rows="3" maxlength="{{ guidance_length }}" placeholder="Definitions or borderline cases that help apply the criteria, e.g. &quot;Tertiary studies count as secondary studies.&quot;"></textarea>
       </div>
 
-      <h5><strong>Exclusion criteria</strong> <small>from the protocol; edit them in Planning</small></h5>
-      <ul class="list-unstyled ai-criteria">
-        {% for option in options %}
-          <li><code>{{ option.key }}</code> {{ option.description }}</li>
-        {% endfor %}
-        <li class="text-muted"><code>none</code> {{ none_description }}</li>
-      </ul>
+      {% if inclusion %}
+        <h5><strong>Inclusion criteria</strong> <small>from the protocol; edit them in Planning</small></h5>
+        <ul class="list-unstyled ai-criteria">
+          {% for option in options %}
+            <li><code>{{ option.key }}</code> {{ option.description }}</li>
+          {% endfor %}
+        </ul>
+        <p class="help-block small">
+          One question per criterion, answered <code>meets</code>, <code>not_met</code> or <code>unclear</code>
+          ({{ unclear_description|lower }}).
+        </p>
+      {% else %}
+        <h5><strong>Exclusion criteria</strong> <small>from the protocol; edit them in Planning</small></h5>
+        <ul class="list-unstyled ai-criteria">
+          {% for option in options %}
+            <li><code>{{ option.key }}</code> {{ option.description }}</li>
+          {% endfor %}
+          <li class="text-muted"><code>none</code> {{ none_description }}</li>
+        </ul>
+      {% endif %}
 
       <div class="row">
         <div class="col-sm-4">
@@ -119,10 +143,18 @@
           </div>
         </div>
         <div class="col-sm-8">
-          <p class="help-block small" style="margin-top: 25px;">
-            A study is rejected only when the probability that some exclusion criterion applies is at least this value.
-            Lower values reject more studies, and more of them by mistake.
-          </p>
+          {% if inclusion %}
+            <p class="help-block small" style="margin-top: 25px;">
+              A study is accepted only when the probability that it meets each criterion is at least this value — the
+              weakest criterion decides, not the average — and rejected only when the probability that it does not
+              meet one is at least this value. Lower values decide more studies, and more of them by mistake.
+            </p>
+          {% else %}
+            <p class="help-block small" style="margin-top: 25px;">
+              A study is rejected only when the probability that some exclusion criterion applies is at least this value.
+              Lower values reject more studies, and more of them by mistake.
+            </p>
+          {% endif %}
         </div>
       </div>
 
@@ -154,8 +186,14 @@
       </div>
       <p class="help-block small">
         Every study sent gets the reviewer's decision, so two reviewers that screen the same studies can be compared in
-        Reviewer agreement. Only unclassified studies and those rejected by this reviewer change status; accepted
-        studies, duplicates and studies rejected by someone else keep theirs.
+        Reviewer agreement.
+        {% if inclusion %}
+          Only unclassified studies and those this reviewer accepted or rejected change status; duplicates and studies
+          classified by someone else keep theirs.
+        {% else %}
+          Only unclassified studies and those rejected by this reviewer change status; accepted studies, duplicates and
+          studies rejected by someone else keep theirs.
+        {% endif %}
       </p>
       {{ counts|json_script:"ai-screening-counts" }}
 
@@ -165,9 +203,15 @@
           <li>Per study: title, keywords and abstract only. Authors, venue and affiliations are never sent.</li>
           <li>Task: {{ task }}</li>
           {% for rule in rules %}<li>{{ rule }}</li>{% endfor %}
-          <li>The criteria are asked in three different orders in the same request and the answers averaged, because the model tends to favour the first option when unsure.</li>
-          <li>Every study screened gets the reviewer's decision: rejected with a criterion, or unclassified when no criterion applies.</li>
-          <li>Status: an unclassified study is rejected when a criterion applies; a study this reviewer had rejected takes the new criterion, or goes back to unclassified if no criterion applies now. Accepted studies, duplicates and studies rejected by someone else keep their status.</li>
+          {% if inclusion %}
+            <li>Each criterion is asked in three different orders of its answers in the same request and the answers averaged, because the model tends to favour the first option when unsure.</li>
+            <li>Every study screened gets the reviewer's decision: accepted, rejected with the criterion it does not meet, or unclassified when the title and abstract do not settle it.</li>
+            <li>Status: the study takes the decision when it was unclassified or this reviewer had accepted or rejected it (back to unclassified when undecided now). Duplicates and studies classified by someone else keep their status.</li>
+          {% else %}
+            <li>The criteria are asked in three different orders in the same request and the answers averaged, because the model tends to favour the first option when unsure.</li>
+            <li>Every study screened gets the reviewer's decision: rejected with a criterion, or unclassified when no criterion applies.</li>
+            <li>Status: an unclassified study is rejected when a criterion applies; a study this reviewer had rejected takes the new criterion, or goes back to unclassified if no criterion applies now. Accepted studies, duplicates and studies rejected by someone else keep their status.</li>
+          {% endif %}
         </ul>
       </details>
     </form>
@@ -179,8 +223,16 @@
       <div class="progress-bar progress-bar-striped active js-ai-bar" role="progressbar" style="width: 0%; min-width: 2em;">0%</div>
     </div>
     <p>
-      <span class="label label-danger"><span class="js-ai-excluded">0</span> rejected</span>
-      <span class="label label-default"><span class="js-ai-passed">0</span> passed (no criterion)</span>
+      {# The counts of the run's own phase are shown: Continue may pick up a run of the other phase. #}
+      <span class="js-ai-labels" data-phase="inclusion">
+        <span class="label label-success"><span class="js-ai-included">0</span> accepted</span>
+        <span class="label label-danger"><span class="js-ai-excluded">0</span> rejected</span>
+        <span class="label label-default"><span class="js-ai-undecided">0</span> undecided (left unclassified)</span>
+      </span>
+      <span class="js-ai-labels" data-phase="exclusion">
+        <span class="label label-danger"><span class="js-ai-excluded">0</span> rejected</span>
+        <span class="label label-default"><span class="js-ai-passed">0</span> passed (no criterion)</span>
+      </span>
       <span class="label label-warning"><span class="js-ai-failed">0</span> errors</span>
       <span class="text-muted small"><span class="js-ai-processed">0</span> of <span class="js-ai-total">0</span></span>
     </p>

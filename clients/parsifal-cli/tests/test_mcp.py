@@ -191,6 +191,7 @@ def test_ai_screening_run_tool(server, fake_api):
         "reviewer_id",
         "model",
         "statuses",
+        "phase",
     } <= set(schema["properties"])
 
     result = json.loads(

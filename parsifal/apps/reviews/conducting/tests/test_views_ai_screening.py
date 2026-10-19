@@ -23,7 +23,7 @@ EXCLUDE = {
 }
 
 
-class AiScreeningViewsTest(TestCase):
+class AiScreeningViewsBase(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.source = SourceFactory()
@@ -62,12 +62,16 @@ class AiScreeningViewsTest(TestCase):
         data.update(extra)
         return self.client.post(self.start_url, data)
 
+
+class AiScreeningViewsTest(AiScreeningViewsBase):
     def test_button_on_the_all_sources_tab(self):
         response = self.client.get(
             reverse("reviews:conducting:source_articles"), {"review-id": self.review.pk, "source-id": "None"}
         )
         self.assertContains(response, "btn-ai-screening")
-        self.assertContains(response, "Exclude with AI")
+        self.assertContains(response, 'data-phase="exclusion"', html=False)
+        self.assertContains(response, 'data-phase="inclusion"', html=False)
+        self.assertContains(response, "Include with AI")
 
     def test_asks_for_the_key_first(self):
         response = self.client.get(self.form_url, {"review-id": self.review.pk})
@@ -164,7 +168,16 @@ class AiScreeningViewsTest(TestCase):
             ("finished", 1, 1), (body["run"]["status"], body["run"]["excluded"], body["run"]["processed"])
         )
         self.assertEqual(
-            [{"title": "A study", "outcome": "excluded", "p_exclude": 0.96, "criteria": "E1", "error": ""}],
+            [
+                {
+                    "title": "A study",
+                    "outcome": "excluded",
+                    "p_exclude": 0.96,
+                    "p_include": None,
+                    "criteria": "E1",
+                    "error": "",
+                }
+            ],
             body["results"],
         )
         self.article.refresh_from_db()
@@ -228,3 +241,62 @@ def views_module():
     from parsifal.apps.reviews.conducting import views
 
     return views
+
+
+INCLUDE = {
+    "model": "jev-1.13.0",
+    "answers": {
+        f"inclusion_i1_{n}": {"type": "choice", "probabilities": {"meets": 0.95, "not_met": 0.02, "unclear": 0.03}}
+        for n in (1, 2, 3)
+    },
+}
+
+
+class IncludeWithAiViewsTest(AiScreeningViewsBase):
+    """The same window and steps for phase 2, with the inclusion criteria."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.inclusion = SelectionCriteria.objects.create(
+            review=cls.review, criteria_type="I", description="Implemented <tool>"
+        )
+
+    def test_inclusion_window(self):
+        self.connect()
+        response = self.client.get(self.form_url, {"review-id": self.review.pk, "phase": "inclusion"})
+        self.assertContains(response, "Include with AI <small>phase 2 · inclusion criteria</small>", html=False)
+        self.assertContains(response, "<code>I1</code> Implemented &lt;tool&gt;", html=False)
+        self.assertNotContains(response, "<code>E1</code>", html=False)
+        self.assertContains(response, '<input type="hidden" name="phase" value="inclusion">', html=False)
+        for code, checked in (("A", True), ("R", False), ("U", True), ("D", False)):
+            self.assertContains(
+                response,
+                f'<input type="checkbox" name="statuses" value="{code}"{" checked" if checked else ""}>',
+                html=False,
+            )
+        self.assertEqual(
+            400, self.client.get(self.form_url, {"review-id": self.review.pk, "phase": "maybe"}).status_code
+        )
+
+    def test_asks_for_inclusion_criteria_first(self):
+        self.connect()
+        empty = ReviewFactory(author=self.owner)
+        SelectionCriteria.objects.create(review=empty, criteria_type="E", description="Out")
+        response = self.client.get(self.form_url, {"review-id": empty.pk, "phase": "inclusion"})
+        self.assertContains(response, "The review has no inclusion criteria")
+
+    def test_start_and_step_an_inclusion_run(self):
+        self.connect()
+        response = self.start(phase="inclusion", statuses=["U", "A"])
+        self.assertEqual(200, response.status_code, response.content)
+        run = response.json()["run"]
+        self.assertEqual(("inclusion", 1), (run["phase"], run["total"]))
+        with mock.patch.object(jev, "evaluate", return_value=INCLUDE):
+            body = self.client.post(self.step_url, {"review-id": self.review.pk, "run-id": run["id"]}).json()
+        self.assertEqual(("finished", 1), (body["run"]["status"], body["run"]["included"]))
+        self.assertEqual(
+            ("included", 0.95, 0.02), tuple(body["results"][0][k] for k in ("outcome", "p_include", "p_exclude"))
+        )
+        self.article.refresh_from_db()
+        self.assertEqual((Article.ACCEPTED, self.bot), (self.article.status, self.article.updated_by))

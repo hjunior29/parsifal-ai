@@ -269,11 +269,14 @@ class TestProcessStep(AiScreeningTestCase):
         self.assertEqual(
             {
                 "id": run.pk,
+                "phase": "exclusion",
                 "status": "finished",
                 "total": 2,
                 "error": "",
                 "excluded": 1,
                 "passed": 1,
+                "included": 0,
+                "undecided": 0,
                 "failed": 0,
                 "processed": 2,
             },
@@ -535,3 +538,172 @@ class TestScope(AiScreeningTestCase):
         self.assertFalse(ScreeningRun.objects.filter(pk=run.pk).exists())
         article.refresh_from_db()
         self.assertEqual((Article.REJECTED, None), (article.status, article.updated_by))
+
+
+def inclusion_answer(by_criterion, model="jev-1.13.0"):
+    """The same answer in the three orders: {"I1": (meets, not_met, unclear), …}."""
+    return answer(
+        {
+            f"inclusion_{key.lower()}_{order}": {"meets": meets, "not_met": not_met, "unclear": unclear}
+            for key, (meets, not_met, unclear) in by_criterion.items()
+            for order in (1, 2, 3)
+        },
+        model=model,
+    )
+
+
+BOTH_MET = inclusion_answer({"I1": (0.95, 0.03, 0.02), "I2": (0.97, 0.01, 0.02)})
+I1_NOT_MET = inclusion_answer({"I1": (0.03, 0.94, 0.03), "I2": (0.90, 0.05, 0.05)})
+I2_UNCLEAR = inclusion_answer({"I1": (0.96, 0.02, 0.02), "I2": (0.40, 0.05, 0.55)})
+
+
+class TestInclusion(AiScreeningTestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        # Listed alphabetically by the review: "About screening" (I1), "Implemented tool" (I2).
+        cls.about = cls.review.selectioncriteria_set.get(criteria_type="I")
+        cls.tool = SelectionCriteria.objects.create(
+            review=cls.review, criteria_type="I", description="Implemented tool"
+        )
+
+    def start(self, **kwargs):
+        return super().start(**{"phase": "inclusion", **kwargs})
+
+    def test_one_question_per_criterion_in_three_orders(self):
+        options = ai_screening.inclusion_options(self.review)
+        self.assertEqual(
+            [
+                {"key": "I1", "id": self.about.pk, "description": "About screening"},
+                {"key": "I2", "id": self.tool.pk, "description": "Implemented tool"},
+            ],
+            options,
+        )
+        questions = ai_screening.inclusion_questions(options, ai_screening.default_context(self.review), "Be strict.")
+        self.assertEqual(
+            [
+                "inclusion_i1_1",
+                "inclusion_i1_2",
+                "inclusion_i1_3",
+                "inclusion_i2_1",
+                "inclusion_i2_2",
+                "inclusion_i2_3",
+            ],
+            list(questions),
+        )
+        self.assertEqual(
+            [["meets", "not_met", "unclear"], ["not_met", "unclear", "meets"], ["unclear", "meets", "not_met"]],
+            [list(questions[f"inclusion_i2_{order}"]["criteria"]) for order in (1, 2, 3)],
+        )
+        question = questions["inclusion_i2_1"]
+        self.assertEqual("choice", question["type"])
+        self.assertEqual("The study meets the inclusion criterion: Implemented tool", question["criteria"]["meets"])
+        self.assertEqual(ai_screening.UNCLEAR_DESCRIPTION, question["criteria"]["unclear"])
+        body = question["instructions"]
+        self.assertEqual(
+            ("I2: Implemented tool", ai_screening.INCLUSION_TASK, list(ai_screening.INCLUSION_RULES), "Be strict."),
+            (body["criterion"], body["task"], body["rules"], body["guidance"]),
+        )
+        self.assertEqual("Find studies about screening automation.", body["review"]["objective"])
+
+    def test_combine_takes_the_weakest_criterion(self):
+        options = ai_screening.inclusion_options(self.review)
+        response = answer(
+            {
+                "inclusion_i1_1": {"meets": 1.0, "not_met": 0.0, "unclear": 0.0},
+                "inclusion_i1_2": {"meets": 1.0, "not_met": 0.0, "unclear": 0.0},
+                "inclusion_i2_1": {"meets": 0.9, "not_met": 0.0, "unclear": 0.1},
+                "inclusion_i2_2": {"meets": 0.7, "not_met": 0.2, "unclear": 0.1},
+            }
+        )
+        probabilities, weakest, failed = ai_screening.combine_inclusion(response, options)
+        self.assertEqual(
+            {
+                "I1": {"meets": 1.0, "not_met": 0.0, "unclear": 0.0},
+                "I2": {"meets": 0.8, "not_met": 0.1, "unclear": 0.1},
+            },
+            probabilities,
+        )
+        self.assertEqual(("I2", "I2"), (weakest, failed))
+        with self.assertRaisesMessage(jev.JevError, "did not answer the question about I2"):
+            ai_screening.combine_inclusion(answer({"inclusion_i1_1": {"meets": 1.0}}), options)
+
+    def test_accepts_when_every_criterion_is_met_rejects_when_one_is_not_and_leaves_the_rest(self):
+        accepted = self.article(title="Accepted")
+        rejected = self.article(title="Rejected")
+        undecided = self.article(title="Undecided")
+        self.article(title="Out already", status=Article.REJECTED, updated_by=self.owner)
+        run = self.start()
+        self.assertEqual(("inclusion", 3), (run.phase, run.total))  # unclassified and accepted, by default
+        self.assertEqual((["A", "U"], "keep_undecided"), (run.parameters["statuses"], run.parameters["rule"]))
+
+        self.step(run, [BOTH_MET, I1_NOT_MET, I2_UNCLEAR])
+
+        progress = ai_screening.progress(run)
+        self.assertEqual(
+            ("finished", 1, 1, 1, 0),
+            tuple(progress[k] for k in ("status", "included", "excluded", "undecided", "passed")),
+        )
+        for article, status, criteria, decision_status, comment in (
+            (accepted, Article.ACCEPTED, None, "A", "meets every inclusion criterion — meets: I1 0.95, I2 0.97."),
+            (rejected, Article.REJECTED, self.about, "R", "I1 not met, p(not met) = 0.94 — meets: I1 0.03, I2 0.90."),
+            (
+                undecided,
+                Article.UNCLASSIFIED,
+                None,
+                "U",
+                "undecided, weakest I2 (meet 0.40) — meets: I1 0.96, I2 0.40.",
+            ),
+        ):
+            with self.subTest(article=article.title):
+                article.refresh_from_db()
+                self.assertEqual((status, criteria), (article.status, article.selection_criteria))
+                decision = self.decision(article)
+                self.assertEqual((decision_status, criteria), (decision.status, decision.selection_criteria))
+                self.assertEqual(f"Include with AI (run {run.pk}, jev-1.13.0): {comment}", decision.comments)
+        result = run.results.get(article=undecided)
+        self.assertEqual(
+            (ScreeningResult.UNDECIDED, 0.4, 0.05, {"meets": 0.4, "not_met": 0.05, "unclear": 0.55}),
+            (result.outcome, result.p_include, result.p_exclude, result.probabilities["I2"]),
+        )
+
+    def test_a_criterion_clearly_met_does_not_make_up_for_a_weak_one(self):
+        article = self.article()
+        run = self.start()
+        self.step(run, [inclusion_answer({"I1": (1.0, 0.0, 0.0), "I2": (0.8, 0.1, 0.1)})])  # average 0.9
+        article.refresh_from_db()
+        self.assertEqual((Article.UNCLASSIFIED, "undecided"), (article.status, run.results.get().outcome))
+
+    def test_status_changes_only_for_unclassified_studies_and_the_reviewers_own(self):
+        own = self.article(title="Accepted by this reviewer before")
+        theirs = self.article(title="Accepted by the owner", status=Article.ACCEPTED, updated_by=self.owner)
+        rejected = self.article(title="Rejected by this reviewer in phase 1")
+        duplicated = self.article(title="Duplicate", status=Article.DUPLICATED)
+        self.step(self.start(statuses=["U"]), [BOTH_MET, I1_NOT_MET])
+        own.refresh_from_db()
+        self.assertEqual(Article.ACCEPTED, own.status)
+
+        run = self.start(statuses=["U", "R", "A", "D"])
+        self.assertEqual(4, run.total)
+        self.step(run, [I2_UNCLEAR, I1_NOT_MET, BOTH_MET, I1_NOT_MET])
+        for article, status, decision_status in (
+            (own, Article.UNCLASSIFIED, "U"),  # its own acceptance, undecided now: back to unclassified
+            (theirs, Article.ACCEPTED, "R"),  # someone else's: kept, the reviewer's decision recorded
+            (rejected, Article.ACCEPTED, "A"),  # its own rejection, accepted now
+            (duplicated, Article.DUPLICATED, "R"),
+        ):
+            with self.subTest(article=article.title):
+                article.refresh_from_db()
+                self.assertEqual(status, article.status)
+                self.assertEqual(decision_status, self.decision(article).status)
+
+    def test_requirements(self):
+        self.article()
+        with self.assertRaisesMessage(ValidationError, "phase must be exclusion or inclusion"):
+            self.start(phase="maybe")
+        no_inclusion = ReviewFactory(author=self.owner, sources=[self.source])
+        SelectionCriteria.objects.create(review=no_inclusion, criteria_type="E", description="Out")
+        ArticleFactory(review=no_inclusion, source=self.source)
+        with self.assertRaisesMessage(ValidationError, "no inclusion criteria"):
+            self.start(review=no_inclusion, reviewer_id=self.owner.pk)
+        self.assertEqual(["A", "U"], ai_screening.clean_statuses(None, "inclusion"))

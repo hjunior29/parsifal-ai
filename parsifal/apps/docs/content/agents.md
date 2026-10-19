@@ -57,7 +57,7 @@ the report; both guidelines ask for it.
 - Review the agent's reasons (`comments`, `selection_criteria`) rather than
   only its counts; the *Decisions* summary in `reviews_overview` shows how
   many studies each reviewer decided at each stage.
-- Nothing leaves your instance, except with *Exclude with AI*, which sends the
+- Nothing leaves your instance, except with *Exclude/Include with AI*, which sends the
   title, keywords and abstract of each study to Jev (TypeSafe) with the caller's
   key. Otherwise the agent reads abstracts from your database and writes
   decisions back to it.

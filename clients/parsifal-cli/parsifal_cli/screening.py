@@ -1,9 +1,9 @@
 """
-Drive an "Exclude with AI" run to its end, as the study selection page does in the browser: start a run (or pick up
-an existing one) and call the step operation until the run is no longer running. A run cannot be stopped; when it
-is interrupted (Jev refusing the key or unavailable) it keeps its remaining studies and ``run["error"]`` says why,
-and the same call with its id continues it. Shared by ``parsifal ai-screening run`` and the
-``parsifal_ai_screening_run`` MCP tool.
+Drive an "Exclude with AI" or "Include with AI" run to its end, as the study selection page does in the browser:
+start a run (or pick up an existing one) and call the step operation until the run is no longer running. A run
+cannot be stopped; when it is interrupted (Jev refusing the key or unavailable) it keeps its remaining studies and
+``run["error"]`` says why, and the same call with its id continues it. Shared by ``parsifal ai-screening run`` and
+the ``parsifal_ai_screening_run`` MCP tool.
 """
 
 import time
@@ -56,7 +56,8 @@ def interrupted(run):
 
 
 def progress_line(run):
-    return (
-        f"{run['processed']}/{run['total']} screened · {run['excluded']} rejected · {run['passed']} passed · "
-        f"{run['failed']} errors"
-    )
+    if run.get("phase") == "inclusion":
+        outcomes = f"{run['included']} accepted · {run['excluded']} rejected · {run['undecided']} undecided"
+    else:
+        outcomes = f"{run['excluded']} rejected · {run['passed']} passed"
+    return f"{run['processed']}/{run['total']} screened · {outcomes} · {run['failed']} errors"
