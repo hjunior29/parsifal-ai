@@ -1,14 +1,15 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.messages.views import SuccessMessageMixin
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
-from django.utils.translation import gettext_lazy as _
+from django.utils.translation import gettext, gettext_lazy as _
 from django.views import View
 from django.views.generic import FormView, RedirectView, UpdateView
 
-from parsifal.apps.accounts.forms import ApiTokenForm, ProfileForm, UserEmailForm
-from parsifal.apps.accounts.models import ApiToken
+from parsifal.apps.accounts.forms import ApiTokenForm, JevIntegrationForm, ProfileForm, UserEmailForm
+from parsifal.apps.accounts.models import ApiToken, Integration
+from parsifal.apps.core import jev
 
 
 class SettingsRedirectView(LoginRequiredMixin, RedirectView):
@@ -58,3 +59,61 @@ class ApiTokenRevokeView(LoginRequiredMixin, View):
         token.revoke()
         messages.success(request, _("Token %(name)s was revoked.") % {"name": token.name})
         return redirect("settings:tokens")
+
+
+class IntegrationsView(LoginRequiredMixin, View):
+    """
+    Third-party services the user connected. Jev: save or replace the API key and the model, check that the key
+    works, or remove it. The saved key is never rendered back, only its last characters.
+    """
+
+    template_name = "accounts/integrations.html"
+
+    def _jev(self):
+        return Integration.objects.filter(user=self.request.user, provider=Integration.JEV).first()
+
+    def _render(self, form=None):
+        integration = self._jev()
+        if form is None:
+            form = JevIntegrationForm(
+                initial={"model": integration.model if integration else jev.DEFAULT_MODEL},
+                has_key=integration is not None,
+            )
+        return render(self.request, self.template_name, {"jev": integration, "form": form})
+
+    def get(self, request):
+        return self._render()
+
+    def post(self, request):
+        action = request.POST.get("action")
+        integration = self._jev()
+        if action == "remove":
+            if integration:
+                integration.delete()
+                messages.success(request, gettext("The Jev API key was removed."))
+            return redirect("settings:integrations")
+        if action == "test":
+            if not integration:
+                messages.error(request, gettext("Save an API key first."))
+            else:
+                try:
+                    models = jev.list_models(integration.api_key)
+                except jev.JevError as error:
+                    messages.error(request, str(error))
+                else:
+                    available = ", ".join(models) or gettext("none listed")
+                    messages.success(
+                        request, gettext("Jev accepted the key. Models available: %(models)s.") % {"models": available}
+                    )
+            return redirect("settings:integrations")
+        form = JevIntegrationForm(request.POST, has_key=integration is not None)
+        if not form.is_valid():
+            return self._render(form)
+        if integration is None:
+            integration = Integration(user=request.user, provider=Integration.JEV)
+        if form.cleaned_data["api_key"]:
+            integration.api_key = form.cleaned_data["api_key"]
+        integration.model = form.cleaned_data["model"]
+        integration.save()
+        messages.success(request, gettext("Jev settings saved."))
+        return redirect("settings:integrations")

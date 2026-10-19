@@ -215,3 +215,7 @@ PARSIFAL_ENVIRONMENT = config("PARSIFAL_ENVIRONMENT", default=Environments.LOCAL
 # Self-hosted instances are closed by default: accounts are created by the administrator or through
 # co-author invites. Set to True to let anyone register.
 PARSIFAL_ALLOW_SIGNUP = config("PARSIFAL_ALLOW_SIGNUP", default=False, cast=bool)
+
+# Jev (TypeSafe), used by the AI exclusion screening. Each user sets the API key in Settings → Integrations; the
+# URL can point to a compatible server instead.
+JEV_API_URL = config("JEV_API_URL", default="https://api.typesafe.ai")

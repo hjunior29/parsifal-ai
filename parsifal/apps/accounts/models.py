@@ -76,3 +76,35 @@ class ApiToken(models.Model):
         if self.revoked_at is None:
             self.revoked_at = timezone.now()
             self.save(update_fields=["revoked_at"])
+
+
+class Integration(models.Model):
+    """
+    A third-party service the user connected, with the API key Parsifal uses to call it on the user's behalf. Only
+    Jev (TypeSafe), used by the AI exclusion screening, for now. The key is stored as given, so whoever can read the
+    database can read it; the pages show only its last characters and the API never returns it.
+    """
+
+    JEV = "jev"
+    PROVIDERS = ((JEV, "Jev (TypeSafe)"),)
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="integrations", verbose_name=_("user")
+    )
+    provider = models.CharField(_("provider"), max_length=20, choices=PROVIDERS)
+    api_key = models.CharField(_("API key"), max_length=500)
+    model = models.CharField(_("model"), max_length=100)
+    created_at = models.DateTimeField(_("created at"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("updated at"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("integration")
+        verbose_name_plural = _("integrations")
+        constraints = (models.UniqueConstraint(fields=("user", "provider"), name="unique_integration_per_user"),)
+
+    def __str__(self):
+        return f"{self.get_provider_display()} ({self.user})"
+
+    @property
+    def masked_key(self):
+        return f"…{self.api_key[-4:]}" if len(self.api_key) > 8 else "…"

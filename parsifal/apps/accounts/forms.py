@@ -54,6 +54,41 @@ class ProfileForm(forms.ModelForm):
         return super().save(commit)
 
 
+class JevIntegrationForm(forms.Form):
+    """API key and model for Jev. A blank key keeps the one already saved."""
+
+    api_key = forms.CharField(
+        label=_("API key"),
+        widget=forms.PasswordInput(attrs={"class": "form-control", "autocomplete": "off"}),
+        max_length=500,
+        required=False,
+    )
+    model = forms.CharField(
+        label=_("Model"),
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+        max_length=100,
+        help_text=_(
+            "Pin a version such as jev-1.13.0 so that results stay reproducible; aliases like jev-latest change "
+            "without notice."
+        ),
+    )
+
+    def __init__(self, *args, has_key=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.has_key = has_key
+        if has_key:
+            self.fields["api_key"].help_text = _("Leave blank to keep the current key.")
+
+    def clean_api_key(self):
+        api_key = self.cleaned_data["api_key"].strip()
+        if not api_key and not self.has_key:
+            raise ValidationError(gettext("Paste the API key from your TypeSafe account."))
+        return api_key
+
+    def clean_model(self):
+        return self.cleaned_data["model"].strip()
+
+
 class ApiTokenForm(forms.ModelForm):
     name = forms.CharField(
         label=_("Token name"),

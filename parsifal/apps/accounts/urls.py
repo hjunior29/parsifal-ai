@@ -10,4 +10,5 @@ urlpatterns = [
     path("emails/", views.UpdateEmailsView.as_view(), name="emails"),
     path("tokens/", views.ApiTokenListView.as_view(), name="tokens"),
     path("tokens/<int:token_id>/revoke/", views.ApiTokenRevokeView.as_view(), name="token_revoke"),
+    path("integrations/", views.IntegrationsView.as_view(), name="integrations"),
 ]

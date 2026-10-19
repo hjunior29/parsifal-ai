@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+
+{% load i18n %}
+
+{% block title %}{% trans "Integrations" %} · Parsifal{% endblock %}
+
+{% block content %}
+  <div class="row">
+    <div class="col-md-3">
+      {% include "accounts/menu.html" %}
+    </div>
+    <div class="col-md-9">
+
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h3 class="panel-title">
+            Jev (TypeSafe)
+            {% if jev %}
+              <span class="label label-success">{% trans "connected" %}</span>
+            {% else %}
+              <span class="label label-default">{% trans "not configured" %}</span>
+            {% endif %}
+          </h3>
+        </div>
+        <div class="panel-body">
+          <p class="text-muted">
+            {% blocktrans %}Jev is the model behind <strong>Exclude with AI</strong> on the study selection page. It reads the title, keywords and abstract of each unclassified study and rejects it with one of the review's exclusion criteria, as the review's "Jev" agent. Calls are billed to this key.{% endblocktrans %}
+          </p>
+          {% if jev %}
+            <dl class="dl-horizontal">
+              <dt>{% trans "API key" %}</dt>
+              <dd><code>{{ jev.masked_key }}</code></dd>
+              <dt>{% trans "Model" %}</dt>
+              <dd><code>{{ jev.model }}</code></dd>
+              <dt>{% trans "Updated" %}</dt>
+              <dd>{{ jev.updated_at|date:"SHORT_DATETIME_FORMAT" }}</dd>
+            </dl>
+          {% endif %}
+
+          <form method="post" action="{% url 'settings:integrations' %}" autocomplete="off">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save">
+            {% for field in form %}
+              <div class="form-group{% if field.errors %} has-error{% endif %}">
+                <label for="{{ field.id_for_label }}" class="control-label">{% if field.name == "api_key" and jev %}{% trans "New API key" %}{% else %}{{ field.label }}{% endif %}</label>
+                {{ field }}
+                {% for error in field.errors %}<span class="help-block">{{ error }}</span>{% endfor %}
+                {% if field.help_text %}<p class="help-block">{{ field.help_text }}</p>{% endif %}
+              </div>
+            {% endfor %}
+            <p class="small text-muted">
+              <span class="glyphicon glyphicon-lock"></span>
+              {% trans "The key is stored in this instance's database and is never shown again in full. Studies are sent to TypeSafe, in the United States, with title, keywords and abstract only." %}
+            </p>
+            <button type="submit" class="btn btn-success">{% trans "Save" %}</button>
+          </form>
+        </div>
+        {% if jev %}
+          <div class="panel-footer clearfix">
+            <form method="post" action="{% url 'settings:integrations' %}" style="display: inline;">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="test">
+              <button type="submit" class="btn btn-default btn-sm">{% trans "Test the key" %}</button>
+            </form>
+            <form method="post" action="{% url 'settings:integrations' %}" class="pull-right js-confirm" data-confirm="{% trans "Remove the Jev API key? Exclude with AI stops working until you add a key again. Decisions already made stay." %}">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="remove">
+              <button type="submit" class="btn btn-danger btn-sm">{% trans "Remove key" %}</button>
+            </form>
+          </div>
+        {% endif %}
+      </div>
+
+      <script>
+        document.querySelectorAll("form.js-confirm").forEach(function (form) {
+          form.addEventListener("submit", function (event) {
+            if (!window.confirm(form.dataset.confirm)) { event.preventDefault(); }
+          });
+        });
+      </script>
+
+    </div>
+  </div>
+{% endblock content %}
