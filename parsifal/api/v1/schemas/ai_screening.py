@@ -108,6 +108,7 @@ class ScreeningSetupOut(Schema):
     threshold_default: float
     threshold_min: float
     threshold_max: float
+    reject_threshold_min: float  # inclusion: the reject threshold may go this low, but not below 1 - accept_threshold
     statuses: list[ScreeningStatusOut]  # statuses of the studies a run may send
     statuses_default: list[str]  # sent when ``statuses`` is left out: R and U (exclusion), A and U (inclusion)
     scopes: list[ScreeningScopeOut]
@@ -131,7 +132,9 @@ class ScreeningStartIn(Schema):
     guidance: str = ""
     threshold: float | None = None  # exclusion: reject when 1 - p(none) is at least this (default 0.9)
     accept_threshold: float | None = None  # inclusion: accept when every p(meets) is at least this (default 0.9)
-    reject_threshold: float | None = None  # inclusion: reject when some 1 - p(meets) is at least this (default 0.9)
+    # Inclusion: reject when some 1 - p(meets) is at least this (default 0.9; may go below 0.5, down to
+    # 1 - accept_threshold, where every study not accepted is rejected).
+    reject_threshold: float | None = None
     source_id: int | None = None
     statuses: list[str] | None = None  # studies sent: any of U, R, A, D (default R and U; inclusion: A and U)
 

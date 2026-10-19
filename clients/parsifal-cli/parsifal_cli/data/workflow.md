@@ -53,7 +53,8 @@ parsifal me
    `integration jev set --api-key -`; `--statuses` picks the studies sent, default R and U); check them with `ai-screening results --review R --id RUN --outcome excluded`.
    Include with AI (`--phase inclusion`) asks one yes/no question per inclusion criterion: it accepts the studies
    that clearly meet every one (`--accept-threshold`), rejects those that clearly fail one (`--reject-threshold`) and
-   leaves the rest unclassified for the human (default statuses A and U; `--threshold` is for exclusion only).
+   leaves the rest unclassified for the human (default statuses A and U; `--threshold` is for exclusion only; a reject
+   threshold below 0.5 rejects what is not clearly in, down to 1 - accept threshold, which leaves nothing undecided).
    `test-set get --review R` tells whether the known papers were found by the search.
 5. Quality assessment (accepted articles): `quality assess --review R --article A --question-id Q --answer-id ANS`;
    `quality summary --review R` shows scores against the cutoff. Final selection = accepted AND score > cutoff.

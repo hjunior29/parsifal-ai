@@ -1468,7 +1468,8 @@ OPERATIONS = (
             B(
                 "reject_threshold",
                 FLOAT,
-                help="Inclusion: reject when 1 - p(meets) of a criterion is at least this (0.5–0.99, default 0.9).",
+                help="Inclusion: reject when 1 - p(meets) of a criterion is at least this (default 0.9; from "
+                "1 - accept threshold, which rejects every study not accepted, to 0.99).",
             ),
             B("source_id", INT, help="Only this source (default: all)."),
             B(

@@ -145,15 +145,20 @@
           <div class="col-sm-3">
             <div class="form-group">
               <label for="ai-reject-threshold" class="control-label">Reject threshold</label>
-              <input type="number" name="reject_threshold" id="ai-reject-threshold" class="form-control input-sm" value="{{ threshold|unlocalize }}" min="{{ min_threshold|unlocalize }}" max="{{ max_threshold|unlocalize }}" step="0.01" required>
+              <input type="number" name="reject_threshold" id="ai-reject-threshold" class="form-control input-sm" value="{{ threshold|unlocalize }}" min="{{ min_reject_threshold|unlocalize }}" max="{{ max_threshold|unlocalize }}" step="0.01" required>
             </div>
           </div>
           <div class="col-sm-6">
             <p class="help-block small" style="margin-top: 25px;">
               Accepted when the probability that the study meets each criterion is at least the accept threshold (the
               weakest criterion decides, not the average); rejected when the probability that it does not meet one is
-              at least the reject threshold; otherwise left unclassified. Lower values decide more studies, and more of
-              them by mistake.
+              at least the reject threshold, i.e. it meets it with at most 1 − reject threshold (0.9: at most 0.10;
+              0.2: at most 0.80); otherwise left unclassified. Lower values decide more studies, and more of them by
+              mistake.
+            </p>
+            <p class="help-block small">
+              The reject threshold can go below 0.5, to reject the studies that are not clearly in, down to 1 − accept
+              threshold, where every study that is not accepted is rejected.
             </p>
           </div>
         </div>

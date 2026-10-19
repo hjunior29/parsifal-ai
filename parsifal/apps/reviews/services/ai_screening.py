@@ -60,6 +60,8 @@ from parsifal.apps.reviews.services._common import check_length
 DEFAULT_THRESHOLD = 0.9
 MIN_THRESHOLD = 0.5
 MAX_THRESHOLD = 0.99
+# Inclusion: the reject threshold may go below 0.5, down to 1 - accept threshold (see clean_thresholds).
+MIN_REJECT_THRESHOLD = round(1 - MAX_THRESHOLD, 4)
 STEP_SIZE = 8  # studies per step; one request each
 ACTIVE_FOR = 30  # seconds: a running run with a step this recent is being driven somewhere
 MAX_STEP_SIZE = 50
@@ -112,7 +114,7 @@ INCLUSION_QUESTION = "noul"  # Jev's yes/no question: the answer is the probabil
 YES, NO = "true", "false"  # keys of a yes/no question's descriptions
 INCLUSION_ORDERS = ((YES, NO), (NO, YES))
 # Inclusion: what happens to a study that is neither clearly in nor clearly out. Only "keep_undecided" exists: it
-# stays unclassified for the reviewers (kept in the run so that a stricter rule can be added later).
+# stays unclassified for the reviewers. A reject threshold of 1 - accept threshold leaves no study in between.
 RULE_KEEP_UNDECIDED = "keep_undecided"
 SENT_FIELDS = ("title", "keywords", "abstract")
 
@@ -273,7 +275,7 @@ THRESHOLD_NAMES = {
 }
 
 
-def _clean_threshold(threshold, field="threshold"):
+def _clean_threshold(threshold, field="threshold", minimum=MIN_THRESHOLD):
     name = THRESHOLD_NAMES[field]
     if threshold is None:
         return DEFAULT_THRESHOLD
@@ -281,27 +283,36 @@ def _clean_threshold(threshold, field="threshold"):
         threshold = round(float(threshold), 4)
     except (TypeError, ValueError):
         raise ValidationError(f"The {name} must be a number.", field=field)
-    if not MIN_THRESHOLD <= threshold <= MAX_THRESHOLD:
-        raise ValidationError(f"The {name} must be between {MIN_THRESHOLD} and {MAX_THRESHOLD}.", field=field)
+    if not minimum <= threshold <= MAX_THRESHOLD:
+        raise ValidationError(f"The {name} must be between {minimum} and {MAX_THRESHOLD}.", field=field)
     return threshold
 
 
 def clean_thresholds(phase, *, threshold=None, accept_threshold=None, reject_threshold=None):
     """
-    The thresholds of a run, each 0.5–0.99 (default 0.9). Exclusion takes ``threshold`` (reject when some exclusion
-    criterion applies with at least this probability); inclusion takes ``accept_threshold`` (accept when every
-    inclusion criterion is met with at least this probability) and ``reject_threshold`` (reject when one is not met
-    with at least this probability). Passing the other phase's thresholds is an error, not silently ignored.
+    The thresholds of a run (default 0.9 each). Exclusion takes ``threshold``, 0.5–0.99: reject when some exclusion
+    criterion applies with at least this probability. Inclusion takes ``accept_threshold``, 0.5–0.99: accept when
+    every inclusion criterion is met with at least this probability; and ``reject_threshold``: reject when one is not
+    met with at least this probability, i.e. its p(meets) is at most ``1 - reject_threshold``. The reject threshold
+    may go below 0.5 (reject studies that are not clearly in) but not below ``1 - accept_threshold``, where every
+    study that is not accepted is rejected and none is left undecided; lower would overlap the two. Passing the other
+    phase's thresholds is an error, not silently ignored.
     """
     if phase == INCLUSION:
         if threshold is not None:
             raise ValidationError(
                 "An inclusion run takes accept_threshold and reject_threshold, not threshold.", field="threshold"
             )
-        return {
-            "accept_threshold": _clean_threshold(accept_threshold, "accept_threshold"),
-            "reject_threshold": _clean_threshold(reject_threshold, "reject_threshold"),
-        }
+        accept = _clean_threshold(accept_threshold, "accept_threshold")
+        reject = _clean_threshold(reject_threshold, "reject_threshold", minimum=MIN_REJECT_THRESHOLD)
+        lowest = round(1 - accept, 4)
+        if reject < lowest:
+            raise ValidationError(
+                f"With the accept threshold at {accept:g}, the reject threshold must be at least {lowest:g}: at "
+                f"{lowest:g} every study that is not accepted is rejected.",
+                field="reject_threshold",
+            )
+        return {"accept_threshold": accept, "reject_threshold": reject}
     for field, value in (("accept_threshold", accept_threshold), ("reject_threshold", reject_threshold)):
         if value is not None:
             raise ValidationError(f"An exclusion run takes threshold, not {field}.", field=field)

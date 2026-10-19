@@ -53,7 +53,8 @@ be sent:
 - **Thresholds** (default 0.9, from 0.5 to 0.99): how sure Jev must be.
   Exclusion has one, to reject. Inclusion has two: the **accept threshold**
   and the **reject threshold**, set separately (for instance accept only above
-  0.95 but reject from 0.85).
+  0.95 but reject from 0.85). The reject threshold can also go below 0.5 (see
+  below).
 - **Studies**: all sources or one, and the **statuses** to send — any mix of
   accepted, rejected, unclassified and duplicated (*All* checks every one). The
   default is rejected + unclassified for exclusion, so a second reviewer
@@ -151,6 +152,21 @@ up for one that is not:
 
 With both thresholds at 0.9, a study is accepted when every criterion is at
 0.90 or more, rejected when one is at 0.10 or less, and left to you in between.
+The reject threshold is compared with the probability of **no**, so a study is
+rejected when its weakest criterion is at `1 − reject threshold` or less:
+
+| Reject threshold | Rejected when the weakest criterion is at |
+|---|---|
+| 0.9 | 0.10 or less |
+| 0.5 | 0.50 or less (more likely not met than met) |
+| 0.2 | 0.80 or less |
+
+Below 0.5 it rejects studies Jev thinks *more likely* meet the criterion than
+not: everything that is not clearly in. It can go down to `1 − accept
+threshold` — with the accept threshold at 0.85, down to 0.15 — where every study
+that is not accepted is rejected and none is left to you. Lower would overlap
+the two, so it is refused. Those rejections mean "not clearly eligible from the
+abstract", not "shown ineligible": read a sample before trusting them.
 The rules sent to Jev tell it that missing information is not a "no", so a
 study is not rejected because its abstract does not mention a criterion. The
 comment says what Jev answered for every criterion:

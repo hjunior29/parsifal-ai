@@ -774,6 +774,7 @@ def ai_screening(request):
         "threshold": ai_screening_service.DEFAULT_THRESHOLD,
         "min_threshold": ai_screening_service.MIN_THRESHOLD,
         "max_threshold": ai_screening_service.MAX_THRESHOLD,
+        "min_reject_threshold": ai_screening_service.MIN_REJECT_THRESHOLD,
         "sources": [
             {"id": "", "name": "All sources"},
             *({"id": s.pk, "name": s.name} for s in review.sources.order_by("name")),

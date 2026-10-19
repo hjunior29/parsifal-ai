@@ -266,8 +266,10 @@ class IncludeWithAiViewsTest(AiScreeningViewsBase):
         self.assertContains(response, "<code>I1</code> Implemented &lt;tool&gt;", html=False)
         self.assertNotContains(response, "<code>E1</code>", html=False)
         self.assertContains(response, '<input type="hidden" name="phase" value="inclusion">', html=False)
-        for name in ("accept_threshold", "reject_threshold"):
-            self.assertContains(response, f'name="{name}" id="ai-{name.replace("_", "-")}"', html=False)
+        for name, minimum in (("accept_threshold", "0.5"), ("reject_threshold", "0.01")):
+            self.assertRegex(
+                response.content.decode(), rf'name="{name}" id="ai-{name.replace("_", "-")}"[^>]* min="{minimum}"'
+            )
         self.assertNotContains(response, 'name="threshold"', html=False)
         self.assertContains(response, "One yes/no question per criterion")
         for code, checked in (("A", True), ("R", False), ("U", True), ("D", False)):

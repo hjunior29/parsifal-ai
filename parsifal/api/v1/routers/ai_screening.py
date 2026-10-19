@@ -136,6 +136,7 @@ def ai_screening_setup(request, review_id: int, phase: str = "exclusion"):
         threshold_default=ai_screening.DEFAULT_THRESHOLD,
         threshold_min=ai_screening.MIN_THRESHOLD,
         threshold_max=ai_screening.MAX_THRESHOLD,
+        reject_threshold_min=ai_screening.MIN_REJECT_THRESHOLD,
         statuses=[{"status": code, "name": label} for code, label in ai_screening.STATUSES],
         statuses_default=ai_screening.clean_statuses(None, phase),
         scopes=scopes,
@@ -154,7 +155,8 @@ def ai_screening_start(request, review_id: int, payload: ScreeningStartIn):
     Open a run of ``phase`` (exclusion, default, or inclusion) in the name of ``reviewer_id`` over the studies in
     scope with ``statuses`` (U, R, A, D; default R and U for exclusion, A and U for inclusion); the reviewer's earlier
     decisions on them are rewritten. Thresholds (0.5–0.99, default 0.9): ``threshold`` for exclusion;
-    ``accept_threshold`` and ``reject_threshold`` for inclusion (the other phase's are refused). Only unclassified
+    ``accept_threshold`` and ``reject_threshold`` for inclusion (the other phase's are refused); the reject threshold
+    may go below 0.5, down to 1 - accept_threshold, where every study not accepted is rejected. Only unclassified
     studies and those this reviewer classified change status (exclusion: its rejections; inclusion: its acceptances
     and rejections); the others only get the reviewer's decision. Only the main author may name another member.
     Nothing is screened yet: call the step operation until the run is no longer running.

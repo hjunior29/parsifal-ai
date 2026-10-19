@@ -641,6 +641,23 @@ class TestInclusion(AiScreeningTestCase):
         with self.assertRaisesMessage(ValidationError, "takes accept_threshold and reject_threshold, not threshold"):
             self.start(threshold=0.9)
 
+        with self.subTest(msg="the reject threshold may go below 0.5, down to 1 - accept threshold"):
+            low = self.start(accept_threshold=0.85, reject_threshold=0.2)
+            self.assertEqual(0.2, low.parameters["reject_threshold"])
+            self.assertEqual(
+                0.15, self.start(accept_threshold=0.85, reject_threshold=0.15).parameters["reject_threshold"]
+            )
+            with self.assertRaisesMessage(
+                ValidationError,
+                "With the accept threshold at 0.85, the reject threshold must be at least 0.15: at 0.15 every study "
+                "that is not accepted is rejected.",
+            ):
+                self.start(accept_threshold=0.85, reject_threshold=0.1)
+            with self.assertRaisesMessage(ValidationError, "reject threshold must be between 0.01 and 0.99"):
+                self.start(accept_threshold=0.99, reject_threshold=0)
+            with self.assertRaisesMessage(ValidationError, "threshold must be between 0.5 and 0.99"):
+                super().start(threshold=0.2)  # exclusion keeps its range
+
     def test_accepts_when_every_criterion_is_met_rejects_when_one_is_not_and_leaves_the_rest(self):
         accepted = self.article(title="Accepted")
         rejected = self.article(title="Rejected")
@@ -698,6 +715,19 @@ class TestInclusion(AiScreeningTestCase):
         self.assertEqual(
             ["included", "undecided", "included", "excluded"],
             [lenient.results.get(article=article).outcome for article in articles],
+        )
+        # Rejecting what is not clearly in: at 1 - accept threshold nothing is left undecided.
+        strict = self.start(accept_threshold=0.95, reject_threshold=0.05, statuses=["U", "A", "R"])
+        self.step(strict, answers)
+        self.assertEqual(
+            ["excluded", "excluded", "included", "excluded"],
+            [strict.results.get(article=article).outcome for article in articles],
+        )
+        low = self.start(accept_threshold=0.85, reject_threshold=0.2, statuses=["U", "A", "R"])
+        self.step(low, [inclusion_answer({"I1": p, "I2": 0.99}) for p in (0.80, 0.82, 0.85, 0.5)])
+        self.assertEqual(
+            ["excluded", "undecided", "included", "excluded"],  # 0.80 is at the threshold: rejected
+            [low.results.get(article=article).outcome for article in articles],
         )
 
     def test_a_criterion_clearly_met_does_not_make_up_for_a_weak_one(self):

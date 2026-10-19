@@ -275,6 +275,7 @@ class TestIncludeWithAiApi(AiScreeningApiBase):
         self.assertEqual("inclusion", body["phase"])
         self.assertEqual([{"key": "I1", "id": self.inclusion.pk, "description": "Implemented tool"}], body["criteria"])
         self.assertEqual(("noul", ""), (body["question_type"], body["none_description"]))
+        self.assertEqual((0.5, 0.01), (body["threshold_min"], body["reject_threshold_min"]))
         self.assertIn("inclusion", body["task"])
         self.assertEqual(["A", "U"], body["statuses_default"])
         self.assertEqual(2, body["scopes"][0]["studies"])
@@ -293,15 +294,17 @@ class TestIncludeWithAiApi(AiScreeningApiBase):
         refused = self.api("post", start, {**inclusion, "threshold": 0.9})
         self.assertEqual(422, refused.status_code)
         self.assertIn("not threshold", refused.json()["detail"])
-        self.assertEqual(422, self.api("post", start, {**inclusion, "reject_threshold": 0.3}).status_code)
+        overlap = self.api("post", start, {**inclusion, "accept_threshold": 0.85, "reject_threshold": 0.1})
+        self.assertEqual(422, overlap.status_code)
+        self.assertIn("must be at least 0.15", overlap.json()["detail"])
         self.assertEqual(
             422, self.api("post", start, {"reviewer_id": self.author.pk, "accept_threshold": 0.9}).status_code
         )
-        response = self.api("post", start, {**inclusion, "accept_threshold": 0.95, "reject_threshold": 0.85})
+        response = self.api("post", start, {**inclusion, "accept_threshold": 0.85, "reject_threshold": 0.2})
         self.assertEqual(201, response.status_code, response.content)
         run = response.json()
         self.assertEqual(("inclusion", 2, ["A", "U"]), (run["phase"], run["total"], run["parameters"]["statuses"]))
-        self.assertEqual((0.95, 0.85), (run["parameters"]["accept_threshold"], run["parameters"]["reject_threshold"]))
+        self.assertEqual((0.85, 0.2), (run["parameters"]["accept_threshold"], run["parameters"]["reject_threshold"]))
 
         with (
             mock.patch.object(ai_screening, "WORKERS", 1),

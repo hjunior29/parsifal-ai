@@ -273,7 +273,10 @@ reviewed (Akita, 2026-10-03).
   the **reject threshold**, with it as the reason; otherwise leave the study
   unclassified for the reviewers. The two thresholds are set separately per run
   (default 0.9 each); the rules sent tell Jev that missing information is not a
-  "no". Helder may later prefer to reject everything not
+  "no". After a real run (257 studies, most left undecided) Helder wanted to
+  reject what is not clearly in, so the reject threshold may go below 0.5, down
+  to 1 − accept threshold, where nothing is left undecided (lower would overlap
+  the two and is refused); exclusion keeps 0.5–0.99. Helder may later prefer to reject everything not
   accepted once Jev proves precise; the run keeps its rule
   (`parameters.rule = keep_undecided`) for that. The decision replaces the
   reviewer's phase-1 decision (same stage), so agreement compares the
