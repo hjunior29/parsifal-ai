@@ -13,13 +13,21 @@ class FakeApi:
     def __init__(self):
         self.requests = []
         self.routes = {}
+        self.sequences = {}
 
     def route(self, method, path, status=200, body=None):
         self.routes[(method, path)] = (status, body)
 
+    def route_many(self, method, path, *bodies, status=200):
+        """Answer successive requests with successive bodies (the last one repeats)."""
+        self.sequences[(method, path)] = [(status, body) for body in bodies]
+
     def handler(self, request):
         self.requests.append(request)
         key = (request.method, request.url.path)
+        if key in self.sequences:
+            queue = self.sequences[key]
+            self.routes[key] = queue.pop(0) if len(queue) > 1 else queue[0]
         if key not in self.routes:
             return httpx.Response(404, json={"detail": f"no route {key}", "code": "not_found"})
         status, body = self.routes[key]

@@ -145,6 +145,23 @@ with the criterion as reason; the human reviewer records theirs; both check
 `decisions_agreement` / `decisions_disagreements`; the human runs
 `decisions_consolidate` (or `articles_set_status` for individual overrides).
 
+### Exclude with AI (Jev) — phase 1 of study selection
+
+| Method & path | operationId |
+|---------------|-------------|
+| `GET /integrations/jev` · `PUT {api_key?, model?}` · `POST /integrations/jev/test` · `DELETE` | `jev_integration_get` · `jev_integration_set` · `jev_integration_test` · `jev_integration_delete` — the caller's own key (Settings → Integrations); never returned, only `masked_key`. A blank value keeps the saved one. `test` answers 422 if Jev rejects the key, 502 if Jev fails |
+| `GET /reviews/{rid}/ai-screening` | `ai_screening_setup` — review context defaults, exclusion criteria as `E1…` + `none`, task, rules, threshold range, studies per scope |
+| `POST /reviews/{rid}/ai-screening/runs {title?, objective?, research_questions?, population?, intervention?, comparison?, outcome?, context?, guidance?, threshold?, source_id?, rescreen?}` | `ai_screening_start` (201) — context fields left out take the review's values |
+| `POST /reviews/{rid}/ai-screening/runs/{id}/step {size?}` | `ai_screening_step` — screens the next 1–50 studies (default 8) with the caller's key; returns `{run, results[]}` |
+| `POST /reviews/{rid}/ai-screening/runs/{id}/cancel` | `ai_screening_cancel` |
+| `GET /reviews/{rid}/ai-screening/runs` · `GET /runs/{id}` · `GET /runs/{id}/results?outcome=` (paginated) | `ai_screening_runs_list` · `ai_screening_runs_get` (with the parameters snapshot) · `ai_screening_results` (probabilities, chosen criterion, errors) |
+
+A run does nothing until `step` is called; call it until `run.status` is no
+longer `running` (the web page does the same in the browser; the CLI command
+`ai-screening run` and the MCP tool `parsifal_ai_screening_run` loop for
+you). A study is rejected as the review's Jev agent when `p_exclude =
+1 − p(none) ≥ threshold`; everything else stays unclassified.
+
 ### Library (personal bibliography, independent from reviews)
 
 Everything under `/library/` is scoped to the authenticated user; another

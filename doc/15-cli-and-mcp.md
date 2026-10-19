@@ -64,6 +64,8 @@ mirror the API parameters in kebab-case; `--review` accepts a numeric id or
 | `checklist` | `get`, `set --key --applied/--no-applied [--notes]` |
 | `decision` | `list [--stage --user-id --article-id --status]`, `record --ids … --status [--stage --selection-criteria-id --comments]`, `remove-mine --article`, `article --article`, `summary`, `agreement [--user-a-id --user-b-id]`, `disagreements`, `consolidate [--rule unanimous|any_include|majority] [--ids …]` |
 | `export` | `articles --format csv|xlsx|json -o FILE`, `extraction --format … -o FILE`, `report [--sections …] -o FILE` |
+| `integration jev` | `show`, `set [--api-key -|@file|KEY] [--model jev-1.13.0]`, `test`, `remove` (your own Jev key) |
+| `ai-screening` | `setup`, `start [--objective … --guidance … --threshold 0.9 --source-id S --rescreen]`, `step --id RUN [--size 8]`, `cancel --id RUN`, `runs`, `show --id RUN`, `results --id RUN [--outcome excluded|passed|error]`; composite `run` (the options of `start`, plus `--run RUN` to continue and `--step-size`, default 25) starts a run and screens until it ends, printing progress to stderr; Ctrl-C cancels it |
 
 Conventions:
 
@@ -132,6 +134,7 @@ Composite tools (fewer round-trips for agents):
 | `parsifal_articles_screen_batch(review_id, limit=20, offset=0, status="U")` | A page of articles with title/abstract/keywords **and** the review's selection criteria — everything needed to decide, then call `parsifal_articles_set_status`. |
 | `parsifal_review_protocol(review_id)` | The whole protocol as Markdown (also exposed as the resource `parsifal://reviews/{review_id}/protocol`). |
 | `parsifal_workflow_guide()` | The planning → conducting → reporting guide (`parsifal docs`). |
+| `parsifal_ai_screening_run(review_id, run_id=None, step_size=25, max_seconds=240, <start fields>)` | Exclude with AI in one call: starts a run (or continues `run_id`) and steps until it ends or the time budget passes; then `message` says to call again with `run_id`. Uses the Jev key of the token's user. |
 
 ### Install and connect
 

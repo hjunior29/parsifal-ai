@@ -8,9 +8,9 @@ from pathlib import Path
 
 import typer
 
-from parsifal_cli import __version__, config
+from parsifal_cli import __version__, config, screening
 from parsifal_cli.client import EXIT_ERROR, ApiClient, ApiError, ConnectionFailed, read_text_argument
-from parsifal_cli.operations import BOOL, FILE, FLOAT, INT, LIST_INT, LIST_STR, OPERATIONS, TEXT
+from parsifal_cli.operations import BOOL, BY_ID, FILE, FLOAT, INT, LIST_INT, LIST_STR, OPERATIONS, TEXT
 from parsifal_cli.output import error, render
 
 PYTHON_TYPES = {INT: int, FLOAT: float, BOOL: bool, LIST_INT: list[int], LIST_STR: list[str], TEXT: str}
@@ -218,7 +218,90 @@ def build():
         _group_app(operation.group).command(name=operation.command, help=operation.summary)(_make_handler(operation))
 
 
+# ---------------------------------------------------------------------------------------------------------------------
+# Composite commands
+# ---------------------------------------------------------------------------------------------------------------------
+
+
+def _ai_screening_run_command():
+    """``parsifal ai-screening run``: the options of ``ai-screening start`` plus --run and --step-size."""
+
+    def handler(review, run=None, step_size=screening.DEFAULT_STEP_SIZE, **start):
+        values = {}
+        for param in screening.START_PARAMS:
+            value = start.get(param.name)
+            if param.type == TEXT:
+                try:
+                    value = read_text_argument(value)
+                except OSError as exc:
+                    error(f"Cannot read --{param.option}: {exc.strerror or exc}")
+                    raise typer.Exit(code=EXIT_ERROR)
+            if value is not None:
+                values[param.name] = value
+        client = state.client()
+        current = {"id": run}
+        try:
+            if run is None:
+                current = client.call(BY_ID["ai_screening_start"], {"review_id": review, **values})
+                typer.echo(f"Run {current['id']}: {current['total']} studies to screen.", err=True)
+
+            def on_step(progress, _results):
+                current.update(progress)
+                typer.echo(screening.progress_line(progress), err=True)
+
+            result = screening.drive(client, review, run_id=current["id"], step_size=step_size, on_step=on_step)
+        except KeyboardInterrupt:
+            result = screening.cancel(client, review, current["id"]) if current.get("id") else None
+            typer.echo("Stopped: the run was cancelled; what was screened stays.", err=True)
+        except (ApiError, ConnectionFailed) as exc:
+            error(str(exc))
+            raise typer.Exit(code=exc.exit_code)
+        finally:
+            client.close()
+        if result is not None:
+            render(result, state.json)
+
+    parameters = [
+        inspect.Parameter(
+            "review",
+            inspect.Parameter.KEYWORD_ONLY,
+            default=typer.Option(..., "--review", help="Review id or author/slug."),
+            annotation=str,
+        ),
+        inspect.Parameter(
+            "run",
+            inspect.Parameter.KEYWORD_ONLY,
+            default=typer.Option(None, "--run", help="Continue this run instead of starting a new one."),
+            annotation=int,
+        ),
+        inspect.Parameter(
+            "step_size",
+            inspect.Parameter.KEYWORD_ONLY,
+            default=typer.Option(screening.DEFAULT_STEP_SIZE, "--step-size", help="Studies per step (1–50)."),
+            annotation=int,
+        ),
+    ]
+    for param in screening.START_PARAMS:
+        names = [f"--{param.option}/--no-{param.option}"] if param.type == BOOL else [f"--{param.option}"]
+        parameters.append(
+            inspect.Parameter(
+                param.name,
+                inspect.Parameter.KEYWORD_ONLY,
+                default=typer.Option(None, *names, help=param.help or param.name),
+                annotation=PYTHON_TYPES.get(param.type, str),
+            )
+        )
+    handler.__signature__ = inspect.Signature(parameters)
+    handler.__annotations__ = {p.name: p.annotation for p in parameters}
+    handler.__doc__ = (
+        "Start an Exclude with AI run (or continue one with --run) and screen until it ends, printing the progress. "
+        "Ctrl-C cancels the run."
+    )
+    return handler
+
+
 build()
+_group_app(("ai-screening",)).command(name="run")(_ai_screening_run_command())
 
 
 def main():

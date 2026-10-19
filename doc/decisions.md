@@ -237,8 +237,10 @@ reviewed (Akita, 2026-10-03).
   so there is no task queue; the client retries 429/5xx/529 with backoff and a
   rejected key fails the run.
 
-**Consequences.** Migrations `accounts.0002`, `reviews.0042`. API, CLI and MCP
-operations for the screening are not done yet (the API only exposes the agent
-`kind`). Thresholds should be checked against the reviewer's own decisions
-before relying on them.
+**Consequences.** Migrations `accounts.0002`, `reviews.0042`. The API, CLI and
+MCP mirror the web one to one (`jev_integration_*`, `ai_screening_*`); runs use
+the Jev key of the caller. The CLI command `ai-screening run` and the MCP tool
+`parsifal_ai_screening_run` loop over the steps like the web page does.
+Thresholds should be checked against the reviewer's own decisions before
+relying on them.
 

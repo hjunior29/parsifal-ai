@@ -48,6 +48,9 @@ parsifal me
    (`R` to reject with the exclusion criterion as reason; `--comments` for notes); the human reviewer compares
    with `decision agreement` / `decision disagreements` and sets the final status with `decision consolidate`.
    `article set-status ...` changes the consolidated status directly — use it only when asked to.
+   Exclude with AI (only when the human asks): `ai-screening run --review R` lets Jev reject the unclassified
+   studies that clearly meet an exclusion criterion (needs a Jev key: `integration jev set --api-key -`); check
+   what it rejected with `ai-screening results --review R --id RUN --outcome excluded`.
    `test-set get --review R` tells whether the known papers were found by the search.
 5. Quality assessment (accepted articles): `quality assess --review R --article A --question-id Q --answer-id ANS`;
    `quality summary --review R` shows scores against the cutoff. Final selection = accepted AND score > cutoff.

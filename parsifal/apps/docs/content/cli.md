@@ -48,6 +48,8 @@ parameters in kebab-case; `--review` accepts a numeric id or `author/slug`.
 | `decision` | `list`, `record`, `remove-mine`, `article`, `summary`, `agreement`, `disagreements`, `consolidate` |
 | `analytics` | `selection-by-source`, `final-by-year`, `facet-frequencies`, `facet-matrix` |
 | `export` | `articles`, `extraction`, `report` (all take `-o FILE`) |
+| `integration jev` | `show`, `set`, `test`, `remove` |
+| `ai-screening` | `setup`, `start`, `step`, `cancel`, `runs`, `show`, `results`, and `run` (start and screen to the end) — see [Exclude with AI](/docs/ai-screening/) |
 
 `parsifal <group> --help` lists the options of every command.
 

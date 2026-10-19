@@ -172,3 +172,38 @@ def test_review_reference_accepts_a_number_or_a_string(server, fake_api):
     for reference in (7, "7"):
         result = run(server.call_tool("parsifal_reviews_overview", {"review_id": reference}))
         assert json.loads(text_of(result))["id"] == 7
+
+
+def test_ai_screening_run_tool(server, fake_api):
+    from tests.test_screening import RUN, bodies, routes
+
+    routes(fake_api)
+    tools = {tool.name: tool for tool in run(server.list_tools())}
+    schema = tools["parsifal_ai_screening_run"].inputSchema
+    assert schema["required"] == ["review_id"]
+    assert {"run_id", "step_size", "max_seconds", "threshold", "guidance", "objective", "rescreen"} <= set(
+        schema["properties"]
+    )
+
+    result = json.loads(
+        text_of(run(server.call_tool("parsifal_ai_screening_run", {"review_id": 7, "threshold": 0.95})))
+    )
+    assert (result["id"], result["status"], result["excluded"]) == (RUN["id"], "finished", 1)
+    assert result["message"] == "Run finished: 2/2 screened · 1 rejected · 1 passed · 0 errors."
+    assert "parameters" not in result
+    assert bodies(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs") == [{"threshold": 0.95}]
+
+
+def test_ai_screening_run_tool_reports_still_running(server, fake_api, monkeypatch):
+    from parsifal_cli import screening
+    from tests.test_screening import routes
+
+    routes(fake_api)
+    ticks = iter([0, 0, 1000])
+    drive = screening.drive
+    monkeypatch.setattr(screening, "drive", lambda *args, **kwargs: drive(*args, clock=lambda: next(ticks), **kwargs))
+    result = json.loads(
+        text_of(run(server.call_tool("parsifal_ai_screening_run", {"review_id": 7, "run_id": 3, "max_seconds": 60})))
+    )
+    assert result["status"] == "running"
+    assert "run_id=3 to continue" in result["message"]

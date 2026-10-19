@@ -40,6 +40,28 @@ AI**. The window shows what will be sent:
 **Start screening** sends the studies a few at a time and shows the progress.
 **Stop** ends the run after the current batch. **Done** reloads the page.
 
+## From the API, CLI and MCP
+
+The same operations exist outside the web, one to one. Runs use the Jev key of
+the account that calls them, so an agent with its own token needs its own key
+(`parsifal integration jev set --api-key -` reads it from stdin).
+
+```bash
+parsifal integration jev set --api-key - --model jev-1.13.0   # Settings → Integrations
+parsifal integration jev test
+parsifal ai-screening setup --review R                        # what the window shows
+parsifal ai-screening run --review R --threshold 0.9 --source-id S --guidance @notes.txt
+parsifal ai-screening runs --review R
+parsifal ai-screening results --review R --id RUN --outcome excluded
+```
+
+`ai-screening run` starts a run and screens until it ends, printing the
+progress (Ctrl-C cancels the run). The step-by-step operations are also there:
+`start`, then `step --id RUN` until the run is no longer running, or `cancel`.
+In MCP, `parsifal_ai_screening_run` does the same in one call and says when to
+call again with `run_id`. Context fields you leave out take the review's
+values.
+
 ## What happens to each study
 
 For every study Jev receives the **title, keywords and abstract only** (never

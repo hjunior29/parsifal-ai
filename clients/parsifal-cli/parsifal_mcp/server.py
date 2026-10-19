@@ -1,6 +1,7 @@
 """
 MCP server exposing a Parsifal instance to agents. Tools are generated from the same operation registry as the
-CLI (``parsifal_<operationId>``), plus a few composite tools that save round-trips when screening studies.
+CLI (``parsifal_<operationId>``), plus a few composite tools that save round-trips (screening batches, the
+protocol as Markdown, running an Exclude with AI screening to its end).
 
 Run ``parsifal-mcp`` (stdio, the default for Claude Code / Codex) or ``parsifal-mcp --transport http --port 8765``.
 Configuration comes from PARSIFAL_URL / PARSIFAL_TOKEN (or a profile in the config file), exactly like the CLI.
@@ -16,7 +17,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
-from parsifal_cli import __version__, config
+from parsifal_cli import __version__, config, screening
 from parsifal_cli.client import ApiClient, ApiError, ConnectionFailed
 from parsifal_cli.operations import BOOL, BY_ID, FILE, FLOAT, INT, LIST_INT, LIST_STR, OPERATIONS, PATH, TEXT
 
@@ -234,6 +235,70 @@ def workflow_guide():
     return resources.files("parsifal_cli").joinpath("data/workflow.md").read_text(encoding="utf-8")
 
 
+SCREENING_RUN_DESCRIPTION = (
+    "Exclude with AI (phase 1 of study selection), in one call: starts a run over the unclassified studies (or "
+    "continues run_id) and screens them with Jev until the run ends or max_seconds pass. Studies whose probability "
+    "of meeting some exclusion criterion reaches the threshold are rejected as the review's Jev agent, with that "
+    "criterion; the rest stay unclassified. Uses the Jev API key of the token's user "
+    "(parsifal_jev_integration_set). Start fields left out take the review's values; see "
+    "parsifal_ai_screening_setup for what is sent. If the result says it is still running, call again with run_id."
+)
+
+
+def screening_run(
+    tool_context, review_id, *, run_id=None, step_size=screening.DEFAULT_STEP_SIZE, max_seconds=240, **start
+):
+    client = tool_context.client()
+    try:
+        run = screening.drive(
+            client,
+            review_id,
+            run_id=run_id,
+            start={name: value for name, value in start.items() if value is not None},
+            step_size=step_size,
+            max_seconds=max_seconds,
+        )
+    except (ApiError, ConnectionFailed) as error:
+        raise ToolError(str(error)) from error
+    finally:
+        client.close()
+    run.pop("parameters", None)
+    if run["status"] == "running":
+        run["message"] = (
+            f"Time budget reached ({screening.progress_line(run)}). Call parsifal_ai_screening_run again with "
+            f"run_id={run['id']} to continue."
+        )
+    else:
+        run["message"] = f"Run {run['status']}: {screening.progress_line(run)}."
+    return run
+
+
+def make_screening_run_tool(tool_context):
+    """The composite tool, with the start parameters of the registry plus run_id, step_size and max_seconds."""
+
+    def tool(**kwargs):  # kwargs may include "context", the PICOC field
+        return dumps(screening_run(tool_context, **kwargs))
+
+    parameters = [
+        inspect.Parameter("review_id", inspect.Parameter.KEYWORD_ONLY, annotation=int | str),
+        inspect.Parameter("run_id", inspect.Parameter.KEYWORD_ONLY, default=None, annotation=int | None),
+        inspect.Parameter(
+            "step_size", inspect.Parameter.KEYWORD_ONLY, default=screening.DEFAULT_STEP_SIZE, annotation=int
+        ),
+        inspect.Parameter("max_seconds", inspect.Parameter.KEYWORD_ONLY, default=240, annotation=int),
+    ]
+    for param in screening.START_PARAMS:
+        python_type = PYTHON_TYPES.get(param.type, str)
+        parameters.append(
+            inspect.Parameter(param.name, inspect.Parameter.KEYWORD_ONLY, default=None, annotation=python_type | None)
+        )
+    tool.__signature__ = inspect.Signature(parameters, return_annotation=str)
+    tool.__annotations__ = {**{p.name: p.annotation for p in parameters}, "return": str}
+    tool.__name__ = TOOL_PREFIX + "ai_screening_run"
+    tool.__doc__ = SCREENING_RUN_DESCRIPTION
+    return tool
+
+
 def build_server(settings=None, transport=None, host="127.0.0.1", port=8765):
     context = ToolContext(settings, transport)
     server = FastMCP("parsifal", instructions=INSTRUCTIONS, host=host, port=port)
@@ -280,6 +345,15 @@ def build_server(settings=None, transport=None, host="127.0.0.1", port=8765):
     def workflow_guide_tool() -> str:
         return workflow_guide()
 
+    server.add_tool(
+        make_screening_run_tool(context),
+        name=TOOL_PREFIX + "ai_screening_run",
+        description=SCREENING_RUN_DESCRIPTION,
+        annotations=ToolAnnotations(
+            title="ai-screening run", readOnlyHint=False, destructiveHint=False, openWorldHint=True
+        ),
+    )
+
     @server.resource("parsifal://reviews/{review_id}/protocol", mime_type="text/markdown")
     def protocol_resource(review_id: str) -> str:
         return protocol_markdown(context, review_id)
@@ -304,6 +378,7 @@ def main(argv=None):
 
 
 COMPOSITE_TOOLS = (
+    TOOL_PREFIX + "ai_screening_run",
     TOOL_PREFIX + "articles_screen_batch",
     TOOL_PREFIX + "review_protocol",
     TOOL_PREFIX + "workflow_guide",
