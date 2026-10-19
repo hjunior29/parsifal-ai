@@ -113,7 +113,7 @@ Rules:
   `require_owner`. Superusers may manage users and create reviews for others.
 - Provisioning: `manage.py init` (creates DB, loads default sources, creates
   admin, prints a first token), `manage.py create_api_token --user --name`,
-  UI page `/settings/tokens/` (list, create, revoke).
+  UI page `/settings/tokens/` (list, create, revoke, delete once revoked).
 - Clients read `PARSIFAL_URL` and `PARSIFAL_TOKEN` (env) or
   `~/.config/parsifal/config.toml` with named profiles.
 

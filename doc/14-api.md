@@ -14,7 +14,7 @@ MCP server (phases 4–5) are thin clients of this API.
 
 | Method | How | Notes |
 |--------|-----|-------|
-| Personal API token | `Authorization: Bearer pfl_…` | Created in **Settings → API tokens** (`/settings/tokens/`), via `POST /api/v1/tokens`, or `manage.py create_api_token --user <name>`. Stored hashed; shown once. Revoke from the same page or `DELETE /api/v1/tokens/{id}`. |
+| Personal API token | `Authorization: Bearer pfl_…` | Created in **Settings → API tokens** (`/settings/tokens/`), via `POST /api/v1/tokens`, or `manage.py create_api_token --user <name>`. Stored hashed; shown once. Revoke from the same page or `POST /api/v1/tokens/{id}/revoke`; once revoked it can be deleted (`DELETE /api/v1/tokens/{id}`, 409 while active). |
 | Browser session | Django session cookie (+ CSRF token for unsafe methods) | Lets the web UI call the API. |
 
 Requests act **as the token's user**: the author/co-author rules of each
@@ -47,7 +47,7 @@ Paths below are relative to `/api/v1`. `{rid}` = review id.
 | Method & path | operationId | Purpose |
 |---------------|-------------|---------|
 | `GET /me` · `PATCH /me {first_name?, last_name?, email?}` | `me` · `me_update` | Current user and number of active tokens; change your own profile fields |
-| `GET /tokens` · `POST /tokens {name}` · `DELETE /tokens/{id}` | `tokens_*` | Manage own tokens (`POST` returns `key` once) |
+| `GET /tokens` · `POST /tokens {name}` · `POST /tokens/{id}/revoke` · `DELETE /tokens/{id}` | `tokens_list` · `tokens_create` · `tokens_revoke` · `tokens_delete` | Manage own tokens (`POST` returns `key` once; delete only after revoking) |
 | `GET /users` · `POST /users {username,email,password?,first_name?,last_name?}` | `users_*` | Administrators only |
 | `GET /sources/defaults` | `sources_defaults` | The default digital libraries |
 

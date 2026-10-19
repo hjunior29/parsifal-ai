@@ -53,11 +53,27 @@ class TestApiTokenViews(TestCase):
             other_token, _ = ApiToken.create_for(self.other, "x")
             response = self.client.post(reverse("settings:token_revoke", args=(other_token.pk,)))
             self.assertEqual(404, response.status_code)
+        with self.subTest(msg="an active token cannot be deleted"):
+            response = self.client.post(reverse("settings:token_delete", args=(token.pk,)), follow=True)
+            self.assertContains(response, "before deleting it")
+            self.assertTrue(ApiToken.objects.filter(pk=token.pk).exists())
+            self.assertNotContains(response, reverse("settings:token_delete", args=(token.pk,)))
         with self.subTest(msg="revoke own token"):
             response = self.client.post(reverse("settings:token_revoke", args=(token.pk,)), follow=True)
             self.assertContains(response, "was revoked")
+            self.assertContains(response, reverse("settings:token_delete", args=(token.pk,)))
             token.refresh_from_db()
             self.assertFalse(token.is_active)
+        with self.subTest(msg="delete it once revoked; never someone else's"):
+            response = self.client.post(reverse("settings:token_delete", args=(other_token.pk,)))
+            self.assertEqual(404, response.status_code)
+            other_token.revoke()
+            self.assertEqual(
+                404, self.client.post(reverse("settings:token_delete", args=(other_token.pk,))).status_code
+            )
+            response = self.client.post(reverse("settings:token_delete", args=(token.pk,)), follow=True)
+            self.assertContains(response, "was deleted")
+            self.assertFalse(ApiToken.objects.filter(pk=token.pk).exists())
 
     def test_blank_name_rejected(self):
         self.client.force_login(self.user)

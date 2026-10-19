@@ -34,7 +34,9 @@ environment variables (or a saved profile).
 
 ## Revoking
 
-Revoke a token from the same settings page or with `DELETE /api/v1/tokens/{id}`.
+Revoke a token from the same settings page, `parsifal token revoke --id N` or `POST /api/v1/tokens/{id}/revoke`.
+A revoked token stays listed until you delete it (**Delete**, `parsifal token delete --id N` or
+`DELETE /api/v1/tokens/{id}`); an active token cannot be deleted, revoke it first.
 Revoked tokens stop working immediately; the *last used* column helps you spot
 tokens that are no longer needed.
 

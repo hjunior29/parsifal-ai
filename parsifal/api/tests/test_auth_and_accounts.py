@@ -63,13 +63,23 @@ class TestTokens(ApiTestCase):
             self.assertEqual(2, len(tokens))
             self.assertNotIn("key", tokens[0])
 
+        with self.subTest(msg="an active token cannot be deleted"):
+            self.assertEqual(409, self.api("delete", f"/tokens/{body['id']}").status_code)
+            self.assertTrue(ApiToken.objects.filter(pk=body["id"]).exists())
+
         with self.subTest(msg="revoke"):
-            self.assertEqual(204, self.api("delete", f"/tokens/{body['id']}").status_code)
+            self.assertEqual(204, self.api("post", f"/tokens/{body['id']}/revoke").status_code)
             self.assertIsNotNone(ApiToken.objects.get(pk=body["id"]).revoked_at)
 
-        with self.subTest(msg="cannot revoke someone else's token"):
+        with self.subTest(msg="cannot revoke or delete someone else's token"):
             other = self.co_author.api_tokens.get()
+            self.assertEqual(404, self.api("post", f"/tokens/{other.pk}/revoke").status_code)
             self.assertEqual(404, self.api("delete", f"/tokens/{other.pk}").status_code)
+
+        with self.subTest(msg="delete after revoking"):
+            self.assertEqual(204, self.api("delete", f"/tokens/{body['id']}").status_code)
+            self.assertFalse(ApiToken.objects.filter(pk=body["id"]).exists())
+            self.assertEqual(404, self.api("delete", f"/tokens/{body['id']}").status_code)
 
     def test_blank_name(self):
         self.assertEqual(422, self.api("post", "/tokens", {"name": "  "}).status_code)

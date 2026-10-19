@@ -63,6 +63,19 @@ class ApiTokenRevokeView(LoginRequiredMixin, View):
         return redirect("settings:tokens")
 
 
+class ApiTokenDeleteView(LoginRequiredMixin, View):
+    """Delete a token for good; only a revoked token can be deleted."""
+
+    def post(self, request, token_id):
+        token = get_object_or_404(ApiToken, pk=token_id, user=request.user)
+        if token.is_active:
+            messages.error(request, _("Revoke the token %(name)s before deleting it.") % {"name": token.name})
+        else:
+            token.delete()
+            messages.success(request, _("Token %(name)s was deleted.") % {"name": token.name})
+        return redirect("settings:tokens")
+
+
 class IntegrationsView(LoginRequiredMixin, View):
     """
     Third-party services the user connected. Jev: save or replace the API key and the model, check that the key

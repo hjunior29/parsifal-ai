@@ -52,7 +52,7 @@ Conventions used below:
 | Path | Guard | Purpose |
 |------|-------|---------|
 | `/docs/`, `/docs/<slug>/` | – | In-app documentation of the new features (phase 9). |
-| `/settings/tokens/`, `/settings/tokens/<id>/revoke/` | L | API tokens (phase 3). |
+| `/settings/tokens/`, `/settings/tokens/<id>/revoke/`, `/settings/tokens/<id>/delete/` (revoked only) | L | API tokens (phase 3). |
 | `/api/v1/...` | token or session | JSON API — [14-api.md](14-api.md). |
 | `/media/<path>` | – | Uploaded pictures served by Django (phase 6). |
 

@@ -113,11 +113,25 @@ def tokens_create(request, payload: TokenCreateIn):
     )
 
 
-@router.delete("/tokens/{int:token_id}", response={204: None}, operation_id="tokens_revoke")
-def tokens_revoke(request, token_id: int):
+def _own_token(request, token_id):
     try:
-        token = request.auth.api_tokens.get(pk=token_id)
+        return request.auth.api_tokens.get(pk=token_id)
     except ApiToken.DoesNotExist:
         raise NotFound(f"Token {token_id} not found.")
-    token.revoke()
+
+
+@router.post("/tokens/{int:token_id}/revoke", response={204: None}, operation_id="tokens_revoke")
+def tokens_revoke(request, token_id: int):
+    """Revoke one of your tokens: it stops working at once and stays listed as revoked."""
+    _own_token(request, token_id).revoke()
+    return 204, None
+
+
+@router.delete("/tokens/{int:token_id}", response={204: None}, operation_id="tokens_delete")
+def tokens_delete(request, token_id: int):
+    """Delete a revoked token from the list for good (409 while it is still active: revoke it first)."""
+    token = _own_token(request, token_id)
+    if token.is_active:
+        raise Conflict("Revoke the token before deleting it.")
+    token.delete()
     return 204, None

@@ -75,6 +75,11 @@
                       {% csrf_token %}
                       <button type="submit" class="btn btn-danger btn-sm">{% trans "Revoke" %}</button>
                     </form>
+                  {% else %}
+                    <form action="{% url 'settings:token_delete' token.pk %}" method="post" style="display: inline;" class="js-confirm" data-confirm="{% blocktrans with name=token.name %}Delete the token {{ name }} for good? It is already revoked; this only removes it from the list.{% endblocktrans %}">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-default btn-sm"><span class="glyphicon glyphicon-trash"></span> {% trans "Delete" %}</button>
+                    </form>
                   {% endif %}
                 </td>
               </tr>
@@ -84,6 +89,14 @@
           </tbody>
         </table>
       </div>
+
+      <script>
+        document.querySelectorAll("form.js-confirm").forEach(function (form) {
+          form.addEventListener("submit", function (event) {
+            if (!window.confirm(form.dataset.confirm)) { event.preventDefault(); }
+          });
+        });
+      </script>
 
     </div>
   </div>

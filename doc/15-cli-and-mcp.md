@@ -44,7 +44,7 @@ mirror the API parameters in kebab-case; `--review` accepts a numeric id or
 | Group | Commands |
 |-------|----------|
 | (root) | `me`, `version`, `docs` (prints the workflow guide), `config show|set` |
-| `token` | `list`, `create --name`, `revoke --id` |
+| `token` | `list`, `create --name`, `revoke --id`, `delete --id` (revoked only) |
 | `user` | `list`, `create --username --email [--password …]` (administrators) |
 | `review` | `list [--author --name --q --limit --offset --all]`, `create`, `get`, `overview`, `update`, `delete`, `rename --name` |
 | `member` | `list` |
