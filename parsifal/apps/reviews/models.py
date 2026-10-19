@@ -789,19 +789,9 @@ class ReviewAgent(models.Model):
     its tokens and everything stored under it.
     """
 
-    # An agent the owner created (it works through the API with its own token), or the review's Jev agent, created
-    # by the first AI exclusion screening: it has no token, Parsifal calls Jev and records the decisions as it.
-    AGENT = ""
-    JEV = "jev"
-    KINDS = (
-        (AGENT, _("AI agent")),
-        (JEV, _("Jev")),
-    )
-
     review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="agents")
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="agent_of")
     name = models.CharField(_("name"), max_length=50)
-    kind = models.CharField(_("kind"), max_length=20, choices=KINDS, blank=True, default=AGENT)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -822,7 +812,8 @@ def delete_agent_account(sender, instance, **kwargs):
 class ScreeningRun(models.Model):
     """
     One AI exclusion screening (phase 1 of study selection): what was sent to the model, its progress and how it
-    ended. It belongs to the review's Jev agent, so deleting the agent deletes its runs with its decisions.
+    ended. The decisions are recorded as ``reviewer``, chosen when the run starts; deleting that account deletes its
+    runs with its decisions.
     """
 
     RUNNING = "running"
@@ -837,7 +828,7 @@ class ScreeningRun(models.Model):
     )
 
     review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="screening_runs")
-    agent = models.ForeignKey(User, on_delete=models.CASCADE, related_name="screening_runs")
+    reviewer = models.ForeignKey(User, on_delete=models.CASCADE, related_name="screening_runs")
     started_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     model = models.CharField(_("model"), max_length=100)
     # Snapshot of what was sent: review context, extra guidance, exclusion criteria (key, id, description),
@@ -874,6 +865,9 @@ class ScreeningResult(models.Model):
 
     run = models.ForeignKey(ScreeningRun, on_delete=models.CASCADE, related_name="results")
     article = models.ForeignKey(Article, on_delete=models.CASCADE, related_name="screening_results")
+    # Status of the study when the run took it: unclassified, or rejected by the same reviewer in an earlier run.
+    # The run only changes the study if it still has this status.
+    previous_status = models.CharField(_("status before the run"), max_length=1, blank=True)
     outcome = models.CharField(_("outcome"), max_length=10, choices=OUTCOMES, default=PENDING)
     p_exclude = models.FloatField(_("probability that an exclusion criterion applies"), null=True, blank=True)
     probabilities = models.JSONField(_("probability of each option"), null=True, blank=True)

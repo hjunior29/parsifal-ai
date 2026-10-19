@@ -225,11 +225,20 @@ reviewed (Akita, 2026-10-03).
   orders in the same request and averaged. Reject when
   `1 − p(none) ≥ threshold` (default 0.9), with the most probable criterion;
   otherwise leave the study unclassified for the next phase.
-- Jev is a `ReviewAgent` of kind `jev`, created on the first run, without
-  tokens; it sets `Article.status`, `selection_criteria` and `updated_by`, and
-  records a `StudyDecision` for each rejection (probability in the comment).
-  Passed studies get no decision; the run log (`ScreeningRun`,
-  `ScreeningResult`) keeps every answer and the parameters snapshot.
+- Every run is made in the name of a **reviewer** chosen when it starts
+  (2026-10-19, replacing a dedicated "Jev" agent): the main author may pick
+  any member, anyone else only themselves. The run sends the unclassified
+  studies plus those this reviewer rejected earlier (nothing is skipped) and
+  records the reviewer's `StudyDecision` for every study: R with the criterion
+  (the study is rejected), or U "no exclusion criterion" (the study stays, or
+  goes back to, unclassified). Recording the U decisions is what makes two
+  reviewers comparable (kappa, unanimous consolidation). A study changed by
+  someone else meanwhile is left alone (`ScreeningResult.previous_status`).
+  The run log (`ScreeningRun`, `ScreeningResult`) keeps every answer and the
+  parameters snapshot.
+- The model is chosen per run from Jev's own list (`GET /v1/models`, asked
+  when the window or Settings → Integrations opens); the default is saved per
+  user.
 - The API key is per user in *Settings → Integrations*
   (`accounts.Integration`), encrypted at rest with a key derived from
   `SECRET_KEY` (it must be readable to be sent to Jev, so it cannot be
@@ -239,7 +248,8 @@ reviewed (Akita, 2026-10-03).
   so there is no task queue; the client retries 429/5xx/529 with backoff and a
   rejected key fails the run.
 
-**Consequences.** Migrations `accounts.0002`, `reviews.0042`. The API, CLI and
+**Consequences.** Migrations `accounts.0002`, `accounts.0003` (encrypted key), `reviews.0042`, `reviews.0043`
+(reviewer, no agent kind). The API, CLI and
 MCP mirror the web one to one (`jev_integration_*`, `ai_screening_*`); runs use
 the Jev key of the caller. The CLI command `ai-screening run` and the MCP tool
 `parsifal_ai_screening_run` loop over the steps like the web page does.

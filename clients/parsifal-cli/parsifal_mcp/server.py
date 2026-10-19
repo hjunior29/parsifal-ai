@@ -236,12 +236,13 @@ def workflow_guide():
 
 
 SCREENING_RUN_DESCRIPTION = (
-    "Exclude with AI (phase 1 of study selection), in one call: starts a run over the unclassified studies (or "
-    "continues run_id) and screens them with Jev until the run ends or max_seconds pass. Studies whose probability "
-    "of meeting some exclusion criterion reaches the threshold are rejected as the review's Jev agent, with that "
-    "criterion; the rest stay unclassified. Uses the Jev API key of the token's user "
-    "(parsifal_jev_integration_set). Start fields left out take the review's values; see "
-    "parsifal_ai_screening_setup for what is sent. If the result says it is still running, call again with run_id."
+    "Exclude with AI (phase 1 of study selection), in one call: starts a run (or continues run_id) and screens with "
+    "Jev until the run ends or max_seconds pass. reviewer_id is the member of the review the decisions are recorded "
+    "as (only the main author may name someone else; see parsifal_ai_screening_setup). A run sends the unclassified "
+    "studies plus those this reviewer rejected before, and rewrites its decisions: studies whose probability of "
+    "meeting some exclusion criterion reaches the threshold are rejected with that criterion, the rest get an "
+    "'unclassified' decision. Uses the Jev API key of the token's user (parsifal_jev_integration_set). Start fields "
+    "left out take the review's values. If the result says it is still running, call again with run_id."
 )
 
 

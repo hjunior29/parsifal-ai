@@ -94,7 +94,6 @@ def _agent_out(agent, created=None):
         id=agent.user_id,
         name=agent.name,
         username=agent.user.username,
-        kind=agent.kind,
         created_at=agent.created_at,
         **agents.stats(agent),
     )

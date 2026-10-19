@@ -27,15 +27,50 @@
 {% else %}
   <div class="modal-body ai-screening-setup">
     <p>
-      Jev reads the title, keywords and abstract of each unclassified study and <strong>rejects the ones that clearly
-      meet an exclusion criterion</strong>, with that criterion as the reason and the review's Jev agent as the author.
-      Every other study stays unclassified for the next phase, with the inclusion criteria.
+      Jev reads the title, keywords and abstract of each study and <strong>rejects the ones that clearly meet an
+      exclusion criterion</strong>, with that criterion as the reason, in the name of the reviewer you choose. Every
+      other study stays unclassified for the next phase, with the inclusion criteria.
     </p>
     <div class="alert alert-danger js-ai-form-error" style="display: none;"></div>
 
     <form id="ai-screening-form" onsubmit="return false;">
       {% csrf_token %}
       <input type="hidden" name="review-id" value="{{ review.id }}">
+
+      <div class="row">
+        <div class="col-sm-6">
+          <div class="form-group">
+            <label for="ai-reviewer" class="control-label">Reviewer</label>
+            <select name="reviewer-id" id="ai-reviewer" class="form-control input-sm" required>
+              {% if not selected_reviewer %}<option value="">Choose the reviewer…</option>{% endif %}
+              {% for row in reviewers %}
+                <option value="{{ row.user.pk }}"{% if row.user.pk == selected_reviewer %} selected{% endif %}>{{ row.user.profile.get_screen_name }} ({{ row.user.username }}){% if row.is_agent %} · AI agent{% endif %}{% if row.is_you %} · you{% endif %}</option>
+              {% endfor %}
+            </select>
+            <p class="help-block small">
+              The decisions are recorded in this reviewer's name. A reviewer that screened before screens everything
+              again and its earlier decisions are rewritten. Create more reviewers as AI agents in
+              <a href="{% url 'manage_access' review.author.username review.name %}">Manage access</a>.
+            </p>
+          </div>
+        </div>
+        <div class="col-sm-6">
+          <div class="form-group">
+            <label for="ai-model" class="control-label">Model</label>
+            {% if models %}
+              <select name="model" id="ai-model" class="form-control input-sm">
+                {% for model in models %}
+                  <option value="{{ model.name }}"{% if model.name == integration.model %} selected{% endif %}>{{ model.label }}</option>
+                {% endfor %}
+              </select>
+              <p class="help-block small">As listed by Jev now. Your default comes from Settings → Integrations.</p>
+            {% else %}
+              <input type="text" name="model" id="ai-model" class="form-control input-sm" value="{{ integration.model }}" maxlength="100">
+              {% if models_error %}<p class="help-block small text-warning">Could not load the list of models from Jev: {{ models_error }}</p>{% endif %}
+            {% endif %}
+          </div>
+        </div>
+      </div>
 
       <h5><strong>Review context</strong> <small>prefilled from the review; changes apply to this run only and are kept in its log</small></h5>
       {% for field in context_fields %}
@@ -89,9 +124,9 @@
           </div>
         </div>
         <div class="col-sm-6">
-          <div class="checkbox" style="margin-top: 25px;">
-            <label><input type="checkbox" name="rescreen"> Also screen studies Jev has already evaluated</label>
-          </div>
+          <p class="help-block small" style="margin-top: 25px;">
+            Sent: the unclassified studies, plus those this reviewer rejected in an earlier run.
+          </p>
         </div>
       </div>
       {{ counts|json_script:"ai-screening-counts" }}
@@ -99,12 +134,12 @@
       <details class="small text-muted">
         <summary>What is sent to Jev, and what cannot be changed</summary>
         <ul>
-          <li>Model: <code>{{ integration.model }}</code> (Settings → Integrations).</li>
           <li>Per study: title, keywords and abstract only. Authors, venue and affiliations are never sent.</li>
           <li>Task: {{ task }}</li>
           {% for rule in rules %}<li>{{ rule }}</li>{% endfor %}
           <li>The criteria are asked in three different orders in the same request and the answers averaged, because the model tends to favour the first option when unsure.</li>
-          <li>Only unclassified studies are sent. Studies already accepted, rejected or marked as duplicates are never touched.</li>
+          <li>Studies accepted, marked as duplicates or rejected by anyone else are never sent nor changed.</li>
+          <li>Every study screened gets the reviewer's decision: rejected with a criterion, or unclassified when no criterion applies. A study this reviewer had rejected before goes back to unclassified if no criterion applies now.</li>
         </ul>
       </details>
     </form>

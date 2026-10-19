@@ -1,13 +1,21 @@
 """
-AI exclusion screening, phase 1 of study selection. Jev reads the title, keywords and abstract of each unclassified
-study and says which exclusion criterion, if any, the study meets. Nothing else about the study is sent: no authors,
-venue or affiliations.
+AI exclusion screening, phase 1 of study selection. Jev reads the title, keywords and abstract of each study and
+says which exclusion criterion, if any, the study meets. Nothing else about the study is sent: no authors, venue or
+affiliations.
+
+Every run is made in the name of a **reviewer** chosen by whoever starts it (the main author may pick any member of
+the review, anyone else only themselves), so one person can screen as several reviewers and compare them. A run
+sends the unclassified studies plus those this reviewer rejected in an earlier run, and rewrites this reviewer's
+decisions: nothing is skipped because it was evaluated before.
 
 The exclusion criteria plus a "none" option go in one choice question, asked in three option orders within the
 same request (Jev tends to favour the first option when unsure) and averaged. Because the probabilities of a choice
-sum to 1, the probability that *some* criterion applies is ``1 - p(none)``, even when two criteria split it. A study
-is rejected, with the most probable criterion and the Jev agent as author, only when that probability reaches the
-threshold; every other study stays unclassified for the next phase.
+sum to 1, the probability that *some* criterion applies is ``1 - p(none)``, even when two criteria split it. Then:
+
+- ``1 - p(none) >= threshold``: the reviewer's decision is "rejected" with the most probable criterion, and the
+  study is rejected with it.
+- otherwise: the reviewer's decision is "unclassified" (no criterion applies) and the study stays, or goes back to,
+  unclassified for the next phase.
 
 A run is driven in small steps (``process_step``) so that the page can show its progress, and every answer is kept
 in ``ScreeningResult`` for audit.
@@ -20,11 +28,10 @@ from django.db.models import Count, Q
 from django.utils import timezone
 
 from parsifal.apps.accounts import services as integrations
-from parsifal.apps.accounts.models import Integration
 from parsifal.apps.core import jev
-from parsifal.apps.core.exceptions import NotFound, ValidationError
-from parsifal.apps.reviews.models import Article, ScreeningResult, ScreeningRun, StudyDecision
-from parsifal.apps.reviews.services import agents, decisions
+from parsifal.apps.core.exceptions import NotFound, PermissionDenied, ValidationError
+from parsifal.apps.reviews.models import Article, ReviewAgent, ScreeningResult, ScreeningRun, StudyDecision
+from parsifal.apps.reviews.services import decisions
 from parsifal.apps.reviews.services._common import check_length
 
 DEFAULT_THRESHOLD = 0.9
@@ -70,11 +77,36 @@ SENT_FIELDS = ("title", "keywords", "abstract")
 # Setup ---------------------------------------------------------------------------------------------------------------
 
 
-def integration_for(user):
-    integration = Integration.objects.filter(user=user, provider=Integration.JEV).first()
-    if integration is None:
-        raise ValidationError("Add your Jev API key in Settings → Integrations first.", field="api_key")
-    return integration
+def reviewer_choices(review, actor):
+    """
+    Who ``actor`` may screen as: the main author may choose any member of the review (themselves, people, AI
+    agents); anyone else only themselves, so an agent can never record decisions in someone else's name.
+    """
+    members = [review.author, *review.co_authors.order_by("first_name", "username")]
+    if actor.pk == review.author_id:
+        return members
+    return [member for member in members if member.pk == actor.pk]
+
+
+def agent_ids(review):
+    return set(ReviewAgent.objects.filter(review=review).values_list("user_id", flat=True))
+
+
+def get_reviewer(review, actor, reviewer_id):
+    if reviewer_id in (None, ""):
+        raise ValidationError("Choose the reviewer the decisions are recorded as.", field="reviewer_id")
+    members = {str(member.pk): member for member in (review.author, *review.co_authors.all())}
+    reviewer = members.get(str(reviewer_id))
+    if reviewer is None:
+        raise NotFound(f"Reviewer {reviewer_id!r} is not a member of this review.", field="reviewer_id")
+    if actor.pk != review.author_id and reviewer.pk != actor.pk:
+        raise PermissionDenied("Only the main author can screen in the name of another reviewer.", field="reviewer_id")
+    return reviewer
+
+
+def last_reviewer_id(review):
+    """The reviewer of the review's latest run, to preselect it."""
+    return review.screening_runs.values_list("reviewer_id", flat=True).first()
 
 
 def default_context(review):
@@ -99,30 +131,34 @@ def exclusion_options(review):
     ]
 
 
-def _evaluated(review):
-    """Studies of the review the Jev agent already answered for in an earlier run."""
-    return ScreeningResult.objects.filter(
-        run__review=review, outcome__in=(ScreeningResult.EXCLUDED, ScreeningResult.PASSED)
+def _rejected_by(review, reviewer):
+    """Studies still rejected as ``reviewer`` decided in an earlier run (nobody changed them since)."""
+    excluded = ScreeningResult.objects.filter(
+        run__review=review, run__reviewer=reviewer, outcome=ScreeningResult.EXCLUDED
     ).values("article_id")
+    return Q(status=Article.REJECTED, updated_by=reviewer, pk__in=excluded)
 
 
-def eligible_articles(review, *, source_id=None, rescreen=False):
-    """Unclassified studies in scope. Studies Jev already evaluated are skipped unless ``rescreen``."""
-    articles = review.article_set.filter(status=Article.UNCLASSIFIED)
+def eligible_articles(review, *, reviewer, source_id=None):
+    """
+    What a run as ``reviewer`` sends: the unclassified studies plus those the reviewer rejected in an earlier run.
+    Studies accepted, marked as duplicates or rejected by anyone else are never sent.
+    """
+    articles = review.article_set.filter(Q(status=Article.UNCLASSIFIED) | _rejected_by(review, reviewer))
     if source_id:
         articles = articles.filter(source_id=source_id)
-    if not rescreen:
-        articles = articles.exclude(pk__in=_evaluated(review))
     return articles.order_by("pk")
 
 
-def scope_counts(review):
-    """How many studies each scope would send: {source id or "": {"new": n, "all": n}}."""
-    unclassified = review.article_set.filter(status=Article.UNCLASSIFIED)
-    new = ~Q(pk__in=_evaluated(review))
-    counts = {"": unclassified.aggregate(all=Count("pk"), new=Count("pk", filter=new))}
-    for row in unclassified.values("source_id").annotate(all=Count("pk"), new=Count("pk", filter=new)):
-        counts[str(row["source_id"])] = {"all": row["all"], "new": row["new"]}
+def scope_counts(review, reviewer=None):
+    """How many studies a run would send, per scope: {"": all sources, "<source id>": n}."""
+    if reviewer is None:
+        articles = review.article_set.filter(status=Article.UNCLASSIFIED)
+    else:
+        articles = eligible_articles(review, reviewer=reviewer)
+    counts = {"": articles.count()}
+    for row in articles.order_by().values("source_id").annotate(n=Count("pk")):
+        counts[str(row["source_id"])] = row["n"]
     return counts
 
 
@@ -228,7 +264,7 @@ def combine(response, options):
 
 
 def list_runs(review):
-    return review.screening_runs.select_related("started_by")
+    return review.screening_runs.select_related("started_by", "reviewer")
 
 
 def list_results(run, *, outcome=None):
@@ -253,15 +289,36 @@ def get_run(review, run_id):
         raise NotFound(f"Screening run {run_id!r} not found.")
 
 
+def _clean_model(actor, model):
+    """The model for the run: the actor's default, or another one Jev lists for the actor's key."""
+    default = integrations.get_jev(actor).model or jev.DEFAULT_MODEL
+    model = (model or "").strip() or default
+    check_length(model, 100, field="model")
+    if model != default and model not in {card["name"] for card in integrations.test_jev(actor)}:
+        raise ValidationError(f"Jev does not list the model {model!r} for your key.", field="model")
+    return model
+
+
 @transaction.atomic
 def start_run(
-    *, review, actor, context=None, guidance="", threshold=DEFAULT_THRESHOLD, source_id=None, rescreen=False
+    *,
+    review,
+    actor,
+    reviewer_id,
+    model=None,
+    context=None,
+    guidance="",
+    threshold=DEFAULT_THRESHOLD,
+    source_id=None,
 ):
     """
-    Check the settings, take the studies in scope and open a run; ``process_step`` does the work. Context fields
-    left out (or None) take the review's values; an empty string sends the field empty.
+    Check the settings, take the studies in scope and open a run; ``process_step`` does the work. The decisions are
+    recorded as ``reviewer_id``; the calls use the actor's Jev key and ``model`` (default: the actor's default model).
+    Context fields left out (or None) take the review's values; an empty string sends the field empty.
     """
-    integration = integration_for(actor)
+    integrations.jev_api_key(actor)  # a key the actor can use, before anything else
+    reviewer = get_reviewer(review, actor, reviewer_id)
+    model = _clean_model(actor, model)
     options = exclusion_options(review)
     if not options:
         raise ValidationError("The review has no exclusion criteria. Add them in Planning first.", field="criteria")
@@ -273,9 +330,9 @@ def start_run(
         source_id = None
     elif not review.sources.filter(pk=source_id).exists():
         raise NotFound(f"Source {source_id!r} not found in this review.")
-    article_ids = list(eligible_articles(review, source_id=source_id, rescreen=rescreen).values_list("pk", flat=True))
-    if not article_ids:
-        raise ValidationError("There are no unclassified studies to screen in this scope.", field="source_id")
+    articles = list(eligible_articles(review, reviewer=reviewer, source_id=source_id).values_list("pk", "status"))
+    if not articles:
+        raise ValidationError("There are no studies to screen in this scope.", field="source_id")
 
     # One run at a time per review: a run left behind (page closed mid-way) is closed now.
     for stale in review.screening_runs.filter(status=ScreeningRun.RUNNING):
@@ -283,21 +340,22 @@ def start_run(
 
     run = ScreeningRun.objects.create(
         review=review,
-        agent=agents.jev_agent(review).user,
+        reviewer=reviewer,
         started_by=actor,
-        model=integration.model or jev.DEFAULT_MODEL,
+        model=model,
         parameters={
             "context": context,
             "guidance": guidance,
             "criteria": options,
             "threshold": threshold,
             "source_id": int(source_id) if source_id else None,
-            "rescreen": bool(rescreen),
             "orders": len(_orders(options)),
         },
-        total=len(article_ids),
+        total=len(articles),
     )
-    ScreeningResult.objects.bulk_create(ScreeningResult(run=run, article_id=pk) for pk in article_ids)
+    ScreeningResult.objects.bulk_create(
+        ScreeningResult(run=run, article_id=pk, previous_status=status) for pk, status in articles
+    )
     return run
 
 
@@ -396,6 +454,7 @@ def _record(run, result, response):
             result.p_exclude = p_exclude
             result.model = str(response.get("model") or run.model)[:100]
             if p_exclude < run.parameters["threshold"]:
+                _pass(run, result)
                 result.outcome = ScreeningResult.PASSED
             elif _reject(run, result, best):
                 result.outcome = ScreeningResult.EXCLUDED
@@ -405,28 +464,52 @@ def _record(run, result, response):
     result.save()
 
 
+def _unchanged(run, result):
+    """The study, if nobody changed its status since the run took it (else it is left as it is)."""
+    articles = run.review.article_set.filter(pk=result.article_id, status=result.previous_status)
+    if result.previous_status == Article.REJECTED:
+        articles = articles.filter(updated_by=run.reviewer)
+    return articles
+
+
+def _decide(run, result, status, criteria_id, comments):
+    decisions.record_decision(
+        review=run.review,
+        article_id=result.article_id,
+        actor=run.reviewer,
+        status=status,
+        stage=StudyDecision.TITLE_ABSTRACT,
+        criteria_id=criteria_id,
+        comments=f"Exclude with AI (run {run.pk}, {result.model}): {comments}, p(exclude) = {result.p_exclude:.2f}.",
+    )
+
+
 def _reject(run, result, key):
     """
-    Reject the study as the Jev agent, with the criterion ``key``. A study someone classified while the run was
-    going keeps its status (Jev's decision is still recorded). False when the criterion no longer exists.
+    Reject the study as the run's reviewer, with the criterion ``key``. A study someone else classified while the
+    run was going keeps its status (the reviewer's decision is still recorded). False when the criterion is gone.
     """
     criteria_id = next(option["id"] for option in run.parameters["criteria"] if option["key"] == key)
     if not run.review.selectioncriteria_set.filter(pk=criteria_id).exists():
         return False
     result.selection_criteria_id = criteria_id
-    run.review.article_set.filter(pk=result.article_id, status=Article.UNCLASSIFIED).update(
-        status=Article.REJECTED, selection_criteria_id=criteria_id, updated_by=run.agent, updated_at=timezone.now()
+    _unchanged(run, result).update(
+        status=Article.REJECTED, selection_criteria_id=criteria_id, updated_by=run.reviewer, updated_at=timezone.now()
     )
-    decisions.record_decision(
-        review=run.review,
-        article_id=result.article_id,
-        actor=run.agent,
-        status=Article.REJECTED,
-        stage=StudyDecision.TITLE_ABSTRACT,
-        criteria_id=criteria_id,
-        comments=f"Exclude with AI (run {run.pk}, {result.model}): {key}, p(exclude) = {result.p_exclude:.2f}.",
-    )
+    _decide(run, result, Article.REJECTED, criteria_id, key)
     return True
+
+
+def _pass(run, result):
+    """
+    No criterion applies: the reviewer's decision becomes "unclassified", and a study this reviewer had rejected in
+    an earlier run goes back to unclassified.
+    """
+    if result.previous_status == Article.REJECTED:
+        _unchanged(run, result).update(
+            status=Article.UNCLASSIFIED, selection_criteria=None, updated_by=run.reviewer, updated_at=timezone.now()
+        )
+    _decide(run, result, Article.UNCLASSIFIED, None, "no exclusion criterion")
 
 
 def progress(run):

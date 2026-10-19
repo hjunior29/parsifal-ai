@@ -1432,8 +1432,8 @@ OPERATIONS = (
         "/reviews/{review_id}/ai-screening",
         ("ai-screening",),
         "setup",
-        "What a run would send: review context (editable), exclusion criteria (fixed), threshold, scopes.",
-        (REVIEW,),
+        "What a run would send: context (editable), criteria (fixed), Jev's models, reviewers, studies per scope.",
+        (REVIEW, Q("reviewer_id", INT, help="Count the studies for this reviewer.")),
     ),
     Operation(
         "ai_screening_start",
@@ -1441,7 +1441,7 @@ OPERATIONS = (
         "/reviews/{review_id}/ai-screening/runs",
         ("ai-screening",),
         "start",
-        "Open a run over the unclassified studies in scope; then call step until it is no longer running.",
+        "Open a run as a reviewer (unclassified studies + its own earlier rejections); then step until it ends.",
         (
             REVIEW,
             B("title", help="Review title sent as context (default: the review's)."),
@@ -1455,7 +1455,8 @@ OPERATIONS = (
             B("guidance", TEXT, help="Definitions or borderline cases that help apply the criteria."),
             B("threshold", FLOAT, help="Reject when 1 - p(none) is at least this (0.5–0.99, default 0.9)."),
             B("source_id", INT, help="Only this source (default: all)."),
-            B("rescreen", BOOL, help="Also send studies Jev already evaluated."),
+            B("reviewer_id", INT, True, "Member of the review the decisions are recorded as (see setup)."),
+            B("model", help="Jev model for this run (default: your default model)."),
         ),
     ),
     Operation(
@@ -1482,7 +1483,7 @@ OPERATIONS = (
         "/reviews/{review_id}/ai-screening/runs/{run_id}/step",
         ("ai-screening",),
         "step",
-        "Screen the next studies of the run with your Jev key (rejections are made as the Jev agent).",
+        "Screen the next studies of the run with your Jev key, recording the reviewer's decisions.",
         (REVIEW, child_id("run_id", "Run id."), B("size", INT, help="Studies in this step (1–50, default 8).")),
     ),
     Operation(

@@ -24,10 +24,10 @@ $(function () {
 
   function updateCount() {
     var counts = JSON.parse($("#ai-screening-counts").text() || "{}");
-    var scope = counts[$("#ai-source").val() || ""] || {all: 0, "new": 0};
-    var total = $modal.find("input[name=rescreen]").is(":checked") ? scope.all : scope["new"];
-    $modal.find(".js-ai-count").text(total);
-    $modal.find(".js-ai-start").prop("disabled", total === 0);
+    var reviewer = $("#ai-reviewer").val();
+    var total = reviewer ? ((counts[reviewer] || {})[$("#ai-source").val() || ""] || 0) : 0;
+    $modal.find(".js-ai-count").text(reviewer ? total : "—");
+    $modal.find(".js-ai-start").prop("disabled", !reviewer || total === 0);
   }
 
   $(document).on("click", ".btn-ai-screening", function () {
@@ -40,7 +40,7 @@ $(function () {
     });
   });
 
-  $modal.on("change", "#ai-source, input[name=rescreen]", updateCount);
+  $modal.on("change", "#ai-source, #ai-reviewer", updateCount);
 
   $modal.on("click", ".js-ai-start", function () {
     var $button = $(this).prop("disabled", true);

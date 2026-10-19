@@ -15,7 +15,8 @@ from django.views.decorators.http import require_POST
 
 import xlwt
 
-from parsifal.apps.accounts.models import Integration
+from parsifal.apps.accounts import services as integrations
+from parsifal.apps.accounts.forms import model_label
 from parsifal.apps.core.exceptions import DomainError
 from parsifal.apps.reviews.decorators import author_required
 from parsifal.apps.reviews.models import (
@@ -728,15 +729,28 @@ def consolidate(request):
 def ai_screening(request):
     """Exclude with AI: the setup window, prefilled from the review (phase 1 of study selection)."""
     review = get_object_or_404(Review, pk=request.GET.get("review-id"))
-    integration = Integration.objects.filter(user=request.user, provider=Integration.JEV).first()
-    counts = ai_screening_service.scope_counts(review)
+    integration = integrations.get_jev(request.user)
     defaults = ai_screening_service.default_context(review)
-    sources = [{"id": "", "name": "All sources", **counts[""]}]
-    for source in review.sources.order_by("name"):
-        sources.append({"id": source.pk, "name": source.name, **counts.get(str(source.pk), {"all": 0, "new": 0})})
+    agent_ids = ai_screening_service.agent_ids(review)
+    reviewers = [
+        {"user": member, "is_agent": member.pk in agent_ids, "is_you": member.pk == request.user.pk}
+        for member in ai_screening_service.reviewer_choices(review, request.user)
+    ]
+    # Studies a run would send depend on the reviewer (it rewrites its own earlier rejections) and on the source.
+    counts = {str(row["user"].pk): ai_screening_service.scope_counts(review, row["user"]) for row in reviewers}
+    selected = ai_screening_service.last_reviewer_id(review)
+    if selected not in {row["user"].pk for row in reviewers}:
+        selected = reviewers[0]["user"].pk if len(reviewers) == 1 else None
+    models, models_error = integrations.jev_models(request.user) if integration else ([], "")
+    if integration and integration.model not in {model["name"] for model in models}:
+        models = [*models, {"name": integration.model, "description": "", "release_date": ""}] if models else []
     context = {
         "review": review,
         "integration": integration,
+        "reviewers": reviewers,
+        "selected_reviewer": selected,
+        "models": [{"name": m["name"], "label": model_label(m)} for m in models],
+        "models_error": models_error,
         "options": ai_screening_service.exclusion_options(review),
         "context_fields": [
             {"name": name, "label": label, "value": defaults[name], "limit": limit, "multiline": limit > 255}
@@ -746,7 +760,10 @@ def ai_screening(request):
         "threshold": ai_screening_service.DEFAULT_THRESHOLD,
         "min_threshold": ai_screening_service.MIN_THRESHOLD,
         "max_threshold": ai_screening_service.MAX_THRESHOLD,
-        "sources": sources,
+        "sources": [
+            {"id": "", "name": "All sources"},
+            *({"id": s.pk, "name": s.name} for s in review.sources.order_by("name")),
+        ],
         "counts": counts,
         "task": ai_screening_service.TASK,
         "rules": ai_screening_service.RULES,
@@ -769,11 +786,12 @@ def ai_screening_start(request):
         run = ai_screening_service.start_run(
             review=review,
             actor=request.user,
+            reviewer_id=request.POST.get("reviewer-id"),
+            model=request.POST.get("model"),
             context=context,
             guidance=request.POST.get("guidance", ""),
             threshold=request.POST.get("threshold", ai_screening_service.DEFAULT_THRESHOLD),
             source_id=request.POST.get("source-id") or None,
-            rescreen=request.POST.get("rescreen") == "on",
         )
     except DomainError as error:
         return _ai_screening_error(error)

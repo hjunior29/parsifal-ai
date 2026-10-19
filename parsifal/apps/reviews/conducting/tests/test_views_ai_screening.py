@@ -8,8 +8,14 @@ from django.urls import reverse
 from parsifal.apps.accounts.models import Integration
 from parsifal.apps.authentication.tests.factories import UserFactory
 from parsifal.apps.core import jev
-from parsifal.apps.reviews.models import Article, ScreeningRun, SelectionCriteria
+from parsifal.apps.reviews.models import Article, ScreeningRun, SelectionCriteria, StudyDecision
+from parsifal.apps.reviews.services import agents
 from parsifal.apps.reviews.tests.factories import ArticleFactory, ReviewFactory, SourceFactory
+
+MODELS = [
+    {"name": "jev-1.13.0", "description": "Stable", "release_date": "2026-08-01"},
+    {"name": "jev-1.14.0", "description": "Newest", "release_date": "2026-10-14"},
+]
 
 EXCLUDE = {
     "model": "jev-1.13.0",
@@ -28,6 +34,7 @@ class AiScreeningViewsTest(TestCase):
             review=cls.review, criteria_type="E", description="Not about <software> engineering"
         )
         cls.article = ArticleFactory(review=cls.review, source=cls.source, title="A study", abstract="Text")
+        cls.bot = agents.create_agent(review=cls.review, actor=cls.owner, name="Screener").agent.user
         cls.form_url = reverse("reviews:conducting:ai_screening")
         cls.start_url = reverse("reviews:conducting:ai_screening_start")
         cls.step_url = reverse("reviews:conducting:ai_screening_step")
@@ -35,12 +42,23 @@ class AiScreeningViewsTest(TestCase):
 
     def setUp(self):
         self.client.force_login(self.owner)
+        # The window asks Jev for its models when it opens: never reach the network in tests.
+        patcher = mock.patch.object(jev, "list_models", return_value=MODELS)
+        self.list_models = patcher.start()
+        self.addCleanup(patcher.stop)
 
     def connect(self):
         Integration.objects.create(user=self.owner, provider=Integration.JEV, api_key="fake-key", model="jev-1.13.0")
 
     def start(self, **extra):
-        data = {"review-id": self.review.pk, "context-objective": "Edited", "threshold": "0.9", "source-id": ""}
+        data = {
+            "review-id": self.review.pk,
+            "reviewer-id": self.bot.pk,
+            "model": "jev-1.13.0",
+            "context-objective": "Edited",
+            "threshold": "0.9",
+            "source-id": "",
+        }
         data.update(extra)
         return self.client.post(self.start_url, data)
 
@@ -69,10 +87,37 @@ class AiScreeningViewsTest(TestCase):
         self.assertContains(response, "Our objective &amp; scope")
         self.assertContains(response, "<code>E1</code> Not about &lt;software&gt; engineering", html=False)
         self.assertNotContains(response, 'name="criteria')
-        self.assertContains(response, "jev-1.13.0")
+        self.assertNotContains(response, 'name="rescreen"')
         script = re.search(r'id="ai-screening-counts"[^>]*>(.*?)</script>', response.content.decode())
         counts = json.loads(script.group(1))
-        self.assertEqual({"all": 1, "new": 1}, counts[""])
+        self.assertEqual({str(self.owner.pk), str(self.bot.pk)}, set(counts))
+        self.assertEqual(1, counts[str(self.bot.pk)][""])
+
+        with self.subTest(msg="reviewers to choose from, none preselected before the first run"):
+            self.assertContains(response, '<option value="">Choose the reviewer…</option>', html=True)
+            self.assertContains(
+                response,
+                f'<option value="{self.bot.pk}">Screener ({self.bot.username}) · AI agent</option>',
+                html=True,
+            )
+            self.assertContains(response, f"({self.owner.username}) · you")
+
+        with self.subTest(msg="models listed by Jev when the window opens, the default selected"):
+            self.list_models.assert_called_with("fake-key")
+            self.assertContains(
+                response, '<option value="jev-1.13.0" selected>jev-1.13.0 — Stable · 2026-08-01</option>', html=True
+            )
+            self.assertContains(
+                response, '<option value="jev-1.14.0">jev-1.14.0 — Newest · 2026-10-14</option>', html=True
+            )
+
+        with self.subTest(msg="Jev unreachable: a text field with the default model"):
+            self.list_models.side_effect = jev.JevError("Could not reach Jev (Timeout).")
+            response = self.client.get(self.form_url, {"review-id": self.review.pk})
+            self.assertContains(
+                response, 'name="model" id="ai-model" class="form-control input-sm" value="jev-1.13.0"'
+            )
+            self.assertContains(response, "Could not load the list of models from Jev")
 
     def test_members_only(self):
         self.client.force_login(self.outsider)
@@ -87,11 +132,13 @@ class AiScreeningViewsTest(TestCase):
         response = self.start(threshold="0.2")
         self.assertEqual(400, response.status_code)
         self.assertIn("between 0.5 and 0.99", response.json()["error"])
+        response = self.start(**{"reviewer-id": ""})
+        self.assertIn("Choose the reviewer", response.json()["error"])
 
     def test_start_step_and_done(self):
         self.connect()
-        response = self.start(guidance="Be strict.", rescreen="on")
-        self.assertEqual(200, response.status_code)
+        response = self.start(guidance="Be strict.")
+        self.assertEqual(200, response.status_code, response.content)
         run = response.json()["run"]
         self.assertEqual(("running", 1, 0), (run["status"], run["total"], run["processed"]))
         self.assertEqual("Edited", ScreeningRun.objects.get(pk=run["id"]).parameters["context"]["objective"])
@@ -107,14 +154,15 @@ class AiScreeningViewsTest(TestCase):
             body["results"],
         )
         self.article.refresh_from_db()
-        self.assertEqual((Article.REJECTED, self.criteria), (self.article.status, self.article.selection_criteria))
-        self.assertEqual("Jev", self.article.updated_by.profile.get_screen_name())
+        self.assertEqual(
+            (Article.REJECTED, self.criteria, self.bot),
+            (self.article.status, self.article.selection_criteria, self.article.updated_by),
+        )
+        self.assertEqual("R", StudyDecision.objects.get(article=self.article, user=self.bot).status)
 
-        with self.subTest(msg="the agent shows in Manage access, without a token button"):
-            response = self.client.get(reverse("manage_access", args=(self.owner.username, self.review.name)))
-            self.assertContains(response, '<span class="label label-info">Jev</span>', html=False)
-            self.assertNotContains(response, 'value="new_token"')
-            self.assertContains(response, "Studies it rejected stay rejected")
+        with self.subTest(msg="the next window preselects the last reviewer"):
+            response = self.client.get(self.form_url, {"review-id": self.review.pk})
+            self.assertContains(response, f'<option value="{self.bot.pk}" selected>', html=False)
 
     def test_cancel_and_unknown_run(self):
         self.connect()

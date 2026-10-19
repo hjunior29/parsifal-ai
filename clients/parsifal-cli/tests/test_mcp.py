@@ -181,7 +181,7 @@ def test_ai_screening_run_tool(server, fake_api):
     tools = {tool.name: tool for tool in run(server.list_tools())}
     schema = tools["parsifal_ai_screening_run"].inputSchema
     assert schema["required"] == ["review_id"]
-    assert {"run_id", "step_size", "max_seconds", "threshold", "guidance", "objective", "rescreen"} <= set(
+    assert {"run_id", "step_size", "max_seconds", "threshold", "guidance", "objective", "reviewer_id", "model"} <= set(
         schema["properties"]
     )
 

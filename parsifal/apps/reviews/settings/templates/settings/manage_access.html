@@ -35,28 +35,20 @@
                 <td>
                   {{ row.agent.name }} <small class="text-muted">({{ row.agent.user.username }})</small><br>
                   <small class="text-muted">
-                    {% if row.agent.kind == "jev" %}
-                      {% blocktrans with decisions=row.stats.decisions %}Rejects studies in Exclude with AI, with the Jev API key of whoever runs it. Recorded so far: {{ decisions }} decisions.{% endblocktrans %}
-                    {% else %}
-                      {% blocktrans with decisions=row.stats.decisions quality=row.stats.quality_assessments extractions=row.stats.data_extractions %}Recorded so far: {{ decisions }} decisions, {{ quality }} quality assessments, {{ extractions }} data extractions.{% endblocktrans %}
-                    {% endif %}
+                    {% blocktrans with decisions=row.stats.decisions quality=row.stats.quality_assessments extractions=row.stats.data_extractions %}Recorded so far: {{ decisions }} decisions, {{ quality }} quality assessments, {{ extractions }} data extractions.{% endblocktrans %}
                   </small>
                 </td>
-                <td>{% if row.agent.kind == "jev" %}<span class="label label-info">Jev</span>{% else %}<span class="label label-info">{% trans "AI agent" %}</span>{% endif %} <span class="label label-default">{% trans "Co-author" %}</span></td>
+                <td><span class="label label-info">{% trans "AI agent" %}</span> <span class="label label-default">{% trans "Co-author" %}</span></td>
                 <td class="text-right" style="white-space: nowrap;">
-                  {% if row.agent.kind != "jev" %}
-                    <form method="post" style="display: inline;" class="js-confirm" data-confirm="{% trans "Issue a new token? The current token of this agent stops working immediately." %}">
-                      {% csrf_token %}
-                      <input type="hidden" name="action" value="new_token">
-                      <input type="hidden" name="user_id" value="{{ row.agent.user_id }}">
-                      <button type="submit" class="btn btn-default btn-sm">{% trans "New token" %}</button>
-                    </form>
-                  {% endif %}
-                  <form method="post" style="display: inline;" class="js-confirm" data-confirm="{% if row.agent.kind == "jev" %}{% blocktrans with name=row.agent.name decisions=row.stats.decisions %}Delete the agent {{ name }}?
+                  <form method="post" style="display: inline;" class="js-confirm" data-confirm="{% trans "Issue a new token? The current token of this agent stops working immediately." %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="new_token">
+                    <input type="hidden" name="user_id" value="{{ row.agent.user_id }}">
+                    <button type="submit" class="btn btn-default btn-sm">{% trans "New token" %}</button>
+                  </form>
+                  <form method="post" style="display: inline;" class="js-confirm" data-confirm="{% blocktrans with name=row.agent.name decisions=row.stats.decisions quality=row.stats.quality_assessments extractions=row.stats.data_extractions %}Delete the agent {{ name }}?
 
-This permanently deletes its account, its {{ decisions }} screening decisions and the log of its AI exclusion screenings. Studies it rejected stay rejected, without an author. Running Exclude with AI again creates a new Jev agent. This cannot be undone.{% endblocktrans %}{% else %}{% blocktrans with name=row.agent.name decisions=row.stats.decisions quality=row.stats.quality_assessments extractions=row.stats.data_extractions %}Delete the agent {{ name }}?
-
-This permanently deletes its account, its API tokens and everything it recorded: {{ decisions }} screening decisions, {{ quality }} quality assessments and {{ extractions }} data extractions. Studies it imported and classifications it made stay in the review, without an author. This cannot be undone.{% endblocktrans %}{% endif %}">
+This permanently deletes its account, its API tokens and everything it recorded: {{ decisions }} screening decisions (also those made with Exclude with AI, and the log of those runs), {{ quality }} quality assessments and {{ extractions }} data extractions. Studies it imported and classifications it made stay in the review, without an author, and studies rejected in its name stay rejected. This cannot be undone.{% endblocktrans %}">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="delete_agent">
                     <input type="hidden" name="user_id" value="{{ row.agent.user_id }}">

@@ -62,6 +62,8 @@ def jev_integration_delete(request):
 def _run_out(run, detail=False):
     data = dict(
         ai_screening.progress(run),
+        reviewer_id=run.reviewer_id,
+        reviewer=run.reviewer.username,
         model=run.model,
         started_by=run.started_by.username if run.started_by else None,
         created_at=run.created_at,
@@ -73,22 +75,42 @@ def _run_out(run, detail=False):
 
 
 @router.get("/reviews/{int:review_id}/ai-screening", response=ScreeningSetupOut, operation_id="ai_screening_setup")
-def ai_screening_setup(request, review_id: int):
+def ai_screening_setup(request, review_id: int, reviewer_id: int | None = None):
     """
     What a run would send: the review context (editable per run), the exclusion criteria as options E1, E2… plus
-    none (fixed), the task and rules (fixed), the threshold range and how many studies each scope would send.
+    none (fixed), the task and rules (fixed), Jev's models for your key, who you may screen as, and how many studies
+    each scope would send for ``reviewer_id`` (default: the reviewer of the latest run, or unclassified studies).
     """
     review = get_review(request, review_id)
     integration = integrations.get_jev(request.auth)
-    counts = ai_screening.scope_counts(review)
-    scopes = [{"source_id": None, "name": "All sources", **counts[""]}]
+    models, models_error = integrations.jev_models(request.auth) if integration else ([], "")
+    agent_ids = ai_screening.agent_ids(review)
+    choices = ai_screening.reviewer_choices(review, request.auth)
+    reviewer = None
+    if reviewer_id is not None:
+        reviewer = ai_screening.get_reviewer(review, request.auth, reviewer_id)
+    else:
+        last = ai_screening.last_reviewer_id(review)
+        reviewer = next((member for member in choices if member.pk == last), None)
+    counts = ai_screening.scope_counts(review, reviewer)
+    scopes = [{"source_id": None, "name": "All sources", "studies": counts[""]}]
     for source in review.sources.order_by("name"):
-        scopes.append(
-            {"source_id": source.pk, "name": source.name, **counts.get(str(source.pk), {"all": 0, "new": 0})}
-        )
+        scopes.append({"source_id": source.pk, "name": source.name, "studies": counts.get(str(source.pk), 0)})
     return ScreeningSetupOut(
         configured=integration is not None,
         model=integration.model if integration else None,
+        models=models,
+        models_error=models_error,
+        reviewers=[
+            {
+                "id": member.pk,
+                "username": member.username,
+                "name": member.get_full_name() or member.username,
+                "is_agent": member.pk in agent_ids,
+            }
+            for member in choices
+        ],
+        reviewer_id=reviewer.pk if reviewer else None,
         context=ai_screening.default_context(review),
         criteria=ai_screening.exclusion_options(review),
         none_description=ai_screening.NONE_DESCRIPTION,
@@ -111,8 +133,9 @@ def ai_screening_setup(request, review_id: int):
 )
 def ai_screening_start(request, review_id: int, payload: ScreeningStartIn):
     """
-    Open a run over the unclassified studies in scope (skipping those Jev already evaluated unless rescreen).
-    Nothing is screened yet: call the step operation until the run is no longer running.
+    Open a run in the name of ``reviewer_id`` over the unclassified studies in scope plus those this reviewer
+    rejected in an earlier run (its decisions are rewritten). Only the main author may name another member. Nothing
+    is screened yet: call the step operation until the run is no longer running.
     """
     review = get_review(request, review_id)
     fields = payload.dict()
@@ -120,11 +143,12 @@ def ai_screening_start(request, review_id: int, payload: ScreeningStartIn):
     run = ai_screening.start_run(
         review=review,
         actor=request.auth,
+        reviewer_id=payload.reviewer_id,
+        model=payload.model,
         context=context,
         guidance=payload.guidance,
         threshold=payload.threshold,
         source_id=payload.source_id,
-        rescreen=payload.rescreen,
     )
     return 201, _run_out(run, detail=True)
 
@@ -156,7 +180,8 @@ def ai_screening_runs_get(request, review_id: int, run_id: int):
 def ai_screening_step(request, review_id: int, run_id: int, payload: ScreeningStepIn):
     """
     Screen the next studies of the run (size 1–50) with your Jev key. Studies at or above the threshold are rejected
-    as the review's Jev agent; the rest stay unclassified. The run finishes when no study is left.
+    in the reviewer's name; the rest get the reviewer's "unclassified" decision and stay (or go back to)
+    unclassified. The run finishes when no study is left.
     """
     run = ai_screening.get_run(get_review(request, review_id), run_id)
     results = ai_screening.process_step(run=run, actor=request.auth, size=payload.size)

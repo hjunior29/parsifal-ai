@@ -5,10 +5,15 @@ from django.test import TestCase
 from parsifal.apps.accounts.models import Integration
 from parsifal.apps.authentication.tests.factories import UserFactory
 from parsifal.apps.core import jev
-from parsifal.apps.core.exceptions import NotFound, ValidationError
-from parsifal.apps.reviews.models import Article, ReviewAgent, ScreeningResult, ScreeningRun, SelectionCriteria
+from parsifal.apps.core.exceptions import NotFound, PermissionDenied, UpstreamError, ValidationError
+from parsifal.apps.reviews.models import Article, ScreeningResult, ScreeningRun, SelectionCriteria, StudyDecision
 from parsifal.apps.reviews.services import agents, ai_screening
 from parsifal.apps.reviews.tests.factories import ArticleFactory, QuestionFactory, ReviewFactory, SourceFactory
+
+MODELS = [
+    {"name": "jev-1.13.0", "description": "Stable", "release_date": "2026-08-01"},
+    {"name": "jev-1.14.0", "description": "Newest", "release_date": "2026-10-14"},
+]
 
 
 def answer(probabilities_by_question, model="jev-1.13.0"):
@@ -26,6 +31,7 @@ def same_answer(probabilities):
 
 
 EXCLUDE_E2 = same_answer({"E1": 0.02, "E2": 0.95, "none": 0.03})
+EXCLUDE_E1 = same_answer({"E1": 0.95, "E2": 0.02, "none": 0.03})
 KEEP = same_answer({"E1": 0.05, "E2": 0.05, "none": 0.9})
 
 
@@ -40,6 +46,8 @@ class AiScreeningTestCase(TestCase):
             population="Software engineering researchers",
         )
         cls.owner = cls.review.author
+        cls.bot = agents.create_agent(review=cls.review, actor=cls.owner, name="Screener A").agent.user
+        cls.other_bot = agents.create_agent(review=cls.review, actor=cls.owner, name="Screener B").agent.user
         QuestionFactory(review=cls.review, question="RQ1: Which tools exist?", order=1)
         QuestionFactory(review=cls.review, question="RQ2: How are they evaluated?", order=2)
         # Listed alphabetically by the review: "Not a primary study" (E1), "Not in English" (E2).
@@ -58,7 +66,7 @@ class AiScreeningTestCase(TestCase):
         return ArticleFactory(**defaults)
 
     def start(self, **kwargs):
-        defaults = {"review": self.review, "actor": self.owner, "context": ai_screening.default_context(self.review)}
+        defaults = {"review": self.review, "actor": self.owner, "reviewer_id": self.bot.pk}
         defaults.update(kwargs)
         return ai_screening.start_run(**defaults)
 
@@ -67,6 +75,9 @@ class AiScreeningTestCase(TestCase):
             results = ai_screening.process_step(run=run, actor=self.owner)
         run.refresh_from_db()
         return results, evaluate
+
+    def decision(self, article, user=None):
+        return StudyDecision.objects.get(article=article, user=user or self.bot, stage=StudyDecision.TITLE_ABSTRACT)
 
 
 class TestRequest(AiScreeningTestCase):
@@ -138,11 +149,31 @@ class TestRequest(AiScreeningTestCase):
             ai_screening.combine({"answers": {"exclusion_1": {"probabilities": {"E1": "x"}}}}, options)
 
 
+class TestReviewers(AiScreeningTestCase):
+    def test_the_main_author_may_screen_as_anyone_in_the_review(self):
+        choices = ai_screening.reviewer_choices(self.review, self.owner)
+        self.assertEqual({self.owner, self.bot, self.other_bot}, set(choices))
+        self.assertEqual({self.bot.pk, self.other_bot.pk}, ai_screening.agent_ids(self.review))
+        self.assertEqual(self.other_bot, ai_screening.get_reviewer(self.review, self.owner, str(self.other_bot.pk)))
+
+    def test_anyone_else_only_as_themselves(self):
+        self.assertEqual([self.bot], ai_screening.reviewer_choices(self.review, self.bot))
+        self.assertEqual(self.bot, ai_screening.get_reviewer(self.review, self.bot, self.bot.pk))
+        with self.assertRaises(PermissionDenied):
+            ai_screening.get_reviewer(self.review, self.bot, self.owner.pk)
+        with self.assertRaises(NotFound):
+            ai_screening.get_reviewer(self.review, self.owner, UserFactory().pk)
+        with self.assertRaisesMessage(ValidationError, "Choose the reviewer"):
+            ai_screening.get_reviewer(self.review, self.owner, "")
+
+
 class TestStartRun(AiScreeningTestCase):
     def test_requirements(self):
         self.article()
         with self.assertRaisesMessage(ValidationError, "Settings → Integrations"):
             self.start(actor=UserFactory())
+        with self.assertRaisesMessage(ValidationError, "Choose the reviewer"):
+            self.start(reviewer_id=None)
         with self.assertRaisesMessage(ValidationError, "between 0.5 and 0.99"):
             self.start(threshold=0.3)
         with self.assertRaisesMessage(ValidationError, "must be a number"):
@@ -151,14 +182,25 @@ class TestStartRun(AiScreeningTestCase):
             self.start(guidance="x" * (ai_screening.GUIDANCE_LENGTH + 1))
         with self.assertRaises(NotFound):
             self.start(source_id=SourceFactory().pk)
-        with self.assertRaisesMessage(ValidationError, "no unclassified studies"):
+        with self.assertRaisesMessage(ValidationError, "no studies to screen"):
             self.start(source_id=self.other_source.pk)
         empty = ReviewFactory(author=self.owner)
         with self.assertRaisesMessage(ValidationError, "no exclusion criteria"):
-            self.start(review=empty, context={})
+            self.start(review=empty, reviewer_id=self.owner.pk)
         self.assertFalse(ScreeningRun.objects.exists())
 
-    def test_opens_a_run_with_a_snapshot_and_the_jev_agent(self):
+    def test_model_is_the_default_or_one_jev_lists(self):
+        self.article()
+        self.assertEqual("jev-1.13.0", self.start().model)
+        with mock.patch.object(jev, "list_models", return_value=MODELS):
+            self.assertEqual("jev-1.14.0", self.start(model="jev-1.14.0").model)
+            with self.assertRaisesMessage(ValidationError, "does not list the model 'jev-9'"):
+                self.start(model="jev-9")
+        with mock.patch.object(jev, "list_models", side_effect=jev.JevError("Could not reach Jev (Timeout).")):
+            with self.assertRaises(UpstreamError):
+                self.start(model="jev-1.14.0")
+
+    def test_opens_a_run_with_a_snapshot_and_the_reviewer(self):
         first = self.article()
         self.article(source=self.other_source)
         self.article(status=Article.ACCEPTED)
@@ -166,7 +208,8 @@ class TestStartRun(AiScreeningTestCase):
         run = self.start(context=context, guidance="Be strict.", threshold="0.85", source_id=str(self.source.pk))
 
         self.assertEqual((ScreeningRun.RUNNING, 1, "jev-1.13.0"), (run.status, run.total, run.model))
-        self.assertEqual([first.pk], list(run.results.values_list("article_id", flat=True)))
+        self.assertEqual((self.bot, self.owner), (run.reviewer, run.started_by))
+        self.assertEqual([(first.pk, "U")], list(run.results.values_list("article_id", "previous_status")))
         self.assertEqual("Edited objective", run.parameters["context"]["objective"])
         self.assertEqual(
             ("Be strict.", 0.85, self.source.pk),
@@ -174,25 +217,19 @@ class TestStartRun(AiScreeningTestCase):
         )
         self.assertEqual(["E1", "E2"], [option["key"] for option in run.parameters["criteria"]])
 
-        agent = ReviewAgent.objects.get(review=self.review, kind=ReviewAgent.JEV)
-        self.assertEqual((agent.user, "Jev"), (run.agent, agent.name))
-        self.assertIn(agent.user, self.review.co_authors.all())
-        self.assertFalse(agent.user.has_usable_password())
-        self.assertFalse(agent.user.api_tokens.exists())
-        with self.assertRaisesMessage(ValidationError, "does not use API tokens"):
-            agents.new_token(review=self.review, actor=self.owner, agent_id=agent.user_id)
+        with self.subTest(msg="context fields left out take the review's values"):
+            partial = self.start(context={"objective": "Only this changed", "population": None})
+            self.assertEqual("Only this changed", partial.parameters["context"]["objective"])
+            self.assertEqual("Software engineering researchers", partial.parameters["context"]["population"])
 
-        with self.subTest(msg="a new run reuses the agent and closes a run left behind"):
-            second = self.start()
+        with self.subTest(msg="a new run closes a run left behind"):
             run.refresh_from_db()
             self.assertEqual(ScreeningRun.CANCELLED, run.status)
             self.assertFalse(run.results.exists())
-            self.assertEqual(agent.user, second.agent)
-            self.assertEqual(2, second.total)
 
 
 class TestProcessStep(AiScreeningTestCase):
-    def test_rejects_above_the_threshold_and_passes_the_rest(self):
+    def test_rejects_above_the_threshold_and_records_every_decision(self):
         excluded = self.article(title="Excluded")
         kept = self.article(title="Kept")
         run = self.start()
@@ -220,13 +257,12 @@ class TestProcessStep(AiScreeningTestCase):
         )
 
         excluded.refresh_from_db()
-        jev_user = run.agent
         self.assertEqual(
-            (Article.REJECTED, self.english, jev_user),
+            (Article.REJECTED, self.english, self.bot),
             (excluded.status, excluded.selection_criteria, excluded.updated_by),
         )
-        decision = excluded.decisions.get()
-        self.assertEqual((jev_user, "R", self.english), (decision.user, decision.status, decision.selection_criteria))
+        decision = self.decision(excluded)
+        self.assertEqual(("R", self.english), (decision.status, decision.selection_criteria))
         self.assertIn("E2, p(exclude) = 0.97", decision.comments)
         result = ScreeningResult.objects.get(run=run, article=excluded)
         self.assertEqual(
@@ -236,9 +272,58 @@ class TestProcessStep(AiScreeningTestCase):
 
         kept.refresh_from_db()
         self.assertEqual((Article.UNCLASSIFIED, None), (kept.status, kept.selection_criteria))
-        self.assertFalse(kept.decisions.exists())
-        self.assertEqual(ScreeningResult.PASSED, ScreeningResult.objects.get(run=run, article=kept).outcome)
+        decision = self.decision(kept)
+        self.assertEqual(("U", None), (decision.status, decision.selection_criteria))
+        self.assertIn("no exclusion criterion, p(exclude) = 0.10", decision.comments)
         self.assertEqual([excluded.pk, kept.pk], [r.article_id for r in results])
+
+    def test_screening_again_as_the_same_reviewer_rewrites_its_decisions(self):
+        rejected_then_kept = self.article(title="A")
+        kept_then_rejected = self.article(title="B")
+        rejected_twice = self.article(title="C")
+        self.step(self.start(), [EXCLUDE_E2, KEEP, EXCLUDE_E2])
+
+        second = self.start()
+        self.assertEqual(
+            {rejected_then_kept.pk: "R", kept_then_rejected.pk: "U", rejected_twice.pk: "R"},
+            dict(second.results.values_list("article_id", "previous_status")),
+        )  # nothing is skipped
+        self.step(second, [KEEP, EXCLUDE_E1, EXCLUDE_E1])
+
+        for article, status, criteria in (
+            (rejected_then_kept, Article.UNCLASSIFIED, None),
+            (kept_then_rejected, Article.REJECTED, self.secondary),
+            (rejected_twice, Article.REJECTED, self.secondary),
+        ):
+            with self.subTest(article=article.title):
+                article.refresh_from_db()
+                self.assertEqual((status, criteria), (article.status, article.selection_criteria))
+                decision = self.decision(article)
+                self.assertEqual((status, criteria), (decision.status, decision.selection_criteria))
+                self.assertIn(f"run {second.pk}", decision.comments)
+        self.assertEqual(3, StudyDecision.objects.filter(user=self.bot).count())
+
+    def test_another_reviewer_does_not_get_studies_rejected_by_someone_else(self):
+        rejected = self.article()
+        kept = self.article()
+        self.step(self.start(), [EXCLUDE_E2, KEEP])
+
+        run = self.start(reviewer_id=self.other_bot.pk)
+        self.assertEqual([kept.pk], list(run.results.values_list("article_id", flat=True)))
+        self.step(run, [EXCLUDE_E1])
+        kept.refresh_from_db()
+        self.assertEqual((Article.REJECTED, self.other_bot), (kept.status, kept.updated_by))
+        self.assertEqual("U", self.decision(kept).status)  # the first reviewer's decision is its own
+        self.assertEqual("R", self.decision(kept, self.other_bot).status)
+        self.assertFalse(StudyDecision.objects.filter(article=rejected, user=self.other_bot).exists())
+
+    def test_the_owner_can_screen_as_themselves(self):
+        article = self.article()
+        run = self.start(reviewer_id=self.owner.pk)
+        self.step(run, [EXCLUDE_E2])
+        article.refresh_from_db()
+        self.assertEqual((Article.REJECTED, self.owner), (article.status, article.updated_by))
+        self.assertEqual("R", self.decision(article, self.owner).status)
 
     def test_threshold_is_inclusive_and_configurable(self):
         article = self.article()
@@ -248,9 +333,10 @@ class TestProcessStep(AiScreeningTestCase):
         self.assertEqual(Article.REJECTED, article.status)
 
     def test_runs_in_steps(self):
-        articles = [self.article() for _ in range(3)]
+        for _ in range(3):
+            self.article()
         run = self.start()
-        with mock.patch.object(ai_screening, "STEP_SIZE", 2), mock.patch.object(jev, "evaluate", return_value=KEEP):
+        with mock.patch.object(jev, "evaluate", return_value=KEEP):
             first = ai_screening.process_step(run=run, actor=self.owner, size=2)
             run.refresh_from_db()
             self.assertEqual((2, ScreeningRun.RUNNING), (len(first), run.status))
@@ -259,7 +345,8 @@ class TestProcessStep(AiScreeningTestCase):
         self.assertEqual(ScreeningRun.FINISHED, run.status)
         self.assertEqual(3, ai_screening.progress(run)["passed"])
         self.assertEqual([], ai_screening.process_step(run=run, actor=self.owner))  # finished runs do nothing
-        self.assertEqual(3, len(articles))
+        with self.assertRaisesMessage(ValidationError, "between 1 and 50"):
+            ai_screening.process_step(run=run, actor=self.owner, size=51)
 
     def test_errors_about_one_study_do_not_stop_the_run(self):
         no_text = self.article(title="", abstract="")
@@ -270,13 +357,11 @@ class TestProcessStep(AiScreeningTestCase):
 
         self.assertEqual(ScreeningRun.FINISHED, run.status)
         outcomes = dict(run.results.values_list("article_id", "outcome"))
-        self.assertEqual(
-            {no_text.pk: "error", too_long.pk: "error", fine.pk: "excluded"},
-            outcomes,
-        )
+        self.assertEqual({no_text.pk: "error", too_long.pk: "error", fine.pk: "excluded"}, outcomes)
         self.assertIn("max_tokens_exceeded", run.results.get(article=too_long).error)
         too_long.refresh_from_db()
         self.assertEqual(Article.UNCLASSIFIED, too_long.status)
+        self.assertFalse(StudyDecision.objects.filter(article=too_long).exists())
 
     def test_a_rejected_key_fails_the_run(self):
         self.article()
@@ -290,27 +375,30 @@ class TestProcessStep(AiScreeningTestCase):
         self.assertEqual(0, Article.objects.filter(review=self.review, status=Article.REJECTED).count())
 
     def test_jev_unavailable_for_a_whole_step_fails_the_run(self):
-        self.article()
-        self.article()
-        self.article()
+        for _ in range(3):
+            self.article()
         run = self.start()
         unavailable = jev.JevError("Jev answered 529: overloaded", status=529)
         with mock.patch.object(jev, "evaluate", side_effect=[unavailable, unavailable]):
             ai_screening.process_step(run=run, actor=self.owner, size=2)
         run.refresh_from_db()
         self.assertEqual((ScreeningRun.FAILED, "Jev answered 529: overloaded"), (run.status, run.error))
-        self.assertEqual(
-            {"failed": 2, "processed": 2}, {k: ai_screening.progress(run)[k] for k in ("failed", "processed")}
-        )
+        progress = ai_screening.progress(run)
+        self.assertEqual((2, 2), (progress["failed"], progress["processed"]))
 
     def test_a_study_classified_meanwhile_keeps_its_status(self):
-        article = self.article()
-        run = self.start()
-        Article.objects.filter(pk=article.pk).update(status=Article.ACCEPTED)
-        self.step(run, [EXCLUDE_E2])
-        article.refresh_from_db()
-        self.assertEqual(Article.ACCEPTED, article.status)
-        self.assertEqual("R", article.decisions.get().status)  # Jev's own vote is still recorded
+        accepted = self.article()
+        restored = self.article()
+        self.step(self.start(), [KEEP, EXCLUDE_E2])
+        run = self.start()  # takes restored as "rejected by this reviewer"
+        Article.objects.filter(pk=accepted.pk).update(status=Article.ACCEPTED)
+        Article.objects.filter(pk=restored.pk).update(updated_by=self.owner)  # the owner reviewed it meanwhile
+        self.step(run, [EXCLUDE_E2, KEEP])
+        accepted.refresh_from_db()
+        restored.refresh_from_db()
+        self.assertEqual(Article.ACCEPTED, accepted.status)
+        self.assertEqual(Article.REJECTED, restored.status)
+        self.assertEqual(("R", "U"), (self.decision(accepted).status, self.decision(restored).status))
 
     def test_a_criterion_deleted_meanwhile_is_reported(self):
         article = self.article()
@@ -336,33 +424,30 @@ class TestProcessStep(AiScreeningTestCase):
 
 
 class TestScope(AiScreeningTestCase):
-    def test_later_runs_skip_what_jev_already_evaluated(self):
-        passed = self.article()
-        failed = self.article()
-        excluded_then_restored = self.article()
-        run = self.start()
-        self.step(run, [KEEP, jev.JevError("Jev answered 400: bad", status=400), EXCLUDE_E2])
-        Article.objects.filter(pk=excluded_then_restored.pk).update(status=Article.UNCLASSIFIED)
-        fresh = self.article()
+    def test_counts_per_reviewer_and_source(self):
+        self.article()
+        rejected = self.article()
+        self.article(source=self.other_source)
+        self.step(self.start(source_id=self.source.pk), [KEEP, EXCLUDE_E2])
+        self.assertEqual(
+            {"": 3, str(self.source.pk): 2, str(self.other_source.pk): 1},
+            ai_screening.scope_counts(self.review, self.bot),
+        )
+        self.assertEqual(
+            {"": 2, str(self.source.pk): 1, str(self.other_source.pk): 1},
+            ai_screening.scope_counts(self.review, self.other_bot),
+        )
+        self.assertEqual(
+            ai_screening.scope_counts(self.review, self.other_bot), ai_screening.scope_counts(self.review)
+        )
+        self.assertEqual(self.bot.pk, ai_screening.last_reviewer_id(self.review))
+        self.assertEqual(Article.REJECTED, Article.objects.get(pk=rejected.pk).status)
 
-        self.assertEqual(
-            [failed.pk, fresh.pk], list(ai_screening.eligible_articles(self.review).values_list("pk", flat=True))
-        )
-        everything = ai_screening.eligible_articles(self.review, rescreen=True)
-        self.assertEqual(
-            {passed.pk, failed.pk, excluded_then_restored.pk, fresh.pk}, set(everything.values_list("pk", flat=True))
-        )
-        self.assertEqual(
-            {"": {"all": 4, "new": 2}, str(self.source.pk): {"all": 4, "new": 2}},
-            ai_screening.scope_counts(self.review),
-        )
-
-    def test_deleting_the_jev_agent_deletes_its_runs_and_decisions(self):
+    def test_deleting_the_reviewer_agent_deletes_its_runs_and_decisions(self):
         article = self.article()
         run = self.start()
         self.step(run, [EXCLUDE_E2])
-        agent = ReviewAgent.objects.get(review=self.review, kind=ReviewAgent.JEV)
-        deleted = agents.delete_agent(review=self.review, actor=self.owner, agent_id=agent.user_id)
+        deleted = agents.delete_agent(review=self.review, actor=self.owner, agent_id=self.bot.pk)
         self.assertEqual(1, deleted["decisions"])
         self.assertFalse(ScreeningRun.objects.filter(pk=run.pk).exists())
         article.refresh_from_db()

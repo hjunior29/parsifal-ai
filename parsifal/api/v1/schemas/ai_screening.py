@@ -36,8 +36,14 @@ class ScreeningOptionOut(Schema):
 class ScreeningScopeOut(Schema):
     source_id: int | None  # None = all sources
     name: str
-    all: int  # unclassified studies
-    new: int  # unclassified studies Jev has not evaluated yet (what is sent unless rescreen)
+    studies: int  # what a run would send: unclassified + rejected by the reviewer in an earlier run
+
+
+class ScreeningReviewerOut(Schema):
+    id: int
+    username: str
+    name: str
+    is_agent: bool
 
 
 class ScreeningContextOut(Schema):
@@ -53,7 +59,11 @@ class ScreeningContextOut(Schema):
 
 class ScreeningSetupOut(Schema):
     configured: bool  # whether you have a Jev API key
-    model: str | None
+    model: str | None  # your default model
+    models: list[JevModelOut]  # as listed by Jev for your key, asked now
+    models_error: str  # why the list is empty, when Jev could not be asked
+    reviewers: list[ScreeningReviewerOut]  # who you may screen as (the main author: anyone in the review)
+    reviewer_id: int | None  # the reviewer the scopes were counted for
     context: ScreeningContextOut  # defaults taken from the review; editable per run
     criteria: list[ScreeningOptionOut]  # fixed: the review's exclusion criteria
     none_description: str
@@ -78,10 +88,11 @@ class ScreeningStartIn(Schema):
     comparison: str | None = None
     outcome: str | None = None
     context: str | None = None
+    reviewer_id: int  # the decisions are recorded as this member of the review
+    model: str | None = None  # default: your default model
     guidance: str = ""
     threshold: float = 0.9
     source_id: int | None = None
-    rescreen: bool = False
 
 
 class ScreeningStepIn(Schema):
@@ -91,6 +102,8 @@ class ScreeningStepIn(Schema):
 class ScreeningRunOut(Schema):
     id: int
     status: str  # running, finished, cancelled, failed
+    reviewer_id: int
+    reviewer: str  # username
     model: str
     total: int
     processed: int
@@ -110,6 +123,7 @@ class ScreeningRunDetailOut(ScreeningRunOut):
 class ScreeningResultOut(Schema):
     article_id: int
     title: str | None
+    previous_status: str  # U or R (rejected by the same reviewer earlier) when the run took the study
     outcome: str  # excluded, passed, error, pending
     p_exclude: float | None  # 1 - p(none), averaged over the option orders
     criteria_key: str | None  # E1, E2… of the criterion Jev chose, when the study was rejected

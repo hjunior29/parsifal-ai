@@ -75,21 +75,6 @@ class TestAgentsApi(ApiTestCase):
             self.assertEqual([], self.api("get", self.review_path("/agents")).json())
             self.assertEqual(404, self.api("delete", self.review_path(f"/agents/{agent['id']}")).status_code)
 
-    def test_the_jev_agent_is_listed_but_has_no_tokens(self):
-        from parsifal.apps.reviews.services import agents
-
-        jev = agents.jev_agent(self.review)
-        self.assertEqual(jev, agents.jev_agent(self.review))  # created once per review
-        listed = self.api("get", self.review_path("/agents")).json()
-        self.assertEqual(
-            [("Jev", "agent-jev", "jev", 0)],
-            [(a["name"], a["username"], a["kind"], a["active_tokens"]) for a in listed],
-        )
-        self.assertEqual("", self.create()["kind"])
-        response = self.api("post", self.review_path(f"/agents/{jev.user_id}/token"))
-        self.assertEqual(422, response.status_code)
-        self.assertFalse(jev.user.api_tokens.exists())
-
     def test_validation(self):
         self.assertEqual(422, self.api("post", self.review_path("/agents"), {"name": "  "}).status_code)
         self.assertEqual(422, self.api("post", self.review_path("/agents"), {"name": "x" * 51}).status_code)
