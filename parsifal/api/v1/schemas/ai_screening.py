@@ -17,8 +17,14 @@ class JevIntegrationOut(Schema):
     updated_at: datetime | None = None
 
 
+class JevModelOut(Schema):
+    name: str
+    description: str
+    release_date: str
+
+
 class JevTestOut(Schema):
-    models: list[str]
+    models: list[JevModelOut]  # as listed by Jev for your key
 
 
 class ScreeningOptionOut(Schema):

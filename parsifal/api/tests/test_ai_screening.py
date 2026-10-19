@@ -39,9 +39,10 @@ class TestJevIntegrationApi(ApiTestCase):
             self.assertEqual(422, self.api("put", "/integrations/jev", {"model": "m" * 101}).status_code)
 
         with self.subTest(msg="test the key"):
-            with mock.patch.object(jev, "list_models", return_value=["jev-1.13.0"]) as list_models:
+            card = {"name": "jev-1.13.0", "description": "Stable", "release_date": "2026-08-01"}
+            with mock.patch.object(jev, "list_models", return_value=[card]) as list_models:
                 response = self.api("post", "/integrations/jev/test")
-            self.assertEqual({"models": ["jev-1.13.0"]}, response.json())
+            self.assertEqual({"models": [card]}, response.json())
             list_models.assert_called_once_with(KEY)
             rejected = jev.JevError("Jev rejected the API key.", status=401, fatal=True)
             with mock.patch.object(jev, "list_models", side_effect=rejected):

@@ -76,12 +76,22 @@ class TestJevClient(SimpleTestCase):
             with self.assertRaisesMessage(jev.JevError, "without answers"):
                 jev.evaluate("k", model="m", state="s", questions={}, sleep=self.sleep)
 
-    def test_list_models_accepts_the_usual_shapes(self):
+    def test_list_models_returns_model_cards(self):
+        cards = [
+            {"name": "jev-1.13.0", "description": "Stable", "release_date": "2026-08-01"},
+            {"name": "jev-1.14.0", "description": "Newest", "release_date": "2026-10-14"},
+        ]
+        with mock.patch.object(requests, "request", return_value=response(200, cards)):
+            self.assertEqual(cards, jev.list_models("k", sleep=self.sleep))
+
+    def test_list_models_accepts_other_shapes(self):
         shapes = (
             {"data": [{"id": "jev-1.13.0"}, {"id": "jev-1.14.0"}]},
             {"models": [{"name": "jev-1.13.0"}, "jev-1.14.0"]},
-            ["jev-1.13.0", "jev-1.14.0", 7],
+            ["jev-1.13.0", "jev-1.14.0", 7, {"description": "no name"}],
         )
         for body in shapes:
             with self.subTest(body=body), mock.patch.object(requests, "request", return_value=response(200, body)):
-                self.assertEqual(["jev-1.13.0", "jev-1.14.0"], jev.list_models("k", sleep=self.sleep))
+                models = jev.list_models("k", sleep=self.sleep)
+                self.assertEqual(["jev-1.13.0", "jev-1.14.0"], [model["name"] for model in models])
+                self.assertEqual({"name", "description", "release_date"}, set(models[0]))

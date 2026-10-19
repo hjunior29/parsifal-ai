@@ -66,6 +66,17 @@ def test_jev(user):
         raise UpstreamError(str(error))
 
 
+def jev_models(user):
+    """
+    Jev's models for the user's key, for the pages that let the user pick one: ``(models, error)``. Never raises;
+    when Jev cannot be asked, ``models`` is empty and ``error`` says why.
+    """
+    try:
+        return test_jev(user), ""
+    except (ValidationError, UpstreamError) as error:
+        return [], str(error)
+
+
 def remove_jev(user):
     """Delete the user's Jev integration; returns whether there was one."""
     deleted, _ = Integration.objects.filter(user=user, provider=Integration.JEV).delete()

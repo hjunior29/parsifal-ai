@@ -9,6 +9,10 @@ from parsifal.apps.core import jev
 from parsifal.utils.test import login_redirect_url
 
 KEY = "fake-jev-key-0123456789abcdef"
+MODELS = [
+    {"name": "jev-1.13.0", "description": "Stable", "release_date": "2026-08-01"},
+    {"name": "jev-1.14.0", "description": "Newest", "release_date": "2026-10-14"},
+]
 
 
 class TestIntegrationsView(TestCase):
@@ -20,6 +24,10 @@ class TestIntegrationsView(TestCase):
 
     def setUp(self):
         self.client.force_login(self.user)
+        # The page asks Jev for its models on every load: never reach the network in tests.
+        patcher = mock.patch.object(jev, "list_models", return_value=MODELS)
+        self.list_models = patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_login_required(self):
         self.client.logout()
@@ -75,9 +83,9 @@ class TestIntegrationsView(TestCase):
         self.assertContains(response, "Save an API key first.")
 
         Integration.objects.create(user=self.user, provider=Integration.JEV, api_key=KEY, model="jev-1.13.0")
-        with mock.patch.object(jev, "list_models", return_value=["jev-1.13.0", "jev-1.14.0"]) as list_models:
-            response = self.client.post(self.url, {"action": "test"}, follow=True)
-        list_models.assert_called_once_with(KEY)
+        self.list_models.reset_mock()
+        response = self.client.post(self.url, {"action": "test"}, follow=True)
+        self.list_models.assert_any_call(KEY)
         self.assertContains(response, "Jev accepted the key. Models available: jev-1.13.0, jev-1.14.0.")
 
         error = jev.JevError("Jev rejected the API key. Update it in Settings → Integrations.", fatal=True)
@@ -90,3 +98,34 @@ class TestIntegrationsView(TestCase):
             Integration.objects.create(user=self.user, provider=Integration.JEV, api_key=KEY, model="jev-1.13.0")
         response = self.client.post(self.url, {"action": "test"}, follow=True)
         self.assertContains(response, "can no longer be decrypted")
+
+    def test_models_come_from_jev_on_every_load_and_the_default_is_saved(self):
+        self.client.get(self.url)
+        self.list_models.assert_not_called()  # no key yet: nothing to ask with
+        self.client.post(self.url, {"action": "save", "api_key": KEY, "model": "jev-1.13.0"})
+
+        self.list_models.reset_mock()
+        response = self.client.get(self.url)
+        self.list_models.assert_called_once_with(KEY)
+        self.assertContains(
+            response, '<option value="jev-1.14.0">jev-1.14.0 — Newest · 2026-10-14</option>', html=True
+        )
+        self.assertContains(
+            response, '<option value="jev-1.13.0" selected>jev-1.13.0 — Stable · 2026-08-01</option>', html=True
+        )
+
+        self.client.post(self.url, {"action": "save", "api_key": "", "model": "jev-1.14.0"})
+        self.assertEqual("jev-1.14.0", Integration.objects.get(user=self.user).model)
+        response = self.client.post(self.url, {"action": "save", "api_key": "", "model": "jev-9"})
+        self.assertContains(response, "Select a valid choice")
+
+        with self.subTest(msg="a saved model Jev no longer lists stays selectable"):
+            Integration.objects.filter(user=self.user).update(model="jev-1.12.0")
+            response = self.client.get(self.url)
+            self.assertContains(response, "jev-1.12.0 (not listed by Jev)")
+
+        with self.subTest(msg="Jev unreachable: a warning and a text field"):
+            self.list_models.side_effect = jev.JevError("Could not reach Jev (ConnectionError).")
+            response = self.client.get(self.url)
+            self.assertContains(response, "Could not load the list of models from Jev")
+            self.assertContains(response, 'name="model" value="jev-1.12.0"')

@@ -90,12 +90,22 @@ def evaluate(api_key, *, model, state, questions, sleep=time.sleep):
 
 
 def list_models(api_key, *, sleep=time.sleep):
-    """Ids of the models the key can use (also a cheap way to check that the key works)."""
+    """
+    The models the key can use, as ``{"name", "description", "release_date"}`` in Jev's order (also a cheap way to
+    check that the key works). ``GET /v1/models`` answers a list of model cards; wrapped lists are accepted too.
+    """
     payload = _request("GET", "/v1/models", api_key, sleep=sleep)
     items = payload.get("data", payload.get("models", [])) if isinstance(payload, dict) else payload
-    ids = []
+    models = []
     for item in items if isinstance(items, list) else []:
-        name = (item.get("id") or item.get("name")) if isinstance(item, dict) else item
-        if isinstance(name, str):
-            ids.append(name)
-    return ids
+        card = item if isinstance(item, dict) else {"name": item}
+        name = card.get("name") or card.get("id")
+        if isinstance(name, str) and name:
+            models.append(
+                {
+                    "name": name,
+                    "description": str(card.get("description") or ""),
+                    "release_date": str(card.get("release_date") or ""),
+                }
+            )
+    return models

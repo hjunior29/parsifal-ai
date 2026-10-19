@@ -37,6 +37,11 @@
             </dl>
           {% endif %}
 
+          {% if models_error %}
+            <div class="alert alert-warning small">
+              {% blocktrans %}Could not load the list of models from Jev: {{ models_error }} Type the model name instead.{% endblocktrans %}
+            </div>
+          {% endif %}
           <form method="post" action="{% url 'settings:integrations' %}" autocomplete="off">
             {% csrf_token %}
             <input type="hidden" name="action" value="save">

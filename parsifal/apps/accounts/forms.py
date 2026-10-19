@@ -54,6 +54,11 @@ class ProfileForm(forms.ModelForm):
         return super().save(commit)
 
 
+def model_label(model):
+    details = " · ".join(value for value in (model.get("description"), model.get("release_date")) if value)
+    return f"{model['name']} — {details}" if details else model["name"]
+
+
 class JevIntegrationForm(forms.Form):
     """API key and model for Jev. A blank key keeps the one already saved."""
 
@@ -73,11 +78,25 @@ class JevIntegrationForm(forms.Form):
         ),
     )
 
-    def __init__(self, *args, has_key=False, **kwargs):
+    def __init__(self, *args, has_key=False, models=(), current_model=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.has_key = has_key
         if has_key:
             self.fields["api_key"].help_text = _("Leave blank to keep the current key.")
+        if models:
+            # Jev's own list, asked when the page loads; the saved default stays selectable even if Jev dropped it.
+            choices = [(m["name"], model_label(m)) for m in models]
+            if current_model and current_model not in {m["name"] for m in models}:
+                choices.append((current_model, gettext("%(model)s (not listed by Jev)") % {"model": current_model}))
+            self.fields["model"] = forms.ChoiceField(
+                label=_("Default model"),
+                choices=choices,
+                widget=forms.Select(attrs={"class": "form-control"}),
+                help_text=_(
+                    "Models available to your key, as listed by Jev. This is the default for Exclude with AI; each "
+                    "run can use another one. Prefer a pinned version (jev-1.13.0) over an alias like jev-latest."
+                ),
+            )
 
     def clean_api_key(self):
         api_key = self.cleaned_data["api_key"].strip()

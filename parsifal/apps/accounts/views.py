@@ -84,14 +84,22 @@ class IntegrationsView(LoginRequiredMixin, View):
 
     template_name = "accounts/integrations.html"
 
-    def _render(self, form=None):
+    def _models(self, integration):
+        """Jev's model list, asked on every page load (only with a saved key)."""
+        return services.jev_models(self.request.user) if integration else ([], "")
+
+    def _render(self, form=None, models=None, models_error=""):
         integration = services.get_jev(self.request.user)
         if form is None:
+            models, models_error = self._models(integration)
             form = JevIntegrationForm(
                 initial={"model": integration.model if integration else jev.DEFAULT_MODEL},
                 has_key=integration is not None,
+                models=models,
+                current_model=integration.model if integration else None,
             )
-        return render(self.request, self.template_name, {"jev": integration, "form": form})
+        context = {"jev": integration, "form": form, "models_error": models_error}
+        return render(self.request, self.template_name, context)
 
     def get(self, request):
         return self._render()
@@ -108,14 +116,21 @@ class IntegrationsView(LoginRequiredMixin, View):
             except DomainError as error:
                 messages.error(request, str(error))
             else:
-                available = ", ".join(models) or gettext("none listed")
+                available = ", ".join(model["name"] for model in models) or gettext("none listed")
                 messages.success(
                     request, gettext("Jev accepted the key. Models available: %(models)s.") % {"models": available}
                 )
             return redirect("settings:integrations")
-        form = JevIntegrationForm(request.POST, has_key=services.get_jev(request.user) is not None)
+        integration = services.get_jev(request.user)
+        models, models_error = self._models(integration)
+        form = JevIntegrationForm(
+            request.POST,
+            has_key=integration is not None,
+            models=models,
+            current_model=integration.model if integration else None,
+        )
         if not form.is_valid():
-            return self._render(form)
+            return self._render(form, models, models_error)
         services.save_jev(request.user, api_key=form.cleaned_data["api_key"], model=form.cleaned_data["model"])
         messages.success(request, gettext("Jev settings saved."))
         return redirect("settings:integrations")

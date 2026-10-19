@@ -11,8 +11,10 @@ write text, it returns the probability of each allowed answer.
 ## Setting it up
 
 1. Create an API key in your TypeSafe account.
-2. In **Settings → Integrations**, paste the key and keep the model pinned to a
-   version (default `jev-1.13.0`). Aliases such as `jev-latest` change without
+2. In **Settings → Integrations**, paste the key and save. The page then asks Jev
+   for the models your key can use (every time it loads) and you pick the
+   **default model**, which is saved; each run can still use another one. Prefer
+   a pinned version (`jev-1.13.0`): aliases such as `jev-latest` change without
    notice and make the screening impossible to reproduce. **Test the key**
    checks that Jev accepts it.
 3. Write the exclusion criteria in **Planning**. Jev works best in English.
