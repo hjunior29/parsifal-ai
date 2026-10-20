@@ -100,13 +100,14 @@ select-many takes the full list of lookup ids in `values` (set semantics).
 
 | Method & path | operationId |
 |---------------|-------------|
-| `GET /reviews/{rid}/articles?source_id=&status=U|A|R|D&q=&finished_data_extraction=&limit=&offset=` | `articles_list` — `q` searches the title, DOI (also pasted as a doi.org link) and BibTeX key |
+| `GET /reviews/{rid}/articles?source_id=&status=U|A|R|D&q=&finished_data_extraction=&starred=&limit=&offset=` | `articles_list` — `q` searches the title, DOI (also pasted as a doi.org link) and BibTeX key; `starred=true` keeps the starred ones |
 | `POST /reviews/{rid}/articles {source_id, …fields}` | `articles_create` |
 | `GET/PATCH/DELETE /reviews/{rid}/articles/{aid}` | `articles_get` · `articles_update` · `articles_delete` |
 | `POST /reviews/{rid}/articles/status {ids[], status, selection_criteria_id?, comments?}` | `articles_set_status` |
 | `POST /reviews/{rid}/articles/import {source_id, bibtex}` · `POST /articles/import/file` (multipart `source_id`, `file`) | `articles_import` · `articles_import_file` → `{imported, failed, warnings[], article_ids[]}` |
 | `GET /reviews/{rid}/articles/duplicates` · `POST /duplicates/resolve {ids?}` | `articles_duplicates` · `articles_resolve_duplicates` |
 | `POST /reviews/{rid}/articles/delete {ids}` · `POST /articles/clear {source_id, status?}` | `articles_delete_batch` · `articles_clear` (bulk delete; `clear` empties one source, e.g. after importing the wrong export) |
+| `PUT /reviews/{rid}/articles/{aid}/star` · `DELETE …/star` | `articles_star` · `articles_unstar` → the article. One star per study in the review, shared by every member (`starred`, `starred_by`, `starred_at` on every article); starring again keeps who starred it first; the status is untouched. One study at a time: there is no bulk star |
 | `POST /reviews/{rid}/articles/{aid}/pdf` (multipart `file`) · `GET …/pdf` · `DELETE …/pdf` | `articles_pdf_upload` → `201 {filename, content_type, size, sha256, uploaded_by, uploaded_at}` · `articles_pdf_download` (the file, `Content-Disposition: attachment` with the uploaded name; streamed from the bucket too) · `articles_pdf_delete` → 204 |
 
 The study's full text: one PDF per study, any status, up to `PARSIFAL_PDF_MAX_MB` (50 MB by default); anything

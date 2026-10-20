@@ -76,9 +76,13 @@ $(function () {
       cache: false,
       beforeSend: function () {
         $(container).spinner();
+        $("#modal-article .article-modal-star").empty();
       },
       success: function (data) {
         $(container).html(data);
+        var star = $("#modal-article #article-star-source");
+        $("#modal-article .article-modal-star").html(star.html());
+        star.remove();
       },
       complete: function () {
         $(container).spinner();
@@ -130,6 +134,49 @@ $(function () {
       },
       complete: function () { btn.prop("disabled", false); }
     });
+  });
+
+  /* The star of a study: one mark per study in the review, shared by every member, and not a status. It is
+     toggled from the study list's column or from the study window's title; both are kept in step. */
+  function toggleStar(event) {
+    event.preventDefault();
+    event.stopPropagation();  // a click on the star does not open the study
+    var star = $(this);
+    var articleId = star.attr("data-article-id");
+    $.ajax({
+      url: '/reviews/conducting/article_star/',
+      type: 'post',
+      cache: false,
+      data: {
+        'review-id': $("#review-id").val(),
+        'article-id': articleId,
+        'starred': star.hasClass("starred") ? "0" : "1",
+        'csrfmiddlewaretoken': $(".source-tab-content table").attr("csrf-token") ||
+          $("#article-details [name=csrfmiddlewaretoken]").val()
+      },
+      success: function (html) {
+        var updated = $($.parseHTML($.trim(html))).filter(".js-star");
+        $(".js-star[data-article-id=" + articleId + "]").each(function () {
+          $(this).replaceWith(updated.clone());
+        });
+        $(".source-articles tbody tr[oid=" + articleId + "]").attr("article-starred", updated.hasClass("starred") ? "1" : "0");
+        $(".source-tab-content .starred-count").text($(".source-articles tbody tr[article-starred=1]").length);
+        $(".source-tab-content table").trigger("update");  // the sort by star sees the change
+        applyFilters();
+      },
+      error: function (xhr) {
+        $.parsifal.alert("Could not change the star", requestError(xhr));
+      }
+    });
+  }
+
+  $(".source-tab-content").on("click", ".js-star", toggleStar);
+  $("#modal-article").on("click", ".js-star", toggleStar);
+
+  $(".source-tab-content").on("click", ".js-starred-filter", function () {
+    var button = $(this).toggleClass("active");
+    button.attr("aria-pressed", button.hasClass("active") ? "true" : "false");
+    applyFilters();
   });
 
   /* Full text tab: the PDF is fetched only when the tab is opened, not with every article of Previous/Next. */
@@ -415,24 +462,27 @@ $(function () {
     }
   });
 
-  /* Rows shown: those with the status chosen in "Show" that match the search (title, DOI or BibTeX key). A row
-     that gets hidden is unselected, so that an action never applies to rows out of sight. */
+  /* Rows shown: those with the status chosen in "Show" that match the search (title, DOI or BibTeX key), and only
+     the starred ones when the star next to the search is on. A row that gets hidden is unselected, so that an
+     action never applies to rows out of sight. */
   var DOI_PREFIX = /^(?:(?:https?:\/\/)?(?:dx\.)?doi\.org\/|doi:\s*)/i;
 
   function applyFilters() {
     var content = $(".source-tab-content");
     var status = content.find("input[name=filter]:checked").val() || "ALL";
     var query = $.trim(content.find(".js-article-search").val() || "").toLowerCase();
+    var starredOnly = content.find(".js-starred-filter").hasClass("active");
     var doi = query.replace(DOI_PREFIX, "");
     var rows = content.find(".source-articles table tbody tr").not(".no-data");
     var shown = 0;
     rows.each(function () {
       var row = $(this);
       var cells = row.children("td");
-      var matches = (status === "ALL" || row.attr("article-status") === status) && (
+      var matches = (status === "ALL" || row.attr("article-status") === status) &&
+        (!starredOnly || row.attr("article-starred") === "1") && (
         !query ||
-        cells.eq(1).text().toLowerCase().indexOf(query) !== -1 ||
-        cells.eq(2).text().toLowerCase().indexOf(query) !== -1 ||
+        cells.eq(2).text().toLowerCase().indexOf(query) !== -1 ||  // BibTeX key
+        cells.eq(3).text().toLowerCase().indexOf(query) !== -1 ||  // title
         (row.attr("article-doi") || "").toLowerCase().indexOf(doi) !== -1
       );
       row.toggle(matches);
@@ -500,28 +550,28 @@ $(function () {
             $(".source-articles table tbody input[type=checkbox]:checked").each(function () {
               var row = $(this).closest("tr");
               $(row).attr("article-status", "U");
-              $("span", row).replaceWith("<span class='label label-default'>Unclassified</span>");
+              $("td.js-status", row).html("<span class='label label-default'>Unclassified</span>");
             });
             break;
           case "accept":
             $(".source-articles table tbody input[type=checkbox]:checked").each(function () {
               var row = $(this).closest("tr");
               $(row).attr("article-status", "A");
-              $("span", row).replaceWith("<span class='label label-success'>Accepted</span>");
+              $("td.js-status", row).html("<span class='label label-success'>Accepted</span>");
             });
             break;
           case "reject":
             $(".source-articles table tbody input[type=checkbox]:checked").each(function () {
               var row = $(this).closest("tr");
               $(row).attr("article-status", "R");
-              $("span", row).replaceWith("<span class='label label-danger'>Rejected</span>");
+              $("td.js-status", row).html("<span class='label label-danger'>Rejected</span>");
             });
             break;
           case "duplicated":
             $(".source-articles table tbody input[type=checkbox]:checked").each(function () {
               var row = $(this).closest("tr");
               $(row).attr("article-status", "D");
-              $("span", row).replaceWith("<span class='label label-warning'>Duplicated</span>");
+              $("td.js-status", row).html("<span class='label label-warning'>Duplicated</span>");
             });
             break;
         }
@@ -633,7 +683,7 @@ $(function () {
         $(btn).text("Resolving...");
       },
       success: function (data) {
-        $("span", row).replaceWith("<span class='label label-warning'>Duplicated</span>");
+        $("td.js-status", row).html("<span class='label label-warning'>Duplicated</span>");
         $(btn).text("Resolved");
         $(row).attr("resolved", "true");
         var duplicates = $("#modal-duplicates .modal-body tr[duplicate=" + duplicate + "]");
@@ -647,7 +697,7 @@ $(function () {
 
         var article_row = $(".source-tab-content .source-articles tr[oid=" + article_id + "]");
         $(article_row).attr("article-status", "D");
-        $("span", article_row).replaceWith("<span class=\"label label-warning\">Duplicated</span>");
+        $("td.js-status", article_row).html("<span class=\"label label-warning\">Duplicated</span>");
       },
       error: function () {
         $(btn).prop("disabled", false);
@@ -681,7 +731,7 @@ $(function () {
           for (var i = ids.length - 1; i >= 0; i--) {
             var article_row = $(".source-tab-content .source-articles tr[oid=" + ids[i] + "]");
             $(article_row).attr("article-status", "D");
-            $("span", article_row).replaceWith("<span class=\"label label-warning\">Duplicated</span>");
+            $("td.js-status", article_row).html("<span class=\"label label-warning\">Duplicated</span>");
           }
         }
       },

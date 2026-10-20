@@ -8,12 +8,19 @@
     #modal-ai-screening .ai-criteria li { margin-bottom: 4px; padding-left: 2.6em; text-indent: -2.6em; }
     #modal-ai-screening .ai-log li { padding: 2px 0; border-bottom: 1px solid #eee; }
     #modal-ai-screening details summary { cursor: pointer; margin-bottom: 6px; }
-    .studies-search input { width: 320px; }
+    .studies-search .input-group { width: 380px; }
     @media (max-width: 767px) {
       .studies-search { float: none !important; margin-bottom: 10px; }
-      .studies-search input { width: 100%; }
+      .studies-search .input-group { width: 100%; }
     }
     #modal-agreement .js-open-article { cursor: pointer; }
+    .js-star { color: #c8c8c8; text-decoration: none; }
+    .js-star:hover, .js-star:focus { color: #f0ad4e; text-decoration: none; }
+    .js-star.starred { color: #f0ad4e; }
+    .source-articles th.star-header { cursor: pointer; color: #999; }
+    .js-starred-filter.active, .js-starred-filter.active:focus { background-color: #fcf8e3; border-color: #f0ad4e; }
+    .js-starred-filter.active .glyphicon { color: #f0ad4e; }
+    #modal-article .article-modal-star .js-star { font-size: 16px; margin-right: 2px; }
   </style>
 {% endblock stylesheet %}
 
@@ -66,7 +73,7 @@
       <div class="modal-content">
         <div class="modal-header">
           <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-          <h4 class="modal-title">Article Details <small>(<span class="current-article"></span>/<span class="total-articles"></span>)</small></h4>
+          <h4 class="modal-title"><span class="article-modal-star"></span> Article Details <small>(<span class="current-article"></span>/<span class="total-articles"></span>)</small></h4>
         </div>
         <div class="modal-body" style="overflow-y: scroll;">
 

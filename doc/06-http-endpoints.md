@@ -149,8 +149,9 @@ Action endpoints under `/reviews/conducting/`, guard **A** unless noted:
 | `import/bibtex_raw_content/` | POST | `review-id`, `source-id`, `bibtex_file` (text) | same |
 | `import/clear/` | POST | `review-id`, `source-id` | redirect to import page; deletes every study of the source |
 | `new_article/` | GET | `review-id`, `source-id` | frag empty article form |
-| `source_articles/` | GET | `review-id`, `source-id` (`None` = all) | frag table of articles (the browser filters it by status and by a search on title, DOI or BibTeX key) |
-| `article_details/` | GET | `review-id`, `article-id` | frag details form (tabs Details, Comments, Full text, Reviewers) |
+| `source_articles/` | GET | `review-id`, `source-id` (`None` = all) | frag table of articles with a star column (the browser filters it by status, by a search on title, DOI or BibTeX key, and — with the star button next to the search — to the starred ones) |
+| `article_details/` | GET | `review-id`, `article-id` | frag details form (tabs Details, Comments, Full text, Reviewers); its star is moved to the window's title |
+| `article_star/` | POST | `review-id`, `article-id`, `starred` (`1` star, `0` unstar) | frag of the study's star (list column and window title); status untouched |
 | `articles/<article_id>/pdf/` | GET | — (L; 404 unless a member of the article's review and the article has a PDF) | The study's PDF, inline: sent from the server when kept in `<data dir>/files`, or a redirect to a signed bucket link that expires. `X-Frame-Options: SAMEORIGIN` (the Full text tab frames it) |
 | `article_pdf/upload/` | POST multipart | `review-id`, `article-id`, `pdf` | frag Full text tab; replaces the previous PDF; 400 text when not a PDF or too big |
 | `article_pdf/remove/` | POST | `review-id`, `article-id` | frag Full text tab; 400 text when there is no PDF |

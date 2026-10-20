@@ -1,0 +1,12 @@
+<tr oid="{{ article.id }}" article-status="{{ article.status }}" article-doi="{{ article.doi|default_if_none:'' }}" article-starred="{{ article.starred|yesno:'1,0' }}">
+  <td style="text-align: center;"><input type="checkbox" value="{{ article.id }}"></td>
+  <td class="text-center">{% include "conducting/partial_conducting_article_star.html" %}</td>
+  <td>{{ article.bibtex_key }}</td>
+  <td>{{ article.title|default_if_none:"" }}</td>
+  <td>{{ article.author|default_if_none:"" }}</td>
+  <td>{{ article.journal|default_if_none:"" }}</td>
+  <td>{{ article.year|default_if_none:"" }}</td>
+  <td>{{ article.created_by.profile.get_screen_name }}</td>
+  <td>{{ article.created_at|date:"d M Y H:i:s" }}</td>
+  <td class="js-status">{{ article.get_status_html|safe }}</td>
+</tr>

@@ -122,7 +122,9 @@ class Review(models.Model):
         return self.searchsession_set.exclude(source=None).order_by("source__name")
 
     def get_source_articles(self, source_id=None):
-        queryset = Article.objects.filter(review__id=self.id).select_related("created_by__profile")
+        queryset = Article.objects.filter(review__id=self.id).select_related(
+            "created_by__profile", "starred_by__profile"
+        )
 
         if source_id is not None:
             queryset = queryset.filter(source__id=source_id)
@@ -321,6 +323,12 @@ class Article(models.Model):
     pdf = models.OneToOneField(
         StoredFile, null=True, blank=True, related_name="article", on_delete=models.SET_NULL, verbose_name="PDF"
     )
+    # Starred in this review: one mark per study, shared by every member (people and agents), whatever its status.
+    # Who starred it and when are kept for the record; like the PDF, it leaves updated_by alone.
+    starred_at = models.DateTimeField(_("starred at"), null=True, blank=True)
+    starred_by = models.ForeignKey(
+        User, null=True, blank=True, related_name="+", on_delete=models.SET_NULL, verbose_name=_("starred by")
+    )
     created_at = models.DateTimeField(auto_now_add=True, blank=True, null=True)
     updated_at = models.DateTimeField(auto_now=True, blank=True, null=True)
     created_by = models.ForeignKey(
@@ -346,6 +354,10 @@ class Article(models.Model):
     def save(self, *args, **kwargs):
         self.year_int = self.parse_year(self.year)
         super().save(*args, **kwargs)
+
+    @property
+    def starred(self):
+        return self.starred_at is not None
 
     @property
     def external_url(self):

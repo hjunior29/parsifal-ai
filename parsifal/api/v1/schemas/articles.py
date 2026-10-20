@@ -50,6 +50,9 @@ class ArticleOut(Schema):
     comments: str | None = None
     finished_data_extraction: bool
     pdf: PdfOut | None = None  # the full text, when one was uploaded
+    starred: bool = False  # starred in this review (one mark per study, shared by every member)
+    starred_by: str | None = None
+    starred_at: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
     created_by: str | None = None
@@ -62,6 +65,10 @@ class ArticleOut(Schema):
     @staticmethod
     def resolve_updated_by(obj):
         return obj.updated_by.username if obj.updated_by else None
+
+    @staticmethod
+    def resolve_starred_by(obj):
+        return obj.starred_by.username if obj.starred_by else None
 
 
 class ArticleFieldsIn(Schema):

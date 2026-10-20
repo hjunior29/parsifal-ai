@@ -8,6 +8,7 @@ from difflib import SequenceMatcher
 
 from django.db import transaction
 from django.db.models import Q
+from django.utils import timezone
 from django.utils.text import slugify
 
 import bibtexparser
@@ -199,7 +200,7 @@ def import_bibtex(*, review, source_id, content, actor=None):
 
 def get_article(*, review, article_id):
     return get_child(
-        review.article_set.select_related("source", "selection_criteria", "pdf__uploaded_by"),
+        review.article_set.select_related("source", "selection_criteria", "pdf__uploaded_by", "starred_by"),
         article_id,
         label="Article",
     )
@@ -286,16 +287,32 @@ def set_status(*, review, article_ids, status, selection_criteria_id=None, comme
     return len(articles)
 
 
-def list_articles(review, *, source_id=None, status=None, query=None, finished_data_extraction=None):
-    queryset = review.article_set.select_related("source", "selection_criteria", "pdf__uploaded_by").order_by(
-        "title", "pk"
-    )
+def set_starred(*, review, article_id, starred, actor=None):
+    """
+    Star (or unstar) a study in the review: one mark per study, shared by every member, whatever its status. Starring
+    a starred study keeps who starred it first. The status and updated_by are left alone.
+    """
+    article = get_child(review.article_set, article_id, label="Article")
+    if starred and article.starred_at is None:
+        article.starred_at, article.starred_by = timezone.now(), actor
+    elif not starred:
+        article.starred_at, article.starred_by = None, None
+    article.save(update_fields=["starred_at", "starred_by"])
+    return get_article(review=review, article_id=article.pk)
+
+
+def list_articles(review, *, source_id=None, status=None, query=None, finished_data_extraction=None, starred=None):
+    queryset = review.article_set.select_related(
+        "source", "selection_criteria", "pdf__uploaded_by", "starred_by"
+    ).order_by("title", "pk")
     if source_id is not None:
         queryset = queryset.filter(source_id=source_id)
     if status is not None:
         queryset = queryset.filter(status=_validate_status(status))
     if finished_data_extraction is not None:
         queryset = queryset.filter(finished_data_extraction=finished_data_extraction)
+    if starred is not None:
+        queryset = queryset.filter(starred_at__isnull=not starred)
     if query and query.strip():
         queryset = queryset.filter(search_filter(query))
     return queryset

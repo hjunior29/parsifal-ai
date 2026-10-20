@@ -123,6 +123,7 @@ The candidate study inside a review (despite the name, any BibTeX entry type).
 | Selection | `status` ∈ {`U` Unclassified (default), `R` Rejected, `A` Accepted, `D` Duplicated}, `selection_criteria` FK (SET_NULL), `comments` (≤2000) |
 | Extraction | `finished_data_extraction` bool |
 | Full text | `pdf` OneToOne → `core.StoredFile` (nullable, SET_NULL): the study's PDF, any status may have one |
+| Star | `starred_at`, `starred_by` (SET_NULL): starred in this review — one mark per study, shared by every member, independent of the status. `services.studies.set_starred` keeps who starred it first and never touches `updated_by` |
 | Audit | `created_at`, `updated_at`, `created_by`, `updated_by` |
 
 Methods: `get_score()` (Σ QA answer weights), `get_quality_assesment()`,

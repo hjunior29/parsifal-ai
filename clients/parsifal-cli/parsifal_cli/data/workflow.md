@@ -55,6 +55,8 @@ parsifal me
    that clearly meet every one (`--threshold`, default 0.9) and leaves the rest unclassified for the human; it never
    rejects (default statuses A and U).
    `test-set get --review R` tells whether the known papers were found by the search.
+   Stars: `article star --review R --article A` marks a study in the review (one star per study, shared with the
+   human; not a status); `article list --review R --starred --all` lists them, `article unstar` removes one.
    Full texts: a study's `pdf` field says whether it has one; read it with
    `article pdf download --review R --article A -o paper.pdf`. Attach one (any status, one per study, replaces the
    previous) with `article pdf upload --review R --article A --file paper.pdf`.

@@ -32,14 +32,21 @@ def articles_list(
     status: str | None = None,
     q: str | None = None,
     finished_data_extraction: bool | None = None,
+    starred: bool | None = None,
 ):
     """
     Articles of the review; ``status`` is U (unclassified), A (accepted), R (rejected) or D (duplicated); ``q``
-    searches the title, DOI and BibTeX key (a DOI may be pasted as a doi.org link).
+    searches the title, DOI and BibTeX key (a DOI may be pasted as a doi.org link); ``starred=true`` keeps the
+    starred ones (``false``, the others).
     """
     review = get_review(request, review_id)
     return studies.list_articles(
-        review, source_id=source_id, status=status, query=q, finished_data_extraction=finished_data_extraction
+        review,
+        source_id=source_id,
+        status=status,
+        query=q,
+        finished_data_extraction=finished_data_extraction,
+        starred=starred,
     ).select_related("created_by", "updated_by")
 
 
@@ -150,6 +157,27 @@ def articles_update(request, review_id: int, article_id: int, payload: ArticleUp
 def articles_delete(request, review_id: int, article_id: int):
     studies.delete_articles(review=get_review(request, review_id), article_ids=[article_id])
     return 204, None
+
+
+@router.put(
+    "/reviews/{int:review_id}/articles/{int:article_id}/star", response=ArticleOut, operation_id="articles_star"
+)
+def articles_star(request, review_id: int, article_id: int):
+    """
+    Star the study in this review: one mark per study, shared by every member, whatever its status. Starring it again
+    keeps who starred it first; the status is untouched.
+    """
+    review = get_review(request, review_id)
+    return studies.set_starred(review=review, article_id=article_id, starred=True, actor=request.auth)
+
+
+@router.delete(
+    "/reviews/{int:review_id}/articles/{int:article_id}/star", response=ArticleOut, operation_id="articles_unstar"
+)
+def articles_unstar(request, review_id: int, article_id: int):
+    """Remove the study's star (whoever starred it)."""
+    review = get_review(request, review_id)
+    return studies.set_starred(review=review, article_id=article_id, starred=False, actor=request.auth)
 
 
 @router.post(

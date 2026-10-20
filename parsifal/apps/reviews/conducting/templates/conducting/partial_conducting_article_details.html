@@ -162,6 +162,10 @@
     </div>
   </div>
 </form>
+{% if article.pk %}
+{# The star goes to the window's title, away from the study's fields (it is not a status). #}
+<div class="hide" id="article-star-source">{% include "conducting/partial_conducting_article_star.html" %}</div>
+{% endif %}
 {% if decisions is not None %}
 <div class="hide" id="tab-reviewers-source">
   {% include 'conducting/partial_conducting_article_decisions.html' %}

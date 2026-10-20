@@ -25,10 +25,14 @@ def test_body_params_only_on_write_operations():
             assert kinds <= {PATH, QUERY}, op.id
 
 
+# DELETEs that only remove a mark that can be set again: not destructive (no confirmation, no destructiveHint).
+REVERSIBLE_DELETES = {"articles_unstar"}
+
+
 def test_destructive_flags_cover_deletes():
     for op in OPERATIONS:
         if op.method == "DELETE":
-            assert op.destructive, op.id
+            assert op.destructive != (op.id in REVERSIBLE_DELETES), op.id
 
 
 def test_downloads_are_gets():

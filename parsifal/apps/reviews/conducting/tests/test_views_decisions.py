@@ -30,7 +30,10 @@ class TestDecisionViews(TestCase):
             reverse("reviews:conducting:source_articles"), {"review-id": self.review.pk, "source-id": "None"}
         )
         self.assertContains(response, 'placeholder="Search title, DOI or BibTeX key"', html=False)
-        self.assertContains(response, f'<tr oid="{self.a1.pk}" article-status="U" article-doi="10.1/&quot;x&quot;">')
+        self.assertContains(
+            response,
+            f'<tr oid="{self.a1.pk}" article-status="U" article-doi="10.1/&quot;x&quot;" article-starred="0">',
+        )
         self.a1.refresh_from_db()
         self.assertIn('article-doi="10.1/&quot;x&quot;"', build_article_table_row(self.a1))  # row after a save
 

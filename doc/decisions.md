@@ -326,3 +326,26 @@ which statuses a run may change. `manage.py backup` still copies only the
 database: `<data dir>/files` must be backed up with it. Switching between
 folder and bucket does not move existing files. The unused jQuery File Upload
 plugin and the commented-out "Files" tab were removed.
+
+## Starred studies: one shared mark per study in the review
+
+**Context.** Helder wants to mark studies and come back to them. The mark
+belongs to the review — whoever sets it (him or an agent), the study is
+starred in that review — unlike a future personal favourite in the library
+("I like this paper"), which is another feature.
+
+**Decision.** `Article.starred_at` and `starred_by`: one star per study,
+independent of its status; starring again keeps who starred it first; anyone
+in the review unstars it; `updated_by` is left alone (AI screening relies on
+it). On the study list the star is a column of its own next to the checkbox,
+far from the Status column, and the filter is a star button with the count
+attached to the search box — the "Show" radios stay statuses only. Clicking
+the column header sorts starred first. The study window shows the star in its
+title, away from the study's fields. No bulk star: starring is a judgement on
+one study, so the Action menu (statuses, removal) does not offer it, nor does
+the API (`articles_star`, `articles_unstar`, `starred` filter on
+`articles_list`).
+
+**Consequences.** Migration `reviews.0047`. The study rows are rendered by one
+template (`partial_conducting_article_row.html`) for the list and after a
+save, and status updates in the page target the status cell only.

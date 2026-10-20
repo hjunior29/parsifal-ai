@@ -9,6 +9,7 @@ from django.db.models.functions import Coalesce
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.context_processors import csrf
+from django.template.loader import render_to_string
 from django.urls import reverse as r
 from django.utils.html import escape
 from django.utils.translation import gettext as _
@@ -616,7 +617,12 @@ def source_articles(request):
     return render(
         request,
         "conducting/partial_conducting_articles.html",
-        {"review": review, "source": source, "articles": articles},
+        {
+            "review": review,
+            "source": source,
+            "articles": articles,
+            "starred_count": articles.filter(starred_at__isnull=False).count(),
+        },
     )
 
 
@@ -627,7 +633,9 @@ def article_details(request):
     article_id = request.GET["article-id"]
 
     review = get_object_or_404(Review, pk=review_id)
-    article = get_object_or_404(Article.objects.select_related("pdf__uploaded_by"), pk=article_id, review_id=review_id)
+    article = get_object_or_404(
+        Article.objects.select_related("pdf__uploaded_by", "starred_by__profile"), pk=article_id, review_id=review_id
+    )
 
     context = {"review": review, "article": article, "pdf_max_mb": full_texts.max_size_mb()}
     context.update(_decisions_context(request, review, article))
@@ -653,6 +661,24 @@ def article_pdf(request, article_id):
     if files_are_local():
         return FileResponse(article.pdf.open(), content_type=article.pdf.content_type, filename=article.pdf.filename)
     return redirect(files_storage().url(article.pdf.key))
+
+
+@author_required
+@login_required
+@require_POST
+def star_article(request):
+    """Star (``starred=1``) or unstar (``starred=0``) a study in the review; returns its star."""
+    review = get_object_or_404(Review, pk=request.POST.get("review-id"))
+    try:
+        article = studies.set_starred(
+            review=review,
+            article_id=request.POST.get("article-id"),
+            starred=request.POST.get("starred") == "1",
+            actor=request.user,
+        )
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
+    return render(request, "conducting/partial_conducting_article_star.html", {"article": article})
 
 
 @author_required
@@ -942,37 +968,8 @@ def articles_upload(request):
 
 
 def build_article_table_row(article):
-    name = ""
-    if article.created_by:
-        name = escape(article.created_by.profile.get_screen_name())
-    date = ""
-    if article.created_at:
-        date = article.created_at.strftime("%d %b %Y %H:%M:%S")
-
-    row = """<tr oid="{0}" article-status="{1}" article-doi="{10}">
-            <td style="text-align: center;"><input type="checkbox" value="{0}"></td>
-            <td>{2}</td>
-            <td>{3}</td>
-            <td>{4}</td>
-            <td>{5}</td>
-            <td>{6}</td>
-            <td>{7}</td>
-            <td>{8}</td>
-            <td>{9}</td>
-          </tr>""".format(
-        article.id,
-        article.status,
-        escape(article.bibtex_key),
-        escape(article.title),
-        escape(article.author),
-        escape(article.journal),
-        escape(article.year),
-        name,
-        date,
-        article.get_status_html(),
-        escape(article.doi or ""),
-    )
-    return row
+    """The study's row in the study list, as the list renders it (after a save, it replaces the old one)."""
+    return render_to_string("conducting/partial_conducting_article_row.html", {"article": article})
 
 
 @author_required

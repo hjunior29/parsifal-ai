@@ -94,6 +94,12 @@ class TestCliAgainstLiveServer(TemporaryFilesMixin, LiveServerTestCase):
         overview = self.run_cli("review", "overview", "--review", ref)
         self.assertEqual(2, overview["articles"]["accepted"])
 
+        starred = self.run_cli("article", "star", "--review", ref, "--article", ids[1])
+        self.assertEqual((True, "agent"), (starred["starred"], starred["starred_by"]))
+        listed = self.run_cli("article", "list", "--review", ref, "--starred", "--all")["items"]
+        self.assertEqual([int(ids[1])], [a["id"] for a in listed])
+        self.assertFalse(self.run_cli("article", "unstar", "--review", ref, "--article", ids[1])["starred"])
+
         with tempfile.TemporaryDirectory() as folder:
             report = Path(folder) / "report.docx"
             self.run_cli("export", "report", "--review", ref, "-o", str(report), parse=False)

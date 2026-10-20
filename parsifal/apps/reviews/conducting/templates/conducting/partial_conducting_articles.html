@@ -26,7 +26,14 @@
     {% endif %}
     <div class="studies-action clearfix" style="margin: 10px 0;">
       <div class="pull-right studies-search">
-        <input type="search" class="form-control js-article-search" placeholder="Search title, DOI or BibTeX key" aria-label="Search title, DOI or BibTeX key" autocomplete="off">
+        <div class="input-group">
+          <span class="input-group-btn">
+            <button type="button" class="btn btn-default js-starred-filter" aria-pressed="false" title="Show only the starred studies (with the status chosen in Show and the search)">
+              <span class="glyphicon glyphicon-star"></span> <span class="starred-count">{{ starred_count }}</span>
+            </button>
+          </span>
+          <input type="search" class="form-control js-article-search" placeholder="Search title, DOI or BibTeX key" aria-label="Search title, DOI or BibTeX key" autocomplete="off">
+        </div>
       </div>
       <strong>Action:</strong>
       <select class="select-action form-control" style="width: 200px; display: inline-block;">
@@ -64,7 +71,7 @@
       <thead>
         <tr>
           <th style="width: 35px; text-align: center;"><input type="checkbox" id="ck-all-articles"></th>
-          {% comment %}<th style="width: 35px; text-align: center;"><span class="glyphicon glyphicon-file"></span></th>{% endcomment %}
+          <th class="star-header" style="width: 48px; text-align: center;" title="Starred in this review. Click to sort, starred first"><span class="glyphicon glyphicon-star"></span><span class="sr-only">Starred</span></th>
           <th>Bibtex Key</th>
           <th>Title</th>
           <th>Author</th>
@@ -77,20 +84,10 @@
       </thead>
       <tbody>
         {% for article in articles %}
-          <tr oid="{{ article.id }}" article-status="{{ article.status }}" article-doi="{{ article.doi|default_if_none:'' }}">
-            <td style="text-align: center;"><input type="checkbox" value="{{ article.id }}"></td>
-            <td>{{ article.bibtex_key }}</td>
-            <td>{{ article.title }}</td>
-            <td>{{ article.author }}</td>
-            <td>{{ article.journal|default_if_none:"" }}</td>
-            <td>{{ article.year }}</td>
-            <td>{{ article.created_by.profile.get_screen_name }}</td>
-            <td>{{ article.created_at|date:"d M Y H:i:s" }}</td>
-            <td>{{ article.get_status_html|safe }}</td>
-          </tr>
+          {% include "conducting/partial_conducting_article_row.html" %}
         {% empty %}
           <tr class="no-data">
-            <td colspan="9">No articles.</td>
+            <td colspan="10">No articles.</td>
           </tr>
         {% endfor %}
       </tbody>

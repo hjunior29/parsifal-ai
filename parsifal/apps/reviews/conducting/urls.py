@@ -15,6 +15,7 @@ urlpatterns = [
     path("import/bibtex_raw_content/", views.import_bibtex_raw_content, name="import_bibtex_raw_content"),
     path("source_articles/", views.source_articles, name="source_articles"),
     path("article_details/", views.article_details, name="article_details"),
+    path("article_star/", views.star_article, name="star_article"),
     path("articles/<int:article_id>/pdf/", views.article_pdf, name="article_pdf"),
     path("article_pdf/upload/", views.upload_article_pdf, name="upload_article_pdf"),
     path("article_pdf/remove/", views.remove_article_pdf, name="remove_article_pdf"),
