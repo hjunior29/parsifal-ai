@@ -4,12 +4,13 @@ from unittest import mock
 
 from django.test import TestCase
 from django.urls import reverse
+from django.utils.html import escape
 
 from parsifal.apps.accounts.models import Integration
 from parsifal.apps.authentication.tests.factories import UserFactory
 from parsifal.apps.core import jev
 from parsifal.apps.reviews.models import Article, ScreeningRun, SelectionCriteria, StudyDecision
-from parsifal.apps.reviews.services import agents, ai_screening
+from parsifal.apps.reviews.services import agents, ai_screening, screening_requests
 from parsifal.apps.reviews.tests.factories import ArticleFactory, ReviewFactory, SourceFactory
 
 MODELS = [
@@ -38,6 +39,7 @@ class AiScreeningViewsBase(TestCase):
         cls.form_url = reverse("reviews:conducting:ai_screening")
         cls.start_url = reverse("reviews:conducting:ai_screening_start")
         cls.step_url = reverse("reviews:conducting:ai_screening_step")
+        cls.preview_url = reverse("reviews:conducting:ai_screening_preview")
 
     def setUp(self):
         self.client.force_login(self.owner)
@@ -136,6 +138,56 @@ class AiScreeningViewsTest(AiScreeningViewsBase):
         self.client.force_login(self.outsider)
         self.assertEqual(403, self.client.get(self.form_url, {"review-id": self.review.pk}).status_code)
         self.assertEqual(403, self.start().status_code)
+        self.assertEqual(403, self.client.post(self.preview_url, {"review-id": self.review.pk}).status_code)
+
+    def test_request_template_preview_and_start(self):
+        self.connect()
+        response = self.client.get(self.form_url, {"review-id": self.review.pk})
+        default = screening_requests.as_text(screening_requests.default("exclusion"))
+        self.assertContains(response, 'name="template" id="ai-template"')
+        self.assertContains(response, escape(default))
+        self.assertContains(response, 'id="ai-template-default"')
+        self.assertContains(response, "<code>{{study.abstract}}</code> The study&#x27;s abstract.", html=False)
+        self.assertNotContains(response, "cannot be changed")
+
+        data = {
+            "review-id": self.review.pk,
+            "phase": "exclusion",
+            "context-objective": "Our objective & scope",  # the window sends every context field
+            "statuses": ["R", "U"],
+            "template": default,
+        }
+        body = self.client.post(self.preview_url, data).json()
+        self.assertEqual({"id": self.article.pk, "title": "A study"}, body["article"])
+        self.assertEqual("jev-1.13.0", body["request"]["model"])
+        self.assertEqual({"title": "A study", "abstract": "Text"}, body["request"]["state"])
+        self.assertEqual(
+            "Not about <software> engineering", body["request"]["questions"]["exclusion_1"]["criteria"]["E1"]
+        )
+
+        edited = screening_requests.default("exclusion")
+        edited["state"] = {"study": "{{study}}", "objective": "{{review.objective}}"}
+        edited["question"]["criteria"]["none"] = "Nothing applies."
+        body = self.client.post(self.preview_url, dict(data, template=json.dumps(edited))).json()
+        self.assertEqual(
+            {"study": {"title": "A study", "abstract": "Text"}, "objective": "Our objective & scope"},
+            body["request"]["state"],
+        )
+        response = self.client.post(self.preview_url, dict(data, template="{"))
+        self.assertEqual(400, response.status_code)
+        self.assertIn("not valid JSON", response.json()["error"])
+
+        with self.subTest(msg="the run keeps it, and the window starts from it next time"):
+            response = self.start(template=json.dumps(edited))
+            self.assertEqual(200, response.status_code, response.content)
+            self.assertEqual(edited, ScreeningRun.objects.get(pk=response.json()["run"]["id"]).parameters["template"])
+            response = self.client.get(self.form_url, {"review-id": self.review.pk})
+            self.assertContains(response, escape(screening_requests.as_text(edited)))
+            script = re.search(r'id="ai-template-default"[^>]*>(.*?)</script>', response.content.decode(), re.S)
+            self.assertEqual(default, json.loads(script.group(1)))  # what Restore the default puts back
+            response = self.start(template='{"state": {}, "question": {}}')
+            self.assertEqual(400, response.status_code)
+            self.assertIn('keep "type": "choice"', response.json()["error"])
 
     def test_start_errors_are_json(self):
         response = self.start()

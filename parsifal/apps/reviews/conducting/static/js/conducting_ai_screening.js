@@ -1,7 +1,8 @@
 /*
  * Exclude with AI (phase 1 of study selection) and Include with AI (phase 2). Opens the setup window of the phase,
  * starts a run (or continues an unfinished one) and then asks the server to screen the next few studies until the
- * run ends, showing progress as it goes.
+ * run ends, showing progress as it goes. The request to Jev is a template edited as JSON text, previewed (filled in
+ * by the server for the first study in scope) before starting.
  * A run cannot be stopped; when it is interrupted (connection lost, Jev refusing the key or unavailable) the window
  * offers to continue it. "Done" reloads the page so the table shows the rejected studies.
  */
@@ -44,6 +45,7 @@ $(function () {
 
   $(document).on("click", ".btn-ai-screening", function () {
     run = null;
+    preview = null;
     var phase = $(this).data("phase") || "exclusion";
     $.get("/reviews/conducting/ai_screening/", {"review-id": reviewId(), "phase": phase}, function (html) {
       $modal.find(".modal-content").html(html);
@@ -57,6 +59,65 @@ $(function () {
   $modal.on("change", ".js-ai-all-statuses", function () {
     $modal.find("input[name=statuses]").prop("checked", this.checked);
     updateCount();
+  });
+
+  // Request to Jev: the template is edited as text; the server fills it in for the first study in scope.
+  var preview = null;
+
+  $modal.on("click", ".js-ai-preview", function () {
+    var $button = $(this).prop("disabled", true);
+    $modal.find(".js-ai-preview-error").hide();
+    $.ajax({
+      url: "/reviews/conducting/ai_screening/preview/",
+      type: "post",
+      data: $("#ai-screening-form").serialize(),
+      dataType: "json"
+    }).done(function (data) {
+      preview = data.request;
+      $modal.find(".js-ai-preview-title").text(data.article.title);
+      $modal.find(".js-ai-preview-json").text(JSON.stringify(data.request, null, 2));
+      $modal.find(".js-ai-preview-box").show();
+    }).fail(function (xhr) {
+      $modal.find(".js-ai-preview-box").hide();
+      $modal.find(".js-ai-preview-error").text(errorMessage(xhr)).show();
+    }).always(function () {
+      $button.prop("disabled", false);
+    });
+  });
+
+  // The older way, for browsers that refuse the clipboard API (no secure context, no permission).
+  function copyBySelecting(text) {
+    var $area = $("<textarea>").val(text).css({position: "fixed", top: 0, left: 0, opacity: 0}).appendTo($modal);
+    $area[0].select();
+    var copied = false;
+    try { copied = document.execCommand("copy"); } catch (error) { copied = false; }
+    $area.remove();
+    return copied ? Promise.resolve() : Promise.reject();
+  }
+
+  function copyText(text) {
+    if (!navigator.clipboard) { return copyBySelecting(text); }
+    return navigator.clipboard.writeText(text).catch(function () { return copyBySelecting(text); });
+  }
+
+  // What the playground of Jev takes in its two fields.
+  $modal.on("click", ".js-ai-copy", function () {
+    var $button = $(this);
+    if (!preview) { return; }
+    var label = $button.data("label") || $button.text();
+    $button.data("label", label);
+    copyText(JSON.stringify(preview[$button.data("part")], null, 2)).then(function () {
+      $button.text("Copied");
+    }, function () {
+      $button.text("Copy failed: select it below");
+    }).then(function () {
+      setTimeout(function () { $button.text(label); }, 2000);
+    });
+  });
+
+  $modal.on("click", ".js-ai-template-reset", function () {
+    $("#ai-template").val(JSON.parse($("#ai-template-default").text()));
+    $modal.find(".js-ai-preview-box, .js-ai-preview-error").hide();
   });
 
   $modal.on("click", ".js-ai-start", function () {

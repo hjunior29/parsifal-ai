@@ -62,5 +62,6 @@ urlpatterns = [
     path("consolidate/", views.consolidate, name="consolidate"),
     path("ai_screening/", views.ai_screening, name="ai_screening"),
     path("ai_screening/start/", views.ai_screening_start, name="ai_screening_start"),
+    path("ai_screening/preview/", views.ai_screening_preview, name="ai_screening_preview"),
     path("ai_screening/step/", views.ai_screening_step, name="ai_screening_step"),
 ]

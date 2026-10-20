@@ -49,7 +49,7 @@ parameters in kebab-case; `--review` accepts a numeric id or `author/slug`.
 | `analytics` | `selection-by-source`, `final-by-year`, `facet-frequencies`, `facet-matrix` |
 | `export` | `articles`, `extraction`, `report` (all take `-o FILE`) |
 | `integration jev` | `show`, `set`, `test`, `remove` |
-| `ai-screening` | `setup`, `start`, `step`, `runs`, `show`, `results`, and `run` (start, or continue with `--run`, and screen to the end; `--phase inclusion` for Include with AI) — see [Exclude and include with AI](/docs/ai-screening/) |
+| `ai-screening` | `setup`, `preview` (the request a run would send), `start`, `step`, `runs`, `show`, `results`, and `run` (start, or continue with `--run`, and screen to the end; `--phase inclusion` for Include with AI) — see [Exclude and include with AI](/docs/ai-screening/) |
 
 `parsifal <group> --help` lists the options of every command.
 

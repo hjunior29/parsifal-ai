@@ -14,6 +14,8 @@ from parsifal.api.v1.schemas.ai_screening import (
     JevIntegrationOut,
     JevTestIn,
     JevTestOut,
+    ScreeningPreviewIn,
+    ScreeningPreviewOut,
     ScreeningResultOut,
     ScreeningRunDetailOut,
     ScreeningRunOut,
@@ -23,7 +25,7 @@ from parsifal.api.v1.schemas.ai_screening import (
     ScreeningStepOut,
 )
 from parsifal.apps.accounts import services as integrations
-from parsifal.apps.reviews.services import ai_screening
+from parsifal.apps.reviews.services import ai_screening, screening_requests
 
 router = Router(tags=["ai screening"])
 
@@ -79,17 +81,32 @@ def _run_out(run, detail=False):
     return ScreeningRunOut(**data)
 
 
+def _settings(payload):
+    """The settings of a run (or a preview) that shape the request, as ``start_run`` takes them."""
+    fields = payload.dict()
+    return {
+        "phase": payload.phase,
+        "model": payload.model,
+        "context": {name: fields[name] for name, _label, _limit in ai_screening.CONTEXT_FIELDS},
+        "guidance": payload.guidance,
+        "template": payload.template,
+        "source_id": payload.source_id,
+        "statuses": payload.statuses,
+    }
+
+
 @router.get("/reviews/{int:review_id}/ai-screening", response=ScreeningSetupOut, operation_id="ai_screening_setup")
 def ai_screening_setup(request, review_id: int, phase: str = "exclusion"):
     """
     What a run of ``phase`` would send: the review context (editable per run), the criteria (fixed; exclusion: E1,
     E2… plus none in one choice question; inclusion: I1, I2…, one yes/no question each, answered with the
-    probability that the study meets it), the task and rules (fixed), the threshold's range, Jev's models for your
-    key, who you may screen as, and how many studies each source has per status (a run sends the statuses you choose).
+    probability that the study meets it), the request template sent about each study (editable around its
+    placeholders: the one the review's last run of the phase used, and Parsifal's default), the threshold's range,
+    Jev's models for your key, who you may screen as, and how many studies each source has per status (a run sends
+    the statuses you choose).
     """
     review = get_review(request, review_id)
     phase = ai_screening.clean_phase(phase)
-    task, rules = ai_screening.task_and_rules(phase)
     integration = integrations.get_jev(request.auth)
     models, models_error = integrations.jev_models(request.auth) if integration else ([], "")
     agent_ids = ai_screening.agent_ids(review)
@@ -107,7 +124,6 @@ def ai_screening_setup(request, review_id: int, phase: str = "exclusion"):
     scopes = [scope(None, "All sources", counts[""])]
     for source in review.sources.order_by("name"):
         scopes.append(scope(source.pk, source.name, counts.get(str(source.pk), empty)))
-    inclusion = phase == ai_screening.INCLUSION
     return ScreeningSetupOut(
         phase=phase,
         configured=integration is not None,
@@ -128,11 +144,12 @@ def ai_screening_setup(request, review_id: int, phase: str = "exclusion"):
         unfinished_run_active=bool(unfinished and ai_screening.is_active(unfinished)),
         context=ai_screening.default_context(review),
         criteria=ai_screening.criteria_options(review, phase),
-        none_description="" if inclusion else ai_screening.NONE_DESCRIPTION,
-        question_type=ai_screening.INCLUSION_QUESTION if inclusion else "choice",
-        task=task,
-        rules=list(rules),
-        sent_fields=list(ai_screening.SENT_FIELDS),
+        question_type=screening_requests.QUESTION_TYPES[phase],
+        template=ai_screening.current_template(review, phase),
+        template_default=screening_requests.default(phase),
+        placeholders=[
+            {"name": name, "description": description} for name, description in screening_requests.PLACEHOLDERS
+        ],
         threshold_default=ai_screening.DEFAULT_THRESHOLD,
         threshold_min=ai_screening.MIN_THRESHOLD,
         threshold_max=ai_screening.MAX_THRESHOLD,
@@ -157,25 +174,37 @@ def ai_screening_start(request, review_id: int, payload: ScreeningStartIn):
     criterion applies with at least this probability; inclusion accepts when every inclusion criterion is met with at
     least this probability, and never rejects. Only unclassified studies and those this reviewer classified change
     status (exclusion: its rejections; inclusion: its acceptances); the others only get the reviewer's decision. Only
-    the main author may name another member. Nothing is screened yet: call the step operation until the run is no
-    longer running.
+    the main author may name another member. ``template`` is the request sent about each study (see the setup and
+    the preview operation). Nothing is screened yet: call the step operation until the run is no longer running.
     """
     review = get_review(request, review_id)
-    fields = payload.dict()
-    context = {name: fields[name] for name, _label, _limit in ai_screening.CONTEXT_FIELDS}
     run = ai_screening.start_run(
         review=review,
         actor=request.auth,
         reviewer_id=payload.reviewer_id,
-        model=payload.model,
-        context=context,
-        guidance=payload.guidance,
         threshold=payload.threshold,
-        source_id=payload.source_id,
-        statuses=payload.statuses,
-        phase=payload.phase,
+        **_settings(payload),
     )
     return 201, _run_out(run, detail=True)
+
+
+@router.post(
+    "/reviews/{int:review_id}/ai-screening/preview",
+    response=ScreeningPreviewOut,
+    operation_id="ai_screening_preview",
+)
+def ai_screening_preview(request, review_id: int, payload: ScreeningPreviewIn):
+    """
+    The request a run with these settings would send to Jev (the body of its POST /v1/systemone: model, state and
+    questions) about ``article_id``, or else the first study in scope with a title or abstract. Nothing is sent: use
+    it to check an edited ``template`` before starting a run.
+    """
+    review = get_review(request, review_id)
+    preview = ai_screening.preview(
+        review=review, actor=request.auth, article_id=payload.article_id, **_settings(payload)
+    )
+    article = preview["article"]
+    return ScreeningPreviewOut(article_id=article.pk, title=article.title, request=preview["request"])
 
 
 @router.get(

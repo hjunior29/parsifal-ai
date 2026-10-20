@@ -48,8 +48,8 @@ be sent:
 - **Extra guidance** (optional): definitions or borderline cases that help apply
   the criteria.
 - **Criteria**: from the protocol, read-only. Exclusion: options `E1`, `E2`…
-  plus `none` ("no criterion clearly applies, or there is not enough
-  information"). Inclusion: `I1`, `I2`…, one yes/no question each.
+  plus `none` (no criterion applies). Inclusion: `I1`, `I2`…, one yes/no
+  question each.
 - **Threshold** (default 0.9, from 0.5 to 0.99): how sure Jev must be — to
   reject, in exclusion; to accept, in inclusion.
 - **Studies**: all sources or one, and the **statuses** to send — any mix of
@@ -59,6 +59,10 @@ be sent:
   rejected; and unclassified + accepted for inclusion, the studies that are
   still in. Each status shows how many studies it has; nothing is skipped
   because it was screened before.
+- **Request to Jev**: what is sent about each study, as JSON you can edit around
+  the data (next section). **Preview the request** shows it filled in for the
+  first study in scope, with buttons to copy its `state` and `questions` (the
+  two fields of Jev's playground).
 
 **Start screening** sends the studies a few at a time and shows the progress
 until the run ends; there is no stop button. **Done** reloads the page.
@@ -68,6 +72,45 @@ refused the key or was unavailable — it keeps the studies it had left. The nex
 time you open the window it says where the run stopped and offers **Continue**,
 which goes on with the settings the run started with (model, context,
 thresholds, studies). Starting a new run, of either phase, discards the unfinished one.
+
+## The request to Jev
+
+Each study is sent as one request whose shape is a template: `state` is what
+Jev reads, `question` what it is asked. You can reword everything in it — the
+task, the rules, how each option or answer is described, where the review
+context goes, whether the keywords are sent — except the data, which appear as
+placeholders that Parsifal fills in:
+
+| Placeholder | Filled in with |
+|---|---|
+| `{{review}}` | the review context of the window, as an object (empty fields left out) |
+| `{{review.title}}`, `{{review.objective}}`, `{{review.research_questions}}`, `{{review.population}}`… | one context field (the research questions as a list) |
+| `{{guidance}}` | the extra guidance |
+| `{{study}}` | the study's title, keywords and abstract, as an object |
+| `{{study.title}}`, `{{study.keywords}}`, `{{study.abstract}}` | one of them |
+| `{{key}}`, `{{criterion}}` | the criterion asked about: `E1`/`I1`… and its description |
+
+A placeholder that is a whole value is replaced by the value itself, and left
+out when it is empty; inside a longer text it is replaced by its text. Authors,
+venue and affiliations have no placeholder, so they are never sent.
+
+Parsifal still repeats the question, since that is how it combines the answers,
+so a few things must stay:
+
+- **Exclusion**: `"type": "choice"`, and `criteria` with exactly two entries:
+  `"{{key}}"` (repeated for every exclusion criterion; its text must include
+  `{{criterion}}`) and `"none"`. The options are asked in three orders, rotating
+  the order of the template.
+- **Inclusion**: `"type": "noul"`, `criteria` with `"true"` and `"false"`, and
+  `{{criterion}}` somewhere in the question, which is asked once for every
+  inclusion criterion, in both orders of the two answers.
+
+A new run starts from the template of the review's last run of the same phase,
+so a second reviewer is asked exactly like the first; **Restore the default**
+brings back Parsifal's. Each run keeps its template in its log (`parameters`),
+and **Continue** goes on with it. Edits Parsifal cannot use (invalid JSON, an
+unknown placeholder, a missing `none`…) are refused with the reason before
+anything is sent.
 
 ## From the API, CLI and MCP
 
@@ -79,7 +122,9 @@ screen as itself.
 ```bash
 parsifal integration jev set --api-key - --model jev-1.13.0   # Settings → Integrations
 parsifal integration jev test
-parsifal ai-screening setup --review R                        # what the window shows (reviewers, models, studies per status…)
+parsifal ai-screening setup --review R                        # what the window shows (reviewers, models, template, studies per status…)
+parsifal ai-screening preview --review R --template @request.json   # the request a run would send about the first study in scope
+parsifal ai-screening run --review R --reviewer-id U --template @request.json   # a run with an edited request
 parsifal ai-screening run --review R --reviewer-id U --model jev-1.13.0 --threshold 0.9 --guidance @notes.txt
 parsifal ai-screening run --review R --reviewer-id U --statuses U --statuses R --statuses A   # statuses to send (default R and U)
 parsifal ai-screening run --review R --reviewer-id U --phase inclusion --threshold 0.95   # Include with AI (default A and U)
@@ -97,9 +142,10 @@ values.
 
 ## What happens to each study: exclusion
 
-For every study Jev receives the **title, keywords and abstract only** (never
-authors, venue or affiliations). One multiple-choice question with the criteria
-and `none` is asked in three option orders in the same request, because the
+For every study Jev receives what the request template sends — by default the
+**title, keywords and abstract** (never authors, venue or affiliations). One
+multiple-choice question with the criteria and `none` is asked in three option
+orders in the same request, because the
 model tends to favour the first option when unsure; the answers are averaged.
 
 Probabilities of the options add up to 1, so the probability that *some*

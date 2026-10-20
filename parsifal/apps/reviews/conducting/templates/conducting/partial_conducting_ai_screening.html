@@ -29,15 +29,15 @@
   <div class="modal-body ai-screening-setup">
     {% if inclusion %}
       <p>
-        Jev reads the title, keywords and abstract of each study and <strong>accepts the ones that clearly meet every
-        inclusion criterion</strong>, in the name of the reviewer you choose. It never rejects (that is phase 1's
-        job): the rest are left unclassified for you to decide.
+        Jev reads each study (by default its title, keywords and abstract) and <strong>accepts the ones that clearly
+        meet every inclusion criterion</strong>, in the name of the reviewer you choose. It never rejects (that is
+        phase 1's job): the rest are left unclassified for you to decide.
       </p>
     {% else %}
       <p>
-        Jev reads the title, keywords and abstract of each study and <strong>rejects the ones that clearly meet an
-        exclusion criterion</strong>, with that criterion as the reason, in the name of the reviewer you choose. The
-        rest are left for the next phase, with the inclusion criteria.
+        Jev reads each study (by default its title, keywords and abstract) and <strong>rejects the ones that clearly
+        meet an exclusion criterion</strong>, with that criterion as the reason, in the name of the reviewer you
+        choose. The rest are left for the next phase, with the inclusion criteria.
       </p>
     {% endif %}
     {% if unfinished %}
@@ -50,7 +50,7 @@
           {{ unfinished_progress.processed }} of {{ unfinished_progress.total }} studies{% if unfinished.error %}: {{ unfinished.error }}{% else %}.{% endif %}
           <button type="button" class="btn btn-warning btn-sm js-ai-continue" style="margin-left: 6px;">Continue</button>
         {% endif %}
-        <br><small>It continues with the settings it started with (model, context, thresholds, studies). Starting a new run below discards it.</small>
+        <br><small>It continues with the settings it started with (model, context, request, threshold, studies). Starting a new run below discards it.</small>
       </div>
       {{ unfinished_progress|json_script:"ai-screening-unfinished" }}
     {% endif %}
@@ -126,7 +126,6 @@
           {% for option in options %}
             <li><code>{{ option.key }}</code> {{ option.description }}</li>
           {% endfor %}
-          <li class="text-muted"><code>none</code> {{ none_description }}</li>
         </ul>
       {% endif %}
 
@@ -190,12 +189,48 @@
       </p>
       {{ counts|json_script:"ai-screening-counts" }}
 
+      <h5><strong>Request to Jev</strong> <small>what is sent about each study; kept in the run's log</small></h5>
+      <p class="help-block small">
+        Edit the text around the data. Each {% verbatim %}<code>{{…}}</code>{% endverbatim %} is filled in by Parsifal
+        — the review context and guidance above, the criteria from the protocol, each study's title, keywords and
+        abstract — so the data are changed there, not here.
+        {% if inclusion %}
+          The question is asked once for every inclusion criterion, in both orders of its
+          <code>true</code> and <code>false</code> answers.
+        {% else %}
+          The {% verbatim %}<code>"{{key}}"</code>{% endverbatim %} option is repeated for every exclusion criterion,
+          and the question is asked in three orders of the options.
+        {% endif %}
+        It starts from the request of the review's last {{ label }} run, so a second reviewer is asked the same way.
+      </p>
+      <textarea name="template" id="ai-template" class="form-control input-sm ai-template" rows="22" spellcheck="false">{{ template }}</textarea>
+      <div class="ai-template-actions">
+        <button type="button" class="btn btn-default btn-sm js-ai-preview">Preview the request</button>
+        <button type="button" class="btn btn-link btn-sm js-ai-template-reset">Restore the default</button>
+      </div>
+      <details class="small">
+        <summary>Placeholders</summary>
+        <ul class="list-unstyled ai-placeholders">
+          {% for name, description in placeholders %}
+            <li><code>{% templatetag openvariable %}{{ name }}{% templatetag closevariable %}</code> {{ description }}</li>
+          {% endfor %}
+        </ul>
+      </details>
+      <div class="alert alert-danger small js-ai-preview-error" style="display: none;"></div>
+      <div class="js-ai-preview-box" style="display: none;">
+        <p class="small">
+          Sent about <strong class="js-ai-preview-title"></strong>, the first study in scope (nothing was sent now).
+          <button type="button" class="btn btn-default btn-xs js-ai-copy" data-part="state">Copy state</button>
+          <button type="button" class="btn btn-default btn-xs js-ai-copy" data-part="questions">Copy questions</button>
+        </p>
+        <pre class="ai-preview js-ai-preview-json"></pre>
+      </div>
+      {{ template_default|json_script:"ai-template-default" }}
+
       <details class="small text-muted">
-        <summary>What is sent to Jev, and what cannot be changed</summary>
+        <summary>How the answers are used</summary>
         <ul>
-          <li>Per study: title, keywords and abstract only. Authors, venue and affiliations are never sent.</li>
-          <li>Task: {{ task }}</li>
-          {% for rule in rules %}<li>{{ rule }}</li>{% endfor %}
+          <li>Authors, venue and affiliations are never sent: the request can only use the data listed in Placeholders.</li>
           {% if inclusion %}
             <li>Each criterion is a yes/no question asked twice in the same request, with what a yes and a no mean in both orders, and the two probabilities averaged, in case that order sways the model.</li>
             <li>Every study screened gets the reviewer's decision: accepted, or unclassified (undecided) when the title and abstract do not show that it meets every criterion. Nothing is rejected.</li>

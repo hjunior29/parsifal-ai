@@ -219,7 +219,8 @@ reviewed (Akita, 2026-10-03).
 **Decision.**
 - Web first: *Exclude with AI* on the study selection page opens a window
   prefilled from the review; the context fields are editable per run, the
-  exclusion criteria, the task, the rules and the study fields are not.
+  exclusion criteria, the task, the rules and the study fields are not (the
+  request became an editable template on 2026-10-20, see below).
 - One reviewer (Jev), no second model. Per study, title + keywords + abstract
   only; one `choice` question (criteria + `none`) asked in three rotated
   orders in the same request and averaged. Reject when
@@ -349,3 +350,35 @@ the API (`articles_star`, `articles_unstar`, `starred` filter on
 **Consequences.** Migration `reviews.0047`. The study rows are rendered by one
 template (`partial_conducting_article_row.html`) for the list and after a
 save, and status updates in the page target the status cell only.
+
+## AI screening: the request to Jev is an editable template
+
+**Context.** Testing prompts in Jev's playground, Helder found wordings that
+fit his review better than Parsifal's fixed task and rules (the review context
+in the state instead of in every question, no keywords, the criteria alone as
+options). He wants to change the text around the data from the window, while
+the data themselves — criteria, review title, objective, research questions,
+PICOC, the study — keep coming from the review and the fields above.
+
+**Decision.** Each phase has a request template (`services/screening_requests.py`),
+a JSON object with `state` and `question`, shown at the end of the *Exclude/
+Include with AI* window and editable as text. The data are placeholders
+(`{{review}}`, `{{review.<field>}}`, `{{guidance}}`, `{{study}}`,
+`{{study.<field>}}`, `{{key}}`, `{{criterion}}`) filled in by Parsifal; a whole
+placeholder with an empty value is left out, as empty context fields always
+were. The structure is the reviewer's too, except what Parsifal reads the
+answers by: the question's `type`, and its `criteria` (exclusion: one
+`{{key}}` entry, repeated per criterion, plus `none`; inclusion: `true` and
+`false`). Parsifal keeps repeating the question per order and per criterion.
+A template that breaks this is refused before anything is sent. The default
+template reproduces the previous request exactly. A new run starts from the
+template of the review's last run of the same phase, so two reviewers are
+asked the same way; each run stores it in `parameters.template`. A preview
+(web, `ai_screening_preview` in the API, CLI, MCP) shows the body sent about
+one study without sending it, with buttons to copy `state` and `questions`
+for the playground.
+
+**Consequences.** No migration: the template lives in the run's parameters,
+and runs from before it existed use the default. The setup operation returns
+`template`, `template_default` and `placeholders` instead of `task`, `rules`,
+`none_description` and `sent_fields`.

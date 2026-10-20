@@ -56,6 +56,11 @@ class ScreeningReviewerOut(Schema):
     is_agent: bool
 
 
+class ScreeningPlaceholderOut(Schema):
+    name: str  # written {{name}} in a request template
+    description: str
+
+
 class ScreeningContextOut(Schema):
     title: str
     objective: str
@@ -99,11 +104,12 @@ class ScreeningSetupOut(Schema):
     unfinished_run_active: bool  # a step ran in the last seconds: something is driving it right now
     context: ScreeningContextOut  # defaults taken from the review; editable per run
     criteria: list[ScreeningOptionOut]  # fixed: the review's criteria of the phase
-    none_description: str  # exclusion: the "none" option
     question_type: str  # Jev question: "choice" (exclusion: one for all criteria) or "noul" (inclusion: yes/no each)
-    task: str
-    rules: list[str]
-    sent_fields: list[str]
+    # The request sent about each study, editable around the {{placeholders}}: the review's last run of the phase
+    # used ``template`` (sent when a run leaves it out); ``template_default`` is Parsifal's.
+    template: dict
+    template_default: dict
+    placeholders: list[ScreeningPlaceholderOut]
     threshold_default: float
     threshold_min: float
     threshold_max: float
@@ -114,7 +120,7 @@ class ScreeningSetupOut(Schema):
     step_size_max: int
 
 
-class ScreeningStartIn(Schema):
+class ScreeningSettingsIn(Schema):
     # Review context: fields left out take the review's values; "" sends the field empty.
     title: str | None = None
     objective: str | None = None
@@ -124,14 +130,30 @@ class ScreeningStartIn(Schema):
     comparison: str | None = None
     outcome: str | None = None
     context: str | None = None
-    reviewer_id: int  # the decisions are recorded as this member of the review
     phase: str = "exclusion"  # exclusion (Exclude with AI) or inclusion (Include with AI)
     model: str | None = None  # default: your default model
     guidance: str = ""
-    # Default 0.9. Exclusion: reject when 1 - p(none) is at least this; inclusion: accept when every p(meets) is.
-    threshold: float | None = None
+    # The request sent about each study (an object or its JSON text), as the setup's ``template``: edit the text
+    # around the {{placeholders}}. Default: the template of the review's last run of the phase, else Parsifal's.
+    template: dict | str | None = None
     source_id: int | None = None
     statuses: list[str] | None = None  # studies sent: any of U, R, A, D (default R and U; inclusion: A and U)
+
+
+class ScreeningStartIn(ScreeningSettingsIn):
+    reviewer_id: int  # the decisions are recorded as this member of the review
+    # Default 0.9. Exclusion: reject when 1 - p(none) is at least this; inclusion: accept when every p(meets) is.
+    threshold: float | None = None
+
+
+class ScreeningPreviewIn(ScreeningSettingsIn):
+    article_id: int | None = None  # this study; default: the first one in scope with a title or abstract
+
+
+class ScreeningPreviewOut(Schema):
+    article_id: int
+    title: str | None
+    request: dict  # the body of POST /v1/systemone: model, state and questions
 
 
 class ScreeningStepIn(Schema):
@@ -139,7 +161,8 @@ class ScreeningStepIn(Schema):
 
 
 class ScreeningRunDetailOut(ScreeningRunOut):
-    parameters: dict  # snapshot of what was sent: context, guidance, criteria, threshold, source and statuses
+    # Snapshot of what was sent: context, guidance, criteria, request template, threshold, source and statuses.
+    parameters: dict
 
 
 class ScreeningResultOut(Schema):

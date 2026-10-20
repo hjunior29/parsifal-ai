@@ -182,7 +182,9 @@ group and marks the rest `D`.
   exclusion/inclusion, model, parameters JSON, status running (also while interrupted)/finished/cancelled (discarded by a newer run)/failed
   (older runs only), total, error (why it waits), last_step_at (a step in the last 30 s means it is being driven),
   created_at, finished_at)`. `parameters` is the snapshot of what was sent:
-  context, guidance, criteria (`key`, `id`, `description`), `threshold`, scope. (Inclusion runs made before Include
+  context, guidance, criteria (`key`, `id`, `description`), `template` (the request template sent about each study,
+  see `services/screening_requests.py`; runs from before it was editable have none and used the default), `threshold`,
+  scope. (Inclusion runs made before Include
   with AI stopped rejecting kept `accept_threshold` and `reject_threshold` instead.)
 - `ScreeningResult(run CASCADE, article CASCADE, previous_status (the study's status when the run took it; the run
   only changes the study if it still has it), outcome pending/excluded/passed (exclusion)/included/undecided

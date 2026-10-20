@@ -40,6 +40,7 @@ from parsifal.apps.reviews.services import (
     full_texts,
     quality,
     reports,
+    screening_requests,
     studies,
 )
 
@@ -823,7 +824,6 @@ def ai_screening(request):
         phase = ai_screening_service.clean_phase(request.GET.get("phase"))
     except DomainError as error:
         return HttpResponseBadRequest(str(error))
-    task, rules = ai_screening_service.task_and_rules(phase)
     integration = integrations.get_jev(request.user)
     defaults = ai_screening_service.default_context(review)
     agent_ids = ai_screening_service.agent_ids(review)
@@ -871,9 +871,9 @@ def ai_screening(request):
         ],
         # Studies per source and status: the page adds up the checked statuses of the chosen source.
         "counts": ai_screening_service.scope_counts(review),
-        "task": task,
-        "rules": rules,
-        "none_description": ai_screening_service.NONE_DESCRIPTION,
+        "template": screening_requests.as_text(ai_screening_service.current_template(review, phase)),
+        "template_default": screening_requests.as_text(screening_requests.default(phase)),
+        "placeholders": screening_requests.PLACEHOLDERS,
     }
     return render(request, "conducting/partial_conducting_ai_screening.html", context)
 
@@ -882,28 +882,58 @@ def _ai_screening_error(error):
     return JsonResponse({"error": str(error)}, status=400)
 
 
+def _ai_screening_settings(request):
+    """The settings of the window's form shared by a run and its preview."""
+    return {
+        "phase": request.POST.get("phase"),
+        "model": request.POST.get("model"),
+        "context": {
+            name: request.POST.get(f"context-{name}", "") for name, _, _ in ai_screening_service.CONTEXT_FIELDS
+        },
+        "guidance": request.POST.get("guidance", ""),
+        "template": request.POST.get("template"),
+        "source_id": request.POST.get("source-id") or None,
+        "statuses": request.POST.getlist("statuses"),
+    }
+
+
 @author_required
 @login_required
 @require_POST
 def ai_screening_start(request):
     review = get_object_or_404(Review, pk=request.POST.get("review-id"))
-    context = {name: request.POST.get(f"context-{name}", "") for name, _, _ in ai_screening_service.CONTEXT_FIELDS}
     try:
         run = ai_screening_service.start_run(
             review=review,
             actor=request.user,
             reviewer_id=request.POST.get("reviewer-id"),
-            model=request.POST.get("model"),
-            context=context,
-            guidance=request.POST.get("guidance", ""),
             threshold=request.POST.get("threshold"),
-            source_id=request.POST.get("source-id") or None,
-            statuses=request.POST.getlist("statuses"),
-            phase=request.POST.get("phase"),
+            **_ai_screening_settings(request),
         )
     except DomainError as error:
         return _ai_screening_error(error)
     return JsonResponse({"run": ai_screening_service.progress(run)})
+
+
+@author_required
+@login_required
+@require_POST
+def ai_screening_preview(request):
+    """What a run with the window's settings would send to Jev about the first study in scope (nothing is sent)."""
+    review = get_object_or_404(Review, pk=request.POST.get("review-id"))
+    try:
+        preview = ai_screening_service.preview(
+            review=review,
+            actor=request.user,
+            article_id=request.POST.get("article-id") or None,
+            **_ai_screening_settings(request),
+        )
+    except DomainError as error:
+        return _ai_screening_error(error)
+    article = preview["article"]
+    return JsonResponse(
+        {"article": {"id": article.pk, "title": article.title or article.bibtex_key}, "request": preview["request"]}
+    )
 
 
 @author_required

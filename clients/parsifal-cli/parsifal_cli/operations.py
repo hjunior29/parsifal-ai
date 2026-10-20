@@ -156,6 +156,33 @@ DOCUMENT_FIELDS = tuple(
     )
 )
 
+# What shapes the request an AI screening run sends to Jev about each study (start and preview).
+AI_SCREENING_REQUEST = (
+    B("title", help="Review title sent as context (default: the review's)."),
+    B("objective", TEXT),
+    B("research_questions", TEXT, help="One question per line."),
+    B("population"),
+    B("intervention"),
+    B("comparison"),
+    B("outcome"),
+    B("context"),
+    B("guidance", TEXT, help="Definitions or borderline cases that help apply the criteria."),
+    B(
+        "template",
+        TEXT,
+        help="The request sent about each study, as JSON (start from setup's template): edit the text around the "
+        "{{placeholders}}, which Parsifal fills in. Default: the review's last run of the phase, else Parsifal's.",
+    ),
+    B("source_id", INT, help="Only this source (default: all)."),
+    B(
+        "statuses",
+        LIST_STR,
+        help="Send the studies with these statuses: U, R, A, D (repeat; default R and U, inclusion A and U). "
+        "Only U and the reviewer's own classifications change status.",
+    ),
+    B("model", help="Jev model for this run (default: your default model)."),
+)
+
 OPERATIONS = (
     # Account --------------------------------------------------------------------------------------------------------
     Operation("me", "GET", "/me", (), "me", "Show the authenticated user."),
@@ -1481,7 +1508,7 @@ OPERATIONS = (
         "/reviews/{review_id}/ai-screening",
         ("ai-screening",),
         "setup",
-        "What a run would send (context, criteria, Jev's models, reviewers, studies per status), any unfinished run.",
+        "What a run would send (context, criteria, request template, Jev's models, reviewers, studies per status).",
         (REVIEW, Q("phase", help="exclusion (default) or inclusion.")),
     ),
     Operation(
@@ -1498,30 +1525,28 @@ OPERATIONS = (
                 help="exclusion (default): reject when one exclusion criterion applies; inclusion: accept when every "
                 "inclusion criterion is met, otherwise leave unclassified (it never rejects).",
             ),
-            B("title", help="Review title sent as context (default: the review's)."),
-            B("objective", TEXT),
-            B("research_questions", TEXT, help="One question per line."),
-            B("population"),
-            B("intervention"),
-            B("comparison"),
-            B("outcome"),
-            B("context"),
-            B("guidance", TEXT, help="Definitions or borderline cases that help apply the criteria."),
+            *AI_SCREENING_REQUEST,
             B(
                 "threshold",
                 FLOAT,
                 help="0.5–0.99, default 0.9. Exclusion: reject when 1 - p(none) is at least this; inclusion: accept "
                 "when p(meets) of every criterion is at least this.",
             ),
-            B("source_id", INT, help="Only this source (default: all)."),
-            B(
-                "statuses",
-                LIST_STR,
-                help="Send the studies with these statuses: U, R, A, D (repeat; default R and U, inclusion A and U). "
-                "Only U and the reviewer's own classifications change status.",
-            ),
             B("reviewer_id", INT, True, "Member of the review the decisions are recorded as (see setup)."),
-            B("model", help="Jev model for this run (default: your default model)."),
+        ),
+    ),
+    Operation(
+        "ai_screening_preview",
+        "POST",
+        "/reviews/{review_id}/ai-screening/preview",
+        ("ai-screening",),
+        "preview",
+        "The request a run would send to Jev about one study (model, state, questions); nothing is sent.",
+        (
+            REVIEW,
+            B("phase", help="exclusion (default) or inclusion."),
+            *AI_SCREENING_REQUEST,
+            B("article_id", INT, help="This study (default: the first one in scope with a title or abstract)."),
         ),
     ),
     Operation(

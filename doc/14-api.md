@@ -156,8 +156,9 @@ with the criterion as reason; the human reviewer records theirs; both check
 | Method & path | operationId |
 |---------------|-------------|
 | `GET /integrations/jev` · `PUT {api_key?, model?}` · `POST /integrations/jev/test {api_key?}` · `DELETE` | `jev_integration_get` · `jev_integration_set` · `jev_integration_test` · `jev_integration_delete` — the caller's own key (Settings → Integrations); never returned, only `masked_key`. A blank value keeps the saved one. `test` lists Jev's models for the saved key, or for `api_key` without saving it (what Settings uses while you type), and answers 422 if Jev rejects the key, 502 if Jev fails |
-| `GET /reviews/{rid}/ai-screening?phase=exclusion|inclusion` | `ai_screening_setup` — review context defaults, the criteria of the phase (exclusion: `E1…` + `none`; inclusion: `I1…`, one yes/no question each; `question_type` `choice` or `noul`), task, rules, threshold range, Jev's models for your key (asked now), who you may screen as, the statuses a run may send (`statuses`, `statuses_default` = R and U, or A and U for inclusion), studies per scope with `by_status`, and `unfinished_run` (a run left half-way) with `unfinished_run_active` (driven right now elsewhere) |
-| `POST /reviews/{rid}/ai-screening/runs {reviewer_id, phase?, model?, title?, objective?, research_questions?, population?, intervention?, comparison?, outcome?, context?, guidance?, threshold?, source_id?, statuses?}` | `ai_screening_start` (201) — decisions recorded as `reviewer_id` (only the main author may name another member); `model` defaults to yours; `threshold` 0.5–0.99, default 0.9 (exclusion: to reject; inclusion: to accept); context fields left out take the review's values; `statuses` (any of U, R, A, D; default R and U, or A and U for inclusion) picks the studies sent; `phase` is `exclusion` (default) or `inclusion` |
+| `GET /reviews/{rid}/ai-screening?phase=exclusion|inclusion` | `ai_screening_setup` — review context defaults, the criteria of the phase (exclusion: `E1…` + `none`; inclusion: `I1…`, one yes/no question each; `question_type` `choice` or `noul`), the request template sent about each study (`template`, the one the review's last run of the phase used; `template_default`; `placeholders`), threshold range, Jev's models for your key (asked now), who you may screen as, the statuses a run may send (`statuses`, `statuses_default` = R and U, or A and U for inclusion), studies per scope with `by_status`, and `unfinished_run` (a run left half-way) with `unfinished_run_active` (driven right now elsewhere) |
+| `POST /reviews/{rid}/ai-screening/runs {reviewer_id, phase?, model?, title?, objective?, research_questions?, population?, intervention?, comparison?, outcome?, context?, guidance?, template?, threshold?, source_id?, statuses?}` | `ai_screening_start` (201) — decisions recorded as `reviewer_id` (only the main author may name another member); `model` defaults to yours; `threshold` 0.5–0.99, default 0.9 (exclusion: to reject; inclusion: to accept); context fields left out take the review's values; `statuses` (any of U, R, A, D; default R and U, or A and U for inclusion) picks the studies sent; `phase` is `exclusion` (default) or `inclusion`; `template` (an object or its JSON text) is the request sent about each study, edited around its `{{placeholders}}` (default: the review's last run of the phase, else Parsifal's) |
+| `POST /reviews/{rid}/ai-screening/preview {phase?, model?, <context fields>?, guidance?, template?, source_id?, statuses?, article_id?}` | `ai_screening_preview` — the body a run with these settings would send to Jev (`model`, `state`, `questions`) about `article_id` or the first study in scope with a title or abstract; nothing is sent |
 | `POST /reviews/{rid}/ai-screening/runs/{id}/step {size?}` | `ai_screening_step` — screens the next 1–50 studies (default 8) with the caller's key; returns `{run, results[]}` |
 | `GET /reviews/{rid}/ai-screening/runs` · `GET /runs/{id}` · `GET /runs/{id}/results?outcome=` (paginated) | `ai_screening_runs_list` · `ai_screening_runs_get` (with the parameters snapshot) · `ai_screening_results` (probabilities, `p_exclude`, `p_include`, criterion, errors; `outcome` excluded, passed, included, undecided, error, pending) |
 
@@ -174,6 +175,17 @@ status follows only when it was unclassified (rejected, or stays unclassified)
 or rejected by this same reviewer (new criterion, or back to unclassified);
 accepted studies, duplicates and studies rejected by someone else keep theirs,
 so two reviewers can screen the same studies and be compared.
+
+What is sent about each study is the run's request template
+(`services/screening_requests.py`): a JSON object with `state` (what Jev reads)
+and `question` (what it is asked), where `{{review}}`, `{{review.title}}`…,
+`{{guidance}}`, `{{study}}`, `{{study.title}}`, `{{study.keywords}}`,
+`{{study.abstract}}`, `{{key}}` and `{{criterion}}` are filled in by Parsifal and
+everything else is the reviewer's to word. The question keeps its `type`, and
+its `criteria` keep the keys Parsifal reads the answers by (exclusion: one
+`{{key}}` entry, repeated per criterion, and `none`; inclusion: `true` and
+`false`); Parsifal still repeats it per order and per criterion. Runs store it
+in `parameters.template`.
 
 An inclusion run asks one yes/no question (Jev's `noul`) per inclusion
 criterion, in both orders of its yes and no descriptions, and keeps the

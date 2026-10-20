@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 from unittest import mock
 
@@ -9,7 +10,7 @@ from parsifal.apps.authentication.tests.factories import UserFactory
 from parsifal.apps.core import jev
 from parsifal.apps.core.exceptions import NotFound, PermissionDenied, UpstreamError, ValidationError
 from parsifal.apps.reviews.models import Article, ScreeningResult, ScreeningRun, SelectionCriteria, StudyDecision
-from parsifal.apps.reviews.services import agents, ai_screening, decisions
+from parsifal.apps.reviews.services import agents, ai_screening, decisions, screening_requests
 from parsifal.apps.reviews.tests.factories import ArticleFactory, QuestionFactory, ReviewFactory, SourceFactory
 
 MODELS = [
@@ -100,33 +101,25 @@ class TestRequest(AiScreeningTestCase):
             ai_screening.exclusion_options(self.review),
         )
 
-    def test_three_orders_of_the_same_choice_question(self):
+    def test_the_default_request_of_the_review(self):
         options = ai_screening.exclusion_options(self.review)
         context = ai_screening.default_context(self.review)
-        questions = ai_screening.questions(options, context, guidance="")
+        study = {"title": "T", "abstract": "A"}
+        state, questions = ai_screening.build_request(
+            "exclusion", screening_requests.default("exclusion"), options, context, "", study
+        )
+        self.assertEqual(study, state)
         self.assertEqual(["exclusion_1", "exclusion_2", "exclusion_3"], list(questions))
-        orders = [list(question["criteria"]) for question in questions.values()]
-        self.assertEqual([["E1", "E2", "none"], ["E2", "none", "E1"], ["none", "E1", "E2"]], orders)
         first = questions["exclusion_1"]
-        self.assertEqual("choice", first["type"])
-        self.assertEqual("Not in English", first["criteria"]["E2"])
-        self.assertEqual(ai_screening.NONE_DESCRIPTION, first["criteria"]["none"])
+        self.assertEqual(
+            {"E1": "Not a primary study", "E2": "Not in English"}, {k: first["criteria"][k] for k in ("E1", "E2")}
+        )
         self.assertEqual(
             ["RQ1: Which tools exist?", "RQ2: How are they evaluated?"],
             first["instructions"]["review"]["research_questions"],
         )
         self.assertNotIn("comparison", first["instructions"]["review"])  # empty fields are left out
         self.assertNotIn("guidance", first["instructions"])
-        self.assertEqual(list(ai_screening.RULES), first["instructions"]["rules"])
-        with_guidance = ai_screening.questions(options, context, guidance="Tertiary studies count as secondary.")
-        self.assertEqual(
-            "Tertiary studies count as secondary.", with_guidance["exclusion_1"]["instructions"]["guidance"]
-        )
-
-    def test_a_single_criterion_gives_two_orders(self):
-        options = [{"key": "E1", "id": 1, "description": "x"}]
-        self.assertEqual([["E1", "none"], ["none", "E1"]], ai_screening._orders(options))
-        self.assertEqual(["exclusion_1", "exclusion_2"], ai_screening.question_ids(options))
 
     def test_state_sends_title_keywords_and_abstract_only(self):
         article = self.article(
@@ -541,6 +534,117 @@ class TestScope(AiScreeningTestCase):
         self.assertEqual((Article.REJECTED, None), (article.status, article.updated_by))
 
 
+# Exclusion with the review in the state, no keywords and the criteria alone as options.
+EDITED = {
+    "state": {"review": "{{review}}", "study": {"title": "{{study.title}}", "abstract": "{{study.abstract}}"}},
+    "question": {
+        "type": "choice",
+        "instructions": {"task": "Which exclusion criterion do the title and abstract indicate?"},
+        "criteria": {"{{key}}": "{{criterion}}", "none": "No exclusion criterion applies to the study."},
+    },
+}
+
+
+class TestRequestTemplate(AiScreeningTestCase):
+    def test_a_run_keeps_its_template_and_the_next_run_starts_from_it(self):
+        self.article()
+        self.assertEqual(
+            screening_requests.default("exclusion"), ai_screening.current_template(self.review, "exclusion")
+        )
+        run = self.start(template=json.dumps(EDITED))
+        self.assertEqual(EDITED, run.parameters["template"])
+        self.assertEqual(EDITED, ai_screening.current_template(self.review, "exclusion"))
+        self.assertEqual(
+            screening_requests.default("inclusion"), ai_screening.current_template(self.review, "inclusion")
+        )
+        self.assertEqual(EDITED, self.start().parameters["template"])  # left out: the last run's
+        self.assertEqual(screening_requests.default("exclusion"), self.start(template="").parameters["template"])
+        runs = ScreeningRun.objects.count()
+        with self.assertRaisesMessage(ValidationError, "not valid JSON"):
+            self.start(template="{")
+        self.assertEqual(runs, ScreeningRun.objects.count())
+
+    def test_each_study_is_sent_as_the_template_says(self):
+        self.article(title="A tool", keywords="screening", abstract="We built it.")
+        run = self.start(template=EDITED)
+        _results, evaluate = self.step(run, [KEEP])
+        sent = evaluate.call_args.kwargs
+        self.assertEqual({"title": "A tool", "abstract": "We built it."}, sent["state"]["study"])
+        self.assertEqual("Find studies about screening automation.", sent["state"]["review"]["objective"])
+        self.assertEqual(["exclusion_1", "exclusion_2", "exclusion_3"], list(sent["questions"]))
+        self.assertEqual(
+            {
+                "E1": "Not a primary study",
+                "E2": "Not in English",
+                "none": "No exclusion criterion applies to the study.",
+            },
+            sent["questions"]["exclusion_1"]["criteria"],
+        )
+        self.assertEqual(EDITED["question"]["instructions"], sent["questions"]["exclusion_1"]["instructions"])
+        self.assertEqual("passed", run.results.get().outcome)
+
+    def test_a_run_from_before_templates_uses_the_default(self):
+        self.article(title="A tool")
+        run = self.start()
+        del run.parameters["template"]
+        run.save(update_fields=["parameters"])
+        _results, evaluate = self.step(run, [KEEP])
+        default = screening_requests.default("exclusion")
+        sent = evaluate.call_args.kwargs
+        self.assertEqual({"title": "A tool", "abstract": "An abstract."}, sent["state"])
+        self.assertEqual(
+            default["question"]["instructions"]["task"], sent["questions"]["exclusion_1"]["instructions"]["task"]
+        )
+
+    def test_preview_sends_nothing(self):
+        nothing = self.article(title="", abstract="")
+        first = self.article(title="First", keywords="k")
+        self.article(title="Second")
+        accepted = self.article(title="Accepted", status=Article.ACCEPTED)
+        with mock.patch.object(jev, "evaluate") as evaluate:
+            preview = ai_screening.preview(review=self.review, actor=self.owner)
+            evaluate.assert_not_called()
+        self.assertEqual(first, preview["article"])  # the first one in scope with something to read
+        self.assertEqual("jev-1.13.0", preview["request"]["model"])
+        self.assertEqual({"title": "First", "keywords": "k", "abstract": "An abstract."}, preview["request"]["state"])
+        self.assertEqual(["exclusion_1", "exclusion_2", "exclusion_3"], list(preview["request"]["questions"]))
+
+        with self.subTest(msg="the settings of the window"):
+            preview = ai_screening.preview(
+                review=self.review,
+                actor=self.owner,
+                template=EDITED,
+                model="jev-1.14.0",
+                context={"objective": "Edited"},
+                statuses=["A"],
+            )
+            self.assertEqual(accepted, preview["article"])
+            self.assertEqual(
+                ("jev-1.14.0", "Edited"),
+                (preview["request"]["model"], preview["request"]["state"]["review"]["objective"]),
+            )
+
+        with self.subTest(msg="one study"):
+            preview = ai_screening.preview(
+                review=self.review, actor=self.owner, article_id=accepted.pk, phase="inclusion"
+            )
+            self.assertEqual(["inclusion_i1_1", "inclusion_i1_2"], list(preview["request"]["questions"]))
+            with self.assertRaisesMessage(ValidationError, "no title or abstract"):
+                ai_screening.preview(review=self.review, actor=self.owner, article_id=nothing.pk)
+            with self.assertRaises(NotFound):
+                ai_screening.preview(review=self.review, actor=self.owner, article_id=ArticleFactory().pk)
+
+        with self.subTest(msg="without a Jev key: the default model"):
+            preview = ai_screening.preview(review=self.review, actor=self.bot)
+            self.assertEqual(jev.DEFAULT_MODEL, preview["request"]["model"])
+
+        with self.assertRaisesMessage(ValidationError, "no studies with a title or abstract"):
+            ai_screening.preview(review=self.review, actor=self.owner, statuses=["D"])
+        with self.assertRaisesMessage(ValidationError, "must send the study"):
+            ai_screening.preview(review=self.review, actor=self.owner, template={**EDITED, "state": {}})
+        self.assertFalse(ScreeningRun.objects.exists())
+
+
 def yes_no(probabilities_by_question, model="jev-1.13.0"):
     return {
         "model": model,
@@ -582,26 +686,17 @@ class TestInclusion(AiScreeningTestCase):
             ],
             options,
         )
-        questions = ai_screening.inclusion_questions(options, ai_screening.default_context(self.review), "Be strict.")
+        _state, questions = ai_screening.build_request(
+            "inclusion",
+            screening_requests.default("inclusion"),
+            options,
+            ai_screening.default_context(self.review),
+            "Be strict.",
+            {"title": "T"},
+        )
         self.assertEqual(["inclusion_i1_1", "inclusion_i1_2", "inclusion_i2_1", "inclusion_i2_2"], list(questions))
-        self.assertEqual(
-            [["true", "false"], ["false", "true"]],
-            [list(questions[f"inclusion_i2_{order}"]["criteria"]) for order in (1, 2)],
-        )
-        question = questions["inclusion_i2_1"]
-        self.assertEqual("noul", question["type"])
-        self.assertEqual(
-            {
-                "true": "The study meets the inclusion criterion: Implemented tool",
-                "false": "The study does not meet the inclusion criterion: Implemented tool",
-            },
-            question["criteria"],
-        )
-        body = question["instructions"]
-        self.assertEqual(
-            ("I2: Implemented tool", ai_screening.INCLUSION_TASK, list(ai_screening.INCLUSION_RULES), "Be strict."),
-            (body["criterion"], body["task"], body["rules"], body["guidance"]),
-        )
+        body = questions["inclusion_i2_1"]["instructions"]
+        self.assertEqual(("I2: Implemented tool", "Be strict."), (body["criterion"], body["guidance"]))
         self.assertEqual("Find studies about screening automation.", body["review"]["objective"])
 
     def test_combine_averages_the_orders_and_takes_the_weakest_criterion(self):

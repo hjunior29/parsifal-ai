@@ -4,7 +4,7 @@ from parsifal.api.tests.base import ApiTestCase
 from parsifal.apps.accounts.models import Integration
 from parsifal.apps.core import jev
 from parsifal.apps.reviews.models import Article, SelectionCriteria, StudyDecision
-from parsifal.apps.reviews.services import ai_screening
+from parsifal.apps.reviews.services import ai_screening, screening_requests
 from parsifal.apps.reviews.tests.factories import ArticleFactory
 
 KEY = "fake-jev-key-0123456789abcdef"
@@ -99,7 +99,10 @@ class TestAiScreeningApi(AiScreeningApiBase):
         self.assertEqual(
             [{"key": "E1", "id": self.criteria.pk, "description": "Not a primary study"}], body["criteria"]
         )
-        self.assertEqual(["title", "keywords", "abstract"], body["sent_fields"])
+        self.assertEqual("choice", body["question_type"])
+        default = screening_requests.default("exclusion")
+        self.assertEqual((default, default), (body["template"], body["template_default"]))
+        self.assertIn({"name": "study.abstract", "description": "The study's abstract."}, body["placeholders"])
         self.assertEqual(
             (0.9, 0.5, 0.99, 8, 50),
             tuple(
@@ -258,6 +261,47 @@ class TestAiScreeningApi(AiScreeningApiBase):
         )
 
 
+class TestRequestTemplateApi(AiScreeningApiBase):
+    def test_preview_and_start_with_a_template(self):
+        preview = self.review_path("/ai-screening/preview")
+        response = self.api("post", preview, {})
+        self.assertEqual(200, response.status_code, response.content)
+        body = response.json()
+        self.assertEqual((self.secondary.pk, "A survey"), (body["article_id"], body["title"]))
+        self.assertEqual("jev-1.13.0", body["request"]["model"])
+        self.assertEqual({"title": "A survey", "abstract": "x"}, body["request"]["state"])
+        self.assertEqual("Not a primary study", body["request"]["questions"]["exclusion_1"]["criteria"]["E1"])
+
+        edited = screening_requests.default("exclusion")
+        edited["state"] = {"study": "{{study}}", "review": "{{review}}"}
+        body = self.api("post", preview, {"template": edited, "article_id": self.primary.pk}).json()
+        self.assertEqual(
+            {
+                "study": {"title": "An experiment", "abstract": "y"},
+                "review": {"title": self.review.title, "objective": "Find screening tools."},
+            },
+            body["request"]["state"],
+        )
+        self.assertEqual("An experiment", body["title"])
+
+        start = self.review_path("/ai-screening/runs")
+        response = self.api("post", start, {"reviewer_id": self.author.pk, "template": edited})
+        self.assertEqual(201, response.status_code, response.content)
+        self.assertEqual(edited, response.json()["parameters"]["template"])
+        self.assertEqual(edited, self.api("get", self.review_path("/ai-screening")).json()["template"])
+        response = self.api(
+            "post", start, {"reviewer_id": self.author.pk, "template": screening_requests.as_text(edited)}
+        )
+        self.assertEqual(201, response.status_code, response.content)
+
+        refused = self.api("post", start, {"reviewer_id": self.author.pk, "template": {"state": {}, "question": {}}})
+        self.assertEqual((422, "template"), (refused.status_code, refused.json()["field"]))
+        self.assertIn('keep "type": "choice"', refused.json()["detail"])
+        refused = self.api("post", preview, {"template": "{"})
+        self.assertEqual((422, "template"), (refused.status_code, refused.json()["field"]))
+        self.assertEqual(404, self.api("post", preview, {}, client=self.client_for(self.outsider)).status_code)
+
+
 def inclusion_answer(meets, model="jev-1.13.0"):
     return {"model": model, "answers": {f"inclusion_i1_{n}": {"type": "noul", "noul": meets} for n in (1, 2)}}
 
@@ -274,10 +318,10 @@ class TestIncludeWithAiApi(AiScreeningApiBase):
         body = self.api("get", self.review_path("/ai-screening"), QUERY_STRING="phase=inclusion").json()
         self.assertEqual("inclusion", body["phase"])
         self.assertEqual([{"key": "I1", "id": self.inclusion.pk, "description": "Implemented tool"}], body["criteria"])
-        self.assertEqual(("noul", ""), (body["question_type"], body["none_description"]))
+        self.assertEqual("noul", body["question_type"])
         self.assertEqual((0.5, 0.99), (body["threshold_min"], body["threshold_max"]))
         self.assertNotIn("reject_threshold_min", body)
-        self.assertIn("inclusion", body["task"])
+        self.assertEqual(screening_requests.default("inclusion"), body["template"])
         self.assertEqual(["A", "U"], body["statuses_default"])
         self.assertEqual(2, body["scopes"][0]["studies"])
         exclusion = self.api("get", self.review_path("/ai-screening")).json()

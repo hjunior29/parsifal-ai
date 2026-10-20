@@ -17,6 +17,11 @@ study is unclassified, or was rejected (exclusion) or accepted (inclusion) by th
 studies classified by someone else keep their status, and so do accepted studies in an exclusion run and rejected
 studies in an inclusion run.
 
+What is sent for each study is a template the reviewer can edit around the data (``screening_requests``): the review
+context, the criteria and the study are filled in by Parsifal; the rest (task, rules, how the answers are worded,
+where each part goes) is the template's, kept in the run's parameters. A new run starts from the template of the
+review's last run of the same phase, so a second reviewer is asked the same way as the first.
+
 Every question is asked in several orders of its options within the same request (Jev tends to favour the first
 option when unsure) and the answers are averaged.
 
@@ -57,8 +62,8 @@ from parsifal.apps.accounts import services as integrations
 from parsifal.apps.core import jev
 from parsifal.apps.core.exceptions import NotFound, PermissionDenied, ValidationError
 from parsifal.apps.reviews.models import Article, ReviewAgent, ScreeningResult, ScreeningRun, StudyDecision
-from parsifal.apps.reviews.services import decisions
-from parsifal.apps.reviews.services._common import check_length
+from parsifal.apps.reviews.services import decisions, screening_requests
+from parsifal.apps.reviews.services._common import check_length, get_child
 
 DEFAULT_THRESHOLD = 0.9
 MIN_THRESHOLD = 0.5
@@ -67,8 +72,8 @@ STEP_SIZE = 8  # studies per step; one request each
 ACTIVE_FOR = 30  # seconds: a running run with a step this recent is being driven somewhere
 MAX_STEP_SIZE = 50
 WORKERS = 4  # concurrent requests to Jev within a step
-ORDERS = 3  # option orders of the exclusion question asked per study
-NONE = "none"
+NONE = screening_requests.NONE
+INCLUSION_QUESTION = screening_requests.NOUL  # Jev's yes/no question: the answer is the probability of yes
 
 # Review context sent with every study; editable before a run, defaults taken from the review.
 CONTEXT_FIELDS = (
@@ -85,36 +90,6 @@ GUIDANCE_LENGTH = 2000
 
 EXCLUSION, INCLUSION = ScreeningRun.EXCLUSION, ScreeningRun.INCLUSION
 LABELS = {EXCLUSION: "Exclude with AI", INCLUSION: "Include with AI"}
-
-# Fixed parts of the request: these define the method and are not editable.
-TASK = (
-    "Screening for a systematic review, phase 1 (exclusion only), from the title, keywords and abstract of a study: "
-    "which exclusion criterion does the study meet?"
-)
-RULES = (
-    "Choose a criterion only if the title, keywords or abstract explicitly support it.",
-    "If several criteria apply, choose the one most clearly supported.",
-    "If no criterion applies, or the title, keywords and abstract do not give enough information to decide, "
-    "choose none.",
-)
-NONE_DESCRIPTION = (
-    "No exclusion criterion is clearly supported by the title, keywords or abstract, or they do not give enough "
-    "information to decide."
-)
-INCLUSION_TASK = (
-    "Screening for a systematic review, phase 2 (inclusion), from the title, keywords and abstract of a study: does "
-    "the study meet this inclusion criterion?"
-)
-INCLUSION_RULES = (
-    "Answer yes only if the title, keywords or abstract explicitly support that the study meets the criterion.",
-    "Answer no only if the title, keywords or abstract explicitly show that the study does not meet it.",
-    "Missing information is not a no: if the title, keywords and abstract do not give enough information to decide, "
-    "the answer is uncertain.",
-)
-INCLUSION_QUESTION = "noul"  # Jev's yes/no question: the answer is the probability of yes
-YES, NO = "true", "false"  # keys of a yes/no question's descriptions
-INCLUSION_ORDERS = ((YES, NO), (NO, YES))
-SENT_FIELDS = ("title", "keywords", "abstract")
 
 # Statuses of the studies a run may send, in the order the window lists them.
 STATUSES = (
@@ -205,16 +180,13 @@ def criteria_options(review, phase):
     return inclusion_options(review) if phase == INCLUSION else exclusion_options(review)
 
 
-def task_and_rules(phase):
-    return (INCLUSION_TASK, INCLUSION_RULES) if phase == INCLUSION else (TASK, RULES)
-
-
-def answer_descriptions(option):
-    """What a yes and a no mean in an inclusion criterion's question."""
-    return {
-        YES: f"The study meets the inclusion criterion: {option['description']}",
-        NO: f"The study does not meet the inclusion criterion: {option['description']}",
-    }
+def current_template(review, phase):
+    """
+    The request template a new run of ``phase`` starts from: the one the review's last run of that phase used (so a
+    second reviewer is asked the same way), else Parsifal's default.
+    """
+    run = review.screening_runs.filter(phase=phase, parameters__has_key="template").first()
+    return run.parameters["template"] if run else screening_requests.default(phase)
 
 
 def clean_statuses(statuses, phase=EXCLUSION):
@@ -285,79 +257,11 @@ def clean_threshold(threshold):
 # Request ------------------------------------------------------------------------------------------------------------
 
 
-def instructions(context, guidance, phase=EXCLUSION):
-    review = {}
-    for name, _label, _limit in CONTEXT_FIELDS:
-        value = context.get(name)
-        if value and name == "research_questions":
-            review[name] = [line.strip() for line in value.splitlines() if line.strip()]
-        elif value:
-            review[name] = value
-    task, rules = task_and_rules(phase)
-    body = {"review": review, "task": task, "rules": list(rules)}
-    if guidance:
-        body["guidance"] = guidance
-    return body
-
-
-def question_ids(options):
-    return [f"exclusion_{index + 1}" for index in range(len(_orders(options)))]
-
-
-def _orders(options):
-    """Up to ORDERS distinct rotations of the options (criteria plus none), so every option changes position."""
-    keys = [option["key"] for option in options] + [NONE]
-    orders = []
-    for index in range(ORDERS):
-        shift = index * len(keys) // ORDERS
-        order = keys[shift:] + keys[:shift]
-        if order not in orders:
-            orders.append(order)
-    return orders
-
-
-def questions(options, context, guidance):
-    descriptions = {option["key"]: option["description"] for option in options}
-    descriptions[NONE] = NONE_DESCRIPTION
-    body = instructions(context, guidance)
-    return {
-        question_id: {"type": "choice", "instructions": body, "criteria": {key: descriptions[key] for key in order}}
-        for question_id, order in zip(question_ids(options), _orders(options))
-    }
-
-
-def inclusion_question_ids(options):
-    """{criterion key: the ids of its question in each order}, e.g. {"I1": ["inclusion_i1_1", "inclusion_i1_2"]}."""
-    return {
-        option["key"]: [f"inclusion_{option['key'].lower()}_{order}" for order in range(1, len(INCLUSION_ORDERS) + 1)]
-        for option in options
-    }
-
-
-def inclusion_questions(options, context, guidance):
-    """One yes/no question per inclusion criterion (yes = the study meets it), in both orders of its descriptions."""
-    asked = {}
-    ids = inclusion_question_ids(options)
-    for option in options:
-        body = dict(instructions(context, guidance, INCLUSION), criterion=f"{option['key']}: {option['description']}")
-        descriptions = answer_descriptions(option)
-        for question_id, order in zip(ids[option["key"]], INCLUSION_ORDERS):
-            asked[question_id] = {
-                "type": INCLUSION_QUESTION,
-                "instructions": body,
-                "criteria": {answer: descriptions[answer] for answer in order},
-            }
-    return asked
-
-
-def phase_questions(phase, options, context, guidance):
-    if phase == INCLUSION:
-        return inclusion_questions(options, context, guidance)
-    return questions(options, context, guidance)
-
-
 def state(article):
-    """What Jev reads about a study, or None when there is nothing to read."""
+    """
+    What Parsifal may send about a study: its title, keywords and abstract that are not empty (the study
+    placeholders of the request template), or None when there is nothing to read.
+    """
     values = {
         "title": article.title,
         "keywords": article.author_keywords or article.keywords,
@@ -369,12 +273,19 @@ def state(article):
     return values
 
 
+def build_request(phase, template, options, context, guidance, study):
+    """The ``state`` and ``questions`` sent to Jev about one study (``study``: see ``state``)."""
+    values = screening_requests.values(context, guidance, study)
+    return screening_requests.build(phase, template, options, values)
+
+
 def combine(response, options):
     """
     Average each option's probability over the orders asked. Returns (probabilities, p_exclude, best criterion key).
     """
     keys = [option["key"] for option in options]
-    probabilities = _average(response, question_ids(options), keys + [NONE], "the exclusion question")
+    ids = screening_requests.exclusion_question_ids(options)
+    probabilities = _average(response, ids, keys + [NONE], "the exclusion question")
     p_exclude = round(min(max(1.0 - probabilities[NONE], 0.0), 1.0), 4)
     return probabilities, p_exclude, max(keys, key=lambda key: probabilities[key])
 
@@ -384,7 +295,7 @@ def combine_inclusion(response, options):
     Average each inclusion criterion's probability of yes over the orders asked. Returns (probabilities {key:
     p(meets)}, the weakest criterion: the one with the lowest p(meets)).
     """
-    ids = inclusion_question_ids(options)
+    ids = screening_requests.inclusion_question_ids(options)
     probabilities = {
         option["key"]: _average_yes(response, ids[option["key"]], f"the question about {option['key']}")
         for option in options
@@ -471,6 +382,33 @@ def _clean_model(actor, model):
     return model
 
 
+def _clean_request(review, phase, context, guidance, template):
+    """
+    The criteria, context, guidance and request template of a run of ``phase``, checked. Context fields left out
+    (or None) take the review's values; ``template`` None takes ``current_template``.
+    """
+    options = criteria_options(review, phase)
+    if not options:
+        raise ValidationError(f"The review has no {phase} criteria. Add them in Planning first.", field="criteria")
+    merged = default_context(review)
+    merged.update({name: value for name, value in (context or {}).items() if value is not None})
+    context, guidance = _clean_context(merged, guidance)
+    if template is None:
+        template = current_template(review, phase)
+    else:
+        template = screening_requests.clean(phase, template)
+    return options, context, guidance, template
+
+
+def _clean_scope(review, phase, statuses, source_id):
+    statuses = clean_statuses(statuses, phase)
+    if source_id in ("", None):
+        return statuses, None
+    if not review.sources.filter(pk=source_id).exists():
+        raise NotFound(f"Source {source_id!r} not found in this review.")
+    return statuses, int(source_id)
+
+
 @transaction.atomic
 def start_run(
     *,
@@ -480,6 +418,7 @@ def start_run(
     model=None,
     context=None,
     guidance="",
+    template=None,
     threshold=None,
     source_id=None,
     statuses=None,
@@ -489,25 +428,17 @@ def start_run(
     Check the settings, take the studies in scope and open a run of ``phase`` (exclusion or inclusion);
     ``process_step`` does the work. The decisions are recorded as ``reviewer_id``; the calls use the actor's Jev key
     and ``model`` (default: the actor's default model). Context fields left out (or None) take the review's values;
-    an empty string sends the field empty. ``threshold``: see ``clean_threshold``. ``statuses`` picks the studies
-    sent (codes U, R, A, D; default: see ``clean_statuses``).
+    an empty string sends the field empty. ``template``: the request sent about each study, as an object or its JSON
+    text (see ``screening_requests``; None: ``current_template``). ``threshold``: see ``clean_threshold``.
+    ``statuses`` picks the studies sent (codes U, R, A, D; default: see ``clean_statuses``).
     """
     phase = clean_phase(phase)
     integrations.jev_api_key(actor)  # a key the actor can use, before anything else
     reviewer = get_reviewer(review, actor, reviewer_id)
     model = _clean_model(actor, model)
-    options = criteria_options(review, phase)
-    if not options:
-        raise ValidationError(f"The review has no {phase} criteria. Add them in Planning first.", field="criteria")
-    merged = default_context(review)
-    merged.update({name: value for name, value in (context or {}).items() if value is not None})
-    context, guidance = _clean_context(merged, guidance)
+    options, context, guidance, template = _clean_request(review, phase, context, guidance, template)
     threshold = clean_threshold(threshold)
-    statuses = clean_statuses(statuses, phase)
-    if source_id in ("", None):
-        source_id = None
-    elif not review.sources.filter(pk=source_id).exists():
-        raise NotFound(f"Source {source_id!r} not found in this review.")
+    statuses, source_id = _clean_scope(review, phase, statuses, source_id)
     articles = list(eligible_articles(review, statuses=statuses, source_id=source_id).values_list("pk", "status"))
     if not articles:
         raise ValidationError("There are no studies with these statuses in this scope.", field="statuses")
@@ -520,10 +451,11 @@ def start_run(
         "context": context,
         "guidance": guidance,
         "criteria": options,
+        "template": template,
         "threshold": threshold,
-        "source_id": int(source_id) if source_id else None,
+        "source_id": source_id,
         "statuses": statuses,
-        "orders": len(INCLUSION_ORDERS) if phase == INCLUSION else len(_orders(options)),
+        "orders": screening_requests.order_count(phase, options),
     }
     run = ScreeningRun.objects.create(
         review=review,
@@ -538,6 +470,51 @@ def start_run(
         ScreeningResult(run=run, article_id=pk, previous_status=status) for pk, status in articles
     )
     return run
+
+
+def preview(
+    *,
+    review,
+    actor,
+    phase=EXCLUSION,
+    model=None,
+    context=None,
+    guidance="",
+    template=None,
+    source_id=None,
+    statuses=None,
+    article_id=None,
+):
+    """
+    The request a run with these settings (see ``start_run``) would send to Jev about one study, without sending
+    anything: ``article_id``, or else the first study in scope with a title or abstract. Returns {"article",
+    "request": {"model", "state", "questions"}}; ``model`` defaults to the actor's default model and is not checked
+    with Jev.
+    """
+    phase = clean_phase(phase)
+    options, context, guidance, template = _clean_request(review, phase, context, guidance, template)
+    if article_id not in (None, ""):
+        article = get_child(review.article_set, article_id, label="Article")
+        study = state(article)
+        if study is None:
+            raise ValidationError("The study has no title or abstract to read.", field="article_id")
+    else:
+        statuses, source_id = _clean_scope(review, phase, statuses, source_id)
+        article = study = None
+        for candidate in eligible_articles(review, statuses=statuses, source_id=source_id).iterator():
+            study = state(candidate)
+            if study is not None:
+                article = candidate
+                break
+        if article is None:
+            raise ValidationError(
+                "There are no studies with a title or abstract with these statuses in this scope.", field="statuses"
+            )
+    integration = integrations.get_jev(actor)
+    model = (model or "").strip() or (integration.model if integration else "") or jev.DEFAULT_MODEL
+    check_length(model, 100, field="model")
+    request_state, questions = build_request(phase, template, options, context, guidance, study)
+    return {"article": article, "request": {"model": model, "state": request_state, "questions": questions}}
 
 
 def _close(run, status, error=""):
@@ -597,13 +574,17 @@ def process_step(*, run, actor, size=STEP_SIZE):
         _close(run, ScreeningRun.FINISHED)
         return []
 
-    options = run.parameters["criteria"]
-    asked = phase_questions(run.phase, options, run.parameters["context"], run.parameters["guidance"])
+    parameters = run.parameters
+    # Runs from before request templates were editable used the default.
+    template = parameters.get("template") or screening_requests.default(run.phase)
     payloads = {}
     for result in pending:
-        article_state = state(result.article)
-        if article_state is not None:
-            payloads[result.pk] = {"state": article_state, "questions": asked}
+        study = state(result.article)
+        if study is not None:
+            request_state, questions = build_request(
+                run.phase, template, parameters["criteria"], parameters["context"], parameters["guidance"], study
+            )
+            payloads[result.pk] = {"state": request_state, "questions": questions}
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         futures = {pk: pool.submit(_ask, api_key, run.model, payload) for pk, payload in payloads.items()}
         responses = {pk: future.result() for pk, future in futures.items()}
