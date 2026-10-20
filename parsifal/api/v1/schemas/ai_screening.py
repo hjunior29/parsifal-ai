@@ -110,6 +110,9 @@ class ScreeningSetupOut(Schema):
     template: dict
     template_default: dict
     placeholders: list[ScreeningPlaceholderOut]
+    # Inclusion: the threshold of each criterion ({I1: 0.9, …}) a run starts from (the review's last inclusion run's,
+    # else threshold_default); exclusion: {} (one threshold).
+    thresholds: dict[str, float]
     threshold_default: float
     threshold_min: float
     threshold_max: float
@@ -142,8 +145,12 @@ class ScreeningSettingsIn(Schema):
 
 class ScreeningStartIn(ScreeningSettingsIn):
     reviewer_id: int  # the decisions are recorded as this member of the review
-    # Default 0.9. Exclusion: reject when 1 - p(none) is at least this; inclusion: accept when every p(meets) is.
+    # Exclusion: reject when 1 - p(none) is at least this (default 0.9). Inclusion: the threshold of the criteria
+    # that ``thresholds`` leaves out.
     threshold: float | None = None
+    # Inclusion: the threshold of each criterion, {"I1": 0.9, "I2": 0.85} or ["I1=0.9", "I2=0.85"]; accept when every
+    # p(meets) reaches its own. Criteria left out take ``threshold``, else the review's last inclusion run's, else 0.9.
+    thresholds: dict[str, float] | list[str] | None = None
 
 
 class ScreeningPreviewIn(ScreeningSettingsIn):
@@ -170,8 +177,9 @@ class ScreeningResultOut(Schema):
     title: str | None
     previous_status: str  # the study's status when the run took it (U, R, A or D)
     outcome: str  # excluded, passed (exclusion), included, undecided (inclusion), error, pending
-    p_exclude: float | None  # exclusion: 1 - p(none), averaged over the orders
-    p_include: float | None  # inclusion: the lowest p(meets) over the criteria
+    p_exclude: float | None  # exclusion: 1 - p(none)
+    # Inclusion: p(meets) of the deciding criterion, the one closest to (or furthest below) its threshold.
+    p_include: float | None
     criteria_key: str | None  # E1… of the criterion the study was rejected with
     selection_criteria_id: int | None
     probabilities: dict | None  # exclusion: {option: p}; inclusion: {criterion: p(meets)}

@@ -15,13 +15,12 @@ A placeholder that is a whole value is replaced by the value itself (an object f
 research questions), and when that value is empty the entry is left out, so empty context fields are not sent.
 Inside a longer text a placeholder is replaced by its text.
 
-Parsifal still decides how the question is repeated, because that is how it combines the answers:
+Each question is asked once, as the template words it; Parsifal reads its answer directly:
 
-- Exclusion: a ``choice`` question whose ``criteria`` have one entry keyed ``{{key}}``, repeated for every exclusion
-  criterion, and one keyed ``none``. It is asked in up to three orders of those options (rotations of the template's
-  order), because the model tends to favour the first option when unsure.
-- Inclusion: a ``noul`` (yes/no) question, asked for every inclusion criterion, whose ``criteria`` describe the
-  ``true`` and ``false`` answers. It is asked in the template's order of the two and in the reverse one.
+- Exclusion: one ``choice`` question, ``exclusion``, whose ``criteria`` have an entry keyed ``{{key}}``, repeated
+  for every exclusion criterion, and one keyed ``none``.
+- Inclusion: one ``noul`` (yes/no) question per inclusion criterion, ``inclusion_I1``, ``inclusion_I2``…, whose
+  ``criteria`` describe the ``true`` and ``false`` answers.
 """
 
 import copy
@@ -36,7 +35,7 @@ CHOICE, NOUL = "choice", "noul"  # Jev's question types: one of several options;
 QUESTION_TYPES = {EXCLUSION: CHOICE, INCLUSION: NOUL}
 NONE = "none"  # the exclusion option that no criterion applies
 YES, NO = "true", "false"  # the answers of a yes/no question
-ORDERS = 3  # option orders of the exclusion question asked per study
+EXCLUSION_QUESTION = "exclusion"  # the id of the exclusion question in the request and in Jev's answers
 MAX_LENGTH = 20000  # characters of a template, as JSON
 
 REVIEW_FIELDS = (
@@ -75,29 +74,25 @@ OBJECT_NAMES = {"review", "study"}  # whole values only
 STUDY_NAMES = {"study", "study.title", "study.abstract"}  # Jev must read one of them
 PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z_.]+)\s*\}\}")
 
-_STATE = {"title": "{{study.title}}", "keywords": "{{study.keywords}}", "abstract": "{{study.abstract}}"}
+# The review in the state, next to the study's title and abstract; the questions only ask.
+_STATE = {"review": "{{review}}", "study": {"title": "{{study.title}}", "abstract": "{{study.abstract}}"}}
 DEFAULTS = {
     EXCLUSION: {
         "state": _STATE,
         "question": {
             "type": CHOICE,
             "instructions": {
-                "review": "{{review}}",
-                "task": "Screening for a systematic review, phase 1 (exclusion only), from the title, keywords and "
-                "abstract of a study: which exclusion criterion does the study meet?",
+                "task": "Screening for a systematic review, from the title and abstract of a study: which exclusion "
+                "criterion do they indicate that the study meets?",
                 "rules": [
-                    "Choose a criterion only if the title, keywords or abstract explicitly support it.",
-                    "If several criteria apply, choose the one most clearly supported.",
-                    "If no criterion applies, or the title, keywords and abstract do not give enough information to "
-                    "decide, choose none.",
+                    "Choose an exclusion criterion if the title or abstract indicates that the study meets it, even "
+                    "when it is not stated in those words.",
+                    "If several criteria are indicated, choose the one most clearly indicated.",
+                    "Choose none only when the title and abstract do not indicate any exclusion criterion.",
                 ],
                 "guidance": "{{guidance}}",
             },
-            "criteria": {
-                "{{key}}": "{{criterion}}",
-                NONE: "No exclusion criterion is clearly supported by the title, keywords or abstract, or they do "
-                "not give enough information to decide.",
-            },
+            "criteria": {"{{key}}": "{{criterion}}", NONE: "No exclusion criterion applies to the study."},
         },
     },
     INCLUSION: {
@@ -105,23 +100,18 @@ DEFAULTS = {
         "question": {
             "type": NOUL,
             "instructions": {
-                "review": "{{review}}",
-                "task": "Screening for a systematic review, phase 2 (inclusion), from the title, keywords and "
-                "abstract of a study: does the study meet this inclusion criterion?",
+                "task": "Screening for a systematic review, from the title and abstract of a study: do they "
+                "explicitly show that the study meets this inclusion criterion?",
                 "rules": [
-                    "Answer yes only if the title, keywords or abstract explicitly support that the study meets the "
-                    "criterion.",
-                    "Answer no only if the title, keywords or abstract explicitly show that the study does not meet "
-                    "it.",
-                    "Missing information is not a no: if the title, keywords and abstract do not give enough "
-                    "information to decide, the answer is uncertain.",
+                    "Answer yes only if the title or abstract explicitly shows that the study meets the criterion.",
+                    "Otherwise answer no.",
                 ],
                 "guidance": "{{guidance}}",
-                "criterion": "{{key}}: {{criterion}}",
+                "criterion": "{{criterion}}",
             },
             "criteria": {
-                YES: "The study meets the inclusion criterion: {{criterion}}",
-                NO: "The study does not meet the inclusion criterion: {{criterion}}",
+                YES: "{{criterion}}",
+                NO: "The title and abstract do not show that the study meets the inclusion criterion.",
             },
         },
     },
@@ -316,29 +306,9 @@ def values(context, guidance, study=None):
     return filled
 
 
-def rotations(keys):
-    """Up to ORDERS distinct rotations of ``keys``, so that every option changes position."""
-    orders = []
-    for index in range(ORDERS):
-        shift = index * len(keys) // ORDERS
-        order = keys[shift:] + keys[:shift]
-        if order not in orders:
-            orders.append(order)
-    return orders
-
-
-def exclusion_question_ids(options):
-    """One id per order of the exclusion question: exclusion_1, exclusion_2…"""
-    return [f"exclusion_{index}" for index in range(1, len(rotations(list(range(len(options) + 1)))) + 1)]
-
-
-def inclusion_question_ids(options):
-    """{criterion key: the ids of its question in each order}, e.g. {"I1": ["inclusion_i1_1", "inclusion_i1_2"]}."""
-    return {option["key"]: [f"inclusion_{option['key'].lower()}_{order}" for order in (1, 2)] for option in options}
-
-
-def order_count(phase, options):
-    return 2 if phase == INCLUSION else len(exclusion_question_ids(options))
+def inclusion_question_id(key):
+    """The id of an inclusion criterion's question in the request and in Jev's answers: inclusion_I1…"""
+    return f"inclusion_{key}"
 
 
 def _with_criteria(question, values, criteria):
@@ -351,28 +321,22 @@ def _about(values, option):
 
 
 def _exclusion_questions(question, options, values):
-    texts = {}  # option key (E1…, none) -> its text, in the template's order
+    criteria = {}  # option key (E1…, none) -> its text, in the template's order
     for key, text in question["criteria"].items():
         if key == NONE:
-            texts[NONE] = _fill_text(text, values)
+            criteria[NONE] = _fill_text(text, values)
         else:
             for option in options:
-                texts[option["key"]] = _fill_text(text, _about(values, option))
-    return {
-        question_id: _with_criteria(question, values, {key: texts[key] for key in order})
-        for question_id, order in zip(exclusion_question_ids(options), rotations(list(texts)))
-    }
+                criteria[option["key"]] = _fill_text(text, _about(values, option))
+    return {EXCLUSION_QUESTION: _with_criteria(question, values, criteria)}
 
 
 def _inclusion_questions(question, options, values):
-    answers = list(question["criteria"])  # true and false, in the template's order
-    ids = inclusion_question_ids(options)
     asked = {}
     for option in options:
         about = _about(values, option)
-        texts = {answer: _fill_text(question["criteria"][answer], about) for answer in answers}
-        for question_id, order in zip(ids[option["key"]], (answers, answers[::-1])):
-            asked[question_id] = _with_criteria(question, about, {answer: texts[answer] for answer in order})
+        criteria = {answer: _fill_text(text, about) for answer, text in question["criteria"].items()}
+        asked[inclusion_question_id(option["key"])] = _with_criteria(question, about, criteria)
     return asked
 
 

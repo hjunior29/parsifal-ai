@@ -183,12 +183,13 @@ group and marks the rest `D`.
   (older runs only), total, error (why it waits), last_step_at (a step in the last 30 s means it is being driven),
   created_at, finished_at)`. `parameters` is the snapshot of what was sent:
   context, guidance, criteria (`key`, `id`, `description`), `template` (the request template sent about each study,
-  see `services/screening_requests.py`; runs from before it was editable have none and used the default), `threshold`,
-  scope. (Inclusion runs made before Include
+  see `services/screening_requests.py`; runs from before it was editable have none and used the default), `threshold`
+  (exclusion) or `thresholds` per inclusion criterion (`{I1: 0.9, …}`; older inclusion runs kept one `threshold`),
+  scope. Runs from before each question was asked once also kept `orders`. (Inclusion runs made before Include
   with AI stopped rejecting kept `accept_threshold` and `reject_threshold` instead.)
 - `ScreeningResult(run CASCADE, article CASCADE, previous_status (the study's status when the run took it; the run
   only changes the study if it still has it), outcome pending/excluded/passed (exclusion)/included/undecided
-  (inclusion, which never rejects)/error, p_exclude (exclusion), p_include (inclusion: the lowest p(meets)),
+  (inclusion, which never rejects)/error, p_exclude (exclusion), p_include (inclusion: p(meets) of the deciding criterion),
   probabilities JSON,
   selection_criteria SET_NULL, model, error, processed_at)`, unique per
   (run, article). Pending rows are deleted when a run ends.

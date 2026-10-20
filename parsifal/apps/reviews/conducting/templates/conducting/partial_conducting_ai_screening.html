@@ -29,13 +29,13 @@
   <div class="modal-body ai-screening-setup">
     {% if inclusion %}
       <p>
-        Jev reads each study (by default its title, keywords and abstract) and <strong>accepts the ones that clearly
+        Jev reads each study (by default its title and abstract) and <strong>accepts the ones that clearly
         meet every inclusion criterion</strong>, in the name of the reviewer you choose. It never rejects (that is
         phase 1's job): the rest are left unclassified for you to decide.
       </p>
     {% else %}
       <p>
-        Jev reads each study (by default its title, keywords and abstract) and <strong>rejects the ones that clearly
+        Jev reads each study (by default its title and abstract) and <strong>rejects the ones that clearly
         meet an exclusion criterion</strong>, with that criterion as the reason, in the name of the reviewer you
         choose. The rest are left for the next phase, with the inclusion criteria.
       </p>
@@ -114,12 +114,19 @@
       </div>
 
       {% if inclusion %}
-        <h5><strong>Inclusion criteria</strong> <small>from the protocol; edit them in Planning</small></h5>
-        <ul class="list-unstyled ai-criteria">
+        <h5><strong>Inclusion criteria</strong> <small>from the protocol (edit them in Planning), each with its threshold</small></h5>
+        <ul class="list-unstyled ai-criteria ai-thresholds">
           {% for option in options %}
-            <li><code>{{ option.key }}</code> {{ option.description }}</li>
+            <li>
+              <input type="number" name="threshold-{{ option.key }}" class="form-control input-sm" value="{{ option.threshold|unlocalize }}" min="{{ min_threshold|unlocalize }}" max="{{ max_threshold|unlocalize }}" step="0.01" required aria-label="Threshold of {{ option.key }}">
+              <code>{{ option.key }}</code> {{ option.description }}
+            </li>
           {% endfor %}
         </ul>
+        <p class="help-block small">
+          A study is accepted only when the probability that it meets each inclusion criterion reaches that
+          criterion's threshold. Lower values accept more studies, and more of them by mistake.
+        </p>
       {% else %}
         <h5><strong>Exclusion criteria</strong> <small>from the protocol; edit them in Planning</small></h5>
         <ul class="list-unstyled ai-criteria">
@@ -129,6 +136,7 @@
         </ul>
       {% endif %}
 
+      {% if not inclusion %}
       <div class="row">
         <div class="col-sm-4">
           <div class="form-group">
@@ -138,17 +146,12 @@
         </div>
         <div class="col-sm-8">
           <p class="help-block small" style="margin-top: 25px;">
-            {% if inclusion %}
-              A study is accepted only when the probability that it meets each inclusion criterion is at least this
-              value (the weakest criterion decides, not the average). Lower values accept more studies, and more of
-              them by mistake.
-            {% else %}
-              A study is rejected only when the probability that some exclusion criterion applies is at least this value.
-              Lower values reject more studies, and more of them by mistake.
-            {% endif %}
+            A study is rejected only when the probability that some exclusion criterion applies is at least this value.
+            Lower values reject more studies, and more of them by mistake.
           </p>
         </div>
       </div>
+      {% endif %}
 
       <div class="row">
         <div class="col-sm-4">
@@ -195,11 +198,9 @@
         — the review context and guidance above, the criteria from the protocol, each study's title, keywords and
         abstract — so the data are changed there, not here.
         {% if inclusion %}
-          The question is asked once for every inclusion criterion, in both orders of its
-          <code>true</code> and <code>false</code> answers.
+          The question is asked once for every inclusion criterion.
         {% else %}
-          The {% verbatim %}<code>"{{key}}"</code>{% endverbatim %} option is repeated for every exclusion criterion,
-          and the question is asked in three orders of the options.
+          The {% verbatim %}<code>"{{key}}"</code>{% endverbatim %} option is repeated for every exclusion criterion.
         {% endif %}
         It starts from the request of the review's last {{ label }} run, so a second reviewer is asked the same way.
       </p>
@@ -232,11 +233,11 @@
         <ul>
           <li>Authors, venue and affiliations are never sent: the request can only use the data listed in Placeholders.</li>
           {% if inclusion %}
-            <li>Each criterion is a yes/no question asked twice in the same request, with what a yes and a no mean in both orders, and the two probabilities averaged, in case that order sways the model.</li>
-            <li>Every study screened gets the reviewer's decision: accepted, or unclassified (undecided) when the title and abstract do not show that it meets every criterion. Nothing is rejected.</li>
+            <li>Each criterion is one yes/no question; Jev answers with the probability of yes, which is compared with that criterion's threshold.</li>
+            <li>Every study screened gets the reviewer's decision: accepted when every criterion reaches its threshold, or unclassified (undecided) otherwise. Nothing is rejected.</li>
             <li>Status: an unclassified study is accepted when it meets every criterion; a study this reviewer had accepted goes back to unclassified if it does not now. Rejected studies, duplicates and studies accepted by someone else keep their status.</li>
           {% else %}
-            <li>The criteria are asked in three different orders in the same request and the answers averaged, because the model tends to favour the first option when unsure.</li>
+            <li>The criteria and "none" are the options of one question; the probability that some criterion applies is 1 − p(none).</li>
             <li>Every study screened gets the reviewer's decision: rejected with a criterion, or unclassified when no criterion applies.</li>
             <li>Status: an unclassified study is rejected when a criterion applies; a study this reviewer had rejected takes the new criterion, or goes back to unclassified if no criterion applies now. Accepted studies, duplicates and studies rejected by someone else keep their status.</li>
           {% endif %}

@@ -52,7 +52,8 @@ parsifal me
    reject the studies that clearly meet an exclusion criterion, recording the decisions as you (needs a Jev key:
    `integration jev set --api-key -`; `--statuses` picks the studies sent, default R and U); check them with `ai-screening results --review R --id RUN --outcome excluded`.
    Include with AI (`--phase inclusion`) asks one yes/no question per inclusion criterion: it accepts the studies
-   that clearly meet every one (`--threshold`, default 0.9) and leaves the rest unclassified for the human; it never
+   that clearly meet every one (a threshold per criterion: `--thresholds I1=0.9 --thresholds I2=0.85`) and leaves the
+   rest unclassified for the human; it never
    rejects (default statuses A and U). What Jev is sent is a template (`ai-screening setup` → `template`): only
    change it when the human asks, with `--template @request.json`, after checking it with `ai-screening preview`.
    `test-set get --review R` tells whether the known papers were found by the search.

@@ -223,7 +223,8 @@ reviewed (Akita, 2026-10-03).
   request became an editable template on 2026-10-20, see below).
 - One reviewer (Jev), no second model. Per study, title + keywords + abstract
   only; one `choice` question (criteria + `none`) asked in three rotated
-  orders in the same request and averaged. Reject when
+  orders in the same request and averaged (until 2026-10-20: now asked once,
+  see the last section). Reject when
   `1 − p(none) ≥ threshold` (default 0.9), with the most probable criterion;
   otherwise leave the study unclassified for the next phase.
 - Every run is made in the name of a **reviewer** chosen when it starts
@@ -265,7 +266,7 @@ reviewed (Akita, 2026-10-03).
   one choice question cannot express (it picks one option), so each criterion
   gets its own **yes/no** question (Jev's `noul`, which its documentation
   recommends for checking independent conditions), asked with its yes and no
-  descriptions in both orders. The first version had a third answer, "unclear";
+  descriptions in both orders (asked once since 2026-10-20). The first version had a third answer, "unclear";
   Helder dropped it the same day: it gave the model an escape that diluted
   p(meets) and could be read in more than one way, while the probability
   already shows doubt. Accept when the **lowest** p(meets) reaches the
@@ -404,4 +405,32 @@ consequences", as the deletion does.
 
 **Consequences.** No migration. The next AI run starts from the last run's
 request template, which the reset keeps.
+
+## AI screening: each question asked once; a threshold per inclusion criterion
+
+**Context.** Testing in Jev's playground, Helder settled on a request of his
+own (the review and the study's title and abstract in the state; one choice
+question for exclusion and one yes/no question per inclusion criterion, with
+the task, the rules and the criterion only) and asked for the system to work
+the simplest way: no more asking the same question in several orders and
+averaging the answers. He also found that inclusion criteria differ in how
+clearly an abstract shows them, so one threshold for all of them does not fit.
+
+**Decision.** Parsifal's default templates are his request. Each question is
+asked once — `exclusion`, and `inclusion_I1`, `inclusion_I2`… — and its answer
+read as it comes: exclusion rejects when `1 − p(none)` reaches the run's
+threshold; inclusion accepts when every criterion's `p(meets)` reaches **that
+criterion's own threshold** (`parameters.thresholds`, `{I1: 0.9, …}`). The
+Include with AI window shows a threshold next to each criterion, starting from
+the review's last inclusion run's (matched by criterion; 0.9 for a new one).
+The API and CLI take `thresholds` (`{"I1": 0.9}` or `I1=0.9` repeated); those
+left out take `threshold`, else the last run's, else 0.9. `p_include` is the
+`p(meets)` of the deciding criterion, the one closest to (or furthest below)
+its threshold, and the decision's comment says which one fell short.
+
+**Consequences.** No migration. Runs made before kept `orders` and, for
+inclusion, a single `threshold`, which is still honoured when one of them is
+continued. Without the rotations the option order of the exclusion question is
+the protocol's (alphabetical by description), and nothing compensates the
+model's lean towards the first option.
 

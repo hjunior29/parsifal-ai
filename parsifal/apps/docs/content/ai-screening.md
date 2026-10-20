@@ -50,8 +50,10 @@ be sent:
 - **Criteria**: from the protocol, read-only. Exclusion: options `E1`, `E2`…
   plus `none` (no criterion applies). Inclusion: `I1`, `I2`…, one yes/no
   question each.
-- **Threshold** (default 0.9, from 0.5 to 0.99): how sure Jev must be — to
-  reject, in exclusion; to accept, in inclusion.
+- **Threshold** (default 0.9, from 0.5 to 0.99): how sure Jev must be. In
+  exclusion there is one, to reject. In inclusion **each criterion has its
+  own**, next to it, to accept; the window starts from the ones of the review's
+  last inclusion run.
 - **Studies**: all sources or one, and the **statuses** to send — any mix of
   accepted, rejected, unclassified and duplicated (*All* checks every one). The
   default is rejected + unclassified for exclusion, so a second reviewer
@@ -94,16 +96,20 @@ A placeholder that is a whole value is replaced by the value itself, and left
 out when it is empty; inside a longer text it is replaced by its text. Authors,
 venue and affiliations have no placeholder, so they are never sent.
 
-Parsifal still repeats the question, since that is how it combines the answers,
-so a few things must stay:
+Each question is asked once, as you word it, and Parsifal reads its answer
+directly, so a few things must stay:
 
 - **Exclusion**: `"type": "choice"`, and `criteria` with exactly two entries:
-  `"{{key}}"` (repeated for every exclusion criterion; its text must include
-  `{{criterion}}`) and `"none"`. The options are asked in three orders, rotating
-  the order of the template.
+  `"{{key}}"` (repeated for every exclusion criterion, in the protocol's order;
+  its text must include `{{criterion}}`) and `"none"`. The question goes as
+  `exclusion`.
 - **Inclusion**: `"type": "noul"`, `criteria` with `"true"` and `"false"`, and
   `{{criterion}}` somewhere in the question, which is asked once for every
-  inclusion criterion, in both orders of the two answers.
+  inclusion criterion, as `inclusion_I1`, `inclusion_I2`…
+
+The default request puts the review and the study (title and abstract) in the
+state, and only the task, the rules and the criterion in the questions — what
+the questions copied from the preview look like in Jev's playground.
 
 A new run starts from the template of the review's last run of the same phase,
 so a second reviewer is asked exactly like the first; **Restore the default**
@@ -127,7 +133,7 @@ parsifal ai-screening preview --review R --template @request.json   # the reques
 parsifal ai-screening run --review R --reviewer-id U --template @request.json   # a run with an edited request
 parsifal ai-screening run --review R --reviewer-id U --model jev-1.13.0 --threshold 0.9 --guidance @notes.txt
 parsifal ai-screening run --review R --reviewer-id U --statuses U --statuses R --statuses A   # statuses to send (default R and U)
-parsifal ai-screening run --review R --reviewer-id U --phase inclusion --threshold 0.95   # Include with AI (default A and U)
+parsifal ai-screening run --review R --reviewer-id U --phase inclusion --thresholds I1=0.9 --thresholds I2=0.85   # Include with AI (default A and U)
 parsifal ai-screening runs --review R
 parsifal ai-screening results --review R --id RUN --outcome excluded
 ```
@@ -143,10 +149,8 @@ values.
 ## What happens to each study: exclusion
 
 For every study Jev receives what the request template sends — by default the
-**title, keywords and abstract** (never authors, venue or affiliations). One
-multiple-choice question with the criteria and `none` is asked in three option
-orders in the same request, because the
-model tends to favour the first option when unsure; the answers are averaged.
+review and the study's **title and abstract** (never authors, venue or
+affiliations) — and one multiple-choice question with the criteria and `none`.
 
 Probabilities of the options add up to 1, so the probability that *some*
 criterion applies is `1 − p(none)`, even when two criteria split it. Then:
@@ -178,18 +182,15 @@ with no title or abstract) keep the reviewer's previous decision.
 
 ## What happens to each study: inclusion
 
-Every inclusion criterion gets its own **yes/no question** ("does the study
-meet it?"), and Jev answers with the probability of yes, `p(meets)`; the
-probability that it is not met is `1 − p(meets)`. There is no "unclear" answer:
-doubt shows as a probability away from 0 and 1. Each question is asked twice in
-the same request, with what a yes and a no mean in both orders, and the two
-answers are averaged. All criteria must be met, so the **weakest** criterion
-decides — not the average, which would let a criterion that is clearly met make
-up for one that is not:
+Every inclusion criterion gets its own **yes/no question** ("do the title and
+abstract show that the study meets it?"), and Jev answers with the probability
+of yes, `p(meets)`. Each criterion has **its own threshold**, because some are
+easier to see in an abstract than others, and all of them must be met — an
+average would let a criterion that is clearly met make up for one that is not:
 
 | Answers | Reviewer's decision |
 |---|---|
-| The lowest `p(meets)` ≥ threshold | **accepted** |
+| Every `p(meets)` ≥ its criterion's threshold | **accepted** |
 | Otherwise | **unclassified** (undecided): left to you |
 
 **Include with AI never rejects.** Excluding is the first phase's job; here a
@@ -199,8 +200,8 @@ for you (or a later step) to decide:
 
 ```
 Include with AI (run 12, jev-1.13.0): meets every inclusion criterion — meets: I1 0.97, I2 0.95.
-Include with AI (run 12, jev-1.13.0): undecided, weakest I1 (meet 0.06) — meets: I1 0.06, I2 0.90.
-Include with AI (run 12, jev-1.13.0): undecided, weakest I2 (meet 0.40) — meets: I1 0.96, I2 0.40.
+Include with AI (run 12, jev-1.13.0): undecided, I1 0.06 below its threshold 0.90 — meets: I1 0.06, I2 0.90.
+Include with AI (run 12, jev-1.13.0): undecided, I2 0.40 below its threshold 0.85 — meets: I1 0.96, I2 0.40.
 ```
 
 Both phases record the reviewer's decision at the *title and abstract* stage,

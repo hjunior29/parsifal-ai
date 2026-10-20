@@ -18,7 +18,7 @@ def answer(p_criteria, p_none, model="jev-1.13.0"):
     probabilities = {"E1": p_criteria, "none": p_none}
     return {
         "model": model,
-        "answers": {f"exclusion_{n}": {"type": "choice", "probabilities": probabilities} for n in (1, 2)},
+        "answers": {"exclusion": {"type": "choice", "probabilities": probabilities}},
     }
 
 
@@ -269,8 +269,8 @@ class TestRequestTemplateApi(AiScreeningApiBase):
         body = response.json()
         self.assertEqual((self.secondary.pk, "A survey"), (body["article_id"], body["title"]))
         self.assertEqual("jev-1.13.0", body["request"]["model"])
-        self.assertEqual({"title": "A survey", "abstract": "x"}, body["request"]["state"])
-        self.assertEqual("Not a primary study", body["request"]["questions"]["exclusion_1"]["criteria"]["E1"])
+        self.assertEqual({"title": "A survey", "abstract": "x"}, body["request"]["state"]["study"])
+        self.assertEqual("Not a primary study", body["request"]["questions"]["exclusion"]["criteria"]["E1"])
 
         edited = screening_requests.default("exclusion")
         edited["state"] = {"study": "{{study}}", "review": "{{review}}"}
@@ -303,7 +303,7 @@ class TestRequestTemplateApi(AiScreeningApiBase):
 
 
 def inclusion_answer(meets, model="jev-1.13.0"):
-    return {"model": model, "answers": {f"inclusion_i1_{n}": {"type": "noul", "noul": meets} for n in (1, 2)}}
+    return {"model": model, "answers": {"inclusion_I1": {"type": "noul", "noul": meets}}}
 
 
 class TestIncludeWithAiApi(AiScreeningApiBase):
@@ -336,14 +336,19 @@ class TestIncludeWithAiApi(AiScreeningApiBase):
     def test_inclusion_run(self):
         start = self.review_path("/ai-screening/runs")
         inclusion = {"reviewer_id": self.author.pk, "phase": "inclusion"}
-        refused = self.api("post", start, {**inclusion, "threshold": 0.2})
-        self.assertEqual(422, refused.status_code)
-        self.assertIn("between 0.5 and 0.99", refused.json()["detail"])
-        response = self.api("post", start, {**inclusion, "threshold": 0.85})
+        refused = self.api("post", start, {**inclusion, "thresholds": {"I1": 0.2}})
+        self.assertEqual((422, "thresholds"), (refused.status_code, refused.json()["field"]))
+        self.assertIn("The threshold of I1 must be between 0.5 and 0.99", refused.json()["detail"])
+        refused = self.api("post", start, {"reviewer_id": self.author.pk, "thresholds": ["E1=0.9"]})
+        self.assertIn("Per-criterion thresholds are for Include with AI", refused.json()["detail"])
+        response = self.api("post", start, {**inclusion, "thresholds": ["I1=0.85"]})
         self.assertEqual(201, response.status_code, response.content)
         run = response.json()
         self.assertEqual(("inclusion", 2, ["A", "U"]), (run["phase"], run["total"], run["parameters"]["statuses"]))
-        self.assertEqual(0.85, run["parameters"]["threshold"])
+        self.assertEqual({"I1": 0.85}, run["parameters"]["thresholds"])
+        setup = self.api("get", self.review_path("/ai-screening"), QUERY_STRING="phase=inclusion").json()
+        self.assertEqual({"I1": 0.85}, setup["thresholds"])
+        self.assertEqual({}, self.api("get", self.review_path("/ai-screening")).json()["thresholds"])
 
         with (
             mock.patch.object(ai_screening, "WORKERS", 1),

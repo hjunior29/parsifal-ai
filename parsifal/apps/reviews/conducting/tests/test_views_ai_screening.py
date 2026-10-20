@@ -20,7 +20,7 @@ MODELS = [
 
 EXCLUDE = {
     "model": "jev-1.13.0",
-    "answers": {f"exclusion_{n}": {"type": "choice", "probabilities": {"E1": 0.96, "none": 0.04}} for n in (1, 2)},
+    "answers": {"exclusion": {"type": "choice", "probabilities": {"E1": 0.96, "none": 0.04}}},
 }
 
 
@@ -62,7 +62,7 @@ class AiScreeningViewsBase(TestCase):
             "statuses": ["R", "U"],
         }
         data.update(extra)
-        return self.client.post(self.start_url, data)
+        return self.client.post(self.start_url, {key: value for key, value in data.items() if value is not None})
 
 
 class AiScreeningViewsTest(AiScreeningViewsBase):
@@ -160,9 +160,12 @@ class AiScreeningViewsTest(AiScreeningViewsBase):
         body = self.client.post(self.preview_url, data).json()
         self.assertEqual({"id": self.article.pk, "title": "A study"}, body["article"])
         self.assertEqual("jev-1.13.0", body["request"]["model"])
-        self.assertEqual({"title": "A study", "abstract": "Text"}, body["request"]["state"])
         self.assertEqual(
-            "Not about <software> engineering", body["request"]["questions"]["exclusion_1"]["criteria"]["E1"]
+            {"review": {"objective": "Our objective & scope"}, "study": {"title": "A study", "abstract": "Text"}},
+            body["request"]["state"],
+        )
+        self.assertEqual(
+            "Not about <software> engineering", body["request"]["questions"]["exclusion"]["criteria"]["E1"]
         )
 
         edited = screening_requests.default("exclusion")
@@ -297,7 +300,7 @@ def views_module():
 
 INCLUDE = {
     "model": "jev-1.13.0",
-    "answers": {f"inclusion_i1_{n}": {"type": "noul", "noul": 0.95} for n in (1, 2)},
+    "answers": {"inclusion_I1": {"type": "noul", "noul": 0.95}},
 }
 
 
@@ -319,9 +322,10 @@ class IncludeWithAiViewsTest(AiScreeningViewsBase):
         self.assertNotContains(response, "<code>E1</code>", html=False)
         self.assertContains(response, '<input type="hidden" name="phase" value="inclusion">', html=False)
         # The same window as Exclude with AI: one threshold, which accepts; nothing is rejected.
-        self.assertRegex(response.content.decode(), r'name="threshold" id="ai-threshold" [^>]* min="0.5" max="0.99"')
-        self.assertNotContains(response, "accept_threshold")
-        self.assertContains(response, "A study is accepted only when the probability that it meets each inclusion")
+        # One threshold per inclusion criterion, none for the whole run.
+        self.assertRegex(response.content.decode(), r'name="threshold-I1" [^>]*value="0.9" min="0.5" max="0.99"')
+        self.assertNotContains(response, 'name="threshold"')
+        self.assertContains(response, "reaches that\n          criterion's threshold", html=False)
         self.assertContains(response, "It never rejects")
         for code, checked in (("A", True), ("R", False), ("U", True), ("D", False)):
             self.assertContains(
@@ -342,14 +346,17 @@ class IncludeWithAiViewsTest(AiScreeningViewsBase):
 
     def test_start_and_step_an_inclusion_run(self):
         self.connect()
-        response = self.start(phase="inclusion", threshold="0.2", statuses=["U", "A"])
+        inclusion = {"phase": "inclusion", "threshold": None, "statuses": ["U", "A"]}  # the window has no single one
+        response = self.start(**inclusion, **{"threshold-I1": "0.2"})
         self.assertEqual(400, response.status_code)
-        self.assertIn("between 0.5 and 0.99", response.json()["error"])
-        response = self.start(phase="inclusion", threshold="0.95", statuses=["U", "A"])
+        self.assertIn("The threshold of I1 must be between 0.5 and 0.99", response.json()["error"])
+        response = self.start(**inclusion, **{"threshold-I1": "0.95"})
         self.assertEqual(200, response.status_code, response.content)
         run = response.json()["run"]
         self.assertEqual(("inclusion", 1), (run["phase"], run["total"]))
-        self.assertEqual(0.95, ScreeningRun.objects.get(pk=run["id"]).parameters["threshold"])
+        self.assertEqual({"I1": 0.95}, ScreeningRun.objects.get(pk=run["id"]).parameters["thresholds"])
+        page = self.client.get(self.form_url, {"review-id": self.review.pk, "phase": "inclusion"})
+        self.assertContains(page, 'name="threshold-I1" class="form-control input-sm" value="0.95"', html=False)
         with mock.patch.object(jev, "evaluate", return_value=INCLUDE):
             body = self.client.post(self.step_url, {"review-id": self.review.pk, "run-id": run["id"]}).json()
         self.assertEqual(("finished", 1), (body["run"]["status"], body["run"]["included"]))

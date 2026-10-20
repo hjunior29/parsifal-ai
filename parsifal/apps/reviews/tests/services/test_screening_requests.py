@@ -27,16 +27,19 @@ CONTEXT = {
 STUDY = {"title": "A tool", "keywords": "screening", "abstract": "We built a tool."}
 REVIEW = {"title": "Screening tools", "objective": "Find them.", "research_questions": ["RQ1: Which?", "RQ2: How?"]}
 
-# What a reviewer tried in Jev's playground: the review in the state, no keywords, the criteria alone as options.
+STUDY_READ = {"title": "A tool", "abstract": "We built a tool."}  # the default sends no keywords
+
+# The request as Parsifal used to word it: the review inside the question, the keywords in the state.
 EDITED = {
-    "state": {"review": "{{review}}", "study": {"title": "{{study.title}}", "abstract": "{{study.abstract}}"}},
+    "state": {"title": "{{study.title}}", "keywords": "{{study.keywords}}", "abstract": "{{study.abstract}}"},
     "question": {
         "type": "choice",
         "instructions": {
-            "task": "From the title and abstract: which exclusion criterion do they indicate that the study meets?",
-            "rules": ["Choose none only when no exclusion criterion is indicated."],
+            "review": "{{review}}",
+            "task": "From the title, keywords and abstract: which exclusion criterion does the study meet?",
+            "guidance": "{{guidance}}",
         },
-        "criteria": {"{{key}}": "{{criterion}}", "none": "No exclusion criterion applies to the study."},
+        "criteria": {"none": "Nothing applies.", "{{key}}": "{{key}} — {{criterion}}"},
     },
 }
 
@@ -54,71 +57,57 @@ def edited(phase, change):
 
 
 class TestDefaultRequests(SimpleTestCase):
-    def test_exclusion_one_choice_question_in_three_orders(self):
+    def test_exclusion_one_choice_question(self):
         default = screening_requests.default("exclusion")
         state, questions = build("exclusion", default)
-        self.assertEqual(STUDY, state)
-        self.assertEqual(["exclusion_1", "exclusion_2", "exclusion_3"], list(questions))
-        self.assertEqual(
-            [["E1", "E2", "none"], ["E2", "none", "E1"], ["none", "E1", "E2"]],
-            [list(question["criteria"]) for question in questions.values()],
-        )
+        self.assertEqual({"review": REVIEW, "study": STUDY_READ}, state)
         instructions = default["question"]["instructions"]
         self.assertEqual(
             {
-                "type": "choice",
-                "instructions": {"review": REVIEW, "task": instructions["task"], "rules": instructions["rules"]},
-                "criteria": {
-                    "E1": "Not a primary study",
-                    "E2": "Not in English",
-                    "none": default["question"]["criteria"]["none"],
-                },
+                "exclusion": {
+                    "type": "choice",
+                    "instructions": {"task": instructions["task"], "rules": instructions["rules"]},
+                    "criteria": {
+                        "E1": "Not a primary study",
+                        "E2": "Not in English",
+                        "none": "No exclusion criterion applies to the study.",
+                    },
+                }
             },
-            questions["exclusion_1"],
+            questions,
         )
         _state, with_guidance = build("exclusion", default, guidance="Tertiary studies count as secondary.")
-        self.assertEqual(["review", "task", "rules", "guidance"], list(with_guidance["exclusion_2"]["instructions"]))
-        self.assertEqual(
-            "Tertiary studies count as secondary.", with_guidance["exclusion_2"]["instructions"]["guidance"]
-        )
-
-    def test_a_single_criterion_gives_two_orders(self):
-        self.assertEqual([["E1", "none"], ["none", "E1"]], screening_requests.rotations(["E1", "none"]))
-        self.assertEqual(
-            ["exclusion_1", "exclusion_2"], screening_requests.exclusion_question_ids(EXCLUSION_OPTIONS[:1])
-        )
-        self.assertEqual(3, screening_requests.order_count("exclusion", EXCLUSION_OPTIONS))
-        self.assertEqual(2, screening_requests.order_count("inclusion", INCLUSION_OPTIONS))
-
-    def test_inclusion_one_yes_no_question_per_criterion_in_both_orders(self):
-        default = screening_requests.default("inclusion")
-        state, questions = build("inclusion", default, guidance="Be strict.")
-        self.assertEqual(STUDY, state)
-        self.assertEqual(["inclusion_i1_1", "inclusion_i1_2", "inclusion_i2_1", "inclusion_i2_2"], list(questions))
-        self.assertEqual(
-            [["true", "false"], ["false", "true"]],
-            [list(questions[f"inclusion_i2_{order}"]["criteria"]) for order in (1, 2)],
-        )
-        question = questions["inclusion_i2_1"]
-        self.assertEqual("noul", question["type"])
         self.assertEqual(
             {
-                "true": "The study meets the inclusion criterion: Implemented tool",
-                "false": "The study does not meet the inclusion criterion: Implemented tool",
+                "task": instructions["task"],
+                "rules": instructions["rules"],
+                "guidance": "Tertiary studies count as secondary.",
             },
-            question["criteria"],
+            with_guidance["exclusion"]["instructions"],
         )
+
+    def test_inclusion_one_yes_no_question_per_criterion(self):
+        default = screening_requests.default("inclusion")
+        state, questions = build("inclusion", default)
+        self.assertEqual({"review": REVIEW, "study": STUDY_READ}, state)
+        self.assertEqual(["inclusion_I1", "inclusion_I2"], list(questions))
         instructions = default["question"]["instructions"]
         self.assertEqual(
             {
-                "review": REVIEW,
-                "task": instructions["task"],
-                "rules": instructions["rules"],
-                "guidance": "Be strict.",
-                "criterion": "I2: Implemented tool",
+                "type": "noul",
+                "instructions": {
+                    "task": instructions["task"],
+                    "rules": instructions["rules"],
+                    "criterion": "Implemented tool",
+                },
+                "criteria": {
+                    "true": "Implemented tool",
+                    "false": "The title and abstract do not show that the study meets the inclusion criterion.",
+                },
             },
-            question["instructions"],
+            questions["inclusion_I2"],
         )
+        self.assertEqual("inclusion_I3", screening_requests.inclusion_question_id("I3"))
 
     def test_the_default_is_a_copy(self):
         screening_requests.default("exclusion")["question"]["type"] = "changed"
@@ -126,21 +115,29 @@ class TestDefaultRequests(SimpleTestCase):
 
 
 class TestEditedRequests(SimpleTestCase):
-    def test_the_text_around_the_data_is_the_templates(self):
-        state, questions = build("exclusion", EDITED)
-        self.assertEqual({"review": REVIEW, "study": {"title": "A tool", "abstract": "We built a tool."}}, state)
+    def test_the_text_and_layout_around_the_data_are_the_templates(self):
+        state, questions = build("exclusion", EDITED, guidance="Be strict.")
+        self.assertEqual(STUDY, state)
         self.assertEqual(
             {
-                "type": "choice",
-                "instructions": EDITED["question"]["instructions"],
-                "criteria": {
-                    "E1": "Not a primary study",
-                    "E2": "Not in English",
-                    "none": "No exclusion criterion applies to the study.",
-                },
+                "exclusion": {
+                    "type": "choice",
+                    "instructions": {
+                        "review": REVIEW,
+                        "task": EDITED["question"]["instructions"]["task"],
+                        "guidance": "Be strict.",
+                    },
+                    # The options in the template's order, the criteria where "{{key}}" is.
+                    "criteria": {
+                        "none": "Nothing applies.",
+                        "E1": "E1 — Not a primary study",
+                        "E2": "E2 — Not in English",
+                    },
+                }
             },
-            questions["exclusion_1"],
+            questions,
         )
+        self.assertEqual(["none", "E1", "E2"], list(questions["exclusion"]["criteria"]))
 
     def test_placeholders_inside_a_text_and_empty_values(self):
         template = {
@@ -167,25 +164,11 @@ class TestEditedRequests(SimpleTestCase):
         )
         self.assertEqual(
             "Review Screening tools, asking RQ1: Which?\nRQ2: How?. Does it meet I1?",
-            questions["inclusion_i1_1"]["instructions"],
+            questions["inclusion_I1"]["instructions"],
         )
-        # The template's order of the answers comes first.
+        self.assertEqual(["false", "true"], list(questions["inclusion_I1"]["criteria"]))  # the template's order
         self.assertEqual(
-            {"false": "No: About screening", "true": "Yes: About screening"}, questions["inclusion_i1_1"]["criteria"]
-        )
-        self.assertEqual(["true", "false"], list(questions["inclusion_i1_2"]["criteria"]))
-
-    def test_the_options_rotate_from_the_templates_order(self):
-        template = copy.deepcopy(EDITED)
-        template["question"]["criteria"] = {"none": "Nothing applies.", "{{key}}": "{{key}} — {{criterion}}"}
-        _state, questions = build("exclusion", template)
-        self.assertEqual(
-            {"none": "Nothing applies.", "E1": "E1 — Not a primary study", "E2": "E2 — Not in English"},
-            questions["exclusion_1"]["criteria"],
-        )
-        self.assertEqual(
-            [["none", "E1", "E2"], ["E1", "E2", "none"], ["E2", "none", "E1"]],
-            [list(question["criteria"]) for question in questions.values()],
+            {"false": "No: Implemented tool", "true": "Yes: Implemented tool"}, questions["inclusion_I2"]["criteria"]
         )
 
     def test_the_state_can_be_the_study_itself(self):

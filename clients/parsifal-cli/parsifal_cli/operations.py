@@ -1546,8 +1546,14 @@ OPERATIONS = (
             B(
                 "threshold",
                 FLOAT,
-                help="0.5–0.99, default 0.9. Exclusion: reject when 1 - p(none) is at least this; inclusion: accept "
-                "when p(meets) of every criterion is at least this.",
+                help="0.5–0.99, default 0.9. Exclusion: reject when 1 - p(none) is at least this. Inclusion: the "
+                "threshold of the criteria --thresholds leaves out.",
+            ),
+            B(
+                "thresholds",
+                LIST_STR,
+                help="Inclusion: a threshold per criterion, KEY=value (repeat: --thresholds I1=0.9 --thresholds "
+                "I2=0.85); accept when every p(meets) reaches its own. Left out: --threshold, else the last run's.",
             ),
             B("reviewer_id", INT, True, "Member of the review the decisions are recorded as (see setup)."),
         ),

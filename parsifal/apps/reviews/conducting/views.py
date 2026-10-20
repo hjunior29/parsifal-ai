@@ -838,6 +838,11 @@ def ai_screening(request):
     if integration and integration.model not in {model["name"] for model in models}:
         models = [*models, {"name": integration.model, "description": "", "release_date": ""}] if models else []
     unfinished = ai_screening_service.unfinished_run(review)
+    options = ai_screening_service.criteria_options(review, phase)
+    if phase == ai_screening_service.INCLUSION:
+        # One threshold per inclusion criterion, from the review's last inclusion run.
+        thresholds = ai_screening_service.current_thresholds(review, options)
+        options = [dict(option, threshold=thresholds[option["key"]]) for option in options]
     context = {
         "review": review,
         "phase": phase,
@@ -852,7 +857,7 @@ def ai_screening(request):
         "selected_reviewer": selected,
         "models": [{"name": m["name"], "label": model_label(m)} for m in models],
         "models_error": models_error,
-        "options": ai_screening_service.criteria_options(review, phase),
+        "options": options,
         "context_fields": [
             {"name": name, "label": label, "value": defaults[name], "limit": limit, "multiline": limit > 255}
             for name, label, limit in ai_screening_service.CONTEXT_FIELDS
@@ -908,6 +913,12 @@ def ai_screening_start(request):
             actor=request.user,
             reviewer_id=request.POST.get("reviewer-id"),
             threshold=request.POST.get("threshold"),
+            # Include with AI: one threshold per criterion, in fields named threshold-I1, threshold-I2…
+            thresholds={
+                name.removeprefix("threshold-"): value
+                for name, value in request.POST.items()
+                if name.startswith("threshold-")
+            },
             **_ai_screening_settings(request),
         )
     except DomainError as error:
