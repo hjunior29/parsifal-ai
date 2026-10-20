@@ -46,7 +46,7 @@ mirror the API parameters in kebab-case; `--review` accepts a numeric id or
 | (root) | `me`, `version`, `docs` (prints the workflow guide), `config show|set` |
 | `token` | `list`, `create --name`, `revoke --id`, `delete --id` (revoked only) |
 | `user` | `list`, `create --username --email [--password …]` (administrators) |
-| `review` | `list [--author --name --q --limit --offset --all]`, `create`, `get`, `overview`, `update`, `delete`, `rename --name` |
+| `review` | `list [--author --name --q --limit --offset --all]`, `create`, `get`, `overview`, `update`, `delete`, `rename --name`, `reset-selection [--reviewer-ids U …]` (every study but duplicates unclassified, the chosen reviewers' decisions deleted; asks for confirmation) |
 | `member` | `list` |
 | `agent` | `list`, `create --name`, `new-token --id`, `delete --id` (permanent: account, tokens, decisions, quality assessments and extracted data; imported studies and classifications stay) |
 | `question` | `list`, `create --description [--parent-id]`, `update --id`, `delete --id`, `reorder --ids …` |

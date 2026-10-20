@@ -47,6 +47,11 @@ urlpatterns = [
         reviews_settings_views.DeleteReviewView.as_view(),
         name="delete_review",
     ),
+    path(
+        "<str:username>/<str:review_name>/settings/reset-selection/",
+        reviews_settings_views.ResetSelectionView.as_view(),
+        name="reset_selection",
+    ),
     # Planning Phase
     path("<str:username>/<str:review_name>/planning/", reviews_planning_views.planning, name="planning"),
     path("<str:username>/<str:review_name>/planning/protocol/", reviews_planning_views.protocol, name="protocol"),

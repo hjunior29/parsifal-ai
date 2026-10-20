@@ -25,7 +25,7 @@ document at `/api/v1/openapi.json`.
 | Resource | Paths |
 |----------|-------|
 | Account | `/me` (GET, PATCH), `/tokens`, `/users` (administrators), `/sources/defaults` |
-| Reviews | `/reviews`, `/reviews/{id}`, `/overview`, `/name`, `/members` |
+| Reviews | `/reviews`, `/reviews/{id}`, `/overview`, `/name`, `/members`, `/selection/reset` (back to the start of study selection; main author) |
 | Protocol | `/questions`, `/keywords` (+ `/import-picoc`), `/search-string` (+ `/generate`), `/sources` (+ `/search-strings`, `/{id}/search-string`, `/{id}/search`), `/criteria` |
 | Quality assessment | `/quality/questions`, `/quality/answers` (+ `/suggested`), `/quality/max-score`, `/quality/cutoff`, `/quality/summary`, `/articles/{id}/quality` |
 | Data extraction | `/extraction/fields`, `/articles/{id}/extraction` (+ `/done`) |

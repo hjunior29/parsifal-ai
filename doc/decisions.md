@@ -382,3 +382,26 @@ for the playground.
 and runs from before it existed use the default. The setup operation returns
 `template`, `template_default` and `placeholders` instead of `task`, `rules`,
 `none_description` and `sent_fields`.
+
+## Resetting the study selection
+
+**Context.** Tuning the request to Jev means running it, reading the results,
+changing the request and running again. Helder did the first reset by hand
+(a backup and a script); he wants it as an action of the review, confirmed
+like a deletion, that keeps the history and removes what affects the next run.
+
+**Decision.** *Review settings → Danger zone → Reset the study selection*
+(main author only; `reviews_selection_reset` in the API, `review
+reset-selection` in the CLI, destructive for MCP clients). It puts every study
+that is not a duplicate back to unclassified without a criterion (the actor is
+their last editor), deletes the decisions of the reviewers chosen — the window
+checks the AI agents and leaves people unchecked — at every stage, and
+discards a run in progress. Duplicates (deduplication is not screening), the
+other reviewers' decisions, the AI runs with their results and request
+templates, stars, PDFs, quality assessments and extracted data are kept. The
+confirmation window shows the counts and asks "I understand the
+consequences", as the deletion does.
+
+**Consequences.** No migration. The next AI run starts from the last run's
+request template, which the reset keeps.
+

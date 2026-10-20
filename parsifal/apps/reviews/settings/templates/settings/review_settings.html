@@ -22,6 +22,14 @@
         $("#formDeleteReview button[type='submit']").disable();
       });
 
+      $("#enable-confirm-reset").change(function () {
+        $("#confirm-reset").prop("disabled", !this.checked);
+      });
+
+      $("#formResetSelection").submit(function () {
+        $("#confirm-reset").prop("disabled", true);
+      });
+
     });
   </script>
 {% endblock javascript %}
@@ -56,6 +64,14 @@
         </div>
         <ul class="list-group">
           <li class="list-group-item">
+            <button type="button" class="btn btn-danger pull-right" data-toggle="modal" data-target="#reset-selection">Reset</button>
+            <p><strong>Reset the study selection</strong></p>
+            <p style="margin-bottom: 0;">
+              Every study except duplicates goes back to unclassified, so you can screen again — for instance with
+              another request to Jev. The log of the AI screening runs is kept.
+            </p>
+          </li>
+          <li class="list-group-item">
             <button type="button" class="btn btn-danger pull-right" data-toggle="modal" data-target="#delete-review">{% translate "Delete" %}</button>
             <p><strong>{% translate "Delete this review" %}</strong></p>
             <p style="margin-bottom: 0;">{% translate "Once you delete a review, there is no going back. Please be certain." %}</p>
@@ -63,6 +79,56 @@
         </ul>
       </div>
 
+
+      <form method="post" action="{% url "reset_selection" review.author.username review.name %}" id="formResetSelection">
+        {% csrf_token %}
+        <div class="modal fade" id="reset-selection" tabindex="-1" role="dialog" aria-labelledby="reset-selection-title" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title" id="reset-selection-title">Reset the study selection?</h4>
+              </div>
+              <div class="modal-body">
+                <p>This action <strong>CANNOT</strong> be undone.</p>
+                <ul>
+                  <li>
+                    <strong>{{ reset.to_unclassify }}</strong> stud{{ reset.to_unclassify|pluralize:"y goes,ies go" }} back to unclassified, without a criterion
+                    (now {{ reset.accepted }} accepted, {{ reset.rejected }} rejected, {{ reset.unclassified }} unclassified).
+                  </li>
+                  <li>Duplicates stay duplicates ({{ reset.duplicated }}).</li>
+                  {% if reset.running_run %}<li>The AI screening run in progress is discarded.</li>{% endif %}
+                  <li>
+                    Kept: the log of the {{ reset.runs }} AI screening run{{ reset.runs|pluralize }} (with the request
+                    sent to Jev, which the next run starts from), stars, PDFs, quality assessments and extracted data.
+                  </li>
+                </ul>
+                {% if reset.reviewers %}
+                  <p style="margin-bottom: 4px;"><strong>Delete the decisions of</strong> <small class="text-muted">(Reviewers tab and Reviewer agreement)</small></p>
+                  {% for row in reset.reviewers %}
+                    <div class="checkbox" style="margin-top: 0;">
+                      <label>
+                        <input type="checkbox" name="reviewer_ids" value="{{ row.user.pk }}"{% if row.is_agent %} checked{% endif %}>
+                        {{ row.user.profile.get_screen_name }} ({{ row.user.username }}){% if row.is_agent %} · AI agent{% endif %}
+                        <span class="text-muted">— {{ row.decisions }} decision{{ row.decisions|pluralize }}</span>
+                      </label>
+                    </div>
+                  {% endfor %}
+                  <p class="help-block small">The reviewers left unchecked keep their decisions.</p>
+                {% endif %}
+                <div class="checkbox">
+                  <label>
+                    <input type="checkbox" id="enable-confirm-reset"> I understand the consequences.
+                  </label>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="submit" id="confirm-reset" class="btn btn-danger btn-block" disabled>Reset the study selection</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </form>
 
       <form method="post" action="{% url "delete_review" review.author.username review.name %}" id="formDeleteReview">
         {% csrf_token %}

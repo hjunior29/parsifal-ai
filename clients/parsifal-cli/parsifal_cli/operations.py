@@ -428,6 +428,23 @@ OPERATIONS = (
         destructive=True,
     ),
     Operation(
+        "reviews_selection_reset",
+        "POST",
+        "/reviews/{review_id}/selection/reset",
+        ("review",),
+        "reset-selection",
+        "Back to the start of study selection: every study but duplicates unclassified (main author only).",
+        (
+            REVIEW,
+            B(
+                "reviewer_ids",
+                LIST_INT,
+                help="Also delete these reviewers' decisions (repeat; see decision summary). AI run logs are kept.",
+            ),
+        ),
+        destructive=True,
+    ),
+    Operation(
         "reviews_rename",
         "PUT",
         "/reviews/{review_id}/name",

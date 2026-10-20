@@ -12,7 +12,7 @@ from parsifal.apps.core.exceptions import DomainError
 from parsifal.apps.reviews.decorators import main_author_required
 from parsifal.apps.reviews.mixins import MainAuthorRequiredMixin, ReviewMixin
 from parsifal.apps.reviews.models import Review
-from parsifal.apps.reviews.services import agents as agent_services
+from parsifal.apps.reviews.services import agents as agent_services, selection
 from parsifal.apps.reviews.settings.forms import ReviewSettingsForm
 
 
@@ -36,7 +36,30 @@ def settings(request, username, review_name):
             return redirect(r("settings", args=(review.author.username, unique_name)))
     else:
         form = ReviewSettingsForm(instance=review)
-    return render(request, "settings/review_settings.html", {"review": review, "form": form})
+    context = {"review": review, "form": form, "reset": selection.reset_summary(review)}
+    return render(request, "settings/review_settings.html", context)
+
+
+class ResetSelectionView(LoginRequiredMixin, MainAuthorRequiredMixin, ReviewMixin, View):
+    """Danger zone: back to the start of study selection, deleting the decisions of the reviewers checked."""
+
+    def post(self, request, *args, **kwargs):
+        try:
+            done = selection.reset(
+                review=self.review, actor=request.user, reviewer_ids=request.POST.getlist("reviewer_ids")
+            )
+        except DomainError as error:
+            messages.error(request, str(error))
+            return redirect("settings", self.review.author.username, self.review.name)
+        unclassified, deleted = done["unclassified"], done["decisions_deleted"]
+        message = f"The study selection was reset: {unclassified} stud{'y is' if unclassified == 1 else 'ies are'} "
+        message += "unclassified again"
+        if deleted:
+            message += f", {deleted} decision{'' if deleted == 1 else 's'} deleted"
+        if done["runs_discarded"]:
+            message += ", the AI screening run in progress was discarded"
+        messages.success(request, message + ".")
+        return redirect("study_selection", self.review.author.username, self.review.name)
 
 
 class DeleteReviewView(LoginRequiredMixin, MainAuthorRequiredMixin, ReviewMixin, View):

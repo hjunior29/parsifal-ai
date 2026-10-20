@@ -444,8 +444,7 @@ def start_run(
         raise ValidationError("There are no studies with these statuses in this scope.", field="statuses")
 
     # One run at a time per review: a run left behind (page closed mid-way) is closed now.
-    for stale in review.screening_runs.filter(status=ScreeningRun.RUNNING):
-        _close(stale, ScreeningRun.CANCELLED)
+    discard_unfinished(review)
 
     parameters = {
         "context": context,
@@ -523,6 +522,14 @@ def _close(run, status, error=""):
     run.error = error[:500]
     run.finished_at = timezone.now()
     run.save(update_fields=["status", "error", "finished_at"])
+
+
+def discard_unfinished(review, error=""):
+    """Close the review's running runs as cancelled, without their remaining studies. Returns how many."""
+    runs = list(review.screening_runs.filter(status=ScreeningRun.RUNNING))
+    for run in runs:
+        _close(run, ScreeningRun.CANCELLED, error)
+    return len(runs)
 
 
 def unfinished_run(review):

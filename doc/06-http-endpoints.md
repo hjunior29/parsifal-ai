@@ -73,6 +73,7 @@ Conventions used below:
 | `/<username>/<review_name>/settings/` | GET/POST | M | `name` (slug; collisions suffixed) | Rename URL. |
 | `/review_settings/transfer/` | POST | M | `review-id`, `transfer-user` (username) | New author = target; old author becomes co-author. |
 | `/<username>/<review_name>/settings/delete/` | POST | M | | Deletes review and its non-default sources (atomic). |
+| `/<username>/<review_name>/settings/reset-selection/` | POST | M | `reviewer_ids` (repeated) | Back to the start of study selection (`services/selection.py`); redirects to the study selection page with the counts. |
 | `/reviews/remove_author/` | POST | M | `review-id`, `user-id` | Remove co-author. |
 | `/reviews/leave/` | POST | A | `review-id` | Current user leaves co-authorship. |
 | `/<username>/<review_name>/settings/invites/` | GET/POST | M | `invitee` (user id among people you follow) **xor** `invitee_email` | Create `Invite`, send e-mail with `/invites/<code>/` link. |

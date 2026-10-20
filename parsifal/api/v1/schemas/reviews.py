@@ -59,6 +59,16 @@ class ReviewNameIn(Schema):
     name: str
 
 
+class SelectionResetIn(Schema):
+    reviewer_ids: list[int] = []  # delete these reviewers' decisions (every stage); the others keep theirs
+
+
+class SelectionResetOut(Schema):
+    unclassified: int  # studies that went back to unclassified (duplicates are kept)
+    decisions_deleted: int
+    runs_discarded: int  # the AI screening run in progress, if any
+
+
 class AgentIn(Schema):
     name: str
 

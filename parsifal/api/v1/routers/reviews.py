@@ -14,10 +14,12 @@ from parsifal.api.v1.schemas.reviews import (
     ReviewNameIn,
     ReviewOut,
     ReviewUpdateIn,
+    SelectionResetIn,
+    SelectionResetOut,
 )
 from parsifal.apps.core.exceptions import ValidationError
 from parsifal.apps.reviews.models import Review
-from parsifal.apps.reviews.services import agents, protocol, reviews
+from parsifal.apps.reviews.services import agents, protocol, reviews, selection
 
 router = Router(tags=["reviews"])
 
@@ -76,6 +78,21 @@ def reviews_update(request, review_id: int, payload: ReviewUpdateIn):
 def reviews_delete(request, review_id: int):
     reviews.delete_review(review=get_owned_review(request, review_id))
     return 204, None
+
+
+@router.post(
+    "/reviews/{int:review_id}/selection/reset", response=SelectionResetOut, operation_id="reviews_selection_reset"
+)
+def reviews_selection_reset(request, review_id: int, payload: SelectionResetIn):
+    """
+    Back to the start of study selection (main author only; it cannot be undone): every study that is not a
+    duplicate becomes unclassified, without a criterion; the decisions of ``reviewer_ids`` are deleted, at every
+    stage; an AI screening run in progress is discarded. Kept: duplicates, the other reviewers' decisions (see
+    decisions_summary for who has decisions), the log of the AI runs with their request templates, stars, PDFs,
+    quality assessments and extracted data.
+    """
+    review = get_review(request, review_id)
+    return selection.reset(review=review, actor=request.auth, reviewer_ids=payload.reviewer_ids)
 
 
 @router.put("/reviews/{int:review_id}/name", response=ReviewOut, operation_id="reviews_rename")

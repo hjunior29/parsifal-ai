@@ -240,3 +240,20 @@ acceptances). A study you mark yourself
 is no longer this reviewer's to change. To try another model or guidance
 without touching the first results, run it as another reviewer and compare
 the two.
+
+## Starting over
+
+To try another request to Jev from a clean slate, the main author can use
+**Review settings → Danger zone → Reset the study selection**. After you
+confirm (it cannot be undone):
+
+- every study except duplicates goes back to unclassified, without a criterion;
+- the decisions of the reviewers you check are deleted, at every stage (AI
+  agents are checked by default, people are not; the others keep theirs);
+- a run in progress is discarded.
+
+The log of the AI runs is kept, with the request each one sent, and the next
+run starts from the last request; so are stars, PDFs, quality assessments and
+extracted data. The same from the CLI: `parsifal review reset-selection
+--review R --reviewer-ids 3 --reviewer-ids 4` (it asks for confirmation;
+`parsifal decision summary --review R` shows who has decisions).

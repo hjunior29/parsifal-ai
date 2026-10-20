@@ -76,6 +76,11 @@ whose run set them. The response says how many studies the rule decided and
 how many of them actually **changed** status (`changed`, `changed_ids`); the
 window keeps the rule you used last in that review.
 
+To screen again from the start (for instance with another request to Jev),
+*Review settings → Danger zone → Reset the study selection* puts every study
+except duplicates back to unclassified and deletes the decisions of the
+reviewers you choose; see [Exclude and include with AI](/docs/ai-screening/).
+
 ## Where else the reviewer is recorded
 
 Quality assessment answers, extracted values and classifications store the

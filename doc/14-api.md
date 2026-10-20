@@ -60,6 +60,7 @@ Paths below are relative to `/api/v1`. `{rid}` = review id.
 | `GET /reviews/{rid}` · `PATCH /reviews/{rid}` (title, description, objective, population, intervention, comparison, outcome, context, quality_assessment_cutoff_score) · `DELETE` (owner) | `reviews_get` · `reviews_update` · `reviews_delete` |
 | `GET /reviews/{rid}/overview` | `reviews_overview` — counts per section and per article status; the first call an agent should make |
 | `PUT /reviews/{rid}/name {name}` (owner) | `reviews_rename` |
+| `POST /reviews/{rid}/selection/reset {reviewer_ids?}` (owner) | `reviews_selection_reset` — back to the start of study selection: every study but duplicates becomes unclassified without a criterion, the decisions of `reviewer_ids` are deleted (every stage), a run in progress is discarded; the AI run log, stars, PDFs, quality and extraction data are kept; returns `{unclassified, decisions_deleted, runs_discarded}` |
 | `GET /reviews/{rid}/members` | `members_list` (author and co-authors) |
 | `GET /reviews/{rid}/agents` · `POST {name}` (owner) · `POST /agents/{id}/token` (owner) · `DELETE /agents/{id}` (owner) | `agents_list` · `agents_create` · `agents_new_token` · `agents_delete` |
 
