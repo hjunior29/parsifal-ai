@@ -55,10 +55,12 @@ class ConsolidateIn(Schema):
 class ConsolidateOut(Schema):
     stage: str
     rule: str
-    resolved: int
-    unresolved: int
+    resolved: int  # articles the rule decided (their status was set)
+    unresolved: int  # articles it could not decide (status untouched)
+    changed: int  # resolved articles whose status was different before
     resolved_ids: list[int]
     unresolved_ids: list[int]
+    changed_ids: list[int]
 
 
 class DecisionSummaryOut(Schema):

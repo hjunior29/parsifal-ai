@@ -190,7 +190,11 @@ def agreement(*, review, stage=StudyDecision.TITLE_ABSTRACT, user_a_id=None, use
 
 
 def disagreements(*, review, stage=StudyDecision.TITLE_ABSTRACT):
-    """Articles with at least two decisions that differ at the stage."""
+    """
+    Articles with at least two decisions that differ at the stage. They stay here after a consolidation, which sets
+    the article's status and leaves the decisions as they were: the article (its status and who last updated it)
+    tells whether it was settled.
+    """
     stage = _validate_stage(stage)
     table = _decision_table(review, stage)
     conflicting = [article_id for article_id, statuses in table.items() if len(set(statuses.values())) > 1]
@@ -201,7 +205,7 @@ def disagreements(*, review, stage=StudyDecision.TITLE_ABSTRACT):
     by_article = defaultdict(list)
     for decision in decisions:
         by_article[decision.article_id].append(decision)
-    for article in review.article_set.filter(pk__in=conflicting).order_by("title", "pk"):
+    for article in review.article_set.filter(pk__in=conflicting).select_related("updated_by").order_by("title", "pk"):
         rows.append({"article": article, "decisions": by_article[article.pk]})
     return rows
 
@@ -229,7 +233,8 @@ def _apply_rule(rule, statuses):
 def consolidate(*, review, stage=StudyDecision.TITLE_ABSTRACT, rule=RULE_UNANIMOUS, actor=None, article_ids=None):
     """
     Set ``Article.status`` from the reviewers' decisions using ``rule``. Articles the rule cannot decide are left
-    untouched and reported as unresolved. Returns counts and the ids involved.
+    untouched and reported as unresolved. Returns counts and the ids involved; ``changed`` are the resolved articles
+    whose status was different (the others already had the status the rule gave).
     """
     stage = _validate_stage(stage)
     if rule not in RULES:
@@ -245,6 +250,8 @@ def consolidate(*, review, stage=StudyDecision.TITLE_ABSTRACT, rule=RULE_UNANIMO
             unresolved.append(article_id)
         else:
             resolved[article_id] = status
+    current = dict(review.article_set.filter(pk__in=resolved).values_list("pk", "status"))
+    changed = sorted(article_id for article_id, status in resolved.items() if current[article_id] != status)
     for status in set(resolved.values()):
         ids = [a for a, s in resolved.items() if s == status]
         review.article_set.filter(pk__in=ids).update(status=status, updated_by=actor)
@@ -253,8 +260,10 @@ def consolidate(*, review, stage=StudyDecision.TITLE_ABSTRACT, rule=RULE_UNANIMO
         "rule": rule,
         "resolved": len(resolved),
         "unresolved": len(unresolved),
+        "changed": len(changed),
         "resolved_ids": sorted(resolved),
         "unresolved_ids": sorted(unresolved),
+        "changed_ids": changed,
     }
 
 

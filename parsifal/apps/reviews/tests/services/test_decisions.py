@@ -112,7 +112,7 @@ class TestDecisions(TestCase):
                 self.decide(user, article, status)
 
         result = decisions.consolidate(review=self.review, rule="unanimous", actor=self.human)
-        self.assertEqual((2, 2), (result["resolved"], result["unresolved"]))
+        self.assertEqual((2, 2, 2), (result["resolved"], result["unresolved"], result["changed"]))
         self.assertEqual(
             {a1.pk: "A", a2.pk: "R", a3.pk: "U", a4.pk: "U"},
             {a.pk: Article.objects.get(pk=a.pk).status for a in self.articles},
@@ -120,11 +120,13 @@ class TestDecisions(TestCase):
 
         result = decisions.consolidate(review=self.review, rule="any_include")
         self.assertEqual(4, result["resolved"])
+        self.assertEqual(([a3.pk, a4.pk], 2), (result["changed_ids"], result["changed"]))  # a1 and a2 were set
         self.assertEqual(("A", "A"), (Article.objects.get(pk=a3.pk).status, Article.objects.get(pk=a4.pk).status))
 
         Article.objects.filter(review=self.review).update(status="U")
         result = decisions.consolidate(review=self.review, rule="majority", article_ids=[a3.pk, a4.pk])
         self.assertEqual(([a4.pk], [a3.pk]), (result["resolved_ids"], result["unresolved_ids"]))
+        self.assertEqual([a4.pk], result["changed_ids"])
         self.assertEqual("R", Article.objects.get(pk=a4.pk).status)
         with self.assertRaises(ValidationError):
             decisions.consolidate(review=self.review, rule="dictator")

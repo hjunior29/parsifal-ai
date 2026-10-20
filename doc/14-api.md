@@ -142,8 +142,8 @@ content.
 | `GET /reviews/{rid}/articles/{aid}/decisions` · `DELETE /articles/{aid}/decisions/mine?stage=` | `article_decisions` · `decisions_remove_mine` |
 | `GET /reviews/{rid}/decisions/summary` | `decisions_summary` |
 | `GET /reviews/{rid}/decisions/agreement?stage=&user_a_id=&user_b_id=` | `decisions_agreement` — Cohen's kappa, percent agreement, Landis & Koch label |
-| `GET /reviews/{rid}/decisions/disagreements?stage=` | `decisions_disagreements` |
-| `POST /reviews/{rid}/decisions/consolidate {stage, rule: unanimous | any_include | majority, ids?}` | `decisions_consolidate` — sets `Article.status` where the rule decides |
+| `GET /reviews/{rid}/decisions/disagreements?stage=` | `decisions_disagreements` — still listed after a consolidation (decisions are kept); `article.status` / `article.updated_by` show whether it was settled |
+| `POST /reviews/{rid}/decisions/consolidate {stage, rule: unanimous | any_include | majority, ids?}` | `decisions_consolidate` — sets `Article.status` (and `updated_by`) where the rule decides → `{resolved, unresolved, changed, resolved_ids, unresolved_ids, changed_ids}`; `changed` are those whose status was different |
 
 Recommended flow for an agent: `decisions_record` its screening decisions
 with the criterion as reason; the human reviewer records theirs; both check

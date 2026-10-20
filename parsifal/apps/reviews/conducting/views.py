@@ -1,5 +1,6 @@
 import logging
 import os
+from collections import Counter
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -737,6 +738,7 @@ def _agreement_context(request, review, stage, result=None):
         "rule_label": dict(RULE_LABELS).get(result["rule"], result["rule"]).split(" — ")[0] if result else None,
         "summary": decisions.summary(review),
         "result": result,
+        "selected_rule": result["rule"] if result else None,
         "agreement": None,
         "agreement_error": None,
     }
@@ -746,6 +748,11 @@ def _agreement_context(request, review, stage, result=None):
     except DomainError as error:
         context.setdefault("disagreements", [])
         context["agreement_error"] = str(error)
+    # Who set the status the disagreeing articles have now: a person who consolidated, or the run of an AI reviewer.
+    context["status_set_by"] = Counter(
+        row["article"].updated_by.username if row["article"].updated_by else "nobody"
+        for row in context["disagreements"]
+    ).most_common()
     return context
 
 

@@ -66,6 +66,16 @@ you can settle them in a consensus meeting (then set the status in the UI or
 with `article set-status`). Write the rule you used in the protocol's
 *selection procedure*.
 
+Consolidating sets the studies' status and records you as the one who set it;
+it never changes the decisions, which are each reviewer's record and the basis
+of the kappa. So a disagreement stays in the list after it is settled. The
+list's *Status now* column (and `article.status` / `article.updated_by` in
+`decision disagreements`) shows where each one stands, and the line above it
+counts who set those statuses — you, after a consolidation, or the AI reviewer
+whose run set them. The response says how many studies the rule decided and
+how many of them actually **changed** status (`changed`, `changed_ids`); the
+window keeps the rule you used last in that review.
+
 ## Where else the reviewer is recorded
 
 Quality assessment answers, extracted values and classifications store the

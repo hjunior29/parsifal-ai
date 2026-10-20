@@ -6,7 +6,9 @@
   {% if result %}
     <div class="alert alert-success">
       Consolidated with rule <strong>{{ rule_label }}</strong> at stage <strong>{{ stage_label }}</strong>:
-      {{ result.resolved }} article(s) updated, {{ result.unresolved }} left unresolved. The study list will refresh when you close this window.
+      the rule decided {{ result.resolved }} article(s), {{ result.changed }} of them changed status (the others already had it);
+      {{ result.unresolved }} could not be decided and kept their status. The decisions are kept, so the disagreements below
+      stay listed with the status each article has now. The study list will refresh when you close this window.
     </div>
   {% endif %}
 
@@ -49,9 +51,17 @@
 
   <h4>Disagreements <small>({{ disagreements|length }})</small></h4>
   {% if disagreements %}
-    <p class="help-block">Click an article to open its details (the decisions are on its <em>Reviewers</em> tab); <em>Back to agreement</em> brings you here again.</p>
+    <p class="help-block">
+      Consolidating does not remove a disagreement: it sets the article's status and keeps every decision.
+      <em>Status now</em> shows where each one stands.
+      Click an article to open its details (the decisions are on its <em>Reviewers</em> tab); <em>Back to agreement</em> brings you here again.
+    </p>
+    <p class="agreement-status-set-by">
+      Status now set by:
+      {% for name, count in status_set_by %}<strong>{{ name }}</strong> ({{ count }}){% if not forloop.last %}, {% endif %}{% endfor %}
+    </p>
     <table class="table table-condensed table-hover">
-      <thead><tr><th>Article</th><th>Decisions</th></tr></thead>
+      <thead><tr><th>Article</th><th>Decisions</th><th>Status now</th></tr></thead>
       <tbody>
         {% for row in disagreements %}
           <tr class="js-open-article" data-article-id="{{ row.article.pk }}" title="Open the article">
@@ -60,6 +70,10 @@
               {% for decision in row.decisions %}
                 <span class="label {% if decision.status == 'A' %}label-success{% elif decision.status == 'R' %}label-danger{% else %}label-default{% endif %}" title="{{ decision.comments }}">{{ decision.user.username }}: {{ decision.get_status_display }}</span>
               {% endfor %}
+            </td>
+            <td class="text-nowrap" title="Who last updated the study: a consolidation, an AI run or an edit">
+              {{ row.article.get_status_html|safe }}
+              {% if row.article.updated_by %}<small class="text-muted">by {{ row.article.updated_by.username }}</small>{% endif %}
             </td>
           </tr>
         {% endfor %}
@@ -75,7 +89,7 @@
       <label>Rule</label>
       <select name="rule" class="form-control input-sm">
         {% for value, label in rules %}
-          <option value="{{ value }}">{{ label }}</option>
+          <option value="{{ value }}"{% if value == selected_rule %} selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
     </div>

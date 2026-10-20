@@ -54,13 +54,23 @@ class TestDecisionsApi(ApiTestCase):
 
         with self.subTest(msg="consolidate unanimous then any_include"):
             result = self.api("post", self.review_path("/decisions/consolidate"), {"rule": "unanimous"}).json()
-            self.assertEqual((2, 1), (result["resolved"], result["unresolved"]))
+            self.assertEqual((2, 1, 2), (result["resolved"], result["unresolved"], result["changed"]))
+            self.assertEqual(ids[:2], result["changed_ids"])
             self.assertEqual("U", Article.objects.get(pk=ids[2]).status)
+            with self.subTest(msg="the disagreement stays, with the status the article has now"):
+                rows = self.api("get", self.review_path("/decisions/disagreements")).json()
+                self.assertEqual([(ids[2], "U")], [(row["article"]["id"], row["article"]["status"]) for row in rows])
+            again = self.api("post", self.review_path("/decisions/consolidate"), {"rule": "unanimous"}).json()
+            self.assertEqual((2, 0, []), (again["resolved"], again["changed"], again["changed_ids"]))
             result = self.api(
                 "post", self.review_path("/decisions/consolidate"), {"rule": "any_include", "ids": [ids[2]]}
             ).json()
-            self.assertEqual([ids[2]], result["resolved_ids"])
+            self.assertEqual(([ids[2]], [ids[2]]), (result["resolved_ids"], result["changed_ids"]))
             self.assertEqual("A", Article.objects.get(pk=ids[2]).status)
+            rows = self.api("get", self.review_path("/decisions/disagreements")).json()
+            self.assertEqual(
+                [("A", self.author.username)], [(r["article"]["status"], r["article"]["updated_by"]) for r in rows]
+            )
             self.assertEqual(
                 422, self.api("post", self.review_path("/decisions/consolidate"), {"rule": "coin"}).status_code
             )

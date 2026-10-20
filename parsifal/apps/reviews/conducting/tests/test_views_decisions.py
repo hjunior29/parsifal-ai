@@ -110,7 +110,10 @@ class TestDecisionViews(TestCase):
             {"review-id": self.review.pk, "stage": "title_abstract", "rule": "unanimous"},
         )
         self.assertEqual(200, response.status_code)
-        self.assertContains(response, "1 article(s) updated, 1 left unresolved")
+        self.assertContains(
+            response, "the rule decided 1 article(s), 1 of them changed status (the others already had it);"
+        )
+        self.assertContains(response, "1 could not be decided and kept their status.")
         self.assertContains(response, "rule <strong>Unanimous</strong> at stage <strong>Title and abstract")
         self.assertNotContains(response, "<strong>title_abstract</strong>")
         self.a1.refresh_from_db()
@@ -122,6 +125,26 @@ class TestDecisionViews(TestCase):
                 reverse("reviews:conducting:consolidate"), {"review-id": self.review.pk, "rule": "coin"}
             ).status_code,
         )
+
+    def test_disagreements_show_the_status_now_and_the_rule_used_stays_selected(self):
+        StudyDecision.objects.create(review=self.review, article=self.a1, user=self.human, status="U")
+        StudyDecision.objects.create(review=self.review, article=self.a1, user=self.agent, status="R")
+        Article.objects.filter(pk=self.a1.pk).update(status="R", updated_by=self.agent)
+        self.client.force_login(self.human)
+        response = self.client.get(reverse("reviews:conducting:agreement"), {"review-id": self.review.pk})
+        self.assertContains(response, "<th>Status now</th>", html=True)
+        self.assertContains(response, '<span class="label label-danger">Rejected</span>', html=True)
+        self.assertContains(response, '<small class="text-muted">by agent</small>', html=True)
+        self.assertContains(response, "Status now set by:")
+        self.assertContains(response, "<strong>agent</strong> (1)")
+        self.assertContains(response, "Consolidating does not remove a disagreement")
+
+        response = self.client.post(
+            reverse("reviews:conducting:consolidate"), {"review-id": self.review.pk, "rule": "majority"}
+        )
+        self.assertContains(response, "the rule decided 0 article(s), 0 of them changed status")  # a tie
+        self.assertContains(response, '<option value="majority" selected>', html=False)
+        self.assertContains(response, self.a1.title)  # still a disagreement
 
     def test_agreement_without_decisions(self):
         self.client.force_login(self.human)

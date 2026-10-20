@@ -214,11 +214,31 @@ $(function () {
       },
       success: function (data) {
         $("#modal-agreement .modal-body").html(data);
+        restoreRule();
       },
       complete: function () {
         $("#modal-agreement .modal-body").stopLoading();
       }
     });
+  }
+
+  /* The consolidation rule last used in this review is selected again when the window opens (in this browser). */
+  function ruleKey() {
+    return "parsifal.consolidateRule." + $("#review-id").val();
+  }
+
+  function restoreRule() {
+    var select = $("#modal-agreement #consolidate-form select[name=rule]");
+    try {
+      var rule = window.localStorage.getItem(ruleKey());
+      if (rule && select.find("option[value='" + rule + "']").length) {
+        select.val(rule);
+      }
+    } catch (e) { /* storage blocked: keep the default */ }
+  }
+
+  function rememberRule(rule) {
+    try { window.localStorage.setItem(ruleKey(), rule); } catch (e) { /* storage blocked */ }
   }
 
   $("#btn-agreement").click(function () { loadAgreement(); });
@@ -240,6 +260,7 @@ $(function () {
       beforeSend: function () { btn.prop("disabled", true); },
       success: function (data) {
         agreementConsolidated = true;
+        rememberRule(rule);
         $("#modal-agreement .modal-body").html(data);
       },
       error: function (xhr) {
