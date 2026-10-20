@@ -330,11 +330,16 @@ def untex(text):
     return unicodedata.normalize("NFC", text.replace("{", "").replace("}", "")).replace("\\", "")
 
 
-def normalize_doi(doi):
-    """DOI in a comparable form: no URL/``doi:`` prefix, no BibTeX escapes (``\\_``), lower case, no trailing dot."""
+def clean_doi(doi):
+    """The bare DOI: no URL/``doi:`` prefix, no BibTeX escapes (``\\_``), no spaces, no trailing dot."""
     doi = DOI_PREFIX.sub("", untex(doi).strip())
-    doi = re.sub(r"\s+", "", doi).rstrip(".,;").lower()
-    return doi or None
+    return re.sub(r"\s+", "", doi).rstrip(".,;") or None
+
+
+def normalize_doi(doi):
+    """DOI in a comparable form: the bare DOI (``clean_doi``) in lower case."""
+    doi = clean_doi(doi)
+    return doi.lower() if doi else None
 
 
 def title_key(title):

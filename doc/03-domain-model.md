@@ -126,7 +126,9 @@ The candidate study inside a review (despite the name, any BibTeX entry type).
 | Audit | `created_at`, `updated_at`, `created_by`, `updated_by` |
 
 Methods: `get_score()` (Σ QA answer weights), `get_quality_assesment()`,
-`get_status_html()` (Bootstrap label markup).
+`get_status_html()` (Bootstrap label markup), `external_url` (the study
+window's *External Link*: the http(s) `url`, or else the DOI at
+`https://doi.org/`, cleaned of BibTeX escapes and prefixes).
 
 ### Full text (`core.StoredFile`)
 

@@ -295,6 +295,24 @@ class TestDuplicates(TestCase):
         self.assertEqual("10.1/x", studies.normalize_doi("https://dx.doi.org/10.1/X"))
         self.assertIsNone(studies.normalize_doi("  "))
 
+    def test_external_link_is_the_url_or_else_the_doi(self):
+        cases = [
+            ("https://example.org/paper", "10.1/x", "https://example.org/paper"),
+            ("", "10.1007/978-3-031-70518-2\\_12", "https://doi.org/10.1007/978-3-031-70518-2_12"),
+            (None, "https://dx.doi.org/10.1145/ABC.123.", "https://doi.org/10.1145/ABC.123"),  # case kept
+            (
+                "  ",
+                "doi: 10.1002/(SICI)1097-4571(199806)49:8<693::AID-ASI4>3.0.CO;2-0",
+                "https://doi.org/10.1002/(SICI)1097-4571(199806)49:8%3C693::AID-ASI4%3E3.0.CO;2-0",
+            ),
+            ("javascript:alert(1)", "10.1/x", "https://doi.org/10.1/x"),
+            ("javascript:alert(1)", "", None),
+            (None, None, None),
+        ]
+        for url, doi, expected in cases:
+            with self.subTest(url=url, doi=doi):
+                self.assertEqual(expected, Article(url=url, doi=doi).external_url)
+
     def test_wos_and_scopus_dois_differing_by_an_escape_are_duplicates(self):
         review = ReviewFactory(sources=[self.source])
         wos = ArticleFactory(review=review, source=self.source, title="A study", doi="10.1007/978-3-031-70518-2\\_12")

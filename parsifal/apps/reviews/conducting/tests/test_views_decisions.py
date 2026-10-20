@@ -34,6 +34,26 @@ class TestDecisionViews(TestCase):
         self.a1.refresh_from_db()
         self.assertIn('article-doi="10.1/&quot;x&quot;"', build_article_table_row(self.a1))  # row after a save
 
+    def test_external_link_falls_back_to_the_doi(self):
+        self.client.force_login(self.human)
+
+        def details():
+            return self.client.get(
+                reverse("reviews:conducting:article_details"), {"review-id": self.review.pk, "article-id": self.a1.pk}
+            )
+
+        Article.objects.filter(pk=self.a1.pk).update(url="", doi="10.1007/978-3-031-70518-2\\_12")
+        response = details()
+        self.assertContains(response, 'href="https://doi.org/10.1007/978-3-031-70518-2_12" target="_blank"')
+        self.assertContains(response, "External Link")
+        self.assertContains(response, "Opens the DOI at doi.org")
+        Article.objects.filter(pk=self.a1.pk).update(url="https://example.org/a1")
+        response = details()
+        self.assertContains(response, 'href="https://example.org/a1" target="_blank"')
+        self.assertContains(response, 'title="Change the URL via Article URL"')
+        Article.objects.filter(pk=self.a1.pk).update(url="", doi="")
+        self.assertNotContains(details(), "External Link")
+
     def test_article_details_shows_reviewers_tab(self):
         StudyDecision.objects.create(review=self.review, article=self.a1, user=self.agent, status="A")
         self.client.force_login(self.human)

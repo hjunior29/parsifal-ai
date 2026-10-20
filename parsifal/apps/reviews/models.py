@@ -1,5 +1,6 @@
 import datetime
 import re
+from urllib.parse import quote, urlsplit
 
 from django.contrib.auth.models import User
 from django.db import models
@@ -345,6 +346,20 @@ class Article(models.Model):
     def save(self, *args, **kwargs):
         self.year_int = self.parse_year(self.year)
         super().save(*args, **kwargs)
+
+    @property
+    def external_url(self):
+        """
+        Where the study window's External Link goes: the study's URL, or else its DOI at doi.org; None when it has
+        neither. Only http(s) URLs count, so a ``javascript:`` URL from an imported file never becomes a link.
+        """
+        url = (self.url or "").strip()
+        if urlsplit(url).scheme.lower() in ("http", "https"):
+            return url
+        from parsifal.apps.reviews.services.studies import clean_doi  # the services import this module
+
+        doi = clean_doi(self.doi)
+        return f"https://doi.org/{quote(doi, safe='/:;()[]._-')}" if doi else None
 
     def get_score(self):
         score = QualityAssessment.objects.filter(article__id=self.id).aggregate(Sum("answer__weight"))

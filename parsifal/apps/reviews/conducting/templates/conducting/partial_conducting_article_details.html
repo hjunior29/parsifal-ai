@@ -29,9 +29,10 @@
         <a href="#tab-full-text" aria-controls="tab-full-text" role="tab" data-toggle="tab">Full text{% if article.pdf %} <span class="glyphicon glyphicon-file" title="Has a PDF"></span>{% endif %}</a>
       </li>
       {% endif %}
-      {% if article.url %}
+      {% with external_url=article.external_url %}
+      {% if external_url %}
         <li class="pull-right">
-          <a href="{{ article.url|default_if_none:'' }}" target="_blank" role="tab" title="Change the URL via Article URL">
+          <a href="{{ external_url }}" target="_blank" rel="noopener" role="tab" title="{% if external_url == article.url %}Change the URL via Article URL{% else %}Opens the DOI at doi.org (the study has no URL; fill Article URL to link elsewhere){% endif %}">
             <small>
               <span class="glyphicon glyphicon-new-window"></span>
               External Link
@@ -39,6 +40,7 @@
           </a>
         </li>
       {% endif %}
+      {% endwith %}
     </ul>
     <div class="tab-content">
       <div role="tabpanel" class="tab-pane active" id="tab-details">
