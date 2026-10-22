@@ -46,7 +46,7 @@ Paths below are relative to `/api/v1`. `{rid}` = review id.
 
 | Method & path | operationId | Purpose |
 |---------------|-------------|---------|
-| `GET /me` · `PATCH /me {first_name?, last_name?, email?}` | `me` · `me_update` | Current user and number of active tokens; change your own profile fields |
+| `GET /me` · `PATCH /me {first_name?, last_name?, email?, study_columns?}` | `me` · `me_update` | Current user, number of active tokens and `study_columns` (the columns of the study list on Study Selection, in order — the web's Columns window); change your own profile fields |
 | `GET /tokens` · `POST /tokens {name}` · `POST /tokens/{id}/revoke` · `DELETE /tokens/{id}` | `tokens_list` · `tokens_create` · `tokens_revoke` · `tokens_delete` | Manage own tokens (`POST` returns `key` once; delete only after revoking) |
 | `GET /users` · `POST /users {username,email,password?,first_name?,last_name?}` | `users_*` | Administrators only |
 | `GET /sources/defaults` | `sources_defaults` | The default digital libraries |

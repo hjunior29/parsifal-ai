@@ -234,8 +234,13 @@ OPERATIONS = (
         "/me",
         (),
         "me-update",
-        "Change your name or e-mail.",
-        (B("first_name"), B("last_name"), B("email")),
+        "Change your name, e-mail or the columns of the study list on Study Selection.",
+        (
+            B("first_name"),
+            B("last_name"),
+            B("email"),
+            B("study_columns", LIST_STR, help="The study list's columns, in order (repeat; see `me`)."),
+        ),
     ),
     Operation("users_list", "GET", "/users", ("user",), "list", "List users (administrators only)."),
     Operation(

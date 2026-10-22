@@ -522,12 +522,12 @@ $(function () {
     var shown = 0;
     rows.each(function () {
       var row = $(this);
-      var cells = row.children("td");
+      // The row's attributes, not its cells: the columns shown are the user's choice.
       var matches = (status === "ALL" || row.attr("article-status") === status) &&
         (!starredOnly || row.attr("article-starred") === "1") && (
         !query ||
-        cells.eq(2).text().toLowerCase().indexOf(query) !== -1 ||  // BibTeX key
-        cells.eq(3).text().toLowerCase().indexOf(query) !== -1 ||  // title
+        (row.attr("article-key") || "").toLowerCase().indexOf(query) !== -1 ||
+        (row.attr("article-title") || "").toLowerCase().indexOf(query) !== -1 ||
         (row.attr("article-doi") || "").toLowerCase().indexOf(doi) !== -1
       );
       row.toggle(matches);
@@ -799,4 +799,51 @@ $(function () {
     $("#source-tab li.active a").click();
   }
 
+
+  /* Columns of the study list: check the ones to show, order them with the arrows, save; the list reloads. */
+  var $columns = $("#modal-columns");
+
+  $columns.on("click", ".js-column-move", function () {
+    var item = $(this).closest("li");
+    if ($(this).data("step") < 0) { item.prev().before(item); } else { item.next().after(item); }
+  });
+
+  $columns.on("click", ".js-columns-default", function () {
+    var defaults = JSON.parse($("#study-columns-default").text());
+    var list = $columns.find(".js-study-columns");
+    var items = list.children("li").detach();
+    defaults.forEach(function (key) {
+      list.append(items.filter("[data-key='" + key + "']").find("input").prop("checked", true).end());
+    });
+    items.filter(function () { return defaults.indexOf($(this).data("key")) === -1; }).each(function () {
+      list.append($(this).find("input").prop("checked", false).end());
+    });
+  });
+
+  $columns.on("click", ".js-columns-save", function () {
+    var btn = $(this).prop("disabled", true);
+    var chosen = $columns.find(".js-study-columns li").filter(function () {
+      return $(this).find("input").prop("checked");
+    }).map(function () { return $(this).data("key"); }).get();
+    $.ajax({
+      url: '/reviews/conducting/save_study_columns/',
+      type: 'post',
+      traditional: true,
+      data: {
+        'review-id': $("#review-id").val(),
+        'columns': chosen,
+        'csrfmiddlewaretoken': $(".source-tab-content table").attr("csrf-token") || $("input[name=csrfmiddlewaretoken]").first().val()
+      },
+      success: function () {
+        $columns.find(".js-columns-error").hide();
+        $columns.modal("hide");
+        $("#source-tab li.active a").click();  // the list again, with these columns
+      },
+      error: function (xhr) {
+        var message = xhr.responseJSON && xhr.responseJSON.error ? xhr.responseJSON.error : "Could not save the columns.";
+        $columns.find(".js-columns-error").text(message).show();
+      },
+      complete: function () { btn.prop("disabled", false); }
+    });
+  });
 });

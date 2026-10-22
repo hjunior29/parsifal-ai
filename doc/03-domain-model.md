@@ -218,10 +218,11 @@ group and marks the rest `D`.
 ## People and collaboration
 
 - `authentication.Profile` (table `auth_profile`): one-to-one with `User`,
-  created by a `post_save` signal; `public_email`, `location`, `url`,
-  `institution`; helpers `get_screen_name()`, `get_picture()`,
-  `get_reviews()` (author + co-author reviews sorted by `last_update`),
-  follower helpers backed by `activities.Activity`.
+  created by a `post_save` signal (which only makes sure it exists: it does not
+  save it again with the user); `study_columns` (the columns of the study list on
+  Study Selection, in order; empty: the default — `services/study_columns.py`);
+  helpers `get_screen_name()`, `get_reviews()` (author + co-author reviews sorted
+  by `last_update`). The public fields were removed in phase 1.
 - `invites.Invite(review, invited_by, invitee nullable, invitee_email, status
   PENDING/ACCEPTED/REJECTED, code uuid4, date_sent, date_answered)`.
   `accept(user=None)` adds the invitee to `review.co_authors` atomically.

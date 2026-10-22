@@ -169,3 +169,14 @@ class TestLibraryAccess(ApiTestCase):
         self.assertEqual(204, self.api("delete", "/integrations/library-access").status_code)
         self.assertFalse(self.api("get", "/integrations/library-access").json()["configured"])
         self.assertIsNone(self.api("get", article_path).json()["access_url"])
+
+
+class TestStudyColumns(ApiTestCase):
+    def test_the_columns_of_the_study_list(self):
+        me = self.api("get", "/me").json()
+        self.assertEqual("star", me["study_columns"][0])
+        response = self.api("patch", "/me", {"study_columns": ["title", "status"]})
+        self.assertEqual(200, response.status_code, response.content)
+        self.assertEqual(["title", "status"], response.json()["study_columns"])
+        self.assertEqual(422, self.api("patch", "/me", {"study_columns": ["nope"]}).status_code)
+        self.assertEqual(["title", "status"], self.api("get", "/me").json()["study_columns"])

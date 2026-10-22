@@ -22,6 +22,7 @@ from parsifal.apps.accounts.models import ApiToken
 from parsifal.apps.authentication.validators import ASCIIUsernameValidator, validate_forbidden_usernames
 from parsifal.apps.core import library_proxy
 from parsifal.apps.core.exceptions import Conflict, NotFound, ValidationError
+from parsifal.apps.reviews.services import study_columns
 
 router = Router(tags=["account"])
 
@@ -35,6 +36,7 @@ def _me_out(user):
         last_name=user.last_name,
         is_superuser=user.is_superuser,
         active_tokens=user.api_tokens.active().count(),
+        study_columns=study_columns.for_user(user),
     )
 
 
@@ -45,9 +47,14 @@ def me(request):
 
 @router.patch("/me", response=MeOut, operation_id="me_update")
 def me_update(request, payload: MeUpdateIn):
-    """Change your name or e-mail (the same fields as Settings → Profile)."""
+    """
+    Change your name or e-mail (the same fields as Settings → Profile), or the columns of the study list on Study
+    Selection (``study_columns``, in order: see ``me``; the web's Columns window).
+    """
     user = request.auth
     fields = payload.dict(exclude_unset=True)
+    if "study_columns" in fields:
+        study_columns.save(user, fields.pop("study_columns") or [])
     for name, limit in (("first_name", 150), ("last_name", 150)):
         if name in fields:
             value = (fields[name] or "").strip()

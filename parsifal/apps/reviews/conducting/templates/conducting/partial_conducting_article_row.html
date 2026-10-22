@@ -1,13 +1,28 @@
-<tr oid="{{ article.id }}" article-status="{{ article.status }}" article-doi="{{ article.doi|default_if_none:'' }}" article-starred="{{ article.starred|yesno:'1,0' }}">
+{% comment %}
+  A study's row in the study list: the checkbox, then the ``columns`` the user chose (services/study_columns.py), in
+  their order. The search reads the row's attributes, so it finds a study whichever columns are shown.
+{% endcomment %}
+<tr oid="{{ article.id }}" article-status="{{ article.status }}" article-doi="{{ article.doi|default_if_none:'' }}" article-starred="{{ article.starred|yesno:'1,0' }}" article-key="{{ article.bibtex_key|default_if_none:'' }}" article-title="{{ article.title|default_if_none:'' }}">
   <td style="text-align: center;"><input type="checkbox" value="{{ article.id }}"></td>
-  <td class="text-center">{% include "conducting/partial_conducting_article_star.html" %}</td>
-  <td>{{ article.bibtex_key }}</td>
-  <td>{{ article.title|default_if_none:"" }}</td>
-  <td>{{ article.author|default_if_none:"" }}</td>
-  <td>{{ article.journal|default_if_none:"" }}</td>
-  <td>{{ article.year|default_if_none:"" }}</td>
-  <td>{{ article.created_by.profile.get_screen_name }}</td>
-  <td>{{ article.created_at|date:"d M Y H:i:s" }}</td>
-  {% with score=article.ai_score %}<td class="text-right" data-score="{{ score|default_if_none:'' }}"{% if article.ai_score_label %} title="By {{ article.ai_score_label }}"{% endif %}>{% if score is not None %}{% widthratio score 1 100 %}%{% endif %}</td>{% endwith %}
-  <td class="js-status">{{ article.get_status_html|safe }}</td>
+  {% for column in columns %}
+    {% if column == "star" %}<td class="text-center">{% include "conducting/partial_conducting_article_star.html" %}</td>
+    {% elif column == "bibtex_key" %}<td>{{ article.bibtex_key }}</td>
+    {% elif column == "title" %}<td>{{ article.title|default_if_none:"" }}</td>
+    {% elif column == "author" %}<td>{{ article.author|default_if_none:"" }}</td>
+    {% elif column == "journal" %}<td>{{ article.journal|default_if_none:"" }}</td>
+    {% elif column == "year" %}<td>{{ article.year|default_if_none:"" }}</td>
+    {% elif column == "source" %}<td>{{ article.source.name|default_if_none:"" }}</td>
+    {% elif column == "doi" %}<td>{{ article.doi|default_if_none:"" }}</td>
+    {% elif column == "document_type" %}<td>{{ article.document_type|default_if_none:"" }}</td>
+    {% elif column == "language" %}<td>{{ article.language|default_if_none:"" }}</td>
+    {% elif column == "publisher" %}<td>{{ article.publisher|default_if_none:"" }}</td>
+    {% elif column == "criteria" %}<td{% if article.selection_criteria %} title="{{ article.selection_criteria.description }}"{% endif %}>{{ article.selection_criteria.description|default_if_none:""|truncatechars:60 }}</td>
+    {% elif column == "ai_relevance" %}{% with score=article.ai_score %}<td class="text-right" data-score="{{ score|default_if_none:'' }}"{% if article.ai_score_label %} title="By {{ article.ai_score_label }}"{% endif %}>{% if score is not None %}{% widthratio score 1 100 %}%{% endif %}</td>{% endwith %}
+    {% elif column == "created_by" %}<td>{{ article.created_by.profile.get_screen_name }}</td>
+    {% elif column == "created_at" %}<td>{{ article.created_at|date:"d M Y H:i:s" }}</td>
+    {% elif column == "updated_by" %}<td>{{ article.updated_by.profile.get_screen_name }}</td>
+    {% elif column == "updated_at" %}<td>{{ article.updated_at|date:"d M Y H:i:s" }}</td>
+    {% elif column == "status" %}<td class="js-status">{{ article.get_status_html|safe }}</td>
+    {% endif %}
+  {% endfor %}
 </tr>

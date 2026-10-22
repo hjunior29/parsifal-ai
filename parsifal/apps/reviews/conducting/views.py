@@ -44,6 +44,7 @@ from parsifal.apps.reviews.services import (
     reports,
     screening_requests,
     studies,
+    study_columns,
 )
 
 logger = logging.getLogger(__name__)
@@ -177,8 +178,24 @@ def study_selection(request, username, review_name):
             "active_tab": active_tab,
             "steps_messages": steps_messages,
             "finished_all_steps": finished_all_steps,
+            # The Columns window: every column, the user's first in their order.
+            "column_choices": study_columns.choices(study_columns.for_user(request.user)),
+            "column_default": study_columns.DEFAULT,
         },
     )
+
+
+@author_required
+@login_required
+@require_POST
+def save_study_columns(request):
+    """Keep the columns of the study list the user chose (``columns``, in order); the page then reloads the list."""
+    get_object_or_404(Review, pk=request.POST.get("review-id"))
+    try:
+        columns = study_columns.save(request.user, request.POST.getlist("columns"))
+    except DomainError as error:
+        return JsonResponse({"error": str(error)}, status=400)
+    return JsonResponse({"columns": columns})
 
 
 def build_quality_assessment_table(request, review, order):
@@ -616,9 +633,10 @@ def source_articles(request):
     else:
         articles = review.get_source_articles()
         source = Source()
-    articles = ai_screening_service.with_relevance(
-        articles
-    )  # the AI relevance column: the latest answer about each study
+    articles = articles.select_related("source", "selection_criteria", "updated_by__profile")
+    # The AI relevance column: the latest answer about each study.
+    articles = ai_screening_service.with_relevance(articles)
+    columns = study_columns.for_user(request.user)
 
     return render(
         request,
@@ -627,6 +645,8 @@ def source_articles(request):
             "review": review,
             "source": source,
             "articles": articles,
+            "columns": columns,
+            "headings": study_columns.headings(columns),
             "starred_count": articles.filter(starred_at__isnull=False).count(),
         },
     )
@@ -1247,9 +1267,9 @@ def articles_upload(request):
 """
 
 
-def build_article_table_row(article):
+def build_article_table_row(article, columns=study_columns.DEFAULT):
     """The study's row in the study list, as the list renders it (after a save, it replaces the old one)."""
-    return render_to_string("conducting/partial_conducting_article_row.html", {"article": article})
+    return render_to_string("conducting/partial_conducting_article_row.html", {"article": article, "columns": columns})
 
 
 @author_required
@@ -1303,7 +1323,7 @@ def save_article_details(request):
             article.updated_by = request.user
             article.save()
 
-            return HttpResponse(build_article_table_row(article))
+            return HttpResponse(build_article_table_row(article, study_columns.for_user(request.user)))
         except Exception:
             return HttpResponseBadRequest()
     else:

@@ -24,6 +24,7 @@ urlpatterns = [
     path("export_results/", views.export_results, name="export_results"),
     path("resolve_all/", views.resolve_all, name="resolve_all"),
     path("save_article_details/", views.save_article_details, name="save_article_details"),
+    path("save_study_columns/", views.save_study_columns, name="save_study_columns"),
     path("save_quality_assessment/", views.save_quality_assessment, name="save_quality_assessment"),
     path("quality_assessment_detailed/", views.quality_assessment_detailed, name="quality_assessment_detailed"),
     path("quality_assessment_summary/", views.quality_assessment_summary, name="quality_assessment_summary"),

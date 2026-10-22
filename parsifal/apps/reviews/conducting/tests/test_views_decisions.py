@@ -32,8 +32,7 @@ class TestDecisionViews(TestCase):
         )
         self.assertContains(response, 'placeholder="Search title, DOI or BibTeX key"', html=False)
         self.assertContains(
-            response,
-            f'<tr oid="{self.a1.pk}" article-status="U" article-doi="10.1/&quot;x&quot;" article-starred="0">',
+            response, f'<tr oid="{self.a1.pk}" article-status="U" article-doi="10.1/&quot;x&quot;" article-starred="0"'
         )
         self.a1.refresh_from_db()
         self.assertIn('article-doi="10.1/&quot;x&quot;"', build_article_table_row(self.a1))  # row after a save
@@ -214,6 +213,41 @@ class TestDecisionViews(TestCase):
         self.assertContains(page, "Exclusion Criteria Most Used")
         self.assertContains(page, 'id="analysis-criteria"', html=False)
         self.assertContains(page, "Studies Per Year and Status")
+
+    def test_the_columns_each_user_chooses(self):
+        self.client.force_login(self.human)
+        url = reverse("reviews:conducting:source_articles")
+        params = {"review-id": self.review.pk, "source-id": "None"}
+        page = self.client.get(url, params).content.decode()
+        headings = [
+            heading
+            for heading in ("Bibtex Key", "Title", "Author", "AI relevance", "Status")
+            if f">{heading}</th>" in page
+        ]
+        self.assertEqual(["Bibtex Key", "Title", "Author", "AI relevance", "Status"], headings)  # the default
+        self.assertNotIn(">DOI</th>", page)
+
+        save = reverse("reviews:conducting:save_study_columns")
+        response = self.client.post(save, {"review-id": self.review.pk, "columns": ["status", "doi", "title"]})
+        self.assertEqual({"columns": ["status", "doi", "title"]}, response.json())
+        page = self.client.get(url, params).content.decode()
+        self.assertLess(page.index(">Status</th>"), page.index(">DOI</th>"))
+        self.assertLess(page.index(">DOI</th>"), page.index(">Title</th>"))
+        self.assertNotIn(">Author</th>", page)
+        self.assertNotIn('class="ai-header"', page)
+        self.assertIn(f'article-title="{self.a1.title}"', page)  # the search reads the row, whatever is shown
+        # Another user keeps the default; the Columns window lists the user's columns first, checked.
+        self.client.force_login(self.agent)
+        self.assertIn(">Author</th>", self.client.get(url, params).content.decode())
+        self.client.force_login(self.human)
+        window = self.client.get(reverse("study_selection", args=(self.human.username, self.review.name)))
+        self.assertContains(window, 'id="modal-columns"', html=False)
+        content = window.content.decode()
+        self.assertLess(content.index('data-key="status"'), content.index('data-key="author"'))
+        self.assertEqual(400, self.client.post(save, {"review-id": self.review.pk, "columns": []}).status_code)
+        self.assertIn(
+            "Unknown column", self.client.post(save, {"review-id": self.review.pk, "columns": ["x"]}).json()["error"]
+        )
 
     def test_agreement_and_consolidate(self):
         for article, human, agent in ((self.a1, "A", "A"), (self.a2, "A", "R")):

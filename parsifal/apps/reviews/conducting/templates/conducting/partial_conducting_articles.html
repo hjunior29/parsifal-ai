@@ -37,6 +37,11 @@
             </button>
           </span>
           <input type="search" class="form-control js-article-search" placeholder="Search title, DOI or BibTeX key" aria-label="Search title, DOI or BibTeX key" autocomplete="off">
+          <span class="input-group-btn">
+            <button type="button" class="btn btn-default" data-toggle="modal" data-target="#modal-columns" title="Choose the columns of this list and their order">
+              <span class="glyphicon glyphicon-th-list"></span> Columns
+            </button>
+          </span>
         </div>
       </div>
       <strong>Action:</strong>
@@ -75,16 +80,15 @@
       <thead>
         <tr>
           <th style="width: 35px; text-align: center;"><input type="checkbox" id="ck-all-articles"></th>
-          <th class="star-header" style="width: 48px; text-align: center;" title="Starred in this review. Click to sort, starred first"><span class="glyphicon glyphicon-star"></span><span class="sr-only">Starred</span></th>
-          <th>Bibtex Key</th>
-          <th>Title</th>
-          <th>Author</th>
-          <th>Journal</th>
-          <th style="min-width: 80px;">Year</th>
-          <th style="min-width: 100px;">Added by</th>
-          <th style="min-width: 100px;">Added at</th>
-          <th class="ai-header" style="min-width: 90px;" title="How likely the study is relevant, according to the latest AI run that screened it (Exclude with AI: the chance that no exclusion criterion applies; Include with AI: the chance that it meets the inclusion criteria; Screen with AI: the lower of the two). Empty: no AI run screened it. Click to read the most likely first.">AI relevance</th>
-          <th>Status</th>
+          {% for column in headings %}
+            {% if column.key == "star" %}
+              <th class="star-header" style="width: 48px; text-align: center;" title="{{ column.help }}"><span class="glyphicon glyphicon-star"></span><span class="sr-only">Starred</span></th>
+            {% elif column.key == "ai_relevance" %}
+              <th class="ai-header" style="min-width: 90px;" title="{{ column.help }}">{{ column.label }}</th>
+            {% else %}
+              <th{% if column.help %} title="{{ column.help }}"{% endif %}{% if column.key == "year" %} style="min-width: 80px;"{% elif column.key == "created_by" or column.key == "created_at" or column.key == "updated_by" or column.key == "updated_at" %} style="min-width: 100px;"{% endif %}>{{ column.label }}</th>
+            {% endif %}
+          {% endfor %}
         </tr>
       </thead>
       <tbody>
@@ -92,7 +96,7 @@
           {% include "conducting/partial_conducting_article_row.html" %}
         {% empty %}
           <tr class="no-data">
-            <td colspan="11">No articles.</td>
+            <td colspan="{{ headings|length|add:1 }}">No articles.</td>
           </tr>
         {% endfor %}
       </tbody>

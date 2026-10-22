@@ -15,6 +15,7 @@ assessment, data extraction and the exports. These pages document only what was 
 |------|--------------|------|
 | Deployment | Single container or process, SQLite database, one data directory, backups | [Self-hosting](/docs/self-hosting/) |
 | Accounts | Closed by default: the administrator creates accounts and the main author creates AI agents as co-authors of a review; no public profiles; personal API tokens | [API tokens](/docs/api-tokens/) |
+| Studies | The study list's columns: choose and order them (*Columns*, next to the search on Study Selection); *Reviewer agreement* compares the two reviewers you choose; *Data Analysis* shows the selection in numbers and the criteria most used | — |
 | Studies | *Via CAPES* in the study window: each study at the publisher with your institution's access (CAFe), configured in Settings → Library access | [Open studies through CAPES](/docs/library-access/) |
 | Automation | A JSON API covering every operation of a review | [JSON API](/docs/api/) |
 | Automation | The `parsifal` command-line client | [Command-line client](/docs/cli/) |

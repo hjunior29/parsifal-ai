@@ -7,6 +7,10 @@ from parsifal.api.v1.schemas.common import UserOut
 
 class MeOut(UserOut):
     active_tokens: int
+    # The columns of the study list on Study Selection, in order (star, bibtex_key, title, author, journal, year,
+    # source, doi, document_type, language, publisher, criteria, ai_relevance, created_by, created_at, updated_by,
+    # updated_at, status).
+    study_columns: list[str]
 
 
 class MeUpdateIn(Schema):
@@ -15,6 +19,7 @@ class MeUpdateIn(Schema):
     first_name: str | None = None
     last_name: str | None = None
     email: str | None = None
+    study_columns: list[str] | None = None  # the columns of the study list, in order (see me)
 
 
 class UserCreateIn(Schema):

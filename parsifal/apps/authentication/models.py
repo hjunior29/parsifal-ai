@@ -8,6 +8,8 @@ from parsifal.apps.reviews.models import Review
 
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, verbose_name=_("user"))
+    # The columns of the study list on Study Selection, in order (services/study_columns.py); empty: the default.
+    study_columns = models.JSONField(_("columns of the study list"), default=list, blank=True)
 
     class Meta:
         verbose_name = _("profile")
@@ -44,7 +46,8 @@ def create_user_profile(sender, instance, created, **kwargs):
 
 
 def save_user_profile(sender, instance, **kwargs):
-    instance.profile.save()
+    """Every user has a profile. It is not saved again with the user: a copy held by the user would undo changes."""
+    Profile.objects.get_or_create(user=instance)
 
 
 post_save.connect(create_user_profile, sender=User)
