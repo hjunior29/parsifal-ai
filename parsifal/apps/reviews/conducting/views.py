@@ -616,7 +616,9 @@ def source_articles(request):
     else:
         articles = review.get_source_articles()
         source = Source()
-    articles = ai_screening_service.with_relevance(articles)  # the AI column: the latest answer about each study
+    articles = ai_screening_service.with_relevance(
+        articles
+    )  # the AI relevance column: the latest answer about each study
 
     return render(
         request,

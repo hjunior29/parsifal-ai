@@ -258,8 +258,9 @@ class AiScreeningViewsTest(AiScreeningViewsBase):
             reverse("reviews:conducting:source_articles"), {"review-id": self.review.pk, "source-id": "None"}
         )
         self.assertContains(
-            studies, '<td class="text-right" data-score="0.04" title="Exclude with AI">0.04</td>', html=False
+            studies, '<td class="text-right" data-score="0.04" title="By Exclude with AI">4%</td>', html=False
         )
+        self.assertContains(studies, ">AI relevance</th>", html=False)
 
         with self.subTest(msg="the next window preselects the last reviewer"):
             response = self.client.get(self.form_url, {"review-id": self.review.pk})

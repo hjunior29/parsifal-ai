@@ -33,7 +33,7 @@ $(function () {
     $("#modal-add-article").modal('show');
   });
 
-  // The AI column sorts the most likely relevant first, and the studies no AI run answered about last. (The sorter
+  // The AI relevance column sorts the most likely relevant first, and the studies no AI run answered about last. (The sorter
   // passes the cell third when it builds its cache, second when it updates one cell.)
   $.tablesorter.addParser({
     id: "ai-score",

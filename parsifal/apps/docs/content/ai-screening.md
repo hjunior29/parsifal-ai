@@ -104,10 +104,12 @@ any action, discards the unfinished one.
 
 ## Reading the studies in order
 
-The study list has an **AI** column: how likely each study is relevant, by the
-latest AI run that answered about it — Exclude with AI, `1 − p(exclude)`;
-Include with AI, the deciding criterion's `p(meets)`; Screen with AI, the lower
-of the two. Click its header to read the most likely first (the studies no run
+The study list has an **AI relevance** column: how likely each study is
+relevant, in percent, according to the latest AI run that answered about it —
+Exclude with AI, the chance that no exclusion criterion applies
+(`1 − p(exclude)`); Include with AI, the chance that it meets the inclusion
+criteria (the deciding criterion's `p(meets)`); Screen with AI, the lower of
+the two. Click its header to read the most likely first (the studies no run
 answered about go last). Jev's probabilities rank studies better than they
 measure them, so this order is a good way to read what the thresholds left
 unclassified.
