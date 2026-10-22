@@ -273,10 +273,11 @@ $(function () {
     return "Request failed" + (xhr.status ? " (" + xhr.status + " " + xhr.statusText + ")" : "") + ".";
   }
 
-  function loadAgreement(stage) {
+  /* The agreement panel for a stage and the two reviewers compared (left out: the first two). */
+  function loadAgreement(stage, userA, userB) {
     $.ajax({
       url: '/reviews/conducting/agreement/',
-      data: {'review-id': $("#review-id").val(), 'stage': stage || ''},
+      data: {'review-id': $("#review-id").val(), 'stage': stage || '', 'user-a': userA || '', 'user-b': userB || ''},
       type: 'get',
       cache: false,
       beforeSend: function () {
@@ -316,7 +317,17 @@ $(function () {
   $("#btn-agreement").click(function () { loadAgreement(); });
 
   $("#modal-agreement").on("change", "#agreement-stage", function () {
-    loadAgreement($(this).val());
+    loadAgreement($(this).val());  // another stage may have other reviewers: the first two again
+  });
+
+  $("#modal-agreement").on("change", "#agreement-user-a, #agreement-user-b", function () {
+    var userA = $("#modal-agreement #agreement-user-a").val();
+    var userB = $("#modal-agreement #agreement-user-b").val();
+    if (userA === userB) {
+      $.parsifal.alert("Choose two reviewers", "Agreement compares two different reviewers.");
+      return;
+    }
+    loadAgreement($("#modal-agreement #agreement-stage").val(), userA, userB);
   });
 
   $("#modal-agreement").on("click", "#btn-consolidate", function () {
@@ -328,7 +339,14 @@ $(function () {
       url: '/reviews/conducting/consolidate/',
       type: 'post',
       cache: false,
-      data: {'review-id': $("#review-id").val(), 'stage': stage, 'rule': rule, 'csrfmiddlewaretoken': csrf_token},
+      data: {
+        'review-id': $("#review-id").val(),
+        'stage': stage,
+        'rule': rule,
+        'user-a': $("#modal-agreement #agreement-user-a").val(),
+        'user-b': $("#modal-agreement #agreement-user-b").val(),
+        'csrfmiddlewaretoken': csrf_token
+      },
       beforeSend: function () { btn.prop("disabled", true); },
       success: function (data) {
         agreementConsolidated = true;

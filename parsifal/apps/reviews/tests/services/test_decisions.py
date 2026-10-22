@@ -131,6 +131,40 @@ class TestDecisions(TestCase):
         with self.assertRaises(ValidationError):
             decisions.consolidate(review=self.review, rule="dictator")
 
+    def test_two_reviewers_chosen_out_of_three(self):
+        a1, a2, a3, _a4 = self.articles
+        third = UserFactory(username="bob")
+        for article, votes in ((a1, "AAR"), (a2, "RAR"), (a3, "AAA")):
+            for user, status in zip((self.human, self.agent, third), votes):
+                self.decide(user, article, status)
+        with self.subTest(msg="every reviewer by default"):
+            self.assertEqual(
+                {a1.pk, a2.pk}, {row["article"].pk for row in decisions.disagreements(review=self.review)}
+            )
+        with self.subTest(msg="alice and bob: only where those two differ"):
+            pair = {"user_a_id": self.human.pk, "user_b_id": third.pk}
+            conflicts = decisions.disagreements(review=self.review, **pair)
+            self.assertEqual([a1.pk], [row["article"].pk for row in conflicts])
+            self.assertEqual({"alice", "bob"}, {d.user.username for d in conflicts[0]["decisions"]})
+            report = decisions.agreement(review=self.review, **pair)
+            self.assertEqual(
+                ("alice", "bob", 3, 2), (report["user_a"], report["user_b"], report["compared"], report["agreed"])
+            )
+        with self.subTest(msg="two different reviewers"):
+            with self.assertRaisesMessage(ValidationError, "Choose two different reviewers"):
+                decisions.agreement(review=self.review, user_a_id=third.pk, user_b_id=third.pk)
+        with self.subTest(msg="consolidating the decisions of two of them"):
+            result = decisions.consolidate(review=self.review, rule="unanimous", user_ids=[self.agent.pk, third.pk])
+            self.assertEqual(([a3.pk], sorted([a1.pk, a2.pk])), (result["resolved_ids"], result["unresolved_ids"]))
+            result = decisions.consolidate(
+                review=self.review, rule="unanimous", user_ids=[self.human.pk, self.agent.pk]
+            )
+            self.assertEqual(sorted([a1.pk, a3.pk]), result["resolved_ids"])
+            with self.assertRaisesMessage(ValidationError, "at least two reviewers"):
+                decisions.consolidate(review=self.review, user_ids=[third.pk])
+            with self.assertRaises(NotFound):
+                decisions.consolidate(review=self.review, user_ids=[third.pk, UserFactory().pk])
+
     def test_summary_in_overview(self):
         self.decide(self.agent, self.articles[0], "A")
         self.decide(self.agent, self.articles[1], "A", stage="full_text")

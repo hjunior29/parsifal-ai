@@ -28,7 +28,8 @@ parsifal decision article --review R --article 13          # every reviewer's de
 ```bash
 parsifal decision agreement --review R                      # first two reviewers at title_abstract
 parsifal decision agreement --review R --user-a-id 2 --user-b-id 7 --stage full_text
-parsifal decision disagreements --review R
+parsifal decision disagreements --review R                  # among every reviewer
+parsifal decision disagreements --review R --user-a-id 2 --user-b-id 7   # where those two differ
 ```
 
 The agreement report gives the number of studies both reviewers decided,
@@ -38,7 +39,11 @@ kappa, discuss the disagreements and resolve them — the guidelines ask for
 exactly this.
 
 On the web, **Reviewer agreement** (Conducting → Study Selection) shows the
-same report. Click a study in its list of disagreements to open its details
+same report for **two reviewers at a time**, the first two by default: with
+three or more, choose who to compare in *Compare … with …* (kappa compares a
+pair, so always two different reviewers). The disagreements listed are where
+those two differ, and consolidating there uses their decisions only. Click a
+study in its list of disagreements to open its details
 and read it; its *Reviewers* tab has every reviewer's decision and comment. Set
 the status there, and **Back to agreement** returns to the list. `decision disagreements`
 returns each study in full (with its id), so `decision article --article ID`
@@ -53,6 +58,7 @@ title, DOI or BibTeX key (`article list --q` in the CLI, `q` in the API).
 parsifal decision consolidate --review R --rule unanimous
 parsifal decision consolidate --review R --rule any_include --ids 13 --ids 14
 parsifal decision consolidate --review R --rule majority --stage full_text
+parsifal decision consolidate --review R --rule unanimous --user-ids 2 --user-ids 7   # those two reviewers only
 ```
 
 | Rule | Outcome |

@@ -50,6 +50,7 @@ class ConsolidateIn(Schema):
     stage: str = "title_abstract"
     rule: str = "unanimous"
     ids: list[int] | None = None
+    user_ids: list[int] | None = None  # only these reviewers' decisions (at least two); default: every reviewer
 
 
 class ConsolidateOut(Schema):

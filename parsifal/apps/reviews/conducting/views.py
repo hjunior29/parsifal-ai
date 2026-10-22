@@ -763,7 +763,8 @@ RULE_LABELS = (
 )
 
 
-def _agreement_context(request, review, stage, result=None):
+def _agreement_context(request, review, stage, result=None, user_a_id=None, user_b_id=None):
+    """The agreement panel: the two reviewers compared (``user_a_id``, ``user_b_id``; the first two by default)."""
     context = {
         "review": review,
         "stage": stage,
@@ -776,10 +777,19 @@ def _agreement_context(request, review, stage, result=None):
         "selected_rule": result["rule"] if result else None,
         "agreement": None,
         "agreement_error": None,
+        "reviewers": list(decisions.reviewers(review, stage=stage)),
+        "user_a": None,
+        "user_b": None,
     }
     try:
-        context["disagreements"] = decisions.disagreements(review=review, stage=stage)
-        context["agreement"] = decisions.agreement(review=review, stage=stage)
+        user_a, user_b = decisions.pair(review, stage, user_a_id, user_b_id)
+        context.update(user_a=user_a, user_b=user_b)
+        context["agreement"] = decisions.agreement(
+            review=review, stage=stage, user_a_id=user_a.pk, user_b_id=user_b.pk
+        )
+        context["disagreements"] = decisions.disagreements(
+            review=review, stage=stage, user_a_id=user_a.pk, user_b_id=user_b.pk
+        )
     except DomainError as error:
         context.setdefault("disagreements", [])
         context["agreement_error"] = str(error)
@@ -794,30 +804,42 @@ def _agreement_context(request, review, stage, result=None):
 @author_required
 @login_required
 def agreement(request):
-    """Reviewer agreement panel: summary, Cohen's kappa, disagreements and the consolidation form."""
+    """
+    Reviewer agreement panel: summary, Cohen's kappa and disagreements between the two reviewers chosen (``user-a``,
+    ``user-b``; the first two by default), and the consolidation form.
+    """
     review = get_object_or_404(Review, pk=request.GET.get("review-id"))
     stage = request.GET.get("stage") or StudyDecision.TITLE_ABSTRACT
     if stage not in dict(StudyDecision.STAGES):
         return HttpResponseBadRequest("Unknown stage.")
-    return render(request, "conducting/partial_conducting_agreement.html", _agreement_context(request, review, stage))
+    context = _agreement_context(request, review, stage, None, request.GET.get("user-a"), request.GET.get("user-b"))
+    return render(request, "conducting/partial_conducting_agreement.html", context)
 
 
 @author_required
 @login_required
 @require_POST
 def consolidate(request):
-    """Set Article.status from the reviewers' decisions with the chosen rule; re-renders the agreement panel."""
+    """
+    Set Article.status from the decisions of the two reviewers compared (``user-a``, ``user-b``) with the chosen rule;
+    re-renders the agreement panel.
+    """
     review = get_object_or_404(Review, pk=request.POST.get("review-id"))
     stage = request.POST.get("stage") or StudyDecision.TITLE_ABSTRACT
+    user_a_id, user_b_id = request.POST.get("user-a"), request.POST.get("user-b")
     try:
+        user_ids = [user.pk for user in decisions.pair(review, stage, user_a_id, user_b_id)]
         result = decisions.consolidate(
-            review=review, stage=stage, rule=request.POST.get("rule", decisions.RULE_UNANIMOUS), actor=request.user
+            review=review,
+            stage=stage,
+            rule=request.POST.get("rule", decisions.RULE_UNANIMOUS),
+            actor=request.user,
+            user_ids=user_ids,
         )
     except DomainError as error:
         return HttpResponseBadRequest(str(error))
-    return render(
-        request, "conducting/partial_conducting_agreement.html", _agreement_context(request, review, stage, result)
-    )
+    context = _agreement_context(request, review, stage, result, *user_ids)
+    return render(request, "conducting/partial_conducting_agreement.html", context)
 
 
 @author_required

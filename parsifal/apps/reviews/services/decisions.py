@@ -111,12 +111,35 @@ def reviewers(review, *, stage=None):
     return User.objects.filter(pk__in=ids).order_by("username")
 
 
-def _decision_table(review, stage):
-    """{article_id: {user_id: status}} for a stage."""
+def _decision_table(review, stage, user_ids=None):
+    """{article_id: {user_id: status}} for a stage; ``user_ids``: only these reviewers' decisions."""
+    decisions = review.decisions.filter(stage=stage)
+    if user_ids is not None:
+        decisions = decisions.filter(user_id__in=user_ids)
     table = defaultdict(dict)
-    for row in review.decisions.filter(stage=stage).values_list("article_id", "user_id", "status"):
+    for row in decisions.values_list("article_id", "user_id", "status"):
         table[row[0]][row[1]] = row[2]
     return table
+
+
+def pair(review, stage, user_a_id=None, user_b_id=None):
+    """
+    The two reviewers to compare at a stage: ``user_a_id`` and ``user_b_id`` (two different reviewers with decisions
+    at the stage), or the first two by username when both are left out.
+    """
+    people = list(reviewers(review, stage=stage))
+    if user_a_id in (None, "") and user_b_id in (None, ""):
+        if len(people) < 2:
+            raise ValidationError("At least two reviewers must have recorded decisions at this stage.")
+        return people[0], people[1]
+    by_id = {u.pk: u for u in people}
+    try:
+        user_a, user_b = by_id[int(user_a_id)], by_id[int(user_b_id)]
+    except (KeyError, ValueError, TypeError):
+        raise NotFound("Both users must have recorded decisions at this stage.")
+    if user_a == user_b:
+        raise ValidationError("Choose two different reviewers to compare.", field="user_b_id")
+    return user_a, user_b
 
 
 def cohens_kappa(pairs):
@@ -155,21 +178,12 @@ def interpret_kappa(kappa):
 
 def agreement(*, review, stage=StudyDecision.TITLE_ABSTRACT, user_a_id=None, user_b_id=None):
     """
-    Agreement between two reviewers at a stage (defaults to the first two reviewers found). Only articles both
+    Agreement between two reviewers at a stage (see ``pair``: the first two reviewers by default). Only articles both
     decided are compared.
     """
     stage = _validate_stage(stage)
     people = list(reviewers(review, stage=stage))
-    if user_a_id is None or user_b_id is None:
-        if len(people) < 2:
-            raise ValidationError("At least two reviewers must have recorded decisions at this stage.")
-        user_a, user_b = people[0], people[1]
-    else:
-        by_id = {u.pk: u for u in people}
-        try:
-            user_a, user_b = by_id[int(user_a_id)], by_id[int(user_b_id)]
-        except (KeyError, ValueError, TypeError):
-            raise NotFound("Both users must have recorded decisions at this stage.")
+    user_a, user_b = pair(review, stage, user_a_id, user_b_id)
     table = _decision_table(review, stage)
     pairs = [
         (statuses[user_a.pk], statuses[user_b.pk])
@@ -191,19 +205,25 @@ def agreement(*, review, stage=StudyDecision.TITLE_ABSTRACT, user_a_id=None, use
     }
 
 
-def disagreements(*, review, stage=StudyDecision.TITLE_ABSTRACT):
+def disagreements(*, review, stage=StudyDecision.TITLE_ABSTRACT, user_a_id=None, user_b_id=None):
     """
-    Articles with at least two decisions that differ at the stage. They stay here after a consolidation, which sets
-    the article's status and leaves the decisions as they were: the article (its status and who last updated it)
-    tells whether it was settled.
+    Articles with at least two decisions that differ at the stage — between ``user_a_id`` and ``user_b_id`` when
+    given (see ``pair``), else among every reviewer. They stay here after a consolidation, which sets the article's
+    status and leaves the decisions as they were: the article (its status and who last updated it) tells whether it
+    was settled.
     """
     stage = _validate_stage(stage)
-    table = _decision_table(review, stage)
+    user_ids = None
+    if user_a_id not in (None, "") or user_b_id not in (None, ""):
+        user_ids = [user.pk for user in pair(review, stage, user_a_id, user_b_id)]
+    table = _decision_table(review, stage, user_ids)
     conflicting = [article_id for article_id, statuses in table.items() if len(set(statuses.values())) > 1]
     rows = []
     decisions = review.decisions.filter(stage=stage, article_id__in=conflicting).select_related(
         "user", "selection_criteria"
     )
+    if user_ids is not None:
+        decisions = decisions.filter(user_id__in=user_ids)
     by_article = defaultdict(list)
     for decision in decisions:
         by_article[decision.article_id].append(decision)
@@ -232,16 +252,29 @@ def _apply_rule(rule, statuses):
 
 
 @transaction.atomic
-def consolidate(*, review, stage=StudyDecision.TITLE_ABSTRACT, rule=RULE_UNANIMOUS, actor=None, article_ids=None):
+def consolidate(
+    *, review, stage=StudyDecision.TITLE_ABSTRACT, rule=RULE_UNANIMOUS, actor=None, article_ids=None, user_ids=None
+):
     """
-    Set ``Article.status`` from the reviewers' decisions using ``rule``. Articles the rule cannot decide are left
-    untouched and reported as unresolved. Returns counts and the ids involved; ``changed`` are the resolved articles
-    whose status was different (the others already had the status the rule gave).
+    Set ``Article.status`` from the reviewers' decisions using ``rule`` — only those of ``user_ids`` (at least two
+    reviewers with decisions at the stage) when given, else every reviewer's. Articles the rule cannot decide are
+    left untouched and reported as unresolved. Returns counts and the ids involved; ``changed`` are the resolved
+    articles whose status was different (the others already had the status the rule gave).
     """
     stage = _validate_stage(stage)
     if rule not in RULES:
         raise ValidationError(f"rule must be one of {RULES}.", field="rule")
-    table = _decision_table(review, stage)
+    if user_ids is not None:
+        known = {user.pk for user in reviewers(review, stage=stage)}
+        try:
+            user_ids = {int(user_id) for user_id in user_ids}
+        except (TypeError, ValueError):
+            raise ValidationError("Reviewers are given by their ids.", field="user_ids")
+        if len(user_ids) < 2:
+            raise ValidationError("Consolidate the decisions of at least two reviewers.", field="user_ids")
+        if not user_ids <= known:
+            raise NotFound("Every reviewer must have recorded decisions at this stage.", field="user_ids")
+    table = _decision_table(review, stage, user_ids)
     if article_ids is not None:
         wanted = {a.pk for a in get_children(review.article_set, article_ids, label="Article")}
         table = {k: v for k, v in table.items() if k in wanted}

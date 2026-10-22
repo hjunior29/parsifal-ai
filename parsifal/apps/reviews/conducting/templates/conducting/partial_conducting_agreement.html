@@ -21,6 +21,23 @@
         {% endfor %}
       </select>
     </div>
+    {% if reviewers|length >= 2 %}
+      {# Two reviewers at a time: Cohen's kappa compares a pair. #}
+      <div class="form-group agreement-pair">
+        <label for="agreement-user-a">Compare</label>
+        <select name="user-a" class="form-control input-sm" id="agreement-user-a">
+          {% for user in reviewers %}
+            <option value="{{ user.pk }}"{% if user == user_a %} selected{% endif %}>{{ user.username }}</option>
+          {% endfor %}
+        </select>
+        <label for="agreement-user-b">with</label>
+        <select name="user-b" class="form-control input-sm" id="agreement-user-b">
+          {% for user in reviewers %}
+            <option value="{{ user.pk }}"{% if user == user_b %} selected{% endif %}>{{ user.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    {% endif %}
   </form>
 
   <h4>Decisions per reviewer</h4>
@@ -52,6 +69,7 @@
   <h4>Disagreements <small>({{ disagreements|length }})</small></h4>
   {% if disagreements %}
     <p class="help-block">
+      Where {{ user_a.username }} and {{ user_b.username }} decided differently.
       Consolidating does not remove a disagreement: it sets the article's status and keeps every decision.
       <em>Status now</em> shows where each one stands.
       Click an article to open its details (the decisions are on its <em>Reviewers</em> tab); <em>Back to agreement</em> brings you here again.
@@ -93,7 +111,10 @@
         {% endfor %}
       </select>
     </div>
-    <button type="button" class="btn btn-success btn-sm" id="btn-consolidate"{% if not summary %} disabled{% endif %}>Set article status from decisions</button>
-    <p class="help-block">Applies to the selected stage. Articles the rule cannot decide keep their current status.</p>
+    <button type="button" class="btn btn-success btn-sm" id="btn-consolidate"{% if not user_a %} disabled{% endif %}>Set article status from decisions</button>
+    <p class="help-block">
+      Applies to the selected stage{% if user_a %} and to the decisions of <strong>{{ user_a.username }}</strong> and
+      <strong>{{ user_b.username }}</strong>{% endif %}. Articles the rule cannot decide keep their current status.
+    </p>
   </form>
 </div>

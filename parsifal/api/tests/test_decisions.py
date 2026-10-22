@@ -106,3 +106,28 @@ class TestDecisionsApi(ApiTestCase):
         self.assertEqual(
             404, self.api("get", self.review_path("/decisions"), client=self.client_for(self.outsider)).status_code
         )
+
+    def test_two_reviewers_chosen(self):
+        agent = self.client_for(self.co_author)
+        ids = [a.pk for a in self.articles]
+        self.api("post", self.review_path("/decisions"), {"ids": ids, "status": "A"}, client=agent)
+        self.api("post", self.review_path("/decisions"), {"ids": ids[:1], "status": "R"})
+        pair = f"user_a_id={self.author.pk}&user_b_id={self.co_author.pk}"
+        rows = self.api("get", self.review_path("/decisions/disagreements"), QUERY_STRING=pair).json()
+        self.assertEqual([ids[0]], [row["article"]["id"] for row in rows])
+        same = f"user_a_id={self.author.pk}&user_b_id={self.author.pk}"
+        self.assertEqual(
+            422, self.api("get", self.review_path("/decisions/disagreements"), QUERY_STRING=same).status_code
+        )
+        response = self.api(
+            "post", self.review_path("/decisions/consolidate"), {"rule": "unanimous", "user_ids": [self.co_author.pk]}
+        )
+        self.assertEqual(422, response.status_code)
+        response = self.api(
+            "post",
+            self.review_path("/decisions/consolidate"),
+            {"rule": "unanimous", "user_ids": [self.author.pk, self.co_author.pk]},
+        )
+        self.assertEqual(
+            (2, 1), (response.json()["resolved"], response.json()["unresolved"])
+        )  # the other two: the agent alone

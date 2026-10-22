@@ -1476,8 +1476,13 @@ OPERATIONS = (
         "/reviews/{review_id}/decisions/disagreements",
         ("decision",),
         "disagreements",
-        "Articles whose reviewers disagree.",
-        (REVIEW, Q("stage")),
+        "Articles whose reviewers disagree (between two of them with --user-a-id and --user-b-id).",
+        (
+            REVIEW,
+            Q("stage"),
+            Q("user_a_id", INT, help="First reviewer to compare."),
+            Q("user_b_id", INT, help="Second reviewer to compare."),
+        ),
     ),
     Operation(
         "decisions_consolidate",
@@ -1491,6 +1496,7 @@ OPERATIONS = (
             B("stage"),
             B("rule", help="unanimous (default), any_include or majority."),
             B("ids", LIST_INT, help="Restrict to these articles."),
+            B("user_ids", LIST_INT, help="Only these reviewers' decisions (repeat; at least two)."),
         ),
     ),
     # Library access (CAPES) ------------------------------------------------------------------------------------------

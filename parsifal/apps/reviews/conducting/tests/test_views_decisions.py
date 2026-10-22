@@ -165,6 +165,43 @@ class TestDecisionViews(TestCase):
         )
         self.assertFalse(StudyDecision.objects.filter(article=self.a1).exists())  # saving the study records none
 
+    def test_agreement_compares_the_two_reviewers_chosen(self):
+        third = UserFactory(username="bob")
+        self.review.co_authors.add(third)
+        for article, votes in ((self.a1, "AAR"), (self.a2, "RAR")):
+            for user, status in zip((self.human, self.agent, third), votes):
+                StudyDecision.objects.create(review=self.review, article=article, user=user, status=status)
+        self.client.force_login(self.human)
+        url = reverse("reviews:conducting:agreement")
+        response = self.client.get(url, {"review-id": self.review.pk})
+        self.assertContains(response, "agent × alice")  # the first two by default
+        self.assertContains(response, 'id="agreement-user-a"', html=False)
+        self.assertContains(response, f'<option value="{third.pk}">bob</option>', html=True)
+        response = self.client.get(url, {"review-id": self.review.pk, "user-a": self.human.pk, "user-b": third.pk})
+        self.assertContains(response, "alice × bob")
+        self.assertContains(response, f'<option value="{third.pk}" selected>bob</option>', html=True)
+        self.assertContains(response, f'data-article-id="{self.a1.pk}"', html=False)  # alice A, bob R
+        self.assertNotContains(response, f'data-article-id="{self.a2.pk}"', html=False)  # both R
+        self.assertContains(
+            response, "to the decisions of <strong>alice</strong> and\n      <strong>bob</strong>", html=False
+        )
+        same = self.client.get(url, {"review-id": self.review.pk, "user-a": third.pk, "user-b": third.pk})
+        self.assertContains(same, "Choose two different reviewers to compare.")
+        response = self.client.post(
+            reverse("reviews:conducting:consolidate"),
+            {
+                "review-id": self.review.pk,
+                "stage": "title_abstract",
+                "rule": "unanimous",
+                "user-a": self.human.pk,
+                "user-b": third.pk,
+            },
+        )
+        self.assertContains(response, "the rule decided 1 article(s)")  # a2: alice and bob both R; a1: A and R
+        self.assertContains(response, "alice × bob")
+        self.a2.refresh_from_db()
+        self.assertEqual(Article.REJECTED, self.a2.status)
+
     def test_agreement_and_consolidate(self):
         for article, human, agent in ((self.a1, "A", "A"), (self.a2, "A", "R")):
             StudyDecision.objects.create(review=self.review, article=article, user=self.human, status=human)

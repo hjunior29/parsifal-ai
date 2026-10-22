@@ -88,12 +88,17 @@ def decisions_agreement(
     response=list[DisagreementOut],
     operation_id="decisions_disagreements",
 )
-def decisions_disagreements(request, review_id: int, stage: str = "title_abstract"):
+def decisions_disagreements(
+    request, review_id: int, stage: str = "title_abstract", user_a_id: int | None = None, user_b_id: int | None = None
+):
     """
-    Articles whose reviewers disagree at the stage, with every decision. A consolidation does not remove them (it sets
-    the status, not the decisions): ``article.status`` and ``article.updated_by`` tell whether one was settled.
+    Articles whose reviewers disagree at the stage, with every decision — between ``user_a_id`` and ``user_b_id``
+    when given (two different reviewers), else among all of them. A consolidation does not remove them (it sets the
+    status, not the decisions): ``article.status`` and ``article.updated_by`` tell whether one was settled.
     """
-    return decisions.disagreements(review=get_review(request, review_id), stage=stage)
+    return decisions.disagreements(
+        review=get_review(request, review_id), stage=stage, user_a_id=user_a_id, user_b_id=user_b_id
+    )
 
 
 @router.post(
@@ -101,10 +106,16 @@ def decisions_disagreements(request, review_id: int, stage: str = "title_abstrac
 )
 def decisions_consolidate(request, review_id: int, payload: ConsolidateIn):
     """
-    Set Article.status from the decisions with a rule: unanimous, any_include or majority. ``changed`` counts the
-    resolved articles whose status was different; the others already had it. The decisions are kept.
+    Set Article.status from the decisions with a rule: unanimous, any_include or majority — only the decisions of
+    ``user_ids`` (at least two reviewers) when given, as the web does with the two reviewers it compares. ``changed``
+    counts the resolved articles whose status was different; the others already had it. The decisions are kept.
     """
     review = get_review(request, review_id)
     return decisions.consolidate(
-        review=review, stage=payload.stage, rule=payload.rule, actor=request.auth, article_ids=payload.ids
+        review=review,
+        stage=payload.stage,
+        rule=payload.rule,
+        actor=request.auth,
+        article_ids=payload.ids,
+        user_ids=payload.user_ids,
     )
