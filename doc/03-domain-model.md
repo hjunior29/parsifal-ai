@@ -176,23 +176,36 @@ group and marks the rest `D`.
   id. `get_value()` returns typed Python values (`""` on failure).
   `user` is never set.
 
-## AI screening (Exclude with AI, Include with AI)
+## AI screening (Exclude with AI, Include with AI, Screen with AI)
 
+- `Review.inclusion_rule` all/any: whether a study must meet every inclusion criterion or at least one (Include and
+  Screen with AI follow it; each run keeps the rule it used in `parameters.inclusion_rule`).
 - `ScreeningRun(review, reviewer → User CASCADE (the member the decisions are recorded as), started_by SET_NULL, phase
-  exclusion/inclusion, model, parameters JSON, status running (also while interrupted)/finished/cancelled (discarded by a newer run)/failed
+  exclusion/inclusion/screen (the action, in no order; retention for the runs of the removed Retain with AI), model, parameters JSON, status running (also while interrupted)/finished/cancelled (discarded by a newer run)/failed
   (older runs only), total, error (why it waits), last_step_at (a step in the last 30 s means it is being driven),
-  created_at, finished_at)`. `parameters` is the snapshot of what was sent:
-  context, guidance, criteria (`key`, `id`, `description`), `template` (the request template sent about each study,
-  see `services/screening_requests.py`; runs from before it was editable have none and used the default), `threshold`
-  (exclusion) or `thresholds` per inclusion criterion (`{I1: 0.9, …}`; older inclusion runs kept one `threshold`),
-  scope. Runs from before each question was asked once also kept `orders`. (Inclusion runs made before Include
+  created_at, finished_at, undoable (its results keep what came before it; false for the runs made before Parsifal
+  kept it, which cannot be undone))`. `parameters` is the snapshot of what was sent:
+  context, guidance, criteria sent (`key` — the protocol's E1…/I1… —, `id`, `description`), `skipped_criteria` (the
+  ids left out by choice, which the next run of the action leaves out too), `template` (the request template sent
+  about each study, see `services/screening_requests.py`; runs from before it was editable have none and used the
+  default), `threshold` (exclusion and screen) and/or `thresholds` per inclusion criterion (`{I1: 0.9, …}`; older
+  inclusion runs kept one `threshold`), `inclusion_rule`, scope. A new run of an action starts from the last one's
+  parameters (`ai_screening.starting_settings`). Retention runs kept the inclusion criteria then the exclusion ones,
+  and a single `threshold`. Runs from before each question was asked once also kept `orders`. (Inclusion runs made before Include
   with AI stopped rejecting kept `accept_threshold` and `reject_threshold` instead.)
 - `ScreeningResult(run CASCADE, article CASCADE, previous_status (the study's status when the run took it; the run
   only changes the study if it still has it), outcome pending/excluded/passed (exclusion)/included/undecided
-  (inclusion, which never rejects)/error, p_exclude (exclusion), p_include (inclusion: p(meets) of the deciding criterion),
-  probabilities JSON,
-  selection_criteria SET_NULL, model, error, processed_at)`, unique per
-  (run, article). Pending rows are deleted when a run ends.
+  (inclusion, which never rejects)/excluded/included/undecided (screen)/error (older retention runs: included or
+  excluded), p_exclude (exclusion, screen), p_include (inclusion, screen: p(meets) of the deciding criterion;
+  retention: p(retain)), probabilities JSON (screen: the exclusion options and the inclusion criteria),
+  selection_criteria SET_NULL, model, error, processed_at, and what undoing the run restores: status_set (the status
+  the run gave the study, "" when it left it as it was), previous_criteria SET_NULL, previous_updated_by SET_NULL,
+  previous_updated_at (the study's criterion and last editor before the run; its status is previous_status), and
+  previous_decision JSON (the reviewer's decision the run replaced: status, criteria_id, comments, decided_at,
+  run_id; null when there was none))`, unique per (run, article). Pending rows are deleted when a run ends. A study
+  the run changed gets `processed_at` as its `updated_at`, so the change stands while the study keeps that status,
+  the run's reviewer as last editor and that time. Undoing the review's latest run (`services/ai_runs.py`) restores
+  what still stands and deletes the run; the run before it becomes the latest.
 - `accounts.Integration(user, provider "jev", api_key_encrypted, key_hint, model)`: the key is encrypted
   with a key derived from `SECRET_KEY` (`core/crypto.py`, Fernet), `key_hint` keeps its last 4 characters for
   display, `model` is the default model. Unique per

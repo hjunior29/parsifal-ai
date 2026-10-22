@@ -1,12 +1,12 @@
 {% comment %}
-  Exclude with AI (phase 1 of study selection) and Include with AI (phase 2, ``inclusion``): contents of
-  #modal-ai-screening. Three states driven by conducting_ai_screening.js: setup (this form, with a Continue for an
-  unfinished run), progress and summary.
+  Exclude with AI, Include with AI (``inclusion``) and Screen with AI (``screen``, both in one request), in no
+  particular order: contents of #modal-ai-screening. Three states driven by conducting_ai_screening.js: setup (this
+  form, prefilled from the last run of the action, with a Continue for an unfinished run), progress and summary.
 {% endcomment %}
 {% load l10n %}
 <div class="modal-header">
   <button type="button" class="close js-ai-close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-  <h4 class="modal-title">{{ label }} <small>{% if inclusion %}phase 2 · inclusion criteria{% else %}phase 1 · exclusion criteria only{% endif %}</small></h4>
+  <h4 class="modal-title">{{ label }} <small>{% if screen %}exclusion and inclusion criteria · one request per study{% elif inclusion %}inclusion criteria{% else %}exclusion criteria{% endif %}</small></h4>
 </div>
 
 {% if not integration %}
@@ -17,27 +17,35 @@
   <div class="modal-footer">
     <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
   </div>
-{% elif not options %}
+{% elif missing_criteria %}
   <div class="modal-body">
-    <p>The review has no {{ phase }} criteria, so there is nothing to {% if inclusion %}include{% else %}exclude{% endif %} studies with.</p>
-    <p><a href="{% url 'protocol' review.author.username review.name %}">Add {{ phase }} criteria in Planning</a></p>
+    <p>{{ missing_criteria }}</p>
+    <p><a href="{% url 'protocol' review.author.username review.name %}">Go to Planning</a></p>
   </div>
   <div class="modal-footer">
     <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
   </div>
 {% else %}
   <div class="modal-body ai-screening-setup">
-    {% if inclusion %}
+    {% if screen %}
       <p>
-        Jev reads each study (by default its title and abstract) and <strong>accepts the ones that clearly
-        meet every inclusion criterion</strong>, in the name of the reviewer you choose. It never rejects (that is
-        phase 1's job): the rest are left unclassified for you to decide.
+        Jev reads each study (by default its title and abstract) and answers the exclusion and the inclusion
+        questions in the same request, in the name of the reviewer you choose: a study that clearly meets an
+        exclusion criterion is <strong>rejected</strong> with it (even when it also meets the inclusion criteria);
+        otherwise one that meets the inclusion criteria is <strong>accepted</strong>; the rest are left
+        unclassified for you to decide.
+      </p>
+    {% elif inclusion %}
+      <p>
+        Jev reads each study (by default its title and abstract) and <strong>accepts the ones that meet the
+        inclusion criteria</strong>, in the name of the reviewer you choose. It never rejects (Exclude with AI
+        does): the rest are left unclassified for you to decide.
       </p>
     {% else %}
       <p>
         Jev reads each study (by default its title and abstract) and <strong>rejects the ones that clearly
         meet an exclusion criterion</strong>, with that criterion as the reason, in the name of the reviewer you
-        choose. The rest are left for the next phase, with the inclusion criteria.
+        choose. The rest are left unclassified.
       </p>
     {% endif %}
     {% if unfinished %}
@@ -54,12 +62,27 @@
       </div>
       {{ unfinished_progress|json_script:"ai-screening-unfinished" }}
     {% endif %}
+    {% if like or from_run %}
+      <div class="alert alert-info clearfix">
+        <button type="button" class="btn btn-default btn-sm pull-right js-ai-restore-defaults" data-phase="{{ phase }}" title="Parsifal's defaults for everything: the review's context, the default request, every criterion, threshold 0.9, the default statuses, your default model">Restore defaults</button>
+        {% if like %}
+          The settings of <strong>run {{ like.pk }}</strong> ({{ like.created_at|date:"j M Y H:i" }}), to run it again:
+        {% else %}
+          The settings of the last {{ label }} run, <strong>run {{ from_run.pk }}</strong> ({{ from_run.created_at|date:"j M Y H:i" }}):
+        {% endif %}
+        reviewer, model, context, guidance, request, criteria, threshold{% if inclusion %}s{% endif %} and studies.
+        Change what you need before starting.
+      </div>
+    {% elif restored %}
+      <div class="alert alert-info">Parsifal's default settings. Starting a run keeps them for the next one.</div>
+    {% endif %}
     <div class="alert alert-danger js-ai-form-error" style="display: none;"></div>
 
     <form id="ai-screening-form" onsubmit="return false;">
       {% csrf_token %}
       <input type="hidden" name="review-id" value="{{ review.id }}">
       <input type="hidden" name="phase" value="{{ phase }}">
+      <input type="hidden" name="criteria-sent" value="1">
 
       <div class="row">
         <div class="col-sm-6">
@@ -84,19 +107,19 @@
             {% if models %}
               <select name="model" id="ai-model" class="form-control input-sm">
                 {% for model in models %}
-                  <option value="{{ model.name }}"{% if model.name == integration.model %} selected{% endif %}>{{ model.label }}</option>
+                  <option value="{{ model.name }}"{% if model.name == selected_model %} selected{% endif %}>{{ model.label }}</option>
                 {% endfor %}
               </select>
               <p class="help-block small">As listed by Jev now. Your default comes from Settings → Integrations.</p>
             {% else %}
-              <input type="text" name="model" id="ai-model" class="form-control input-sm" value="{{ integration.model }}" maxlength="100">
+              <input type="text" name="model" id="ai-model" class="form-control input-sm" value="{{ selected_model }}" maxlength="100">
               {% if models_error %}<p class="help-block small text-warning">Could not load the list of models from Jev: {{ models_error }}</p>{% endif %}
             {% endif %}
           </div>
         </div>
       </div>
 
-      <h5><strong>Review context</strong> <small>prefilled from the review; changes apply to this run only and are kept in its log</small></h5>
+      <h5><strong>Review context</strong> <small>the review's, or as the last run sent it; editing it here does not change the review, and the run's log keeps what was sent</small></h5>
       {% for field in context_fields %}
         <div class="form-group">
           <label for="ai-context-{{ field.name }}" class="control-label">{{ field.label }}</label>
@@ -110,47 +133,54 @@
       {% endfor %}
       <div class="form-group">
         <label for="ai-guidance" class="control-label">Extra guidance <small class="text-muted">(optional)</small></label>
-        <textarea name="guidance" id="ai-guidance" class="form-control input-sm" rows="3" maxlength="{{ guidance_length }}" placeholder="Definitions or borderline cases that help apply the criteria, e.g. &quot;Tertiary studies count as secondary studies.&quot;"></textarea>
+        <textarea name="guidance" id="ai-guidance" class="form-control input-sm" rows="3" maxlength="{{ guidance_length }}" placeholder="Definitions or borderline cases that help apply the criteria, e.g. &quot;Tertiary studies count as secondary studies.&quot;">{{ guidance }}</textarea>
       </div>
 
-      {% if inclusion %}
-        <h5><strong>Inclusion criteria</strong> <small>from the protocol (edit them in Planning), each with its threshold</small></h5>
-        <ul class="list-unstyled ai-criteria ai-thresholds">
-          {% for option in options %}
+      {% if exclusion %}
+        <h5><strong>Exclusion criteria</strong> <small>from the protocol (edit them in Planning); only the checked ones are sent</small></h5>
+        <ul class="list-unstyled ai-criteria">
+          {% for option in exclusion_options %}
             <li>
-              <input type="number" name="threshold-{{ option.key }}" class="form-control input-sm" value="{{ option.threshold|unlocalize }}" min="{{ min_threshold|unlocalize }}" max="{{ max_threshold|unlocalize }}" step="0.01" required aria-label="Threshold of {{ option.key }}">
-              <code>{{ option.key }}</code> {{ option.description }}
+              <label class="ai-criterion"><input type="checkbox" name="criteria" value="{{ option.id }}"{% if option.checked %} checked{% endif %}> <code>{{ option.key }}</code> {{ option.description }}</label>
             </li>
           {% endfor %}
         </ul>
         <p class="help-block small">
-          A study is accepted only when the probability that it meets each inclusion criterion reaches that
-          criterion's threshold. Lower values accept more studies, and more of them by mistake.
+          Leave out what Jev cannot judge from a title and abstract, such as the year, the language, the venue or
+          whether the full text was retrieved: a criterion it cannot judge still takes some of the probability.
         </p>
-      {% else %}
-        <h5><strong>Exclusion criteria</strong> <small>from the protocol; edit them in Planning</small></h5>
-        <ul class="list-unstyled ai-criteria">
-          {% for option in options %}
-            <li><code>{{ option.key }}</code> {{ option.description }}</li>
-          {% endfor %}
-        </ul>
-      {% endif %}
-
-      {% if not inclusion %}
-      <div class="row">
-        <div class="col-sm-4">
-          <div class="form-group">
-            <label for="ai-threshold" class="control-label">Threshold</label>
-            <input type="number" name="threshold" id="ai-threshold" class="form-control input-sm" value="{{ threshold|unlocalize }}" min="{{ min_threshold|unlocalize }}" max="{{ max_threshold|unlocalize }}" step="0.01" required>
+        <div class="row">
+          <div class="col-sm-4">
+            <div class="form-group">
+              <label for="ai-threshold" class="control-label">{% if screen %}Exclusion threshold{% else %}Threshold{% endif %}</label>
+              <input type="number" name="threshold" id="ai-threshold" class="form-control input-sm" value="{{ threshold|unlocalize }}" min="{{ min_threshold|unlocalize }}" max="{{ max_threshold|unlocalize }}" step="0.01" required>
+            </div>
+          </div>
+          <div class="col-sm-8">
+            <p class="help-block small" style="margin-top: 25px;">
+              A study is rejected only when the probability that some exclusion criterion applies is at least this value.
+              Lower values reject more studies, and more of them by mistake.
+            </p>
           </div>
         </div>
-        <div class="col-sm-8">
-          <p class="help-block small" style="margin-top: 25px;">
-            A study is rejected only when the probability that some exclusion criterion applies is at least this value.
-            Lower values reject more studies, and more of them by mistake.
-          </p>
-        </div>
-      </div>
+      {% endif %}
+
+      {% if inclusion %}
+        <h5><strong>Inclusion criteria</strong> <small>from the protocol (edit them in Planning); only the checked ones are sent, each with its threshold</small></h5>
+        <ul class="list-unstyled ai-criteria ai-thresholds">
+          {% for option in inclusion_options %}
+            <li>
+              <input type="number" name="threshold-{{ option.key }}" class="form-control input-sm" value="{{ option.threshold|unlocalize }}" min="{{ min_threshold|unlocalize }}" max="{{ max_threshold|unlocalize }}" step="0.01" required aria-label="Threshold of {{ option.key }}">
+              <label class="ai-criterion"><input type="checkbox" name="criteria" value="{{ option.id }}"{% if option.checked %} checked{% endif %}> <code>{{ option.key }}</code> {{ option.description }}</label>
+            </li>
+          {% endfor %}
+        </ul>
+        <p class="help-block small">
+          A study must meet <strong>{{ inclusion_rule }}</strong> (set in
+          <a href="{% url 'protocol' review.author.username review.name %}#selection-section">Planning</a>): it is
+          accepted when the probability that it meets {% if review.inclusion_rule == "any" %}one of them{% else %}each one{% endif %}
+          reaches that criterion's threshold. Lower values accept more studies, and more of them by mistake.
+        </p>
       {% endif %}
 
       <div class="row">
@@ -159,7 +189,7 @@
             <label for="ai-source" class="control-label">Studies from</label>
             <select name="source-id" id="ai-source" class="form-control input-sm">
               {% for source in sources %}
-                <option value="{{ source.id }}">{{ source.name }}</option>
+                <option value="{{ source.id }}"{% if source.id == selected_source %} selected{% endif %}>{{ source.name }}</option>
               {% endfor %}
             </select>
           </div>
@@ -182,7 +212,10 @@
       <p class="help-block small">
         Every study sent gets the reviewer's decision, so two reviewers that screen the same studies can be compared in
         Reviewer agreement.
-        {% if inclusion %}
+        {% if screen %}
+          Only unclassified studies and those accepted or rejected by this reviewer change status; duplicates and
+          studies classified by someone else keep theirs.
+        {% elif inclusion %}
           Only unclassified studies and those accepted by this reviewer change status; rejected studies, duplicates and
           studies accepted by someone else keep theirs.
         {% else %}
@@ -197,17 +230,16 @@
         Edit the text around the data. Each {% verbatim %}<code>{{…}}</code>{% endverbatim %} is filled in by Parsifal
         — the review context and guidance above, the criteria from the protocol, each study's title, keywords and
         abstract — so the data are changed there, not here.
-        {% if inclusion %}
-          The question is asked once for every inclusion criterion.
-        {% else %}
-          The {% verbatim %}<code>"{{key}}"</code>{% endverbatim %} option is repeated for every exclusion criterion.
+        {% if exclusion %}
+          The {% verbatim %}<code>"{{key}}"</code>{% endverbatim %} option of the exclusion question is repeated for
+          every exclusion criterion sent.
         {% endif %}
-        It starts from the request of the review's last {{ label }} run, so a second reviewer is asked the same way.
+        {% if inclusion %}The inclusion question is asked once for every inclusion criterion sent.{% endif %}
+        {% if screen %}Both go in the same request.{% endif %}
       </p>
       <textarea name="template" id="ai-template" class="form-control input-sm ai-template" rows="22" spellcheck="false">{{ template }}</textarea>
       <div class="ai-template-actions">
         <button type="button" class="btn btn-default btn-sm js-ai-preview">Preview the request</button>
-        <button type="button" class="btn btn-link btn-sm js-ai-template-reset">Restore the default</button>
       </div>
       <details class="small">
         <summary>Placeholders</summary>
@@ -226,16 +258,19 @@
         </p>
         <pre class="ai-preview js-ai-preview-json"></pre>
       </div>
-      {{ template_default|json_script:"ai-template-default" }}
 
       <details class="small text-muted">
         <summary>How the answers are used</summary>
         <ul>
           <li>Authors, venue and affiliations are never sent: the request can only use the data listed in Placeholders.</li>
-          {% if inclusion %}
+          {% if screen %}
+            <li>The exclusion criteria and "none" are the options of one question (the probability that some criterion applies is 1 − p(none)); each inclusion criterion is one yes/no question. All of them are answered about the same request.</li>
+            <li>Every study screened gets the reviewer's decision: rejected with a criterion when the exclusion threshold is reached (whatever the inclusion answers); otherwise accepted when the inclusion criteria are met ({{ inclusion_rule }}); otherwise unclassified (undecided).</li>
+            <li>Status: unclassified studies and those this reviewer accepted or rejected take the new decision; a study left undecided goes back to unclassified. Duplicates and studies classified by someone else keep their status.</li>
+          {% elif inclusion %}
             <li>Each criterion is one yes/no question; Jev answers with the probability of yes, which is compared with that criterion's threshold.</li>
-            <li>Every study screened gets the reviewer's decision: accepted when every criterion reaches its threshold, or unclassified (undecided) otherwise. Nothing is rejected.</li>
-            <li>Status: an unclassified study is accepted when it meets every criterion; a study this reviewer had accepted goes back to unclassified if it does not now. Rejected studies, duplicates and studies accepted by someone else keep their status.</li>
+            <li>Every study screened gets the reviewer's decision: accepted when {% if review.inclusion_rule == "any" %}one criterion reaches{% else %}every criterion reaches{% endif %} its threshold, or unclassified (undecided) otherwise. Nothing is rejected.</li>
+            <li>Status: an unclassified study is accepted when it meets the criteria; a study this reviewer had accepted goes back to unclassified if it does not now. Rejected studies, duplicates and studies accepted by someone else keep their status.</li>
           {% else %}
             <li>The criteria and "none" are the options of one question; the probability that some criterion applies is 1 − p(none).</li>
             <li>Every study screened gets the reviewer's decision: rejected with a criterion, or unclassified when no criterion applies.</li>
@@ -252,8 +287,13 @@
       <div class="progress-bar progress-bar-striped active js-ai-bar" role="progressbar" style="width: 0%; min-width: 2em;">0%</div>
     </div>
     <p>
-      {# The counts of the run's own phase are shown: Continue may pick up a run of the other phase. #}
+      {# The counts of the run's own action are shown: Continue may pick up a run of another action. #}
       <span class="js-ai-labels" data-phase="inclusion">
+        <span class="label label-success"><span class="js-ai-included">0</span> accepted</span>
+        <span class="label label-default"><span class="js-ai-undecided">0</span> undecided (left unclassified)</span>
+      </span>
+      <span class="js-ai-labels" data-phase="screen">
+        <span class="label label-danger"><span class="js-ai-excluded">0</span> rejected</span>
         <span class="label label-success"><span class="js-ai-included">0</span> accepted</span>
         <span class="label label-default"><span class="js-ai-undecided">0</span> undecided (left unclassified)</span>
       </span>
@@ -263,12 +303,14 @@
       </span>
       <span class="label label-warning"><span class="js-ai-failed">0</span> errors</span>
       <span class="text-muted small"><span class="js-ai-processed">0</span> of <span class="js-ai-total">0</span></span>
+      <span class="text-muted small">· <span class="js-ai-timer">0:00 elapsed</span></span>
     </p>
     <div class="alert alert-danger js-ai-run-error" style="display: none;"></div>
     <ol class="list-unstyled small js-ai-log ai-log"></ol>
   </div>
 
   <div class="modal-footer">
+    <div class="alert alert-warning text-left small js-ai-impact" style="display: none; margin-bottom: 10px;"></div>
     <span class="pull-left text-muted small js-ai-count-line"><strong class="js-ai-count">0</strong> studies will be sent.</span>
     <button type="button" class="btn btn-default js-ai-close" data-dismiss="modal">Cancel</button>
     <button type="button" class="btn btn-primary js-ai-start">Start screening</button>

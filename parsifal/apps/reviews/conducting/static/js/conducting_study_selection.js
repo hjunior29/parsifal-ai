@@ -33,6 +33,31 @@ $(function () {
     $("#modal-add-article").modal('show');
   });
 
+  // The AI column sorts the most likely relevant first, and the studies no AI run answered about last. (The sorter
+  // passes the cell third when it builds its cache, second when it updates one cell.)
+  $.tablesorter.addParser({
+    id: "ai-score",
+    is: function () { return false; },
+    format: function (text, table, cell) {
+      var score = $(cell || table).attr("data-score");
+      return score === undefined || score === "" ? 2 : -parseFloat(score);
+    },
+    type: "numeric"
+  });
+
+  function sortableTable() {
+    var headers = {0: {sorter: false}};
+    var ai = $(".source-tab-content th.ai-header").index();
+    if (ai >= 0) { headers[ai] = {sorter: "ai-score"}; }
+    $(".source-tab-content table").tablesorter({headers: headers});
+  }
+
+  /* The sorter keeps the rows it last saw: after a row is replaced, removed or changes status it must read the table
+     again, or the next sort puts the old rows back (a saved study would show twice, and stay where it was). */
+  function tableChanged() {
+    $(".source-tab-content table").trigger("update");
+  }
+
   $("#source-tab a").click(function () {
     var source_id = $(this).attr("source-id");
     $("ul#source-tab li").removeClass("active");
@@ -48,7 +73,7 @@ $(function () {
       },
       success: function (data) {
         $(".source-tab-content").html(data);
-        $(".source-tab-content table").tablesorter({ headers: { 0: { sorter: false }}});
+        sortableTable();
       },
       complete: function () {
         $(".source-tab-content").spinner();
@@ -161,7 +186,7 @@ $(function () {
         });
         $(".source-articles tbody tr[oid=" + articleId + "]").attr("article-starred", updated.hasClass("starred") ? "1" : "0");
         $(".source-tab-content .starred-count").text($(".source-articles tbody tr[article-starred=1]").length);
-        $(".source-tab-content table").trigger("update");  // the sort by star sees the change
+        tableChanged();  // the sort by star sees the change
         applyFilters();
       },
       error: function (xhr) {
@@ -422,6 +447,7 @@ $(function () {
       success: function (data) {
         $(".source-articles table tbody tr[oid=" + article_id + "]").replaceWith(data);
         $(".source-articles table tbody tr[oid=" + article_id + "]").addClass("active");
+        tableChanged();
         if (move_next) {
           move(FORWARD);
           $("#modal-article .modal-body").loadActiveArticle();
@@ -575,6 +601,7 @@ $(function () {
             });
             break;
         }
+        tableChanged();
       },
       error: function () {
 
@@ -698,6 +725,7 @@ $(function () {
         var article_row = $(".source-tab-content .source-articles tr[oid=" + article_id + "]");
         $(article_row).attr("article-status", "D");
         $("td.js-status", article_row).html("<span class=\"label label-warning\">Duplicated</span>");
+        tableChanged();
       },
       error: function () {
         $(btn).prop("disabled", false);
@@ -733,6 +761,7 @@ $(function () {
             $(article_row).attr("article-status", "D");
             $("td.js-status", article_row).html("<span class=\"label label-warning\">Duplicated</span>");
           }
+          tableChanged();
         }
       },
       complete: function () {

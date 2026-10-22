@@ -7,7 +7,7 @@ from dataclasses import dataclass, field as dataclass_field
 from difflib import SequenceMatcher
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils import timezone
 from django.utils.text import slugify
 
@@ -16,6 +16,7 @@ from bibtexparser.bparser import BibTexParser
 
 from parsifal.apps.core.exceptions import ValidationError
 from parsifal.apps.reviews.models import Article
+from parsifal.apps.reviews.services import ai_screening
 from parsifal.apps.reviews.services._common import check_length, get_child, get_children
 
 # Maximum length of every editable Article text field (mirrors the model).
@@ -301,10 +302,26 @@ def set_starred(*, review, article_id, starred, actor=None):
     return get_article(review=review, article_id=article.pk)
 
 
-def list_articles(review, *, source_id=None, status=None, query=None, finished_data_extraction=None, starred=None):
-    queryset = review.article_set.select_related(
-        "source", "selection_criteria", "pdf__uploaded_by", "starred_by"
-    ).order_by("title", "pk")
+ORDERS = ("title", "ai_score")
+
+
+def list_articles(
+    review, *, source_id=None, status=None, query=None, finished_data_extraction=None, starred=None, order=None
+):
+    """
+    The review's studies, filtered, with how likely each is relevant by the latest AI answer (``ai_score``);
+    ``order``: by title (default) or by that score, the most likely first.
+    """
+    order = order or "title"
+    if order not in ORDERS:
+        raise ValidationError(f"order must be {' or '.join(ORDERS)}.", field="order")
+    queryset = ai_screening.with_relevance(
+        review.article_set.select_related("source", "selection_criteria", "pdf__uploaded_by", "starred_by")
+    )
+    if order == "ai_score":
+        queryset = queryset.order_by(F("ai_relevance").desc(nulls_last=True), "title", "pk")
+    else:
+        queryset = queryset.order_by("title", "pk")
     if source_id is not None:
         queryset = queryset.filter(source_id=source_id)
     if status is not None:

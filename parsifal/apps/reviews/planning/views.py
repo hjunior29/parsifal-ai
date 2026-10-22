@@ -9,7 +9,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse as r
 from django.utils.html import escape
+from django.views.decorators.http import require_POST
 
+from parsifal.apps.core.exceptions import DomainError
 from parsifal.apps.reviews.decorators import author_required
 from parsifal.apps.reviews.models import (
     DataExtraction,
@@ -24,6 +26,7 @@ from parsifal.apps.reviews.models import (
     Source,
 )
 from parsifal.apps.reviews.planning.forms import KeywordForm, SynonymForm
+from parsifal.apps.reviews.services import reviews
 
 
 @author_required
@@ -527,6 +530,19 @@ def add_criteria(request):
         return render(request, "planning/partial_criteria.html", {"criteria": criteria})
     except Exception:
         return HttpResponseBadRequest()
+
+
+@author_required
+@login_required
+@require_POST
+def save_inclusion_rule(request):
+    """Whether a study must meet all the inclusion criteria or at least one (Include and Screen with AI follow it)."""
+    review = get_object_or_404(Review, pk=request.POST.get("review-id"))
+    try:
+        reviews.update_review(review=review, inclusion_rule=request.POST.get("inclusion-rule"))
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
+    return HttpResponse(review.get_inclusion_rule_display())
 
 
 @author_required

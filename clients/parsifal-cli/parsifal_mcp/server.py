@@ -236,18 +236,24 @@ def workflow_guide():
 
 
 SCREENING_RUN_DESCRIPTION = (
-    "Exclude with AI (phase 1 of study selection, phase='exclusion', the default) or Include with AI (phase 2, "
-    "phase='inclusion'), in one call: starts a run (or continues run_id) and screens with Jev until the run ends or "
-    "max_seconds pass. reviewer_id is the member of the review the decisions are recorded as (only the main author "
-    "may name someone else; see parsifal_ai_screening_setup). A run sends the studies with the given statuses (U, R, "
-    "A, D; default R and U for exclusion, A and U for inclusion) and rewrites the reviewer's decisions on them. "
-    "Exclusion: 'rejected' with the criterion when the probability that some exclusion criterion applies reaches the "
-    "threshold, else 'unclassified'. Inclusion: one yes/no question per inclusion criterion; 'accepted' when the "
-    "probability that every criterion is met reaches the threshold, else 'unclassified' (it never rejects). Only "
-    "unclassified studies and those this reviewer classified change status, so two reviewers can screen the same "
-    "studies and be compared (parsifal_decisions_agreement). "
-    "Uses the Jev API key of the token's user (parsifal_jev_integration_set). Start fields left out take the "
-    "review's values. If the result says it is still running, call again with run_id."
+    "Exclude with AI (phase='exclusion', the default), Include with AI (phase='inclusion') or Screen with AI "
+    "(phase='screen', both in one request), in no particular order, in one call: starts a run (or continues run_id) "
+    "and screens with Jev until the run ends or max_seconds pass. reviewer_id is the member of the review the "
+    "decisions are recorded as (only the main author may name someone else; see parsifal_ai_screening_setup). "
+    "Whatever is left out takes the settings of the review's last run of that action (setup's start), or Parsifal's "
+    "defaults with defaults=true: statuses (U, R, A, D), criteria_ids (the criteria sent; leave out those Jev cannot "
+    "judge from a title and abstract), thresholds, request template, context. The run rewrites the reviewer's "
+    "decisions on the studies sent. Exclusion: 'rejected' with the criterion when the probability that some "
+    "exclusion criterion applies reaches the threshold, else 'unclassified'. Inclusion: one yes/no question per "
+    "inclusion criterion; 'accepted' when the criteria reach their thresholds (all of them, or one with the "
+    "protocol's inclusion rule 'any'), else 'unclassified' (it never rejects). Screen: 'rejected' when the exclusion "
+    "threshold is reached (even if the inclusion criteria are met), else 'accepted' when the inclusion criteria are "
+    "met, else 'unclassified'. Only unclassified studies and those this reviewer classified change status, so two "
+    "reviewers can screen the same studies and be compared (parsifal_decisions_agreement). Uses the Jev API key of "
+    "the token's user (parsifal_jev_integration_set). If the result says it is still running, call again with "
+    "run_id. Before starting, parsifal_ai_screening_impact says whether the run would rewrite the reviewer's "
+    "decisions; a run started by mistake is undone with parsifal_ai_screening_undo while it is the latest run (see "
+    "parsifal_ai_screening_undo_preview)."
 )
 
 
@@ -255,6 +261,7 @@ def screening_run(
     tool_context, review_id, *, run_id=None, step_size=screening.DEFAULT_STEP_SIZE, max_seconds=240, **start
 ):
     client = tool_context.client()
+    stopwatch = screening.Stopwatch()
     try:
         run = screening.drive(
             client,
@@ -263,24 +270,26 @@ def screening_run(
             start={name: value for name, value in start.items() if value is not None},
             step_size=step_size,
             max_seconds=max_seconds,
+            on_step=stopwatch.step,
         )
     except (ApiError, ConnectionFailed) as error:
         raise ToolError(str(error)) from error
     finally:
         client.close()
     run.pop("parameters", None)
+    progress = screening.progress_line(run, stopwatch)
     if screening.interrupted(run):
         run["message"] = (
-            f"Interrupted: {run['error']} The run keeps the studies left ({screening.progress_line(run)}); once the "
-            f"problem is solved, call parsifal_ai_screening_run again with run_id={run['id']}."
+            f"Interrupted: {run['error']} The run keeps the studies left ({progress}); once the problem is solved, "
+            f"call parsifal_ai_screening_run again with run_id={run['id']}."
         )
     elif run["status"] == "running":
         run["message"] = (
-            f"Time budget reached ({screening.progress_line(run)}). Call parsifal_ai_screening_run again with "
-            f"run_id={run['id']} to continue."
+            f"Time budget reached ({progress}). Call parsifal_ai_screening_run again with run_id={run['id']} to "
+            "continue."
         )
     else:
-        run["message"] = f"Run {run['status']}: {screening.progress_line(run)}."
+        run["message"] = f"Run {run['status']}: {progress}."
     return run
 
 

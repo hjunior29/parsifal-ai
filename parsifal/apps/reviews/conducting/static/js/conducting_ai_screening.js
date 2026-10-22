@@ -1,15 +1,57 @@
 /*
- * Exclude with AI (phase 1 of study selection) and Include with AI (phase 2). Opens the setup window of the phase,
- * starts a run (or continues an unfinished one) and then asks the server to screen the next few studies until the
- * run ends, showing progress as it goes. The request to Jev is a template edited as JSON text, previewed (filled in
- * by the server for the first study in scope) before starting.
+ * Exclude with AI, Include with AI and Screen with AI (both in one request), in no particular order. Opens the setup
+ * window of the action — prefilled with the settings of its last run, or Parsifal's defaults after "Restore
+ * defaults" —, starts a run (or continues an unfinished one) and then asks the server to screen the next few studies
+ * until the run ends, showing progress as it goes. The request to Jev is a template edited as JSON text, previewed
+ * (filled in by the server for the first study in scope) before starting.
  * A run cannot be stopped; when it is interrupted (connection lost, Jev refusing the key or unavailable) the window
- * offers to continue it. "Done" reloads the page so the table shows the rejected studies.
+ * offers to continue it. "Done" reloads the page so the table shows the rejected studies. While it screens, a clock
+ * shows the time spent in this window and, at that pace, about how long is left.
+ * A run that would rewrite the reviewer's decisions, or change studies the reviewer classified, says so and starts on
+ * a second click. "Run again" in the AI runs window opens this window with the settings of that run (run-id).
  */
 $(function () {
   var $modal = $("#modal-ai-screening");
   var run = null;
   var retries = 0;
+  var timer = null;
+  var startedAt = 0;
+  var startProcessed = 0;
+
+  // Seconds as m:ss, or h:mm:ss from an hour on.
+  function clock(seconds) {
+    seconds = Math.max(0, Math.round(seconds));
+    var hours = Math.floor(seconds / 3600);
+    var minutes = Math.floor((seconds % 3600) / 60);
+    var rest = ("0" + (seconds % 60)).slice(-2);
+    return hours ? hours + ":" + ("0" + minutes).slice(-2) + ":" + rest : minutes + ":" + rest;
+  }
+
+  function elapsed() { return (Date.now() - startedAt) / 1000; }
+
+  function tick() {
+    var seconds = elapsed();
+    var text = clock(seconds) + " elapsed";
+    var done = run.processed - startProcessed;
+    var left = run.total - run.processed;
+    if (timer && done > 0 && left > 0) {
+      text += " · about " + clock(left * seconds / done) + " left";
+    }
+    $modal.find(".js-ai-timer").text(text);
+  }
+
+  function startTimer() {
+    stopTimer();
+    startedAt = Date.now();
+    startProcessed = run.processed;
+    timer = setInterval(tick, 1000);
+    tick();
+  }
+
+  function stopTimer() {
+    if (timer) { clearInterval(timer); }
+    timer = null;
+  }
 
   function reviewId() { return $("#review-id").val(); }
   function csrf() { return $modal.find("input[name=csrfmiddlewaretoken]").val(); }
@@ -43,21 +85,54 @@ $(function () {
     $modal.find(".js-ai-start").prop("disabled", !reviewer || total === 0);
   }
 
-  $(document).on("click", ".btn-ai-screening", function () {
+  function openWindow(data) {
     run = null;
     preview = null;
-    var phase = $(this).data("phase") || "exclusion";
-    $.get("/reviews/conducting/ai_screening/", {"review-id": reviewId(), "phase": phase}, function (html) {
+    confirmed = false;
+    var $open = $(".modal.in").not($modal);
+    $.get("/reviews/conducting/ai_screening/", data, function (html) {
       $modal.find(".modal-content").html(html);
       updateCount();
-      $modal.modal("show");
+      // Run again, from the AI runs window: this window takes its place.
+      if ($open.length) {
+        $open.one("hidden.bs.modal", function () { $modal.modal("show"); }).modal("hide");
+      } else {
+        $modal.modal("show");
+      }
+    });
+  }
+
+  $(document).on("click", ".btn-ai-screening", function () {
+    var data = {"review-id": reviewId(), "phase": $(this).data("phase") || "exclusion"};
+    if ($(this).data("run-id")) { data["run-id"] = $(this).data("run-id"); }
+    openWindow(data);
+  });
+
+  // Every setting back to Parsifal's defaults, in place of the last run's.
+  $modal.on("click", ".js-ai-restore-defaults", function () {
+    $.get("/reviews/conducting/ai_screening/", {"review-id": reviewId(), "phase": $(this).data("phase"), "defaults": 1}, function (html) {
+      $modal.find(".modal-content").html(html);
+      updateCount();
     });
   });
 
-  $modal.on("change", "#ai-source, #ai-reviewer, input[name=statuses]", updateCount);
+  // A run that rewrites the reviewer's decisions, or may change studies they classified, starts on a second click.
+  var confirmed = false;
+
+  function resetConfirmation() {
+    confirmed = false;
+    $modal.find(".js-ai-impact").hide();
+    $modal.find(".js-ai-start").text("Start screening");
+  }
+
+  $modal.on("change", "#ai-source, #ai-reviewer, input[name=statuses]", function () {
+    resetConfirmation();
+    updateCount();
+  });
 
   $modal.on("change", ".js-ai-all-statuses", function () {
     $modal.find("input[name=statuses]").prop("checked", this.checked);
+    resetConfirmation();
     updateCount();
   });
 
@@ -115,14 +190,13 @@ $(function () {
     });
   });
 
-  $modal.on("click", ".js-ai-template-reset", function () {
-    $("#ai-template").val(JSON.parse($("#ai-template-default").text()));
-    $modal.find(".js-ai-preview-box, .js-ai-preview-error").hide();
-  });
+  function formError(xhr, $button) {
+    $modal.find(".js-ai-form-error").text(errorMessage(xhr)).show();
+    $modal.find(".modal-body").scrollTop(0);
+    $button.prop("disabled", false);
+  }
 
-  $modal.on("click", ".js-ai-start", function () {
-    var $button = $(this).prop("disabled", true);
-    $modal.find(".js-ai-form-error").hide();
+  function start($button) {
     $.ajax({
       url: "/reviews/conducting/ai_screening/start/",
       type: "post",
@@ -131,11 +205,24 @@ $(function () {
     }).done(function (data) {
       showProgress(data.run);
       step();
-    }).fail(function (xhr) {
-      $modal.find(".js-ai-form-error").text(errorMessage(xhr)).show();
-      $modal.find(".modal-body").scrollTop(0);
-      $button.prop("disabled", false);
-    });
+    }).fail(function (xhr) { formError(xhr, $button); });
+  }
+
+  $modal.on("click", ".js-ai-start", function () {
+    var $button = $(this).prop("disabled", true);
+    $modal.find(".js-ai-form-error").hide();
+    if (confirmed) { start($button); return; }
+    $.ajax({
+      url: "/reviews/conducting/ai_screening/impact/",
+      type: "post",
+      data: $("#ai-screening-form").serialize(),
+      dataType: "json"
+    }).done(function (impact) {
+      if (!impact.confirm) { start($button); return; }
+      confirmed = true;
+      $modal.find(".js-ai-impact").text(impact.message).show();
+      $button.text("Start anyway").prop("disabled", false);
+    }).fail(function (xhr) { formError(xhr, $button); });
   });
 
   // Continue an unfinished run: from the notice of the setup window, or after an interruption in this window.
@@ -149,12 +236,14 @@ $(function () {
     run = state;
     retries = 0;
     $modal.find(".ai-screening-setup, .js-ai-start, .js-ai-close, .js-ai-count-line, .js-ai-retry, .js-ai-done").hide();
+    $modal.find(".js-ai-impact").hide();
     $modal.find(".js-ai-run-error").hide();
     $modal.find(".js-ai-status").empty().append($("<strong>").text("Screening…"));
     $modal.find(".js-ai-bar").addClass("active progress-bar-striped");
     $modal.find(".ai-screening-progress").show();
     window.addEventListener("beforeunload", warnBeforeLeaving);
     render(state, []);
+    startTimer();
   }
 
   function render(state, results) {
@@ -219,6 +308,8 @@ $(function () {
   }
 
   function settle() {
+    stopTimer();
+    tick();
     window.removeEventListener("beforeunload", warnBeforeLeaving);
     $modal.find(".js-ai-bar").removeClass("active progress-bar-striped");
     $modal.find(".js-ai-done").show();
@@ -236,10 +327,13 @@ $(function () {
   function finish(state) {
     settle();
     render(state, []);
-    var titles = {finished: "Finished.", cancelled: "Discarded: another run was started."};
-    var summary = state.phase === "inclusion"
-      ? " " + state.included + " accepted, " + state.undecided + " undecided (left unclassified)"
-      : " " + state.excluded + " rejected, " + state.passed + " passed (no criterion)";
+    var titles = {finished: "Finished in " + clock(elapsed()) + ".", cancelled: "Discarded: another run was started."};
+    var summaries = {
+      exclusion: " " + state.excluded + " rejected, " + state.passed + " passed (no criterion)",
+      inclusion: " " + state.included + " accepted, " + state.undecided + " undecided (left unclassified)",
+      screen: " " + state.excluded + " rejected, " + state.included + " accepted, " + state.undecided + " undecided (left unclassified)"
+    };
+    var summary = summaries[state.phase] || summaries.exclusion;
     if (state.failed) { summary += ", " + state.failed + " errors (those studies keep the reviewer's previous decision)"; }
     $modal.find(".js-ai-status").empty()
       .append($("<strong>").text(titles[state.status] || "Stopped."))

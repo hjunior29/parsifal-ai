@@ -128,6 +128,28 @@ def _group_app(group):
     return _groups[group]
 
 
+def _interactive():
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _confirm(client, operation, values):
+    """
+    Ask before an operation that cannot be undone, or one whose check says it should be confirmed (e.g. a run that
+    rewrites the reviewer's decisions), showing what the check says it does. Aborts when the answer is no.
+    """
+    if operation.check:
+        check = BY_ID[operation.check]
+        names = {param.name for param in check.params}
+        found = client.call(check, {name: value for name, value in values.items() if name in names})
+        if not (operation.destructive or found.get("confirm")):
+            return
+        typer.echo(found.get("message", ""), err=True)
+    elif not operation.destructive:
+        return
+    warning = " This cannot be undone." if operation.destructive else ""
+    typer.confirm(f"Run `{operation.cli_name}`?{warning}", abort=True)
+
+
 def _make_handler(operation):
     def handler(**kwargs):
         all_pages = kwargs.pop("all", False)
@@ -135,8 +157,6 @@ def _make_handler(operation):
         offset = kwargs.pop("offset", None)
         output = kwargs.pop("output", None)
         yes = kwargs.pop("yes", False)
-        if operation.destructive and not yes and sys.stdin.isatty() and sys.stdout.isatty():
-            typer.confirm(f"Run `{operation.cli_name}`? This cannot be undone.", abort=True)
         values = {}
         for param in operation.params:
             value = kwargs.get(param.name)
@@ -151,6 +171,8 @@ def _make_handler(operation):
             values[param.name] = value
         client = state.client()
         try:
+            if not yes and _interactive():
+                _confirm(client, operation, values)
             result = client.call(operation, values, all_pages=all_pages, limit=limit, offset=offset)
         except (ApiError, ConnectionFailed) as exc:
             error(str(exc))
@@ -189,7 +211,7 @@ def _make_handler(operation):
         ]
     if operation.download:
         extras.append(("output", Path, typer.Option(..., "--output", "-o", help="Destination file ('-' for stdout).")))
-    if operation.destructive:
+    if operation.destructive or operation.check:
         extras.append(("yes", bool, typer.Option(False, "--yes", "-y", help="Do not ask for confirmation.")))
     for name, python_type, default in extras:
         parameters.append(
@@ -226,7 +248,7 @@ def build():
 def _ai_screening_run_command():
     """``parsifal ai-screening run``: the options of ``ai-screening start`` plus --run and --step-size."""
 
-    def handler(review, run=None, step_size=screening.DEFAULT_STEP_SIZE, **start):
+    def handler(review, run=None, step_size=screening.DEFAULT_STEP_SIZE, yes=False, **start):
         values = {}
         for param in screening.START_PARAMS:
             value = start.get(param.name)
@@ -240,14 +262,18 @@ def _ai_screening_run_command():
                 values[param.name] = value
         client = state.client()
         current = {"id": run}
+        stopwatch = screening.Stopwatch()
         try:
             if run is None:
+                if not yes and _interactive():
+                    _confirm(client, BY_ID["ai_screening_start"], {"review_id": review, **values})
                 current = client.call(BY_ID["ai_screening_start"], {"review_id": review, **values})
                 typer.echo(f"Run {current['id']}: {current['total']} studies to screen.", err=True)
 
-            def on_step(progress, _results):
+            def on_step(progress, results):
                 current.update(progress)
-                typer.echo(screening.progress_line(progress), err=True)
+                stopwatch.step(progress, results)
+                typer.echo(screening.progress_line(progress, stopwatch), err=True)
 
             result = screening.drive(client, review, run_id=current["id"], step_size=step_size, on_step=on_step)
         except KeyboardInterrupt:
@@ -285,8 +311,16 @@ def _ai_screening_run_command():
         inspect.Parameter(
             "step_size",
             inspect.Parameter.KEYWORD_ONLY,
-            default=typer.Option(screening.DEFAULT_STEP_SIZE, "--step-size", help="Studies per step (1–50)."),
+            default=typer.Option(screening.DEFAULT_STEP_SIZE, "--step-size", help="Studies per step (1–64)."),
             annotation=int,
+        ),
+        inspect.Parameter(
+            "yes",
+            inspect.Parameter.KEYWORD_ONLY,
+            default=typer.Option(
+                False, "--yes", "-y", help="Do not ask before a run that rewrites the reviewer's decisions."
+            ),
+            annotation=bool,
         ),
     ]
     for param in screening.START_PARAMS:
@@ -302,8 +336,9 @@ def _ai_screening_run_command():
     handler.__signature__ = inspect.Signature(parameters)
     handler.__annotations__ = {p.name: p.annotation for p in parameters}
     handler.__doc__ = (
-        "Start an Exclude with AI run (or continue one with --run) and screen until it ends, printing the progress. "
-        "Ctrl-C only interrupts: the run keeps the studies left and --run continues it."
+        "Start an Exclude, Include or Screen with AI run (or continue one with --run) and screen until it ends, "
+        "printing the progress. A run that rewrites the reviewer's decisions asks first (--yes skips it). Ctrl-C "
+        "only interrupts: the run keeps the studies left and --run continues it. `ai-screening undo` undoes a run."
     )
     return handler
 

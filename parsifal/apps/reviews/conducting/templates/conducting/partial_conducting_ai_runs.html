@@ -1,0 +1,81 @@
+{% comment %}
+  The AI runs window (#modal-ai-runs, conducting_ai_runs.js): the review's Exclude, Include and Retain with AI runs,
+  newest first, with their details, Run again (the setup window with the run's settings) and Undo (the latest run only).
+{% endcomment %}
+<div class="modal-header">
+  <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+  <h4 class="modal-title">AI runs <small>Exclude, Include and Retain with AI</small></h4>
+</div>
+<div class="modal-body">
+  {% if message %}<div class="alert alert-success">{{ message }}</div>{% endif %}
+  {% if rows %}
+    <p class="small text-muted">
+      Newest first. <strong>Still stands</strong>: the studies whose decision of the reviewer is still the run's.
+      Only the latest run can be undone: Undo takes back only those, and the statuses it changed that nobody changed
+      since; then the run is deleted and the one before it becomes the latest.
+    </p>
+    {% if not latest.undoable %}
+      <div class="alert alert-info small">
+        Run {{ latest.pk }}{% if rows|length > 1 %} and the runs before it were{% else %} was{% endif %} made before
+        Parsifal kept what came before a run, so {% if rows|length > 1 %}they{% else %}it{% endif %} cannot be undone.
+        The runs started from now on can.
+      </div>
+    {% endif %}
+    <table class="table table-condensed table-hover small ai-runs">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Run</th>
+          <th>Settings</th>
+          <th>Results</th>
+          <th>Still stands</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td>{{ row.run.pk }}</td>
+            <td>
+              <strong>{{ row.label }}</strong><br>
+              {{ row.run.reviewer.username }} · {{ row.run.model }}<br>
+              <span class="text-muted">{{ row.run.created_at|date:"j M Y H:i" }}{% if row.duration %} · {{ row.duration }}{% endif %}</span>
+            </td>
+            <td>
+              Threshold {{ row.thresholds }}<br>
+              {{ row.statuses }}<br>
+              <span class="text-muted">{{ row.source }}</span>
+            </td>
+            <td>
+              {% include "conducting/partial_conducting_ai_run_counts.html" with run=row.run progress=row.progress %}
+              <br>
+              <span class="label {% if row.state == 'Finished' %}label-default{% elif row.state == 'Screening now' %}label-primary{% else %}label-warning{% endif %}">{{ row.state }}</span>
+            </td>
+            <td>
+              {% if row.standing is None %}
+                <span class="text-muted" title="Made before Parsifal kept what came before a run">—</span>
+              {% else %}
+                {{ row.standing }} of {{ row.decided }}
+              {% endif %}
+            </td>
+            <td class="text-right text-nowrap">
+              <button type="button" class="btn btn-default btn-xs js-ai-run-details" data-run-id="{{ row.run.pk }}">Details</button>
+              {% if row.run.phase != "retention" %}<button type="button" class="btn btn-default btn-xs btn-ai-screening" data-phase="{{ row.run.phase }}" data-run-id="{{ row.run.pk }}" title="Open {{ row.label }} with the settings of this run">Run again</button>{% endif %}
+              {% if row.standing is None or not row.latest %}
+              {% elif row.undo_problem %}
+                <span title="{{ row.undo_problem }}"><button type="button" class="btn btn-danger btn-xs" disabled>Undo</button></span>
+              {% else %}
+                <button type="button" class="btn btn-danger btn-xs js-ai-run-undo" data-run-id="{{ row.run.pk }}">Undo</button>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No AI runs yet. Exclude, Include and Retain with AI are on the All Sources tab.</p>
+  {% endif %}
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+</div>

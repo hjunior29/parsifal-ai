@@ -118,7 +118,7 @@ class TestRequest(AiScreeningTestCase):
             {
                 "E1": "Not a primary study",
                 "E2": "Not in English",
-                "none": "No exclusion criterion applies to the study.",
+                "none": "No exclusion criterion clearly applies to the study, or telling it needs the full text.",
             },
             questions["exclusion"]["criteria"],
         )
@@ -233,18 +233,28 @@ class TestStartRun(AiScreeningTestCase):
                 dict(chosen.results.values_list("article_id", "previous_status")),
             )
 
-        with self.subTest(msg="context fields left out take the review's values"):
+        with self.subTest(msg="what is left out is the last run's"):
             partial = self.start(context={"objective": "Only this changed", "population": None})
             self.assertEqual("Only this changed", partial.parameters["context"]["objective"])
             self.assertEqual("Software engineering researchers", partial.parameters["context"]["population"])
+            self.assertEqual(
+                (["A", "D"], self.source.pk), (partial.parameters["statuses"], partial.parameters["source_id"])
+            )
+            self.assertEqual("Be strict.", self.start(statuses=["A"], source_id=0).parameters["guidance"])
+            defaults = self.start(defaults=True)
+            self.assertEqual(
+                ("", 0.9, ["R", "U"], None),
+                tuple(defaults.parameters[k] for k in ("guidance", "threshold", "statuses", "source_id")),
+            )
+            self.assertEqual("Find studies about screening automation.", defaults.parameters["context"]["objective"])
 
         with self.subTest(msg="a new run closes a run left behind"):
             run.refresh_from_db()
             self.assertEqual(ScreeningRun.CANCELLED, run.status)
             self.assertFalse(run.results.exists())
 
-        with self.subTest(msg="every status"):
-            self.assertEqual(4, self.start(statuses=["U", "R", "A", "D"]).total)
+        with self.subTest(msg="every status, from every source"):
+            self.assertEqual(4, self.start(statuses=["U", "R", "A", "D"], source_id="").total)
 
 
 class TestProcessStep(AiScreeningTestCase):
@@ -391,8 +401,8 @@ class TestProcessStep(AiScreeningTestCase):
         self.assertEqual(ScreeningRun.FINISHED, run.status)
         self.assertEqual(3, ai_screening.progress(run)["passed"])
         self.assertEqual([], ai_screening.process_step(run=run, actor=self.owner))  # finished runs do nothing
-        with self.assertRaisesMessage(ValidationError, "between 1 and 50"):
-            ai_screening.process_step(run=run, actor=self.owner, size=51)
+        with self.assertRaisesMessage(ValidationError, "between 1 and 64"):
+            ai_screening.process_step(run=run, actor=self.owner, size=65)
 
     def test_errors_about_one_study_do_not_stop_the_run(self):
         no_text = self.article(title="", abstract="")
@@ -550,15 +560,15 @@ EDITED = {
 class TestRequestTemplate(AiScreeningTestCase):
     def test_a_run_keeps_its_template_and_the_next_run_starts_from_it(self):
         self.article()
-        self.assertEqual(
-            screening_requests.default("exclusion"), ai_screening.current_template(self.review, "exclusion")
-        )
+
+        def template(phase):
+            return ai_screening.starting_settings(self.review, phase)["template"]
+
+        self.assertEqual(screening_requests.default("exclusion"), template("exclusion"))
         run = self.start(template=json.dumps(EDITED))
         self.assertEqual(EDITED, run.parameters["template"])
-        self.assertEqual(EDITED, ai_screening.current_template(self.review, "exclusion"))
-        self.assertEqual(
-            screening_requests.default("inclusion"), ai_screening.current_template(self.review, "inclusion")
-        )
+        self.assertEqual(EDITED, template("exclusion"))
+        self.assertEqual(screening_requests.default("inclusion"), template("inclusion"))
         self.assertEqual(EDITED, self.start().parameters["template"])  # left out: the last run's
         self.assertEqual(screening_requests.default("exclusion"), self.start(template="").parameters["template"])
         runs = ScreeningRun.objects.count()
@@ -720,7 +730,9 @@ class TestInclusion(AiScreeningTestCase):
             {"I1": 0.95, "I2": 0.8}, self.start(thresholds={"I1": 0.95, "i2": "0.8"}).parameters["thresholds"]
         )
         with self.subTest(msg="left out: the last inclusion run's, matched by criterion"):
-            self.assertEqual({"I1": 0.95, "I2": 0.8}, ai_screening.current_thresholds(self.review))
+            self.assertEqual(
+                {"I1": 0.95, "I2": 0.8}, ai_screening.starting_settings(self.review, "inclusion")["thresholds"]
+            )
             self.assertEqual({"I1": 0.97, "I2": 0.8}, self.start(thresholds=["I1=0.97"]).parameters["thresholds"])
         with self.subTest(msg="threshold sets the ones left out"):
             self.assertEqual({"I1": 0.85, "I2": 0.85}, self.start(threshold=0.85).parameters["thresholds"])
@@ -732,10 +744,12 @@ class TestInclusion(AiScreeningTestCase):
             last.parameters = {**last.parameters, "threshold": 0.7}
             del last.parameters["thresholds"]
             last.save(update_fields=["parameters"])
-            self.assertEqual({"I1": 0.7, "I2": 0.7}, ai_screening.current_thresholds(self.review))
+            self.assertEqual(
+                {"I1": 0.7, "I2": 0.7}, ai_screening.starting_settings(self.review, "inclusion")["thresholds"]
+            )
 
         for kwargs, message in (
-            ({"thresholds": {"I3": 0.9}}, "Unknown inclusion criterion I3: the review has I1, I2."),
+            ({"thresholds": {"I3": 0.9}}, "Unknown inclusion criterion I3: the run sends I1, I2."),
             ({"thresholds": {"I1": 0.3}}, "The threshold of I1 must be between 0.5 and 0.99."),
             ({"thresholds": {"I1": "high"}}, "The threshold of I1 must be a number."),
             ({"thresholds": ["I1"]}, "Write each threshold as KEY=value"),
@@ -744,7 +758,7 @@ class TestInclusion(AiScreeningTestCase):
         ):
             with self.subTest(**kwargs), self.assertRaisesMessage(ValidationError, message):
                 self.start(**kwargs)
-        with self.assertRaisesMessage(ValidationError, "Per-criterion thresholds are for Include with AI"):
+        with self.assertRaisesMessage(ValidationError, "Per-criterion thresholds are for the inclusion criteria"):
             super().start(thresholds={"E1": 0.9})
 
     def test_each_criterion_is_compared_with_its_threshold(self):
@@ -863,11 +877,225 @@ class TestInclusion(AiScreeningTestCase):
 
     def test_requirements(self):
         self.article()
-        with self.assertRaisesMessage(ValidationError, "phase must be exclusion or inclusion"):
+        with self.assertRaisesMessage(ValidationError, "phase must be exclusion, inclusion or screen"):
             self.start(phase="maybe")
+        with self.assertRaisesMessage(ValidationError, "Retain with AI was removed"):
+            self.start(phase="retention")
         no_inclusion = ReviewFactory(author=self.owner, sources=[self.source])
         SelectionCriteria.objects.create(review=no_inclusion, criteria_type="E", description="Out")
         ArticleFactory(review=no_inclusion, source=self.source)
         with self.assertRaisesMessage(ValidationError, "no inclusion criteria"):
             self.start(review=no_inclusion, reviewer_id=self.owner.pk)
         self.assertEqual(["A", "U"], ai_screening.clean_statuses(None, "inclusion"))
+
+
+class TestInclusionRule(AiScreeningTestCase):
+    """The protocol's rule "any": one inclusion criterion met is enough."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        SelectionCriteria.objects.create(review=cls.review, criteria_type="I", description="Implemented tool")
+
+    def start(self, **kwargs):
+        return super().start(**{"phase": "inclusion", **kwargs})
+
+    def test_one_criterion_is_enough(self):
+        thresholds = {"I1": 0.9, "I2": 0.85}
+        self.assertEqual((True, "I1"), ai_screening.decide_inclusion({"I1": 0.95, "I2": 0.1}, thresholds, "any"))
+        self.assertEqual((True, "I2"), ai_screening.decide_inclusion({"I1": 0.91, "I2": 0.99}, thresholds, "any"))
+        self.assertEqual((False, "I2"), ai_screening.decide_inclusion({"I1": 0.5, "I2": 0.84}, thresholds, "any"))
+        self.assertEqual((False, "I2"), ai_screening.decide_inclusion({"I1": 0.95, "I2": 0.1}, thresholds, "all"))
+
+    def test_runs_follow_the_protocols_rule_and_keep_it(self):
+        one, none = self.article(title="One"), self.article(title="None")
+        self.review.inclusion_rule = "any"
+        self.review.save()
+        run = self.start()
+        self.assertEqual("any", run.parameters["inclusion_rule"])
+        self.step(run, [I1_NOT_MET, inclusion_answer({"I1": 0.2, "I2": 0.3})])  # I2 0.90 reaches its threshold
+        self.assertEqual(["included", "undecided"], [run.results.get(article=a).outcome for a in (one, none)])
+        self.assertIn(
+            "meets I2, and one inclusion criterion is enough — meets: I1 0.06, I2 0.90.", self.decision(one).comments
+        )
+        self.assertIn(
+            "undecided, no inclusion criterion reaches its threshold (closest: I2 0.30 for 0.90)",
+            self.decision(none).comments,
+        )
+        self.assertEqual(0.9, run.results.get(article=one).p_include)
+        # A run made before the rule (all of them) is honoured as it was.
+        self.review.inclusion_rule = "all"
+        self.review.save()
+        self.assertEqual("any", ScreeningRun.objects.get(pk=run.pk).parameters["inclusion_rule"])
+
+
+class TestCriteriaChoice(AiScreeningTestCase):
+    def test_only_the_criteria_chosen_are_sent_and_the_next_run_keeps_the_choice(self):
+        self.article()
+        run = self.start(criteria_ids=[self.english.pk])
+        self.assertEqual(["E2"], [option["key"] for option in run.parameters["criteria"]])  # its key in the protocol
+        self.assertEqual([self.secondary.pk], run.parameters["skipped_criteria"])
+        _results, evaluate = self.step(run, [same_answer({"E2": 0.95, "none": 0.05})])
+        self.assertEqual({"E2", "none"}, set(evaluate.call_args.kwargs["questions"]["exclusion"]["criteria"]))
+        self.assertEqual("excluded", run.results.get().outcome)
+        # The next run leaves out what this one left out; a criterion added since is sent.
+        added = SelectionCriteria.objects.create(review=self.review, criteria_type="E", description="Old year")
+        self.assertEqual(
+            [self.english.pk, added.pk], ai_screening.starting_settings(self.review, "exclusion")["criteria_ids"]
+        )
+        self.assertEqual({"E2", "E3"}, {option["key"] for option in self.start().parameters["criteria"]})
+        self.assertEqual(3, len(self.start(defaults=True).parameters["criteria"]))
+
+    def test_what_cannot_be_chosen(self):
+        self.article()
+        inclusion = self.review.selectioncriteria_set.get(criteria_type="I")
+        for criteria_ids, message in (
+            ([], "Choose at least one exclusion criterion"),
+            ([inclusion.pk], "is not one of the review's exclusion criteria"),
+            (["x"], "Criteria are given by their ids"),
+        ):
+            with self.subTest(criteria_ids=criteria_ids), self.assertRaisesMessage(ValidationError, message):
+                self.start(criteria_ids=criteria_ids)
+        with self.assertRaisesMessage(ValidationError, "Choose at least one inclusion criterion"):
+            self.start(phase="screen", criteria_ids=[self.secondary.pk])
+
+
+class TestStartingSettings(AiScreeningTestCase):
+    def test_the_last_run_of_the_same_action_or_the_defaults(self):
+        self.article()
+        settings = ai_screening.starting_settings(self.review, "exclusion")
+        self.assertIsNone(settings["run"])
+        self.assertEqual(
+            (None, 0.9, ["R", "U"], None, ""),
+            tuple(settings[k] for k in ("model", "threshold", "statuses", "source_id", "guidance")),
+        )
+        run = self.start(threshold=0.8, guidance="Strict.", statuses=["U"], context={"objective": "Edited"})
+        self.start(phase="inclusion")
+        settings = ai_screening.starting_settings(self.review, "exclusion")
+        self.assertEqual(
+            (run, self.bot.pk, "jev-1.13.0", 0.8, ["U"], "Strict.", "Edited"),
+            (
+                settings["run"],
+                settings["reviewer_id"],
+                settings["model"],
+                settings["threshold"],
+                settings["statuses"],
+                settings["guidance"],
+                settings["context"]["objective"],
+            ),
+        )
+        restored = ai_screening.starting_settings(self.review, "exclusion", defaults=True)
+        self.assertEqual((None, 0.9, ""), (restored["run"], restored["threshold"], restored["guidance"]))
+        self.assertEqual(screening_requests.default("exclusion"), restored["template"])
+
+
+class TestScreen(AiScreeningTestCase):
+    """Screen with AI: the exclusion question and the inclusion questions in one request."""
+
+    def start(self, **kwargs):
+        return super().start(**{"phase": "screen", **kwargs})
+
+    def response(self, exclusion, inclusion):
+        return {
+            "model": "jev-1.13.0",
+            "answers": {
+                "exclusion": {"type": "choice", "probabilities": exclusion},
+                **{f"inclusion_{key}": {"type": "noul", "noul": p} for key, p in inclusion.items()},
+            },
+        }
+
+    def test_one_request_with_both_questions(self):
+        options = ai_screening.criteria_options(self.review, "screen")
+        self.assertEqual(["E1", "E2", "I1"], [option["key"] for option in options])
+        _state, questions = ai_screening.build_request(
+            "screen",
+            screening_requests.default("screen"),
+            options,
+            ai_screening.default_context(self.review),
+            "",
+            {"title": "T"},
+        )
+        self.assertEqual(["exclusion", "inclusion_I1"], list(questions))
+        self.assertEqual({"E1", "E2", "none"}, set(questions["exclusion"]["criteria"]))
+        self.article()
+        run = self.start()
+        self.assertEqual(
+            ("screen", 0.9, {"I1": 0.9}, "all", ["A", "R", "U"]),
+            tuple(
+                run.parameters.get(k, run.phase)
+                for k in ("phase", "threshold", "thresholds", "inclusion_rule", "statuses")
+            ),
+        )
+
+    def test_exclusion_wins_then_inclusion_accepts_else_undecided(self):
+        both = self.article(title="Excluded and included")
+        included = self.article(title="Included")
+        undecided = self.article(title="Undecided")
+        own = self.article(title="Accepted by this reviewer", status=Article.ACCEPTED, updated_by=self.bot)
+        run = self.start()
+        _results, evaluate = self.step(
+            run,
+            [
+                self.response({"E1": 0.95, "E2": 0.0, "none": 0.05}, {"I1": 0.99}),
+                self.response({"E1": 0.05, "E2": 0.05, "none": 0.9}, {"I1": 0.95}),
+                self.response({"E1": 0.05, "E2": 0.05, "none": 0.9}, {"I1": 0.4}),
+                self.response({"E1": 0.05, "E2": 0.05, "none": 0.9}, {"I1": 0.4}),
+            ],
+        )
+        self.assertEqual(4, evaluate.call_count)  # one request per study
+        for article, outcome, status, criterion in (
+            (both, "excluded", Article.REJECTED, self.secondary),
+            (included, "included", Article.ACCEPTED, None),
+            (undecided, "undecided", Article.UNCLASSIFIED, None),
+            (own, "undecided", Article.UNCLASSIFIED, None),  # its own acceptance, undecided now
+        ):
+            with self.subTest(article=article.title):
+                article.refresh_from_db()
+                self.assertEqual(outcome, run.results.get(article=article).outcome)
+                self.assertEqual((status, criterion), (article.status, article.selection_criteria))
+        self.assertIn(
+            "E1, p(exclude) = 0.95 (inclusion: meets every inclusion criterion", self.decision(both).comments
+        )
+        self.assertTrue(
+            self.decision(included).comments.startswith(f"Screen with AI (run {run.pk}, jev-1.13.0): meets")
+        )
+        result = run.results.get(article=both)
+        self.assertEqual((0.95, 0.99), (result.p_exclude, result.p_include))
+        self.assertEqual({"E1": 0.95, "E2": 0.0, "none": 0.05, "I1": 0.99}, result.probabilities)
+        progress = ai_screening.progress(run)
+        self.assertEqual((1, 1, 2), (progress["excluded"], progress["included"], progress["undecided"]))
+
+    def test_needs_criteria_of_both_kinds(self):
+        bare = ReviewFactory(author=self.owner, sources=[self.source])
+        ArticleFactory(review=bare, source=self.source)
+        SelectionCriteria.objects.create(review=bare, criteria_type="E", description="Out")
+        with self.assertRaisesMessage(
+            ValidationError, "The review has no inclusion criteria. Screen with AI asks about both."
+        ):
+            self.start(review=bare, reviewer_id=self.owner.pk)
+
+
+class TestRelevance(AiScreeningTestCase):
+    """How likely a study is relevant, by the latest AI answer: shown in the study list and sortable."""
+
+    def test_by_action(self):
+        self.assertEqual(0.9, ai_screening.relevance("exclusion", 0.1, None))
+        self.assertEqual(0.8, ai_screening.relevance("inclusion", None, 0.8))
+        self.assertEqual(0.3, ai_screening.relevance("screen", 0.7, 0.95))
+        self.assertEqual(0.6, ai_screening.relevance("retention", None, 0.6))
+        self.assertIsNone(ai_screening.relevance("exclusion", None, None))
+
+    def test_the_latest_answer_ranks_the_studies(self):
+        unlikely, likely, unscreened = self.article(title="B"), self.article(title="A"), self.article(title="C")
+        run = self.start(statuses=["U"])
+        self.step(run, [EXCLUDE_E2, KEEP, KEEP])
+        ScreeningResult.objects.filter(run=run, article=unscreened).update(outcome=ScreeningResult.ERROR)
+        from parsifal.apps.reviews.services import studies
+
+        ranked = list(studies.list_articles(self.review, order="ai_score"))
+        self.assertEqual([likely, unlikely, unscreened], ranked)  # 0.90, 0.03, none
+        self.assertEqual([0.9, 0.03, None], [article.ai_score for article in ranked])
+        self.assertEqual(0.03, Article.objects.get(pk=unlikely.pk).ai_score)  # looked up when not annotated
+        self.assertEqual([likely, unlikely, unscreened], list(studies.list_articles(self.review)))  # by title
+        with self.assertRaisesMessage(ValidationError, "order must be title or ai_score"):
+            studies.list_articles(self.review, order="year")

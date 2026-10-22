@@ -72,6 +72,17 @@ class Review(models.Model):
     review_type = models.CharField(_("review type"), max_length=10, choices=REVIEW_TYPES, default=SLR)
     # Protocol sections recommended by the guidelines but not modelled upstream (K 5.4, P 5.1.5)
     selection_procedure = models.TextField(_("study selection procedure"), blank=True)
+    # How the inclusion criteria combine: a study must meet all of them, or at least one (Include and Screen with AI
+    # read it; each run keeps the rule it used).
+    INCLUDE_ALL = "all"
+    INCLUDE_ANY = "any"
+    INCLUSION_RULES = (
+        (INCLUDE_ALL, _("all inclusion criteria")),
+        (INCLUDE_ANY, _("at least one inclusion criterion")),
+    )
+    inclusion_rule = models.CharField(
+        _("a study must meet"), max_length=3, choices=INCLUSION_RULES, default=INCLUDE_ALL
+    )
     synthesis_strategy = models.TextField(_("synthesis strategy"), blank=True)
     validity_threats = models.TextField(_("validity threats"), blank=True)
 
@@ -372,6 +383,20 @@ class Article(models.Model):
 
         doi = clean_doi(self.doi)
         return f"https://doi.org/{quote(doi, safe='/:;()[]._-')}" if doi else None
+
+    @property
+    def ai_score(self):
+        """How likely the study is relevant, by the latest AI run that answered about it (0–1), or None."""
+        from parsifal.apps.reviews.services.ai_screening import article_relevance  # the services import this module
+
+        return article_relevance(self)
+
+    @property
+    def ai_score_label(self):
+        """Which action gave ``ai_score``, when the study came annotated (``ai_screening.with_relevance``)."""
+        from parsifal.apps.reviews.services.ai_screening import LABELS
+
+        return LABELS.get(getattr(self, "ai_phase", None) or "", "")
 
     def get_score(self):
         score = QualityAssessment.objects.filter(article__id=self.id).aggregate(Sum("answer__weight"))
@@ -810,6 +835,9 @@ class StudyDecision(models.Model):
     selection_criteria = models.ForeignKey(SelectionCriteria, null=True, blank=True, on_delete=models.SET_NULL)
     comments = models.TextField(_("comments"), max_length=2000, blank=True)
     decided_at = models.DateTimeField(auto_now=True)
+    # The AI screening run that made this decision; empty when the reviewer made it (or before runs were linked).
+    # Undoing the run restores the decisions that are still its own.
+    run = models.ForeignKey("ScreeningRun", null=True, blank=True, on_delete=models.SET_NULL, related_name="decisions")
 
     class Meta:
         verbose_name = _("study decision")
@@ -852,16 +880,21 @@ def delete_agent_account(sender, instance, **kwargs):
 
 class ScreeningRun(models.Model):
     """
-    One AI screening of study selection, by exclusion criteria (phase 1) or by inclusion criteria (phase 2): what was
-    sent to the model, its progress and how it ended. The decisions are recorded as ``reviewer``, chosen when the run
-    starts; deleting that account deletes its runs with its decisions.
+    One AI screening of study selection — by exclusion criteria, by inclusion criteria, or both in one go (Screen with
+    AI) — in no particular order: what was sent to the model, its progress and how it ended. The decisions are
+    recorded as ``reviewer``, chosen when the run starts; deleting that account deletes its runs with its decisions.
     """
 
     EXCLUSION = "exclusion"
     INCLUSION = "inclusion"
+    SCREEN = "screen"
+    RETENTION = "retention"
+    # The action of the run (named "phase" in the code and the API, though the actions have no order).
     PHASES = (
         (EXCLUSION, _("Exclude with AI")),  # rejects a study when one exclusion criterion applies
-        (INCLUSION, _("Include with AI")),  # accepts a study when every inclusion criterion is met
+        (INCLUSION, _("Include with AI")),  # accepts a study when the inclusion criteria are met (all, or one)
+        (SCREEN, _("Screen with AI")),  # both questions in one request: rejects, accepts or leaves undecided
+        (RETENTION, _("Retain with AI")),  # removed; its runs remain in the history
     )
 
     RUNNING = "running"
@@ -892,6 +925,9 @@ class ScreeningRun(models.Model):
     # When a step last ran: a running run without steps for a while was interrupted and can be continued.
     last_step_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
+    # Whether its results keep what each study and decision was like before (see ScreeningResult), so it can be
+    # undone. Runs made before Parsifal kept that cannot.
+    undoable = models.BooleanField(_("can be undone"), default=True)
 
     class Meta:
         verbose_name = _("screening run")
@@ -913,9 +949,9 @@ class ScreeningResult(models.Model):
     ERROR = "error"
     OUTCOMES = (
         (PENDING, _("Pending")),
-        (EXCLUDED, _("Excluded")),  # exclusion: rejected with a criterion
+        (EXCLUDED, _("Excluded")),  # exclusion: rejected with a criterion; retention: not retained, rejected
         (PASSED, _("Passed to the next phase")),  # exclusion: no exclusion criterion applies
-        (INCLUDED, _("Included")),  # inclusion: every inclusion criterion is met
+        (INCLUDED, _("Included")),  # inclusion: every inclusion criterion is met; retention: retained, accepted
         (UNDECIDED, _("Undecided")),  # inclusion: not every inclusion criterion is clearly met; left to the reviewers
         (ERROR, _("Error")),
     )
@@ -927,14 +963,29 @@ class ScreeningResult(models.Model):
     outcome = models.CharField(_("outcome"), max_length=10, choices=OUTCOMES, default=PENDING)
     # Exclusion: the probability that some exclusion criterion applies. Inclusion never rejects and leaves it empty.
     p_exclude = models.FloatField(_("probability used to reject"), null=True, blank=True)
-    # Inclusion: the lowest probability that an inclusion criterion is met (every criterion must be met).
+    # Inclusion: the lowest probability that an inclusion criterion is met (every criterion must be met). Retention:
+    # the probability that the study should be retained for full-text assessment.
     p_include = models.FloatField(_("lowest probability that an inclusion criterion is met"), null=True, blank=True)
     # Exclusion: {option: p}. Inclusion: {criterion key: p(meets)}, the probability of yes of its question.
+    # Retention: {"retain": p}.
     probabilities = models.JSONField(_("probability of each option"), null=True, blank=True)
     selection_criteria = models.ForeignKey(SelectionCriteria, null=True, blank=True, on_delete=models.SET_NULL)
     model = models.CharField(_("model version that answered"), max_length=100, blank=True)
     error = models.CharField(_("error"), max_length=500, blank=True)
     processed_at = models.DateTimeField(null=True, blank=True)
+    # What undoing the run restores. The status the run gave the study ("" when it left the study as it was) and, when
+    # it changed it, the study's criterion and last editor before (its status before is ``previous_status``); the
+    # run's change is still in place while the study has that status, the run's reviewer as last editor and
+    # ``processed_at`` as its last change.
+    status_set = models.CharField(_("status the run gave the study"), max_length=1, blank=True)
+    previous_criteria = models.ForeignKey(
+        SelectionCriteria, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    previous_updated_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    previous_updated_at = models.DateTimeField(null=True, blank=True)
+    # The reviewer's decision the run replaced: {status, criteria_id, comments, decided_at, run_id}, or None when there
+    # was none (then undoing removes the run's decision).
+    previous_decision = models.JSONField(_("reviewer's decision before the run"), null=True, blank=True)
 
     class Meta:
         verbose_name = _("screening result")

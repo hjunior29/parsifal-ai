@@ -33,6 +33,7 @@ from parsifal.apps.reviews.models import (
     StudyDecision,
 )
 from parsifal.apps.reviews.services import (
+    ai_runs,
     ai_screening as ai_screening_service,
     analytics,
     decisions,
@@ -614,6 +615,7 @@ def source_articles(request):
     else:
         articles = review.get_source_articles()
         source = Source()
+    articles = ai_screening_service.with_relevance(articles)  # the AI column: the latest answer about each study
 
     return render(
         request,
@@ -816,38 +818,67 @@ def consolidate(request):
 @login_required
 def ai_screening(request):
     """
-    Exclude with AI (phase 1 of study selection) or Include with AI (phase 2, ``phase=inclusion``): the setup
-    window, prefilled from the review.
+    The setup window of Exclude, Include or Screen with AI (``phase``): every setting of the review's last run of
+    that action, Parsifal's defaults with ``defaults`` (Restore defaults), or the settings of the run ``run-id`` to
+    run it again.
     """
     review = get_object_or_404(Review, pk=request.GET.get("review-id"))
+    restored = bool(request.GET.get("defaults"))
     try:
-        phase = ai_screening_service.clean_phase(request.GET.get("phase"))
+        like = ai_screening_service.get_run(review, request.GET["run-id"]) if request.GET.get("run-id") else None
+        if like is not None:
+            settings = {**ai_runs.rerun_settings(review, like), "run": like}
+        else:
+            phase = ai_screening_service.clean_phase(request.GET.get("phase"))
+            settings = ai_screening_service.starting_settings(review, phase, defaults=restored)
     except DomainError as error:
         return HttpResponseBadRequest(str(error))
+    phase = settings["phase"]
     integration = integrations.get_jev(request.user)
     defaults = ai_screening_service.default_context(review)
+    defaults.update({name: value for name, value in (settings["context"] or {}).items() if value is not None})
     agent_ids = ai_screening_service.agent_ids(review)
     reviewers = [
         {"user": member, "is_agent": member.pk in agent_ids, "is_you": member.pk == request.user.pk}
         for member in ai_screening_service.reviewer_choices(review, request.user)
     ]
-    selected = ai_screening_service.last_reviewer_id(review)
+    selected = settings["reviewer_id"]
     if selected not in {row["user"].pk for row in reviewers}:
         selected = reviewers[0]["user"].pk if len(reviewers) == 1 else None
+    selected_model = settings["model"] or (integration.model if integration else "")
     models, models_error = integrations.jev_models(request.user) if integration else ([], "")
-    if integration and integration.model not in {model["name"] for model in models}:
-        models = [*models, {"name": integration.model, "description": "", "release_date": ""}] if models else []
+    if integration and selected_model not in {model["name"] for model in models}:
+        models = [*models, {"name": selected_model, "description": "", "release_date": ""}] if models else []
     unfinished = ai_screening_service.unfinished_run(review)
-    options = ai_screening_service.criteria_options(review, phase)
-    if phase == ai_screening_service.INCLUSION:
-        # One threshold per inclusion criterion, from the review's last inclusion run.
-        thresholds = ai_screening_service.current_thresholds(review, options)
-        options = [dict(option, threshold=thresholds[option["key"]]) for option in options]
+    # Every criterion of the action, checked when the run sends it; an inclusion criterion with its threshold.
+    chosen = set(settings["criteria_ids"])
+    thresholds = settings["thresholds"] or {}
+    options = [
+        dict(
+            option,
+            checked=option["id"] in chosen,
+            threshold=thresholds.get(option["key"], ai_screening_service.DEFAULT_THRESHOLD),
+        )
+        for option in ai_screening_service.criteria_options(review, phase)
+    ]
+    threshold, min_threshold, max_threshold = ai_screening_service.threshold_range()
+    if settings["threshold"] is not None:
+        threshold = settings["threshold"]
+    statuses = settings["statuses"] or ai_screening_service.DEFAULT_STATUSES[phase]
     context = {
         "review": review,
         "phase": phase,
-        "inclusion": phase == ai_screening_service.INCLUSION,
+        "like": like,
+        "from_run": None if like else settings["run"],
+        "restored": restored,
+        "selected_model": selected_model,
+        "selected_source": settings["source_id"] or "",
+        "guidance": settings["guidance"],
+        "exclusion": phase in (ai_screening_service.EXCLUSION, ai_screening_service.SCREEN),
+        "inclusion": phase in (ai_screening_service.INCLUSION, ai_screening_service.SCREEN),
+        "screen": phase == ai_screening_service.SCREEN,
         "label": ai_screening_service.LABELS[phase],
+        "inclusion_rule": review.get_inclusion_rule_display(),
         "integration": integration,
         "unfinished": unfinished,
         "unfinished_label": ai_screening_service.LABELS[unfinished.phase] if unfinished else "",
@@ -857,29 +888,33 @@ def ai_screening(request):
         "selected_reviewer": selected,
         "models": [{"name": m["name"], "label": model_label(m)} for m in models],
         "models_error": models_error,
-        "options": options,
+        "inclusion_options": [option for option in options if option["key"].startswith("I")],
+        "exclusion_options": [option for option in options if option["key"].startswith("E")],
         "context_fields": [
             {"name": name, "label": label, "value": defaults[name], "limit": limit, "multiline": limit > 255}
             for name, label, limit in ai_screening_service.CONTEXT_FIELDS
         ],
         "guidance_length": ai_screening_service.GUIDANCE_LENGTH,
-        "threshold": ai_screening_service.DEFAULT_THRESHOLD,
-        "min_threshold": ai_screening_service.MIN_THRESHOLD,
-        "max_threshold": ai_screening_service.MAX_THRESHOLD,
+        "threshold": threshold,
+        "min_threshold": min_threshold,
+        "max_threshold": max_threshold,
         "sources": [
             {"id": "", "name": "All sources"},
             *({"id": s.pk, "name": s.name} for s in review.sources.order_by("name")),
         ],
         "statuses": [
-            {"code": code, "label": label, "checked": code in ai_screening_service.DEFAULT_STATUSES[phase]}
+            {"code": code, "label": label, "checked": code in statuses}
             for code, label in ai_screening_service.STATUSES
         ],
         # Studies per source and status: the page adds up the checked statuses of the chosen source.
         "counts": ai_screening_service.scope_counts(review),
-        "template": screening_requests.as_text(ai_screening_service.current_template(review, phase)),
-        "template_default": screening_requests.as_text(screening_requests.default(phase)),
+        "template": screening_requests.as_text(settings["template"]),
         "placeholders": screening_requests.PLACEHOLDERS,
     }
+    try:
+        ai_screening_service.clean_criteria(review, phase)
+    except DomainError as error:
+        context["missing_criteria"] = str(error)
     return render(request, "conducting/partial_conducting_ai_screening.html", context)
 
 
@@ -897,8 +932,10 @@ def _ai_screening_settings(request):
         },
         "guidance": request.POST.get("guidance", ""),
         "template": request.POST.get("template"),
-        "source_id": request.POST.get("source-id") or None,
+        "source_id": request.POST.get("source-id", ""),  # "": all sources
         "statuses": request.POST.getlist("statuses"),
+        # The window marks its criteria checkboxes, so that none checked is not mistaken for none sent.
+        "criteria_ids": request.POST.getlist("criteria") if request.POST.get("criteria-sent") else None,
     }
 
 
@@ -913,7 +950,7 @@ def ai_screening_start(request):
             actor=request.user,
             reviewer_id=request.POST.get("reviewer-id"),
             threshold=request.POST.get("threshold"),
-            # Include with AI: one threshold per criterion, in fields named threshold-I1, threshold-I2…
+            # Inclusion criteria: one threshold each, in fields named threshold-I1, threshold-I2…
             thresholds={
                 name.removeprefix("threshold-"): value
                 for name, value in request.POST.items()
@@ -974,6 +1011,185 @@ def ai_screening_step(request):
             ],
         }
     )
+
+
+@author_required
+@login_required
+@require_POST
+def ai_screening_impact(request):
+    """What a run with the window's settings would rewrite, to confirm before starting it (nothing is started)."""
+    review = get_object_or_404(Review, pk=request.POST.get("review-id"))
+    try:
+        impact = ai_runs.impact(
+            review=review,
+            actor=request.user,
+            reviewer_id=request.POST.get("reviewer-id"),
+            phase=request.POST.get("phase"),
+            statuses=request.POST.getlist("statuses"),
+            source_id=request.POST.get("source-id", ""),
+        )
+    except DomainError as error:
+        return _ai_screening_error(error)
+    return JsonResponse(impact)
+
+
+def _clock(seconds):
+    """Seconds as m:ss, or h:mm:ss from an hour on (as the run's window shows its time)."""
+    seconds = max(0, round(seconds))
+    hours, rest = divmod(seconds, 3600)
+    minutes, seconds = divmod(rest, 60)
+    return f"{hours}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes}:{seconds:02d}"
+
+
+def _run_settings(run, sources):
+    """Threshold(s), statuses and source of a run, as the AI runs window lists them."""
+    parameters = run.parameters
+    if parameters.get("thresholds"):
+        thresholds = " · ".join(f"{key} {value:.2f}" for key, value in parameters["thresholds"].items())
+    elif parameters.get("threshold") is not None:
+        thresholds = f"{parameters['threshold']:.2f}"
+    else:
+        thresholds = "—"
+    names = dict(ai_screening_service.STATUSES)
+    statuses = ", ".join(names.get(code, code) for code in parameters.get("statuses", []))
+    source = sources.get(parameters.get("source_id"), "All sources") if parameters.get("source_id") else "All sources"
+    return {"thresholds": thresholds, "statuses": statuses or "—", "source": source}
+
+
+def _run_state(run):
+    if run.status == run.RUNNING:
+        return "Screening now" if ai_screening_service.is_active(run) else "Interrupted"
+    return run.get_status_display()
+
+
+def _run_rows(request, review, runs):
+    """The AI runs window's rows for ``runs``: what each is, how it went and whether it can be undone."""
+    controls = ai_runs.controls(review, request.user, runs)
+    sources = dict(review.sources.values_list("pk", "name"))
+    rows = []
+    for run in runs:
+        progress = ai_screening_service.progress(run)
+        finished = run.status == run.FINISHED and run.finished_at
+        rows.append(
+            {
+                "run": run,
+                "label": ai_screening_service.LABELS[run.phase],
+                "progress": progress,
+                "decided": progress["processed"] - progress["failed"],  # the studies that got a decision
+                "state": _run_state(run),
+                # A discarded run ended when the next one started: only a finished run's time says how long it took.
+                "duration": _clock((run.finished_at - run.created_at).total_seconds()) if finished else "",
+                **_run_settings(run, sources),
+                **controls[run.pk],
+            }
+        )
+    return rows
+
+
+def _ai_runs_context(request, review, message=None):
+    rows = _run_rows(request, review, list(ai_screening_service.list_runs(review)))
+    latest = next((row["run"] for row in rows if row["latest"]), None)
+    return {"review": review, "rows": rows, "latest": latest, "message": message}
+
+
+@author_required
+@login_required
+def ai_runs_window(request):
+    """The AI runs window: every Exclude, Include and Retain with AI run, how much of it stands, run again, undo."""
+    review = get_object_or_404(Review, pk=request.GET.get("review-id"))
+    return render(request, "conducting/partial_conducting_ai_runs.html", _ai_runs_context(request, review))
+
+
+# How a result reads in the run's details, by phase and outcome.
+OUTCOME_LABELS = {
+    ai_screening_service.EXCLUSION: {"excluded": "Rejected", "passed": "Passed"},
+    ai_screening_service.INCLUSION: {"included": "Accepted", "undecided": "Undecided"},
+    ai_screening_service.SCREEN: {"excluded": "Rejected", "included": "Accepted", "undecided": "Undecided"},
+    ai_screening_service.RETENTION: {"included": "Retained", "excluded": "Not retained"},
+}
+
+
+@author_required
+@login_required
+def ai_run(request):
+    """One run in the AI runs window: its settings and what Jev answered for each study."""
+    review = get_object_or_404(Review, pk=request.GET.get("review-id"))
+    try:
+        run = ai_screening_service.get_run(review, request.GET.get("run-id"))
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
+    standing = set(run.decisions.values_list("article_id", flat=True))
+    statuses = dict(Article.ARTICLE_STATUS)
+    labels = OUTCOME_LABELS[run.phase]
+    results = []
+    for result in ai_screening_service.list_results(run):
+        if run.phase in (ai_screening_service.EXCLUSION, ai_screening_service.SCREEN):
+            probability = result.p_exclude
+        else:
+            probability = result.p_include
+        details = []
+        if result.outcome == "excluded" and run.phase != ai_screening_service.RETENTION:
+            details.append(ai_screening_service.criteria_key(run, result.selection_criteria_id) or "")
+        if run.phase in (ai_screening_service.INCLUSION, ai_screening_service.SCREEN) and result.probabilities:
+            details += [f"{key} {value:.2f}" for key, value in result.probabilities.items() if key.startswith("I")]
+        detail = " · ".join(part for part in details if part)
+        results.append(
+            {
+                "result": result,
+                "title": result.article.title or result.article.bibtex_key,
+                "previous": statuses.get(result.previous_status, ""),
+                "outcome": labels.get(result.outcome) or result.get_outcome_display(),
+                "probability": probability,
+                "detail": detail,
+                "standing": result.article_id in standing,
+            }
+        )
+    context = {
+        "review": review,
+        "row": _run_rows(request, review, [run])[0],
+        "parameters": run.parameters,
+        "template": screening_requests.as_text(run.parameters["template"]) if run.parameters.get("template") else "",
+        "context_fields": [
+            (label, run.parameters.get("context", {}).get(name, ""))
+            for name, label, _limit in ai_screening_service.CONTEXT_FIELDS
+        ],
+        "results": results,
+        "outcomes": sorted({row["outcome"] for row in results}),
+    }
+    return render(request, "conducting/partial_conducting_ai_run.html", context)
+
+
+@author_required
+@login_required
+def ai_run_undo(request):
+    """
+    Undo a run: GET shows what undoing it would do, POST does it and returns the list of runs with what was done.
+    """
+    data = request.POST if request.method == "POST" else request.GET
+    review = get_object_or_404(Review, pk=data.get("review-id"))
+    try:
+        if request.method != "POST":
+            summary = ai_runs.undo_preview(review=review, actor=request.user, run_id=data.get("run-id"))
+            run = ai_screening_service.get_run(review, summary["run_id"])
+            context = {
+                "review": review,
+                "run": run,
+                "label": ai_screening_service.LABELS[run.phase],
+                "summary": summary,
+                # The run that becomes the latest once this one is undone.
+                "previous": review.screening_runs.exclude(pk=run.pk).order_by("-created_at", "-pk").first(),
+                "back_to": [
+                    (label, summary["back_to"][code])
+                    for code, label in Article.ARTICLE_STATUS
+                    if code in summary["back_to"]
+                ],
+            }
+            return render(request, "conducting/partial_conducting_ai_run_undo.html", context)
+        summary = ai_runs.undo_run(review=review, actor=request.user, run_id=data.get("run-id"))
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
+    context = _ai_runs_context(request, review, message=summary["message"])
+    return render(request, "conducting/partial_conducting_ai_runs.html", context)
 
 
 """

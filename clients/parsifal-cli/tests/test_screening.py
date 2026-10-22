@@ -1,6 +1,6 @@
 import json
 
-from parsifal_cli import screening
+from parsifal_cli import cli, screening
 from parsifal_cli.client import ApiClient
 from parsifal_cli.config import Settings
 from tests.conftest import invoke
@@ -79,7 +79,7 @@ def test_cli_run_continues_a_run(runner, fake_api):
     result = invoke(runner, ["ai-screening", "run", "--review", "7", "--run", "3"])
     assert result.exit_code == 0, result.output
     assert not bodies(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs")
-    assert bodies(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs/3/step")[0] == {"size": 25}
+    assert bodies(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs/3/step")[0] == {"size": 64}
 
 
 def test_cli_run_reports_api_errors(runner, fake_api):
@@ -191,3 +191,125 @@ def test_progress_line_per_phase():
     assert screening.progress_line(progressed(phase="inclusion", processed=2, included=2)) == (
         "2/2 screened · 2 accepted · 0 undecided · 0 errors"
     )
+    assert screening.progress_line(progressed(phase="retention", processed=2, included=1, excluded=1)) == (
+        "2/2 screened · 1 retained · 1 not retained · 0 errors"
+    )
+
+
+def test_duration():
+    assert [screening.duration(s) for s in (0, 9.6, 61, 3599, 3600, 7322, -4)] == [
+        "0:00",
+        "0:10",
+        "1:01",
+        "59:59",
+        "1:00:00",
+        "2:02:02",
+        "0:00",
+    ]
+
+
+def test_stopwatch_elapsed_and_time_left_at_the_current_pace():
+    now = [1000.0]
+    stopwatch = screening.Stopwatch(clock=lambda: now[0])
+    run = progressed(status="running", total=100, processed=40, excluded=40, passed=0)
+    assert stopwatch.text(run) == "0:00 elapsed"  # no step yet: no pace to go by
+    now[0] += 30
+    stopwatch.step(run, [{}] * 30)  # 10 were screened before (a continued run): 30 in 30 s here
+    assert stopwatch.text(run) == "0:30 elapsed · about 1:00 left"
+    assert screening.progress_line(run, stopwatch) == (
+        "40/100 screened · 40 rejected · 0 passed · 0 errors · 0:30 elapsed · about 1:00 left"
+    )
+    now[0] += 60
+    stopwatch.step(dict(run, processed=100, status="finished"), [{}] * 60)
+    assert stopwatch.text(dict(run, processed=100, status="finished")) == "1:30 elapsed"
+
+
+UNDO = {"message": "Undoing run 3: 2 decisions of bot are removed (there was none before).", "run_id": 3}
+
+
+def ask_as_on_a_terminal(monkeypatch):
+    monkeypatch.setattr(cli, "_interactive", lambda: True)
+
+
+def requested(fake_api, method, path):
+    return [r for r in fake_api.requests if (r.method, r.url.path) == (method, path)]
+
+
+def test_undo_says_what_it_does_and_asks(runner, fake_api, monkeypatch):
+    ask_as_on_a_terminal(monkeypatch)
+    fake_api.route("GET", "/api/v1/reviews/7/ai-screening/runs/3/undo", 200, UNDO)
+    fake_api.route("POST", "/api/v1/reviews/7/ai-screening/runs/3/undo", 200, dict(UNDO, message="Run 3 was undone."))
+    command = ["ai-screening", "undo", "--review", "7", "--id", "3"]
+    result = invoke(runner, command, input="n\n")
+    assert result.exit_code == 1
+    assert UNDO["message"] in result.output and "This cannot be undone." in result.output
+    assert not requested(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs/3/undo")
+    result = invoke(runner, command, input="y\n")
+    assert result.exit_code == 0, result.output
+    assert len(requested(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs/3/undo")) == 1
+    previews = len(requested(fake_api, "GET", "/api/v1/reviews/7/ai-screening/runs/3/undo"))
+    result = invoke(runner, [*command, "--yes"])
+    assert result.exit_code == 0, result.output
+    assert len(requested(fake_api, "GET", "/api/v1/reviews/7/ai-screening/runs/3/undo")) == previews
+
+
+def impact(confirm):
+    message = "This run sends 2 studies and rewrites 2 decisions of bot." if confirm else "No decisions yet."
+    return {"studies": 2, "decisions": 2 if confirm else 0, "classified": 0, "confirm": confirm, "message": message}
+
+
+def test_start_asks_only_when_the_run_rewrites_decisions(runner, fake_api, monkeypatch):
+    ask_as_on_a_terminal(monkeypatch)
+    routes(fake_api)
+    command = ["ai-screening", "start", "--review", "7", "--reviewer-id", "5", "--statuses", "U"]
+    fake_api.route("POST", "/api/v1/reviews/7/ai-screening/impact", 200, impact(False))
+    assert invoke(runner, command).exit_code == 0
+    assert bodies(fake_api, "POST", "/api/v1/reviews/7/ai-screening/impact") == [{"reviewer_id": 5, "statuses": ["U"]}]
+    assert len(requested(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs")) == 1
+
+    fake_api.route("POST", "/api/v1/reviews/7/ai-screening/impact", 200, impact(True))
+    result = invoke(runner, command, input="n\n")
+    assert result.exit_code == 1
+    assert "rewrites 2 decisions of bot" in result.output
+    assert "cannot be undone" not in result.output
+    assert len(requested(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs")) == 1
+    assert invoke(runner, [*command, "--yes"]).exit_code == 0
+    assert len(requested(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs")) == 2
+
+
+def test_rerun_checks_the_runs_settings(runner, fake_api, monkeypatch):
+    ask_as_on_a_terminal(monkeypatch)
+    fake_api.route("POST", "/api/v1/reviews/7/ai-screening/impact", 200, impact(True))
+    fake_api.route("POST", "/api/v1/reviews/7/ai-screening/runs/3/rerun", 201, dict(RUN, id=4, parameters={}))
+    result = invoke(runner, ["ai-screening", "rerun", "--review", "7", "--id", "3", "--threshold", "0.7"], input="y\n")
+    assert result.exit_code == 0, result.output
+    assert bodies(fake_api, "POST", "/api/v1/reviews/7/ai-screening/impact") == [{"run_id": 3}]
+    assert bodies(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs/3/rerun") == [{"threshold": 0.7}]
+
+
+def test_cli_run_asks_before_a_run_that_rewrites_decisions(runner, fake_api, monkeypatch):
+    ask_as_on_a_terminal(monkeypatch)
+    routes(fake_api)
+    fake_api.route("POST", "/api/v1/reviews/7/ai-screening/impact", 200, impact(True))
+    result = invoke(runner, ["ai-screening", "run", "--review", "7", "--reviewer-id", "5"], input="n\n")
+    assert result.exit_code == 1
+    assert not requested(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs")
+    result = invoke(runner, ["ai-screening", "run", "--review", "7", "--reviewer-id", "5", "--yes"])
+    assert result.exit_code == 0, result.output
+    assert len(requested(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs")) == 1
+
+
+def test_no_questions_without_a_terminal(runner, fake_api):
+    routes(fake_api)
+    result = invoke(runner, ["ai-screening", "start", "--review", "7", "--reviewer-id", "5"])
+    assert result.exit_code == 0, result.output
+    assert not requested(fake_api, "POST", "/api/v1/reviews/7/ai-screening/impact")
+
+
+def test_start_sends_the_criteria_chosen_and_defaults(runner, fake_api):
+    fake_api.route("POST", "/api/v1/reviews/7/ai-screening/runs", 201, dict(RUN, parameters={}))
+    command = ["ai-screening", "start", "--review", "7", "--reviewer-id", "2", "--phase", "screen"]
+    result = invoke(runner, [*command, "--criteria-ids", "3", "--criteria-ids", "5", "--defaults", "--yes"])
+    assert result.exit_code == 0, result.output
+    body = bodies(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs")[-1]
+    assert (body["phase"], body["criteria_ids"], body["defaults"]) == ("screen", [3, 5], True)

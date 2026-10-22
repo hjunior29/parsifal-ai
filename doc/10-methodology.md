@@ -142,7 +142,8 @@ Article
 
 StudyDecision  (replaces unused StudySelection/Study)
   review, article, user, stage ('title_abstract' | 'full_text'),
-  status (U/R/A/D), selection_criteria, comments, decided_at
+  status (U/R/A/D), selection_criteria, comments, decided_at,
+  run (the AI screening run that made it; null when made by hand)
   unique (article, user, stage)
   → Article.status stays the CONSOLIDATED decision; a service computes
     agreement (Cohen's Kappa) and applies decision rules.

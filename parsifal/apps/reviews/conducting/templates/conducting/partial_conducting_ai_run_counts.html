@@ -1,0 +1,12 @@
+{# The outcomes of a run, named as its action decides: ``run`` and its ``progress``. #}
+{% if run.phase == "inclusion" %}
+  {{ progress.included }} accepted · {{ progress.undecided }} undecided
+{% elif run.phase == "screen" %}
+  {{ progress.excluded }} rejected · {{ progress.included }} accepted · {{ progress.undecided }} undecided
+{% elif run.phase == "retention" %}
+  {{ progress.included }} retained · {{ progress.excluded }} not retained
+{% else %}
+  {{ progress.excluded }} rejected · {{ progress.passed }} passed
+{% endif %}
+{% if progress.failed %} · {{ progress.failed }} errors{% endif %}
+<span class="text-muted">({{ progress.processed }} of {{ progress.total }})</span>

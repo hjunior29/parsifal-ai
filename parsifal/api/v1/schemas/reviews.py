@@ -17,6 +17,7 @@ class ReviewOut(Schema):
     outcome: str
     context: str
     review_type: str
+    inclusion_rule: str  # all: a study must meet every inclusion criterion; any: at least one
     selection_procedure: str
     synthesis_strategy: str
     validity_threats: str
@@ -49,6 +50,7 @@ class ReviewUpdateIn(Schema):
     outcome: str | None = None
     context: str | None = None
     review_type: str | None = None
+    inclusion_rule: str | None = None  # all (every inclusion criterion) or any (at least one)
     selection_procedure: str | None = None
     synthesis_strategy: str | None = None
     validity_threats: str | None = None

@@ -36,8 +36,9 @@ def _validate_status(status):
 
 
 def record_decision(
-    *, review, article_id, actor, status, stage=StudyDecision.TITLE_ABSTRACT, criteria_id=None, comments=""
+    *, review, article_id, actor, status, stage=StudyDecision.TITLE_ABSTRACT, criteria_id=None, comments="", run=None
 ):
+    """The reviewer's decision, new or replacing theirs; ``run``: the AI screening run that made it, if any."""
     article = get_child(review.article_set, article_id, label="Article")
     criteria = None
     if criteria_id not in (None, ""):
@@ -52,6 +53,7 @@ def record_decision(
             "status": _validate_status(status),
             "selection_criteria": criteria,
             "comments": comments or "",
+            "run": run,
         },
     )
     return decision

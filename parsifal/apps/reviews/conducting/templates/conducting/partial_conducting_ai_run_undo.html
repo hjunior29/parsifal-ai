@@ -1,0 +1,63 @@
+{% comment %}
+  Undoing a run, in the AI runs window (conducting_ai_runs.js): what it would do, and a confirmed click to do it.
+{% endcomment %}
+<div class="modal-header">
+  <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+  <h4 class="modal-title">Undo run {{ run.pk }}? <small>{{ label }} · {{ run.reviewer.username }} · {{ run.created_at|date:"j M Y H:i" }}</small></h4>
+</div>
+<div class="modal-body">
+  {% csrf_token %}
+  <p>
+    The run evaluated {{ summary.screened }} stud{{ summary.screened|pluralize:"y,ies" }}. Undoing it takes back what
+    still stands of it:
+  </p>
+  <ul>
+    {% if summary.statuses_restored %}
+      <li>
+        <strong>{{ summary.statuses_restored }}</strong> stud{{ summary.statuses_restored|pluralize:"y goes,ies go" }}
+        back to the status {{ summary.statuses_restored|pluralize:"it,they" }} had before the run
+        ({% for label, count in back_to %}{{ count }} {{ label|lower }}{% if not forloop.last %}, {% endif %}{% endfor %}),
+        with the criterion and last editor of then.
+      </li>
+    {% endif %}
+    {% if summary.decisions_restored %}
+      <li>
+        <strong>{{ summary.decisions_restored }}</strong> decision{{ summary.decisions_restored|pluralize }} of
+        {{ summary.reviewer }} go{{ summary.decisions_restored|pluralize:"es," }} back to the one{{ summary.decisions_restored|pluralize }} the run replaced.
+      </li>
+    {% endif %}
+    {% if summary.decisions_removed %}
+      <li>
+        <strong>{{ summary.decisions_removed }}</strong> decision{{ summary.decisions_removed|pluralize }} of
+        {{ summary.reviewer }} {{ summary.decisions_removed|pluralize:"is,are" }} removed (there was none before the run).
+      </li>
+    {% endif %}
+    {% if summary.statuses_kept %}
+      <li>
+        <strong>{{ summary.statuses_kept }}</strong> stud{{ summary.statuses_kept|pluralize:"y,ies" }} whose status
+        changed again since the run keep{{ summary.statuses_kept|pluralize:"s," }} the newer status.
+      </li>
+    {% endif %}
+    {% if summary.decisions_kept %}
+      <li>
+        <strong>{{ summary.decisions_kept }}</strong> decision{{ summary.decisions_kept|pluralize }} of
+        {{ summary.reviewer }} replaced since the run stay{{ summary.decisions_kept|pluralize:"s," }} as
+        {{ summary.decisions_kept|pluralize:"it is,they are" }}.
+      </li>
+    {% endif %}
+    {% if not summary.statuses_restored and not summary.decisions_restored and not summary.decisions_removed %}
+      <li>Nothing of the run stands any more: undoing it only deletes it.</li>
+    {% endif %}
+    <li>
+      The run and Jev's answers are deleted{% if previous %}, and run {{ previous.pk }} becomes the latest{% if previous.undoable %} (it can be undone next){% endif %}{% endif %}.
+      Other reviewers' decisions are not touched.
+    </li>
+  </ul>
+  <div class="checkbox">
+    <label><input type="checkbox" class="js-ai-undo-confirm"> I understand that undoing the run cannot be undone.</label>
+  </div>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-default pull-left js-ai-runs-back"><span class="glyphicon glyphicon-arrow-left"></span> Back to runs</button>
+  <button type="button" class="btn btn-danger js-ai-undo-apply" data-run-id="{{ run.pk }}" disabled>Undo run {{ run.pk }}</button>
+</div>

@@ -40,6 +40,9 @@ class Operation:
     paginated: bool = False
     download: bool = False
     destructive: bool = False
+    # An operation the CLI calls first with the same values, to ask before going on: its result's "message" is shown,
+    # and the CLI asks when the operation is destructive or the result says "confirm" (--yes skips both).
+    check: str | None = None
 
     @property
     def body_params(self):
@@ -109,6 +112,7 @@ REVIEW_FIELDS = (
     B("outcome"),
     B("context"),
     B("review_type", help="slr or mapping."),
+    B("inclusion_rule", help="all (a study must meet every inclusion criterion) or any (at least one)."),
     B("selection_procedure", TEXT, help="How studies are selected (assessors, disagreement resolution)."),
     B("synthesis_strategy", TEXT),
     B("validity_threats", TEXT),
@@ -156,9 +160,10 @@ DOCUMENT_FIELDS = tuple(
     )
 )
 
-# What shapes the request an AI screening run sends to Jev about each study (start and preview).
+# What shapes the request an AI screening run sends to Jev about each study (start and preview). Whatever is left out
+# takes the settings of the review's last run of the action (setup's "start"), or Parsifal's defaults with --defaults.
 AI_SCREENING_REQUEST = (
-    B("title", help="Review title sent as context (default: the review's)."),
+    B("title", help="Review title sent as context (default: the last run's, else the review's)."),
     B("objective", TEXT),
     B("research_questions", TEXT, help="One question per line."),
     B("population"),
@@ -170,17 +175,24 @@ AI_SCREENING_REQUEST = (
     B(
         "template",
         TEXT,
-        help="The request sent about each study, as JSON (start from setup's template): edit the text around the "
-        "{{placeholders}}, which Parsifal fills in. Default: the review's last run of the phase, else Parsifal's.",
+        help="The request sent about each study, as JSON (start from setup's start.template): edit the text around "
+        "the {{placeholders}}, which Parsifal fills in.",
     ),
-    B("source_id", INT, help="Only this source (default: all)."),
+    B("source_id", INT, help="Only this source (0: all sources)."),
     B(
         "statuses",
         LIST_STR,
-        help="Send the studies with these statuses: U, R, A, D (repeat; default R and U, inclusion A and U). "
-        "Only U and the reviewer's own classifications change status.",
+        help="Send the studies with these statuses: U, R, A, D (repeat; Parsifal's defaults: R and U, inclusion A and "
+        "U, screen A, R and U). Only U and the reviewer's own classifications change status.",
     ),
-    B("model", help="Jev model for this run (default: your default model)."),
+    B(
+        "criteria_ids",
+        LIST_INT,
+        help="The criteria sent, by id (repeat; see setup's criteria): leave out those Jev cannot judge from a title "
+        "and abstract, such as the year or whether the full text was retrieved.",
+    ),
+    B("model", help="Jev model for this run."),
+    B("defaults", BOOL, help="Take Parsifal's defaults for what is left out, not the last run's settings."),
 )
 
 OPERATIONS = (
@@ -988,6 +1000,7 @@ OPERATIONS = (
             Q("q", help="Search the title, DOI and BibTeX key (contains, ignoring case)."),
             Q("finished_data_extraction", BOOL),
             Q("starred", BOOL, help="Only the starred studies (--no-starred: the others)."),
+            Q("order", help="title (default) or ai_score: the most likely relevant first, by the latest AI run."),
         ),
         paginated=True,
     ),
@@ -1525,8 +1538,13 @@ OPERATIONS = (
         "/reviews/{review_id}/ai-screening",
         ("ai-screening",),
         "setup",
-        "What a run would send (context, criteria, request template, Jev's models, reviewers, studies per status).",
-        (REVIEW, Q("phase", help="exclusion (default) or inclusion.")),
+        "What a run would use: every setting it starts from (the last run's of the action, or the defaults), the "
+        "criteria, Jev's models, reviewers, studies per status.",
+        (
+            REVIEW,
+            Q("phase", help="exclusion (default), inclusion or screen."),
+            Q("defaults", BOOL, help="Parsifal's defaults instead of the last run's settings."),
+        ),
     ),
     Operation(
         "ai_screening_start",
@@ -1534,28 +1552,48 @@ OPERATIONS = (
         "/reviews/{review_id}/ai-screening/runs",
         ("ai-screening",),
         "start",
-        "Open an Exclude (or Include) with AI run as a reviewer over the chosen statuses; then step until it ends.",
+        "Open an Exclude, Include or Screen with AI run as a reviewer over the chosen statuses; step until it ends.",
         (
             REVIEW,
             B(
                 "phase",
-                help="exclusion (default): reject when one exclusion criterion applies; inclusion: accept when every "
-                "inclusion criterion is met, otherwise leave unclassified (it never rejects).",
+                help="exclusion (default): reject when one exclusion criterion applies; inclusion: accept when the "
+                "inclusion criteria are met (all, or one, as the protocol's inclusion rule says), otherwise leave "
+                "unclassified (it never rejects); screen: both in one request, reject first, else accept, else leave "
+                "unclassified.",
             ),
             *AI_SCREENING_REQUEST,
             B(
                 "threshold",
                 FLOAT,
-                help="0.5–0.99, default 0.9. Exclusion: reject when 1 - p(none) is at least this. Inclusion: the "
+                help="0.5–0.99. Exclusion and screen: reject when 1 - p(none) is at least this. Inclusion: the "
                 "threshold of the criteria --thresholds leaves out.",
             ),
             B(
                 "thresholds",
                 LIST_STR,
-                help="Inclusion: a threshold per criterion, KEY=value (repeat: --thresholds I1=0.9 --thresholds "
-                "I2=0.85); accept when every p(meets) reaches its own. Left out: --threshold, else the last run's.",
+                help="Inclusion criteria: a threshold each, KEY=value (repeat: --thresholds I1=0.9 --thresholds "
+                "I2=0.85). Left out: the last run's (inclusion: --threshold when given).",
             ),
             B("reviewer_id", INT, True, "Member of the review the decisions are recorded as (see setup)."),
+        ),
+        check="ai_screening_impact",
+    ),
+    Operation(
+        "ai_screening_impact",
+        "POST",
+        "/reviews/{review_id}/ai-screening/impact",
+        ("ai-screening",),
+        "impact",
+        "What a run would rewrite (the reviewer's decisions, studies they classified), to confirm before starting it.",
+        (
+            REVIEW,
+            B("phase", help="exclusion (default), inclusion or screen."),
+            B("reviewer_id", INT, help="Member of the review the decisions would be recorded as."),
+            B("statuses", LIST_STR, help="Studies sent: U, R, A, D (repeat; default: the last run's)."),
+            B("source_id", INT, help="Only this source (0: all sources)."),
+            B("run_id", INT, help="A run to do again (see rerun): its settings fill in what is left out."),
+            B("defaults", BOOL, help="Parsifal's defaults for what is left out, not the last run's settings."),
         ),
     ),
     Operation(
@@ -1567,7 +1605,7 @@ OPERATIONS = (
         "The request a run would send to Jev about one study (model, state, questions); nothing is sent.",
         (
             REVIEW,
-            B("phase", help="exclusion (default) or inclusion."),
+            B("phase", help="exclusion (default), inclusion or screen."),
             *AI_SCREENING_REQUEST,
             B("article_id", INT, help="This study (default: the first one in scope with a title or abstract)."),
         ),
@@ -1597,7 +1635,7 @@ OPERATIONS = (
         ("ai-screening",),
         "step",
         "Screen the next studies of the run (also continues an interrupted run), recording the reviewer's decisions.",
-        (REVIEW, child_id("run_id", "Run id."), B("size", INT, help="Studies in this step (1–50, default 8).")),
+        (REVIEW, child_id("run_id", "Run id."), B("size", INT, help="Studies in this step (1–64, default 64).")),
     ),
     Operation(
         "ai_screening_results",
@@ -1606,8 +1644,54 @@ OPERATIONS = (
         ("ai-screening",),
         "results",
         "What Jev answered for each study of a run (probabilities, chosen criterion, errors).",
-        (REVIEW, child_id("run_id", "Run id."), Q("outcome", help="excluded, passed, error or pending.")),
+        (
+            REVIEW,
+            child_id("run_id", "Run id."),
+            Q("outcome", help="excluded, passed, included, undecided, error or pending."),
+        ),
         paginated=True,
+    ),
+    Operation(
+        "ai_screening_rerun",
+        "POST",
+        "/reviews/{review_id}/ai-screening/runs/{run_id}/rerun",
+        ("ai-screening",),
+        "rerun",
+        "Open a new run with the settings of another, changing those given; then `ai-screening run --run <new id>`.",
+        (
+            REVIEW,
+            child_id("run_id", "Run to do again."),
+            B("reviewer_id", INT, help="Another member of the review (default: the run's reviewer)."),
+            B("model", help="Another Jev model (default: the run's)."),
+            B("threshold", FLOAT, help="Another exclusion threshold; inclusion: for every criterion."),
+            B("thresholds", LIST_STR, help="Inclusion criteria: KEY=value each (repeat)."),
+            B("statuses", LIST_STR, help="Other statuses to send: U, R, A, D (repeat)."),
+            B("source_id", INT, help="Another source (0: all sources)."),
+            B("criteria_ids", LIST_INT, help="Other criteria to send, by id (repeat)."),
+        ),
+        check="ai_screening_impact",
+    ),
+    Operation(
+        "ai_screening_undo_preview",
+        "GET",
+        "/reviews/{review_id}/ai-screening/runs/{run_id}/undo",
+        ("ai-screening",),
+        "undo-preview",
+        "What undoing the latest run would do (statuses and decisions restored, studies changed since); nothing "
+        "changes.",
+        (REVIEW, child_id("run_id", "Run id.")),
+    ),
+    Operation(
+        "ai_screening_undo",
+        "POST",
+        "/reviews/{review_id}/ai-screening/runs/{run_id}/undo",
+        ("ai-screening",),
+        "undo",
+        "Undo the latest run where it still stands (the reviewer's decisions, the statuses it set) and delete it; "
+        "the run before it becomes the latest.",
+        (REVIEW, child_id("run_id", "Run id.")),
+        destructive=True,
+        check="ai_screening_undo_preview",
     ),
     # Analytics and exports ------------------------------------------------------------------------------------------
     Operation(

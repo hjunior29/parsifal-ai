@@ -52,10 +52,19 @@ parsifal me
    reject the studies that clearly meet an exclusion criterion, recording the decisions as you (needs a Jev key:
    `integration jev set --api-key -`; `--statuses` picks the studies sent, default R and U); check them with `ai-screening results --review R --id RUN --outcome excluded`.
    Include with AI (`--phase inclusion`) asks one yes/no question per inclusion criterion: it accepts the studies
-   that clearly meet every one (a threshold per criterion: `--thresholds I1=0.9 --thresholds I2=0.85`) and leaves the
-   rest unclassified for the human; it never
-   rejects (default statuses A and U). What Jev is sent is a template (`ai-screening setup` → `template`): only
-   change it when the human asks, with `--template @request.json`, after checking it with `ai-screening preview`.
+   that meet them (every one, or at least one when the protocol's `inclusion_rule` is `any`; a threshold per
+   criterion: `--thresholds I1=0.9 --thresholds I2=0.85`) and leaves the rest unclassified for the human; it never
+   rejects. Screen with AI (`--phase screen`) asks both in one request: rejected by an exclusion criterion first,
+   else accepted by the inclusion criteria, else unclassified. The actions have no order. A run starts from every
+   setting of the review's last run of the same action (`ai-screening setup` → `start`); `--defaults` takes
+   Parsifal's. `--criteria-ids` picks the criteria sent: leave out what Jev cannot judge from a title and abstract
+   (year, language, venue, full text retrieved). What Jev is sent is a template (`start.template`): only change it
+   when the human asks, with `--template @request.json`, after checking it with `ai-screening preview`.
+   Before a run, `ai-screening impact --review R --reviewer-id U` says whether it would rewrite that reviewer's
+   decisions; tell the human first when it would. A run started by mistake is undone with `ai-screening undo
+   --review R --id RUN` (check `ai-screening undo-preview` first; only when the human asks): only the latest run can
+   be, what still stands of it goes back and the run is deleted, and the run before it becomes the latest.
+   `ai-screening rerun --id RUN` starts a new run with RUN's settings.
    `test-set get --review R` tells whether the known papers were found by the search.
    Stars: `article star --review R --article A` marks a study in the review (one star per study, shared with the
    human; not a status); `article list --review R --starred --all` lists them, `article unstar` removes one.

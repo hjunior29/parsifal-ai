@@ -1,4 +1,4 @@
-from parsifal_cli.operations import BODY, FILE, FORM, OPERATIONS, PATH, QUERY
+from parsifal_cli.operations import BODY, BY_ID, FILE, FORM, OPERATIONS, PATH, QUERY
 
 
 def test_operation_ids_and_commands_are_unique():
@@ -39,3 +39,12 @@ def test_downloads_are_gets():
     for op in OPERATIONS:
         if op.download:
             assert op.method == "GET"
+
+
+def test_checks_are_operations_that_take_the_same_values():
+    for op in OPERATIONS:
+        if op.check:
+            check = BY_ID[op.check]
+            assert check.method in ("GET", "POST") and check.id != op.id, op.id
+            # The check gets the values it shares with the operation, by name: the review at least.
+            assert {"review_id"} <= {p.name for p in check.params} & {p.name for p in op.params}, op.id

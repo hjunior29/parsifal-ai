@@ -57,6 +57,9 @@ class ArticleOut(Schema):
     updated_at: datetime | None = None
     created_by: str | None = None
     updated_by: str | None = None
+    # How likely the study is relevant (0–1), by the latest AI run that answered about it: exclusion 1 − p(exclude),
+    # inclusion the deciding criterion's p(meets), screen the lower of the two; null when no run did.
+    ai_score: float | None = None
 
     @staticmethod
     def resolve_created_by(obj):
@@ -69,6 +72,10 @@ class ArticleOut(Schema):
     @staticmethod
     def resolve_starred_by(obj):
         return obj.starred_by.username if obj.starred_by else None
+
+    @staticmethod
+    def resolve_ai_score(obj):
+        return obj.ai_score
 
 
 class ArticleFieldsIn(Schema):

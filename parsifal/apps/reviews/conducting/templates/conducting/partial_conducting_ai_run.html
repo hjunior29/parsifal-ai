@@ -1,0 +1,107 @@
+{% comment %}
+  One run in the AI runs window (conducting_ai_runs.js): its settings, as sent to Jev, and what Jev answered for each
+  study. ``row`` is the run's row of the list.
+{% endcomment %}
+{% load l10n %}
+{% with run=row.run %}
+<div class="modal-header">
+  <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+  <h4 class="modal-title">Run {{ run.pk }} <small>{{ row.label }} · {{ run.reviewer.username }}</small></h4>
+</div>
+<div class="modal-body">
+  <dl class="dl-horizontal small ai-run-facts">
+    <dt>Started</dt>
+    <dd>{{ run.created_at|date:"j M Y H:i" }}{% if run.started_by %} by {{ run.started_by.username }}{% endif %}{% if row.duration %} · took {{ row.duration }}{% endif %}</dd>
+    <dt>State</dt>
+    <dd>{{ row.state }}{% if run.error %}: {{ run.error }}{% endif %}</dd>
+    <dt>Model</dt>
+    <dd>{{ run.model }}</dd>
+    <dt>Threshold</dt>
+    <dd>{{ row.thresholds }}</dd>
+    <dt>Studies sent</dt>
+    <dd>{{ run.total }} · {{ row.statuses }} · {{ row.source }}</dd>
+    <dt>Results</dt>
+    <dd>{% include "conducting/partial_conducting_ai_run_counts.html" with run=run progress=row.progress %}</dd>
+    <dt>Still stands</dt>
+    <dd>
+      {% if row.standing is None %}
+        <span class="text-muted">made before Parsifal kept what came before a run: it cannot be undone</span>
+      {% else %}
+        {{ row.standing }} of {{ row.decided }} decisions of {{ run.reviewer.username }}
+      {% endif %}
+    </dd>
+  </dl>
+
+  <details class="small">
+    <summary>Criteria sent</summary>
+    <ul class="list-unstyled">
+      {% for option in parameters.criteria %}
+        <li><code>{{ option.key }}</code> {{ option.description }}</li>
+      {% endfor %}
+    </ul>
+  </details>
+  <details class="small">
+    <summary>Review context and guidance</summary>
+    <dl>
+      {% for label, value in context_fields %}
+        {% if value %}<dt>{{ label }}</dt><dd style="white-space: pre-line;">{{ value }}</dd>{% endif %}
+      {% endfor %}
+      {% if parameters.guidance %}<dt>Extra guidance</dt><dd style="white-space: pre-line;">{{ parameters.guidance }}</dd>{% endif %}
+    </dl>
+  </details>
+  {% if template %}
+    <details class="small">
+      <summary>Request template</summary>
+      <pre class="ai-run-template">{{ template }}</pre>
+    </details>
+  {% endif %}
+
+  <h5>
+    <strong>Answers</strong>
+    <select class="form-control input-sm js-ai-run-outcome" style="display: inline-block; width: auto; margin-left: 8px;" aria-label="Show the answers">
+      <option value="">All ({{ results|length }})</option>
+      {% for outcome in outcomes %}<option value="{{ outcome }}">{{ outcome }}</option>{% endfor %}
+    </select>
+  </h5>
+  {% if results %}
+    <table class="table table-condensed small ai-run-results">
+      <thead>
+        <tr>
+          <th>Study</th>
+          <th>Before</th>
+          <th>Answer</th>
+          <th class="text-right">{% if run.phase == "exclusion" or run.phase == "screen" %}p(exclude){% elif run.phase == "retention" %}p(retain){% else %}p(meets){% endif %}</th>
+          <th title="Whether the reviewer's decision on the study is still this run's">Stands</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for answer in results %}
+          <tr data-outcome="{{ answer.outcome }}">
+            <td>{{ answer.title }}</td>
+            <td>{{ answer.previous }}</td>
+            <td>
+              {{ answer.outcome }}{% if answer.detail %} <span class="text-muted">· {{ answer.detail }}</span>{% endif %}
+              {% if answer.result.error %}<br><span class="text-danger">{{ answer.result.error }}</span>{% endif %}
+            </td>
+            <td class="text-right">{% if answer.probability is not None %}{{ answer.probability|floatformat:2|unlocalize }}{% endif %}</td>
+            <td>{% if answer.standing %}<span class="glyphicon glyphicon-ok text-success" aria-label="yes"></span>{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="text-muted">No study was screened.</p>
+  {% endif %}
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-default pull-left js-ai-runs-back"><span class="glyphicon glyphicon-arrow-left"></span> Back to runs</button>
+  {% if run.phase != "retention" %}<button type="button" class="btn btn-default btn-ai-screening" data-phase="{{ run.phase }}" data-run-id="{{ run.pk }}">Run again</button>{% endif %}
+  {% if row.standing is None %}
+  {% elif row.undo_problem %}
+    <span title="{{ row.undo_problem }}"><button type="button" class="btn btn-danger" disabled>Undo</button></span>
+  {% else %}
+    <button type="button" class="btn btn-danger js-ai-run-undo" data-run-id="{{ run.pk }}">Undo</button>
+  {% endif %}
+  <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+</div>
+{% endwith %}

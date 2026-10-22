@@ -5,14 +5,17 @@
 {% block stylesheet %}
   <style>
     #modal-ai-screening .modal-body { max-height: 65vh; overflow-y: auto; }
-    #modal-ai-screening .ai-criteria li { margin-bottom: 4px; padding-left: 2.6em; text-indent: -2.6em; }
+    #modal-ai-screening .ai-criteria li { margin-bottom: 4px; }
     #modal-ai-screening .ai-log li { padding: 2px 0; border-bottom: 1px solid #eee; }
     #modal-ai-screening details summary { cursor: pointer; margin-bottom: 6px; }
     #modal-ai-screening .ai-template { font-family: Menlo, Consolas, monospace; font-size: 12px; }
     #modal-ai-screening .ai-template-actions { margin: 6px 0; }
     #modal-ai-screening .ai-placeholders li { margin-bottom: 2px; }
     #modal-ai-screening .ai-thresholds li { padding-left: 0; text-indent: 0; display: flex; align-items: baseline; gap: 8px; }
-    #modal-ai-screening .ai-thresholds input { width: 80px; flex: none; }
+    #modal-ai-screening .ai-thresholds input[type=number] { width: 80px; flex: none; }
+    /* A criterion's checkbox, with the description wrapping clear of it. */
+    #modal-ai-screening .ai-criterion { font-weight: normal; margin: 0; display: block; padding-left: 20px; }
+    #modal-ai-screening .ai-criterion input[type=checkbox] { float: left; margin: 3px 0 0 -20px; }
     #modal-ai-screening .ai-preview { max-height: 360px; overflow: auto; font-size: 11px; white-space: pre-wrap; }
     .studies-search .input-group { width: 380px; }
     @media (max-width: 767px) {
@@ -20,6 +23,12 @@
       .studies-search .input-group { width: 100%; }
     }
     #modal-agreement .js-open-article { cursor: pointer; }
+    #modal-ai-runs .modal-body { max-height: 70vh; overflow-y: auto; }
+    #modal-ai-runs .ai-runs td { vertical-align: top; }
+    #modal-ai-runs .ai-run-facts dt { width: 110px; }
+    #modal-ai-runs .ai-run-facts dd { margin-left: 125px; }
+    #modal-ai-runs .ai-run-template { max-height: 300px; overflow: auto; font-size: 11px; white-space: pre-wrap; }
+    #modal-ai-runs details summary { cursor: pointer; margin-bottom: 6px; display: list-item; }
     .js-star { color: #c8c8c8; text-decoration: none; }
     .js-star:hover, .js-star:focus { color: #f0ad4e; text-decoration: none; }
     .js-star.starred { color: #f0ad4e; }
@@ -34,6 +43,7 @@
   {% compress js %}
     <script src="{% static 'js/conducting_study_selection.js' %}"></script>
     <script src="{% static 'js/conducting_ai_screening.js' %}"></script>
+    <script src="{% static 'js/conducting_ai_runs.js' %}"></script>
   {% endcompress %}
 {% endblock javascript %}
 
@@ -110,6 +120,12 @@
     </div>
   </div>
 
+  <div class="modal fade" id="modal-ai-runs">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content"></div>
+    </div>
+  </div>
+
   <div class="modal fade" id="modal-agreement">
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
@@ -127,6 +143,9 @@
 
   {% if finished_all_steps %}
     <p class="text-right">
+      <button type="button" class="btn btn-default btn-sm" id="btn-ai-runs" title="The Exclude, Include and Retain with AI runs: details, run again, undo">
+        <span class="glyphicon glyphicon-list-alt"></span> AI runs
+      </button>
       <button type="button" class="btn btn-default btn-sm" id="btn-agreement" title="Compare independent decisions of the reviewers (people or agents) and consolidate them">
         <span class="glyphicon glyphicon-user"></span> Reviewer agreement
       </button>

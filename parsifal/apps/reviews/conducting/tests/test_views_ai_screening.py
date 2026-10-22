@@ -74,6 +74,12 @@ class AiScreeningViewsTest(AiScreeningViewsBase):
         self.assertContains(response, 'data-phase="exclusion"', html=False)
         self.assertContains(response, 'data-phase="inclusion"', html=False)
         self.assertContains(response, "Include with AI")
+        self.assertContains(response, 'data-phase="screen"', html=False)
+        self.assertContains(response, "Screen with AI")
+        self.assertNotContains(response, "Retain with AI")
+        self.assertNotContains(response, "Phase 1")
+        self.assertContains(response, 'class="ai-header"', html=False)  # the AI column, empty before any run
+        self.assertContains(response, '<td class="text-right" data-score=""></td>', html=False)
 
     def test_asks_for_the_key_first(self):
         response = self.client.get(self.form_url, {"review-id": self.review.pk})
@@ -86,13 +92,19 @@ class AiScreeningViewsTest(AiScreeningViewsBase):
         response = self.client.get(self.form_url, {"review-id": empty.pk})
         self.assertContains(response, "The review has no exclusion criteria")
 
-    def test_setup_window_is_prefilled_and_criteria_are_read_only(self):
+    def test_setup_window_is_prefilled_and_criteria_are_chosen(self):
         self.connect()
         response = self.client.get(self.form_url, {"review-id": self.review.pk})
         self.assertContains(response, 'id="ai-screening-form"')
         self.assertContains(response, "Our objective &amp; scope")
-        self.assertContains(response, "<code>E1</code> Not about &lt;software&gt; engineering", html=False)
-        self.assertNotContains(response, 'name="criteria')
+        self.assertContains(
+            response,
+            f'<input type="checkbox" name="criteria" value="{self.criteria.pk}" checked> <code>E1</code> '
+            "Not about &lt;software&gt; engineering",
+            html=False,
+        )
+        self.assertContains(response, '<input type="hidden" name="criteria-sent" value="1">', html=False)
+        self.assertNotContains(response, "Restore defaults")  # no run yet: these are the defaults
         self.assertNotContains(response, 'name="rescreen"')
         script = re.search(r'id="ai-screening-counts"[^>]*>(.*?)</script>', response.content.decode())
         counts = json.loads(script.group(1))
@@ -146,7 +158,6 @@ class AiScreeningViewsTest(AiScreeningViewsBase):
         default = screening_requests.as_text(screening_requests.default("exclusion"))
         self.assertContains(response, 'name="template" id="ai-template"')
         self.assertContains(response, escape(default))
-        self.assertContains(response, 'id="ai-template-default"')
         self.assertContains(response, "<code>{{study.abstract}}</code> The study&#x27;s abstract.", html=False)
         self.assertNotContains(response, "cannot be changed")
 
@@ -186,8 +197,8 @@ class AiScreeningViewsTest(AiScreeningViewsBase):
             self.assertEqual(edited, ScreeningRun.objects.get(pk=response.json()["run"]["id"]).parameters["template"])
             response = self.client.get(self.form_url, {"review-id": self.review.pk})
             self.assertContains(response, escape(screening_requests.as_text(edited)))
-            script = re.search(r'id="ai-template-default"[^>]*>(.*?)</script>', response.content.decode(), re.S)
-            self.assertEqual(default, json.loads(script.group(1)))  # what Restore the default puts back
+            restored = self.client.get(self.form_url, {"review-id": self.review.pk, "defaults": 1})
+            self.assertContains(restored, escape(default))  # Restore defaults puts it back
             response = self.start(template='{"state": {}, "question": {}}')
             self.assertEqual(400, response.status_code)
             self.assertIn('keep "type": "choice"', response.json()["error"])
@@ -241,6 +252,12 @@ class AiScreeningViewsTest(AiScreeningViewsBase):
             (self.article.status, self.article.selection_criteria, self.article.updated_by),
         )
         self.assertEqual("R", StudyDecision.objects.get(article=self.article, user=self.bot).status)
+        studies = self.client.get(
+            reverse("reviews:conducting:source_articles"), {"review-id": self.review.pk, "source-id": "None"}
+        )
+        self.assertContains(
+            studies, '<td class="text-right" data-score="0.04" title="Exclude with AI">0.04</td>', html=False
+        )
 
         with self.subTest(msg="the next window preselects the last reviewer"):
             response = self.client.get(self.form_url, {"review-id": self.review.pk})
@@ -317,15 +334,16 @@ class IncludeWithAiViewsTest(AiScreeningViewsBase):
     def test_inclusion_window(self):
         self.connect()
         response = self.client.get(self.form_url, {"review-id": self.review.pk, "phase": "inclusion"})
-        self.assertContains(response, "Include with AI <small>phase 2 · inclusion criteria</small>", html=False)
+        self.assertContains(response, "Include with AI <small>inclusion criteria</small>", html=False)
         self.assertContains(response, "<code>I1</code> Implemented &lt;tool&gt;", html=False)
+        self.assertContains(response, "A study must meet <strong>all inclusion criteria</strong>", html=False)
         self.assertNotContains(response, "<code>E1</code>", html=False)
         self.assertContains(response, '<input type="hidden" name="phase" value="inclusion">', html=False)
         # The same window as Exclude with AI: one threshold, which accepts; nothing is rejected.
         # One threshold per inclusion criterion, none for the whole run.
         self.assertRegex(response.content.decode(), r'name="threshold-I1" [^>]*value="0.9" min="0.5" max="0.99"')
         self.assertNotContains(response, 'name="threshold"')
-        self.assertContains(response, "reaches that\n          criterion's threshold", html=False)
+        self.assertContains(response, "reaches that criterion's threshold")
         self.assertContains(response, "It never rejects")
         for code, checked in (("A", True), ("R", False), ("U", True), ("D", False)):
             self.assertContains(
@@ -365,3 +383,106 @@ class IncludeWithAiViewsTest(AiScreeningViewsBase):
         )
         self.article.refresh_from_db()
         self.assertEqual((Article.ACCEPTED, self.bot), (self.article.status, self.article.updated_by))
+
+
+SCREEN_INCLUDE = {
+    "model": "jev-1.13.0",
+    "answers": {
+        "exclusion": {"type": "choice", "probabilities": {"E1": 0.04, "none": 0.96}},
+        "inclusion_I1": {"type": "noul", "noul": 0.95},
+    },
+}
+
+
+class ScreenWithAiViewsTest(IncludeWithAiViewsTest):
+    """Screen with AI: the exclusion and inclusion criteria in one window and one request per study."""
+
+    def test_inclusion_window(self):
+        pass  # the parent's, for Include with AI
+
+    def test_asks_for_inclusion_criteria_first(self):
+        self.connect()
+        empty = ReviewFactory(author=self.owner)
+        SelectionCriteria.objects.create(review=empty, criteria_type="E", description="Out")
+        response = self.client.get(self.form_url, {"review-id": empty.pk, "phase": "screen"})
+        self.assertContains(response, "The review has no inclusion criteria. Screen with AI asks about both.")
+
+    def test_screen_window(self):
+        self.connect()
+        response = self.client.get(self.form_url, {"review-id": self.review.pk, "phase": "screen"})
+        self.assertContains(
+            response,
+            "Screen with AI <small>exclusion and inclusion criteria · one request per study</small>",
+            html=False,
+        )
+        self.assertContains(response, "<code>E1</code> Not about &lt;software&gt; engineering", html=False)
+        self.assertContains(response, "<code>I1</code> Implemented &lt;tool&gt;", html=False)
+        self.assertContains(response, 'name="threshold" id="ai-threshold"', html=False)
+        self.assertContains(response, 'name="threshold-I1"', html=False)
+        self.assertContains(response, "Exclusion threshold")
+        self.assertContains(response, '<input type="hidden" name="phase" value="screen">', html=False)
+        for code, checked in (("A", True), ("R", True), ("U", True), ("D", False)):
+            self.assertContains(
+                response,
+                f'<input type="checkbox" name="statuses" value="{code}"{" checked" if checked else ""}>',
+                html=False,
+            )
+
+    def test_start_and_step_an_inclusion_run(self):
+        self.connect()
+        screen = {"phase": "screen", "statuses": ["U"], "threshold-I1": "0.9", "criteria-sent": "1"}
+        response = self.start(**screen, criteria=[self.criteria.pk])
+        self.assertIn("Choose at least one inclusion criterion", response.json()["error"])
+        response = self.start(**screen, criteria=[self.criteria.pk, self.inclusion.pk])
+        self.assertEqual(200, response.status_code, response.content)
+        run = response.json()["run"]
+        self.assertEqual(("screen", 1), (run["phase"], run["total"]))
+        with mock.patch.object(jev, "evaluate", return_value=SCREEN_INCLUDE) as evaluate:
+            body = self.client.post(self.step_url, {"review-id": self.review.pk, "run-id": run["id"]}).json()
+        self.assertEqual(["exclusion", "inclusion_I1"], list(evaluate.call_args.kwargs["questions"]))
+        self.assertEqual(("finished", 1, 0), (body["run"]["status"], body["run"]["included"], body["run"]["excluded"]))
+        self.assertEqual(
+            ("included", 0.95, 0.04), tuple(body["results"][0][k] for k in ("outcome", "p_include", "p_exclude"))
+        )
+        self.article.refresh_from_db()
+        self.assertEqual(Article.ACCEPTED, self.article.status)
+
+
+class LastRunViewsTest(AiScreeningViewsBase):
+    """The window opens with every setting of the action's last run; Restore defaults puts Parsifal's back."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.year = SelectionCriteria.objects.create(review=cls.review, criteria_type="E", description="Old year")
+
+    def test_the_last_runs_settings_and_restore_defaults(self):
+        self.connect()
+        response = self.start(
+            guidance="Be strict.",
+            threshold="0.8",
+            statuses=["U"],
+            **{"criteria-sent": "1", "criteria": [self.criteria.pk]},
+        )
+        run = ScreeningRun.objects.get(pk=response.json()["run"]["id"])
+        self.assertEqual([self.year.pk], run.parameters["skipped_criteria"])
+        page = self.client.get(self.form_url, {"review-id": self.review.pk})
+        self.assertContains(
+            page, f"The settings of the last Exclude with AI run, <strong>run {run.pk}</strong>", html=False
+        )
+        self.assertContains(page, "Restore defaults")
+        self.assertContains(page, ">Be strict.</textarea>", html=False)
+        self.assertContains(page, 'value="0.8"', html=False)
+        self.assertContains(page, f'name="criteria" value="{self.criteria.pk}" checked>', html=False)
+        self.assertContains(page, f'name="criteria" value="{self.year.pk}">', html=False)  # left out last time
+        self.assertContains(page, 'name="statuses" value="U" checked', html=False)
+        self.assertNotContains(page, 'name="statuses" value="R" checked', html=False)
+
+        restored = self.client.get(self.form_url, {"review-id": self.review.pk, "defaults": 1})
+        self.assertContains(restored, "Parsifal's default settings.")
+        self.assertNotContains(restored, ">Be strict.</textarea>", html=False)
+        self.assertContains(restored, f'name="criteria" value="{self.year.pk}" checked>', html=False)
+        self.assertContains(restored, 'name="statuses" value="R" checked', html=False)
+        # Another action has its own last run: none yet.
+        inclusion = self.client.get(self.form_url, {"review-id": self.review.pk, "phase": "inclusion"})
+        self.assertNotContains(inclusion, "The settings of the last")

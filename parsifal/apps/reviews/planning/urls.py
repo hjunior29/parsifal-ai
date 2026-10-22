@@ -17,6 +17,7 @@ urlpatterns = [
     path("save_objective/", views.save_objective, name="save_objective"),
     path("add_criteria/", views.add_criteria, name="add_criteria"),
     path("remove_criteria/", views.remove_criteria, name="remove_criteria"),
+    path("save_inclusion_rule/", views.save_inclusion_rule, name="save_inclusion_rule"),
     path("import_pico_keywords/", views.import_pico_keywords, name="import_pico_keywords"),
     path("add_keyword/", views.add_keyword, name="add_keyword"),
     path("edit_keyword/", views.edit_keyword, name="edit_keyword"),

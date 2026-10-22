@@ -64,4 +64,8 @@ urlpatterns = [
     path("ai_screening/start/", views.ai_screening_start, name="ai_screening_start"),
     path("ai_screening/preview/", views.ai_screening_preview, name="ai_screening_preview"),
     path("ai_screening/step/", views.ai_screening_step, name="ai_screening_step"),
+    path("ai_screening/impact/", views.ai_screening_impact, name="ai_screening_impact"),
+    path("ai_runs/", views.ai_runs_window, name="ai_runs"),
+    path("ai_runs/run/", views.ai_run, name="ai_run"),
+    path("ai_runs/undo/", views.ai_run_undo, name="ai_run_undo"),
 ]

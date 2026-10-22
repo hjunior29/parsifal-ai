@@ -1,7 +1,8 @@
 """
-What an AI screening run (Exclude with AI, Include with AI) sends to Jev for each study, as a template the reviewer
-can edit. A template is a JSON object with two parts: ``state``, what Jev reads about the study, and ``question``,
-what Jev is asked about it.
+What an AI screening run (Exclude with AI, Include with AI, Screen with AI) sends to Jev for each study, as a
+template the reviewer can edit. A template is a JSON object: ``state``, what Jev reads about the study, and what Jev
+is asked about it — ``question`` in Exclude and Include with AI; ``exclusion`` and ``inclusion`` in Screen with AI,
+which asks both in the same request.
 
 Everything in a template can be edited except the data, which are placeholders that Parsifal fills in:
 
@@ -9,7 +10,8 @@ Everything in a template can be edited except the data, which are placeholders t
   ``{{review.title}}``, ``{{review.objective}}``, ``{{review.research_questions}}``…;
 - ``{{guidance}}``, the run's extra guidance;
 - the study: ``{{study}}`` (as an object), ``{{study.title}}``, ``{{study.keywords}}``, ``{{study.abstract}}``;
-- the criteria, from the protocol: ``{{key}}`` (E1, I1…) and ``{{criterion}}`` (its description).
+- the criteria the run sends, from the protocol: ``{{key}}`` (E1, I1…) and ``{{criterion}}`` (its description), where
+  one criterion is asked about.
 
 A placeholder that is a whole value is replaced by the value itself (an object for ``{{review}}``, a list for the
 research questions), and when that value is empty the entry is left out, so empty context fields are not sent.
@@ -21,6 +23,10 @@ Each question is asked once, as the template words it; Parsifal reads its answer
   for every exclusion criterion, and one keyed ``none``.
 - Inclusion: one ``noul`` (yes/no) question per inclusion criterion, ``inclusion_I1``, ``inclusion_I2``…, whose
   ``criteria`` describe the ``true`` and ``false`` answers.
+- Screen: both, in one request — the exclusion question and the inclusion questions, about the same state.
+
+The defaults lean towards keeping a study when the title and abstract leave it uncertain: exclusion picks a
+criterion only when it is clearly indicated, inclusion answers yes when the study meets or may meet the criterion.
 """
 
 import copy
@@ -30,9 +36,15 @@ import re
 from parsifal.apps.core.exceptions import ValidationError
 from parsifal.apps.reviews.models import ScreeningRun
 
-EXCLUSION, INCLUSION = ScreeningRun.EXCLUSION, ScreeningRun.INCLUSION
+EXCLUSION, INCLUSION, SCREEN = ScreeningRun.EXCLUSION, ScreeningRun.INCLUSION, ScreeningRun.SCREEN
 CHOICE, NOUL = "choice", "noul"  # Jev's question types: one of several options; yes/no (answer: p(yes))
-QUESTION_TYPES = {EXCLUSION: CHOICE, INCLUSION: NOUL}
+# The parts of a template besides "state", each a question of the type Parsifal reads.
+QUESTIONS = {
+    EXCLUSION: {"question": (EXCLUSION, CHOICE)},
+    INCLUSION: {"question": (INCLUSION, NOUL)},
+    SCREEN: {"exclusion": (EXCLUSION, CHOICE), "inclusion": (INCLUSION, NOUL)},
+}
+QUESTION_TYPES = {EXCLUSION: CHOICE, INCLUSION: NOUL, SCREEN: f"{CHOICE}+{NOUL}"}
 NONE = "none"  # the exclusion option that no criterion applies
 YES, NO = "true", "false"  # the answers of a yes/no question
 EXCLUSION_QUESTION = "exclusion"  # the id of the exclusion question in the request and in Jev's answers
@@ -70,6 +82,7 @@ PLACEHOLDERS = (
 NAMES = {name for name, _description in PLACEHOLDERS}
 CRITERION_NAMES = {"key", "criterion"}  # only where a criterion is asked about
 DATA_NAMES = NAMES - CRITERION_NAMES
+ASKING_NAMES = DATA_NAMES | CRITERION_NAMES  # where one criterion is asked about
 OBJECT_NAMES = {"review", "study"}  # whole values only
 STUDY_NAMES = {"study", "study.title", "study.abstract"}  # Jev must read one of them
 PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z_.]+)\s*\}\}")
@@ -83,16 +96,20 @@ DEFAULTS = {
             "type": CHOICE,
             "instructions": {
                 "task": "Screening for a systematic review, from the title and abstract of a study: which exclusion "
-                "criterion do they indicate that the study meets?",
+                "criterion do they clearly indicate that the study meets?",
                 "rules": [
-                    "Choose an exclusion criterion if the title or abstract indicates that the study meets it, even "
-                    "when it is not stated in those words.",
-                    "If several criteria are indicated, choose the one most clearly indicated.",
-                    "Choose none only when the title and abstract do not indicate any exclusion criterion.",
+                    "Choose an exclusion criterion only if the title or abstract clearly indicates that the study "
+                    "meets it.",
+                    "If several criteria are clearly indicated, choose the one most clearly indicated.",
+                    "Choose none if no exclusion criterion is clearly indicated, or when it cannot be told from the "
+                    "title and abstract alone.",
                 ],
                 "guidance": "{{guidance}}",
             },
-            "criteria": {"{{key}}": "{{criterion}}", NONE: "No exclusion criterion applies to the study."},
+            "criteria": {
+                "{{key}}": "{{criterion}}",
+                NONE: "No exclusion criterion clearly applies to the study, or telling it needs the full text.",
+            },
         },
     },
     INCLUSION: {
@@ -100,21 +117,29 @@ DEFAULTS = {
         "question": {
             "type": NOUL,
             "instructions": {
-                "task": "Screening for a systematic review, from the title and abstract of a study: do they "
-                "explicitly show that the study meets this inclusion criterion?",
+                "task": "Screening for a systematic review, from the title and abstract of a study: does the study "
+                "meet, or potentially meet, this inclusion criterion?",
                 "rules": [
-                    "Answer yes only if the title or abstract explicitly shows that the study meets the criterion.",
-                    "Otherwise answer no.",
+                    "Answer yes if the title or abstract shows or suggests that the study meets the criterion, or "
+                    "when it cannot be told from the title and abstract alone.",
+                    "Answer no only if the title or abstract clearly shows that the study does not meet the "
+                    "criterion.",
                 ],
                 "guidance": "{{guidance}}",
                 "criterion": "{{criterion}}",
             },
             "criteria": {
                 YES: "{{criterion}}",
-                NO: "The title and abstract do not show that the study meets the inclusion criterion.",
+                NO: "The title and abstract clearly show that the study does not meet the inclusion criterion.",
             },
         },
     },
+}
+# Screen with AI: both questions about the same state, in one request.
+DEFAULTS[SCREEN] = {
+    "state": _STATE,
+    EXCLUSION: DEFAULTS[EXCLUSION]["question"],
+    INCLUSION: DEFAULTS[INCLUSION]["question"],
 }
 
 
@@ -203,20 +228,32 @@ def clean(phase, template):
             raise _invalid(
                 f"The request template is not valid JSON: {error.msg} (line {error.lineno}, column {error.colno})."
             )
-    if not isinstance(template, dict) or set(template) != {"state", "question"}:
-        raise _invalid('The request template must be an object with two parts, "state" and "question".')
+    questions = QUESTIONS[phase]
+    if not isinstance(template, dict) or set(template) != {"state", *questions}:
+        parts = ", ".join(f'"{name}"' for name in ("state", *questions))
+        raise _invalid(f"The request template must be an object with these parts: {parts}.")
     if len(json.dumps(template, ensure_ascii=False)) > MAX_LENGTH:
         raise too_long
 
-    state, question = template["state"], template["question"]
+    state = template["state"]
     if not isinstance(state, dict) and not (isinstance(state, str) and _whole(state) == "study"):
         raise _invalid('"state" must be an object: what Jev reads about each study.')
     used = _walk(state, '"state"', DATA_NAMES)
-    if not isinstance(question, dict):
-        raise _invalid('"question" must be an object: what Jev is asked about each study.')
-    expected = QUESTION_TYPES[phase]
-    if question.get("type") != expected:
-        raise _invalid(f'The question must keep "type": "{expected}", the kind of answer Parsifal reads.')
+    for name, (kind, expected) in questions.items():
+        question = template[name]
+        if not isinstance(question, dict):
+            raise _invalid(f'"{name}" must be an object: what Jev is asked about each study.')
+        if question.get("type") != expected:
+            raise _invalid(f'"{name}" must keep "type": "{expected}", the kind of answer Parsifal reads.')
+        used |= _clean_criterion_question(kind, question)
+    if not used & STUDY_NAMES:
+        raise _invalid("The request must send the study: use {{study.title}} or {{study.abstract}} (or {{study}}).")
+    return template
+
+
+def _clean_criterion_question(phase, question):
+    """The placeholders of an exclusion or inclusion question, checked: its options and answers are locked."""
+    used = set()
     criteria = question.get("criteria")
     if not isinstance(criteria, dict):
         raise _invalid('The question must keep "criteria", the answers Jev chooses from.')
@@ -233,22 +270,20 @@ def clean(phase, template):
         option, none = criteria[repeated[0]], criteria[NONE]
         if not isinstance(option, str) or not isinstance(none, str):
             raise _invalid('The "{{key}}" and "none" options must be texts.')
-        option_names = _names(option, 'the "{{key}}" option', NAMES)
+        option_names = _names(option, 'the "{{key}}" option', ASKING_NAMES)
         if "criterion" not in option_names:
             raise _invalid('The "{{key}}" option must include {{criterion}}, the criterion it stands for.')
         used |= option_names | _names(none, 'the "none" option', DATA_NAMES)
     else:
-        asked = _walk(rest, '"question"', NAMES)
+        asked = _walk(rest, '"question"', ASKING_NAMES)
         if set(criteria) != {YES, NO} or not all(isinstance(text, str) for text in criteria.values()):
             raise _invalid('The answers ("criteria") of the yes/no question must be "true" and "false", each a text.')
         for answer, text in criteria.items():
-            asked |= _names(text, f'the "{answer}" answer', NAMES)
+            asked |= _names(text, f'the "{answer}" answer', ASKING_NAMES)
         if "criterion" not in asked:
             raise _invalid("The question must include {{criterion}}: it is asked once for every inclusion criterion.")
         used |= asked
-    if not used & STUDY_NAMES:
-        raise _invalid("The request must send the study: use {{study.title}} or {{study.abstract}} (or {{study}}).")
-    return template
+    return used
 
 
 # Building a request --------------------------------------------------------------------------------------------------
@@ -341,7 +376,17 @@ def _inclusion_questions(question, options, values):
 
 
 def build(phase, template, options, values):
-    """The ``state`` and ``questions`` sent to Jev for one study (``values`` with the study)."""
+    """
+    The ``state`` and ``questions`` sent to Jev for one study (``values`` with the study): the exclusion question
+    about the options keyed E1…, one inclusion question per option keyed I1…
+    """
     state = _fill(template["state"], values)
-    build_questions = _inclusion_questions if phase == INCLUSION else _exclusion_questions
-    return ({} if state is _OMIT else state), build_questions(template["question"], options, values)
+    exclusion = [option for option in options if option["key"].startswith("E")]
+    inclusion = [option for option in options if option["key"].startswith("I")]
+    questions = {}
+    for name, (kind, _type) in QUESTIONS[phase].items():
+        if kind == EXCLUSION:
+            questions.update(_exclusion_questions(template[name], exclusion, values))
+        else:
+            questions.update(_inclusion_questions(template[name], inclusion, values))
+    return ({} if state is _OMIT else state), questions

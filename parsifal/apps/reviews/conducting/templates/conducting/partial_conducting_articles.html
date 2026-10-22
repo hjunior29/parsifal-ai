@@ -14,13 +14,17 @@
             Export Articles
           </button>
         </form>
-        <button type="button" class="btn btn-sm btn-default btn-ai-screening" data-phase="exclusion" title="Phase 1: Jev rejects the studies that clearly meet an exclusion criterion">
+        <button type="button" class="btn btn-sm btn-default btn-ai-screening" data-phase="exclusion" title="Jev rejects the studies that clearly meet an exclusion criterion">
           <span class="glyphicon glyphicon-flash"></span>
           Exclude with AI
         </button>
-        <button type="button" class="btn btn-sm btn-default btn-ai-screening" data-phase="inclusion" title="Phase 2: Jev accepts the studies that clearly meet every inclusion criterion">
+        <button type="button" class="btn btn-sm btn-default btn-ai-screening" data-phase="inclusion" title="Jev accepts the studies that meet the inclusion criteria (all, or one, as the protocol says)">
           <span class="glyphicon glyphicon-ok-circle"></span>
           Include with AI
+        </button>
+        <button type="button" class="btn btn-sm btn-default btn-ai-screening" data-phase="screen" title="Both in one request: Jev rejects by the exclusion criteria, else accepts by the inclusion criteria, else leaves the study undecided">
+          <span class="glyphicon glyphicon-filter"></span>
+          Screen with AI
         </button>
       </div>
     {% endif %}
@@ -79,6 +83,7 @@
           <th style="min-width: 80px;">Year</th>
           <th style="min-width: 100px;">Added by</th>
           <th style="min-width: 100px;">Added at</th>
+          <th class="ai-header" title="How likely the study is relevant, by the latest AI run that screened it: Exclude with AI, 1 − p(exclude); Include with AI, the deciding criterion's p(meets); Screen with AI, the lower of the two. Click to read the most likely first.">AI</th>
           <th>Status</th>
         </tr>
       </thead>
@@ -87,7 +92,7 @@
           {% include "conducting/partial_conducting_article_row.html" %}
         {% empty %}
           <tr class="no-data">
-            <td colspan="10">No articles.</td>
+            <td colspan="11">No articles.</td>
           </tr>
         {% endfor %}
       </tbody>

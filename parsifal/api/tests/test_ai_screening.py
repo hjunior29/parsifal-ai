@@ -95,16 +95,34 @@ class TestAiScreeningApi(AiScreeningApiBase):
     def test_setup(self):
         body = self.api("get", self.review_path("/ai-screening")).json()
         self.assertEqual((True, "jev-1.13.0"), (body["configured"], body["model"]))
-        self.assertEqual("Find screening tools.", body["context"]["objective"])
+        start = body["start"]
+        self.assertEqual("Find screening tools.", start["context"]["objective"])
         self.assertEqual(
             [{"key": "E1", "id": self.criteria.pk, "description": "Not a primary study"}], body["criteria"]
         )
-        self.assertEqual("choice", body["question_type"])
+        self.assertEqual(
+            (None, None, None, 0.9, {}, None, ["R", "U"], [self.criteria.pk], ""),
+            tuple(
+                start[k]
+                for k in (
+                    "from_run_id",
+                    "reviewer_id",
+                    "model",
+                    "threshold",
+                    "thresholds",
+                    "source_id",
+                    "statuses",
+                    "criteria_ids",
+                    "guidance",
+                )
+            ),
+        )
+        self.assertEqual(("choice", "all"), (body["question_type"], body["inclusion_rule"]))
         default = screening_requests.default("exclusion")
-        self.assertEqual((default, default), (body["template"], body["template_default"]))
+        self.assertEqual((default, default), (start["template"], body["template_default"]))
         self.assertIn({"name": "study.abstract", "description": "The study's abstract."}, body["placeholders"])
         self.assertEqual(
-            (0.9, 0.5, 0.99, 8, 50),
+            (0.9, 0.5, 0.99, 64, 64),
             tuple(
                 body[k]
                 for k in ("threshold_default", "threshold_min", "threshold_max", "step_size_default", "step_size_max")
@@ -124,7 +142,6 @@ class TestAiScreeningApi(AiScreeningApiBase):
         )
         self.assertEqual((MODELS, ""), (body["models"], body["models_error"]))
         self.assertEqual({self.author.pk, self.co_author.pk}, {reviewer["id"] for reviewer in body["reviewers"]})
-        self.assertIsNone(body["reviewer_id"])
 
         other = self.api("get", self.review_path("/ai-screening"), client=self.client_for(self.co_author)).json()
         self.assertEqual((False, None, []), (other["configured"], other["model"], other["models"]))
@@ -148,9 +165,21 @@ class TestAiScreeningApi(AiScreeningApiBase):
         self.assertEqual(
             ("Edited", ["R", "U"]), (run["parameters"]["context"]["objective"], run["parameters"]["statuses"])
         )
-        setup = self.api("get", self.review_path("/ai-screening")).json()
+        setup = self.api("get", self.review_path("/ai-screening")).json()["start"]  # the last run's settings
         self.assertEqual(
-            ("Find screening tools.", self.co_author.pk), (setup["context"]["objective"], setup["reviewer_id"])
+            (run["id"], "Edited", self.co_author.pk, "jev-1.14.0", "Be strict."),
+            (
+                setup["from_run_id"],
+                setup["context"]["objective"],
+                setup["reviewer_id"],
+                setup["model"],
+                setup["guidance"],
+            ),
+        )
+        defaults = self.api("get", self.review_path("/ai-screening"), QUERY_STRING="defaults=true").json()["start"]
+        self.assertEqual(
+            (None, "Find screening tools.", None, ""),
+            (defaults["from_run_id"], defaults["context"]["objective"], defaults["model"], defaults["guidance"]),
         )
         self.assertEqual(self.author.username, run["started_by"])
 
@@ -226,7 +255,7 @@ class TestAiScreeningApi(AiScreeningApiBase):
 
         run = self.api("post", start, {"source_id": self.source.pk, **me}).json()
         self.assertEqual(
-            422, self.api("post", self.review_path(f"/ai-screening/runs/{run['id']}/step"), {"size": 51}).status_code
+            422, self.api("post", self.review_path(f"/ai-screening/runs/{run['id']}/step"), {"size": 65}).status_code
         )
         with self.subTest(msg="setup shows the unfinished run; stepping it continues"):
             setup = self.api("get", self.review_path("/ai-screening")).json()
@@ -288,7 +317,7 @@ class TestRequestTemplateApi(AiScreeningApiBase):
         response = self.api("post", start, {"reviewer_id": self.author.pk, "template": edited})
         self.assertEqual(201, response.status_code, response.content)
         self.assertEqual(edited, response.json()["parameters"]["template"])
-        self.assertEqual(edited, self.api("get", self.review_path("/ai-screening")).json()["template"])
+        self.assertEqual(edited, self.api("get", self.review_path("/ai-screening")).json()["start"]["template"])
         response = self.api(
             "post", start, {"reviewer_id": self.author.pk, "template": screening_requests.as_text(edited)}
         )
@@ -321,7 +350,7 @@ class TestIncludeWithAiApi(AiScreeningApiBase):
         self.assertEqual("noul", body["question_type"])
         self.assertEqual((0.5, 0.99), (body["threshold_min"], body["threshold_max"]))
         self.assertNotIn("reject_threshold_min", body)
-        self.assertEqual(screening_requests.default("inclusion"), body["template"])
+        self.assertEqual(screening_requests.default("inclusion"), body["start"]["template"])
         self.assertEqual(["A", "U"], body["statuses_default"])
         self.assertEqual(2, body["scopes"][0]["studies"])
         exclusion = self.api("get", self.review_path("/ai-screening")).json()
@@ -340,15 +369,15 @@ class TestIncludeWithAiApi(AiScreeningApiBase):
         self.assertEqual((422, "thresholds"), (refused.status_code, refused.json()["field"]))
         self.assertIn("The threshold of I1 must be between 0.5 and 0.99", refused.json()["detail"])
         refused = self.api("post", start, {"reviewer_id": self.author.pk, "thresholds": ["E1=0.9"]})
-        self.assertIn("Per-criterion thresholds are for Include with AI", refused.json()["detail"])
+        self.assertIn("Per-criterion thresholds are for the inclusion criteria", refused.json()["detail"])
         response = self.api("post", start, {**inclusion, "thresholds": ["I1=0.85"]})
         self.assertEqual(201, response.status_code, response.content)
         run = response.json()
         self.assertEqual(("inclusion", 2, ["A", "U"]), (run["phase"], run["total"], run["parameters"]["statuses"]))
         self.assertEqual({"I1": 0.85}, run["parameters"]["thresholds"])
         setup = self.api("get", self.review_path("/ai-screening"), QUERY_STRING="phase=inclusion").json()
-        self.assertEqual({"I1": 0.85}, setup["thresholds"])
-        self.assertEqual({}, self.api("get", self.review_path("/ai-screening")).json()["thresholds"])
+        self.assertEqual({"I1": 0.85}, setup["start"]["thresholds"])
+        self.assertEqual({}, self.api("get", self.review_path("/ai-screening")).json()["start"]["thresholds"])
 
         with (
             mock.patch.object(ai_screening, "WORKERS", 1),
@@ -383,3 +412,104 @@ class TestIncludeWithAiApi(AiScreeningApiBase):
                 "post", self.review_path("/ai-screening/runs"), {"reviewer_id": self.author.pk, "phase": "maybe"}
             ).status_code,
         )
+
+
+def screen_answer(p_none, meets, model="jev-1.13.0"):
+    return {
+        "model": model,
+        "answers": {
+            "exclusion": {"type": "choice", "probabilities": {"E1": round(1 - p_none, 4), "none": p_none}},
+            "inclusion_I1": {"type": "noul", "noul": meets},
+        },
+    }
+
+
+class TestScreenWithAiApi(AiScreeningApiBase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.inclusion = SelectionCriteria.objects.create(
+            review=cls.review, criteria_type="I", description="Implemented tool"
+        )
+        cls.year = SelectionCriteria.objects.create(review=cls.review, criteria_type="E", description="Old year")
+
+    def test_setup_preview_and_run(self):
+        body = self.api("get", self.review_path("/ai-screening"), QUERY_STRING="phase=screen").json()
+        self.assertEqual(
+            ("screen", "choice+noul", ["A", "R", "U"]),
+            (body["phase"], body["question_type"], body["statuses_default"]),
+        )
+        self.assertEqual(["E1", "E2", "I1"], [option["key"] for option in body["criteria"]])
+        self.assertEqual((0.9, {"I1": 0.9}), (body["start"]["threshold"], body["start"]["thresholds"]))
+        self.assertEqual({"state", "exclusion", "inclusion"}, set(body["start"]["template"]))
+
+        preview = self.api(
+            "post",
+            self.review_path("/ai-screening/preview"),
+            {"phase": "screen", "article_id": self.primary.pk, "criteria_ids": [self.criteria.pk, self.inclusion.pk]},
+        ).json()
+        self.assertEqual(["exclusion", "inclusion_I1"], list(preview["request"]["questions"]))
+        self.assertEqual({"E1", "none"}, set(preview["request"]["questions"]["exclusion"]["criteria"]))
+
+        start = self.review_path("/ai-screening/runs")
+        screen = {
+            "reviewer_id": self.author.pk,
+            "phase": "screen",
+            "criteria_ids": [self.criteria.pk, self.inclusion.pk],
+        }
+        refused = self.api("post", start, {**screen, "criteria_ids": [self.criteria.pk]})
+        self.assertEqual((422, "criteria_ids"), (refused.status_code, refused.json()["field"]))
+        response = self.api("post", start, {**screen, "threshold": 0.8, "thresholds": {"I1": 0.85}})
+        self.assertEqual(201, response.status_code, response.content)
+        run = response.json()
+        self.assertEqual(
+            ("screen", 2, 0.8, {"I1": 0.85}, [self.year.pk]),
+            (
+                run["phase"],
+                run["total"],
+                run["parameters"]["threshold"],
+                run["parameters"]["thresholds"],
+                run["parameters"]["skipped_criteria"],
+            ),
+        )
+        with (
+            mock.patch.object(ai_screening, "WORKERS", 1),
+            mock.patch.object(jev, "evaluate", side_effect=[screen_answer(0.1, 0.99), screen_answer(0.95, 0.9)]),
+        ):
+            step = self.api("post", self.review_path(f"/ai-screening/runs/{run['id']}/step"), {"size": 2}).json()
+        self.assertEqual(
+            ("finished", 1, 1, 0), tuple(step["run"][k] for k in ("status", "excluded", "included", "undecided"))
+        )
+        rejected, accepted = step["results"]
+        self.assertEqual(
+            ("excluded", "E1", 0.9, 0.99),
+            tuple(rejected[k] for k in ("outcome", "criteria_key", "p_exclude", "p_include")),
+        )
+        self.assertEqual(("included", 0.05, 0.9), tuple(accepted[k] for k in ("outcome", "p_exclude", "p_include")))
+        ranked = self.api("get", self.review_path("/articles"), QUERY_STRING="order=ai_score").json()["items"]
+        self.assertEqual(
+            [(self.primary.pk, 0.9), (self.secondary.pk, 0.1)], [(item["id"], item["ai_score"]) for item in ranked]
+        )
+        self.assertEqual(422, self.api("get", self.review_path("/articles"), QUERY_STRING="order=year").status_code)
+        # The next run starts from this one: the criteria left out stay out.
+        setup = self.api("get", self.review_path("/ai-screening"), QUERY_STRING="phase=screen").json()["start"]
+        self.assertEqual(
+            (run["id"], [self.criteria.pk, self.inclusion.pk]), (setup["from_run_id"], setup["criteria_ids"])
+        )
+
+    def test_the_inclusion_rule_and_retain_with_ai_removed(self):
+        response = self.api("patch", self.review_path(), {"inclusion_rule": "any"})
+        self.assertEqual(200, response.status_code, response.content)
+        self.assertEqual("any", response.json()["inclusion_rule"])
+        self.assertEqual(
+            "any",
+            self.api("get", self.review_path("/ai-screening"), QUERY_STRING="phase=inclusion").json()[
+                "inclusion_rule"
+            ],
+        )
+        self.assertEqual(422, self.api("patch", self.review_path(), {"inclusion_rule": "most"}).status_code)
+        refused = self.api(
+            "post", self.review_path("/ai-screening/runs"), {"reviewer_id": self.author.pk, "phase": "retention"}
+        )
+        self.assertEqual(422, refused.status_code)
+        self.assertIn("Retain with AI was removed", refused.json()["detail"])

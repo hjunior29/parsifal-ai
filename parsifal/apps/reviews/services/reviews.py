@@ -19,6 +19,7 @@ UPDATABLE_FIELDS = {
     "context": 200,
     "quality_assessment_cutoff_score": None,
     "review_type": None,
+    "inclusion_rule": None,
     "selection_procedure": 10000,
     "synthesis_strategy": 10000,
     "validity_threats": 10000,
@@ -80,6 +81,12 @@ def update_review(*, review, **fields):
         if name == "review_type":
             if value not in dict(Review.REVIEW_TYPES):
                 raise ValidationError("review_type must be 'slr' or 'mapping'.", field=name)
+        elif name == "inclusion_rule":
+            if value not in dict(Review.INCLUSION_RULES):
+                raise ValidationError(
+                    "inclusion_rule must be 'all' (a study meets every inclusion criterion) or 'any' (at least one).",
+                    field=name,
+                )
         elif name == "quality_assessment_cutoff_score":
             if isinstance(value, str):
                 value = value.replace(",", ".")

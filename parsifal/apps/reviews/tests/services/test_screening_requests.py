@@ -45,7 +45,11 @@ EDITED = {
 
 
 def build(phase, template, guidance="", study=STUDY):
-    options = INCLUSION_OPTIONS if phase == "inclusion" else EXCLUSION_OPTIONS
+    options = {
+        "exclusion": EXCLUSION_OPTIONS,
+        "inclusion": INCLUSION_OPTIONS,
+        "screen": EXCLUSION_OPTIONS + INCLUSION_OPTIONS,
+    }[phase]
     return screening_requests.build(phase, template, options, screening_requests.values(CONTEXT, guidance, study))
 
 
@@ -70,7 +74,7 @@ class TestDefaultRequests(SimpleTestCase):
                     "criteria": {
                         "E1": "Not a primary study",
                         "E2": "Not in English",
-                        "none": "No exclusion criterion applies to the study.",
+                        "none": screening_requests.DEFAULTS["exclusion"]["question"]["criteria"]["none"],
                     },
                 }
             },
@@ -102,12 +106,31 @@ class TestDefaultRequests(SimpleTestCase):
                 },
                 "criteria": {
                     "true": "Implemented tool",
-                    "false": "The title and abstract do not show that the study meets the inclusion criterion.",
+                    "false": screening_requests.DEFAULTS["inclusion"]["question"]["criteria"]["false"],
                 },
             },
             questions["inclusion_I2"],
         )
         self.assertEqual("inclusion_I3", screening_requests.inclusion_question_id("I3"))
+
+    def test_screen_both_questions_in_one_request(self):
+        default = screening_requests.default("screen")
+        self.assertEqual({"state", "exclusion", "inclusion"}, set(default))
+        self.assertEqual(screening_requests.default("exclusion")["question"], default["exclusion"])
+        self.assertEqual(screening_requests.default("inclusion")["question"], default["inclusion"])
+        state, questions = build("screen", default)
+        self.assertEqual({"review": REVIEW, "study": STUDY_READ}, state)
+        self.assertEqual(["exclusion", "inclusion_I1", "inclusion_I2"], list(questions))
+        self.assertEqual({"E1", "E2", "none"}, set(questions["exclusion"]["criteria"]))
+        self.assertEqual("Implemented tool", questions["inclusion_I2"]["instructions"]["criterion"])
+
+    def test_the_defaults_keep_a_study_when_it_is_uncertain(self):
+        exclusion = screening_requests.default("exclusion")["question"]["instructions"]["rules"]
+        inclusion = screening_requests.default("inclusion")["question"]["instructions"]["rules"]
+        self.assertIn("only if the title or abstract clearly indicates", exclusion[0])
+        self.assertIn("cannot be told from the title and abstract alone", exclusion[2])
+        self.assertIn("or when it cannot be told from the title and abstract alone", inclusion[0])
+        self.assertIn("Answer no only if", inclusion[1])
 
     def test_the_default_is_a_copy(self):
         screening_requests.default("exclusion")["question"]["type"] = "changed"
@@ -182,7 +205,7 @@ class TestCleanTemplate(SimpleTestCase):
         self.assertEqual(EDITED, screening_requests.clean("exclusion", EDITED))
         self.assertEqual(EDITED, screening_requests.clean("exclusion", json.dumps(EDITED)))
         self.assertEqual(EDITED, screening_requests.clean("exclusion", screening_requests.as_text(EDITED)))
-        for phase in ("exclusion", "inclusion"):
+        for phase in ("exclusion", "inclusion", "screen"):
             self.assertEqual(screening_requests.default(phase), screening_requests.clean(phase, None))
             self.assertEqual(screening_requests.default(phase), screening_requests.clean(phase, "  "))
             default = screening_requests.default(phase)
@@ -197,8 +220,15 @@ class TestCleanTemplate(SimpleTestCase):
 
         cases = [
             ("exclusion", '{"state": ', "not valid JSON: Expecting value (line 1, column 11)"),
-            ("exclusion", [], 'an object with two parts, "state" and "question"'),
-            ("exclusion", dict(EDITED, notes="x"), 'two parts, "state" and "question"'),
+            ("exclusion", [], 'an object with these parts: "state", "question"'),
+            ("exclusion", dict(EDITED, notes="x"), 'these parts: "state", "question"'),
+            ("screen", EDITED, 'these parts: "state", "exclusion", "inclusion"'),
+            (
+                "screen",
+                edited("screen", lambda t: t["inclusion"].update(type="choice")),
+                '"inclusion" must keep "type": "noul"',
+            ),
+            ("screen", edited("screen", lambda t: t.update(exclusion=[])), '"exclusion" must be an object'),
             ("exclusion", dict(EDITED, state="x"), '"state" must be an object'),
             ("exclusion", dict(EDITED, question=[]), '"question" must be an object'),
             ("exclusion", edited("exclusion", question(lambda q: q.update(type="noul"))), 'keep "type": "choice"'),
@@ -260,6 +290,11 @@ class TestCleanTemplate(SimpleTestCase):
                 "at most 20000 characters",
             ),
             ("exclusion", "x" * 20001, "at most 20000 characters"),
+            (
+                "exclusion",
+                edited("exclusion", lambda t: t["state"].update(criteria="{{exclusion_criteria}}")),
+                "Unknown placeholder {{exclusion_criteria}}",
+            ),
         ]
         for phase, template, message in cases:
             with self.subTest(message=message, template=str(template)[:80]):
@@ -271,3 +306,4 @@ class TestCleanTemplate(SimpleTestCase):
         names = [name for name, _description in screening_requests.PLACEHOLDERS]
         self.assertEqual(len(names), len(set(names)))
         self.assertTrue({"review", "review.research_questions", "study.abstract", "key", "criterion"} <= set(names))
+        self.assertFalse({"inclusion_criteria", "exclusion_criteria"} & set(names))  # Retain with AI's, removed

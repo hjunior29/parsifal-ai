@@ -434,3 +434,133 @@ continued. Without the rotations the option order of the exclusion question is
 the protocol's (alphabetical by description), and nothing compensates the
 model's lean towards the first option.
 
+## Retain with AI: one retention question per study, as in Matsui and Takaesu's study
+
+**Context.** Helder read Matsui and Takaesu's preprint evaluating Jev for title
+and abstract screening (medRxiv, 2026, doi:10.64898/2026.09.25.26364021; code at
+github.com/matsuikentaro1/jev-title-abstract-screening). Their primary analysis
+asked one yes/no question per record — "should it be retained for a review of
+…?" — with the eligibility criteria and "retain when uncertain" rules in the
+state, and retained the records with p(yes) ≥ 0.5, rejecting the rest. He asked
+for that as a new button after Include with AI, leaving the two phases as they
+are.
+
+**Decision.** A third run `phase`, `retention` (*Retain with AI*). One `noul`
+question, `retention`; the request template puts every inclusion and exclusion
+criterion in the state through two new placeholders, `{{inclusion_criteria}}`
+and `{{exclusion_criteria}}` (lists; allowed only in this phase, and at least
+one of them required), and its `criteria` (true/false) are optional, as the
+study sent none. The default template follows the study's wording; the
+criteria come from the protocol rather than a text drafted per review.
+`p(retain)` ≥ the run's `threshold` (0.01–0.99, default 0.5, the study's
+prespecified cutoff) accepts the study; below it the study is rejected, without
+a criterion. Default statuses A, R and U; the run changes unclassified studies
+and those this reviewer accepted or rejected. `p_include` holds `p(retain)`,
+`probabilities` `{"retain": p}`, and the outcomes reuse `included` and
+`excluded`. Web, API, CLI and MCP take it as `phase`.
+
+**Consequences.** One migration (the phase choice). A low threshold is allowed
+because, unlike the two phases, a lower value here is the cautious one (more
+studies retained); the study found 0.14–0.49 kept every study its reviewers
+kept. The rejections carry no criterion, so they are not comparable criterion
+by criterion with Exclude with AI's.
+
+## AI runs: undo a run, run it again, confirm before starting
+
+**Context.** Helder kept running AI screening runs by mistake (the wrong action,
+reviewer or statuses) and then had to ask for them to be undone by hand, after a
+backup, with a script that rebuilt the decisions from the earlier runs. He asked
+for a control panel for the runs, in a window rather than a page: undo a run
+(taking back the evaluations of it that still exist), run one again with the
+same settings, and a confirmation before a run that rewrites something.
+
+**Decision.** A window, *AI runs*, next to *Reviewer agreement*: the runs, how
+much of each still stands, details (what was sent, Jev's answer per study), Run
+again and Undo. Undo works only on the review's latest run, so runs are undone
+one at a time from the newest (once the latest is undone, the run before it is
+the latest), and only on what still stands of it: the reviewer's decision while
+it is still the run's
+(`StudyDecision.run`, cleared when anyone records the decision by hand), and a
+study's status while nobody changed it since — same status, the run's reviewer as
+last editor and the run's `processed_at` as `updated_at`, which the run now
+writes. What a run replaced is kept in its result at the moment it records the
+study (`status_set`, `previous_criteria`, `previous_updated_by`,
+`previous_updated_at`, `previous_decision`; the status before is
+`previous_status`). Undoing deletes the run and its results, as Helder chose;
+a restored decision belongs again to the run that made it and a restored study
+is again as that run left it, so the run before can be undone next. Undoing any
+run in any order was built first — a later run whose "before" was the undone
+run's "after" took over the undone run's "before" — and dropped when Helder
+chose the latest run only: a stack is easier to follow, and nothing has to be
+handed over between runs. Runs from before this cannot be undone
+(`ScreeningRun.undoable`, false for them in the migration): they kept nothing of
+what came before them. Same permissions as starting a run; never while a run is
+being screened (409). Run again opens the setup window with the run's settings
+(`run-id`); the API's `rerun` starts one with changes. Before starting, the
+window asks `impact` and needs a second click only when the run would rewrite
+decisions of the reviewer or change studies the reviewer classified; the CLI does
+the same on a terminal (`--yes` skips it), through a `check` operation in the
+registry that `undo` also uses to show what it will do.
+
+**Consequences.** One migration (the new fields; existing runs not undoable). A
+study edited for any reason after a run (its `updated_at` changes) keeps its
+status when the run is undone, the safe side: undo never overwrites a later
+change. To undo an older run, the runs after it are undone first. Undoing cannot
+itself be undone, and leaves no log of the deleted run.
+
+## AI screening without phases: Screen with AI, criteria chosen, the last run's settings
+
+**Context.** Helder went through an external critique of how Parsifal uses Jev
+(2026-10-22), point by point. One request per study stays: the article's own
+data show that bundling studies costs relevant ones (0.947 → 0.920 sensitivity
+from 1 to 50 studies per request), for savings of cents at his scale. He kept
+Exclude and Include with AI as separate actions and asked for: a third action
+that asks both in one request; no more "phase 1 / phase 2", since the actions
+have no order; Retain with AI removed; default request rules that keep a study
+when the abstract leaves it uncertain, changed in the template only; choosing
+the criteria sent (a run of his rejected studies by a publication-period
+criterion, which Jev cannot see in a title and abstract); every window starting from the last
+run of the action, with a Restore defaults; whether the inclusion criteria all
+must be met or one, declared in the protocol; a way to read the studies in the
+order Jev ranks them; 32 requests at once. The model version stays as he
+chooses it (each answer records the version that gave it).
+
+**Decision.**
+- **Screen with AI** (`phase=screen`): one request with the exclusion choice
+  question and the inclusion yes/no questions; exclusion wins (a criterion
+  that reaches the exclusion threshold rejects the study even when the
+  inclusion criteria are met, as Helder chose), else the inclusion criteria
+  accept, else the study stays unclassified. Its template has `state`,
+  `exclusion` and `inclusion`.
+- **Retain with AI** is gone from the actions; its runs stay in the history
+  (details, undo), cannot be run again, and an unfinished one is closed.
+- **Default rules**: exclusion only when clearly indicated, `none` when the
+  full text is needed; inclusion yes when the study meets or may meet the
+  criterion, no only when it clearly does not. Include with AI still never
+  rejects, so its looser rule only accepts more for the reviewers to confirm
+  at full text.
+- **Criteria chosen** per run (`criteria_ids`; the run keeps
+  `skipped_criteria`), with the protocol's keys (E1…/I1…) kept. A criterion
+  added later starts checked.
+- **Starting settings**: a new run of an action takes every setting of the
+  review's last run of that action (`ai_screening.starting_settings`): the
+  window shows them, and the API, CLI and MCP take them for what a start
+  leaves out (`source_id` 0 for all sources). `defaults` restores Parsifal's,
+  in the window with one **Restore defaults** button for everything, the
+  request template included.
+- **`Review.inclusion_rule`** all/any, set in Planning; Include and Screen with
+  AI combine the criteria with it ("any": the criterion furthest above its
+  threshold decides) and keep it in the run's parameters.
+- **AI score**: the latest answer about each study gives how likely it is
+  relevant (exclusion 1 − p(exclude), inclusion the deciding p(meets), screen
+  the lower), shown and sortable in the study list and `ai_score` /
+  `order=ai_score` in the API — the article that motivated the critique found
+  Jev's probabilities rank well but are not calibrated.
+- **Concurrency**: 32 requests at once and steps of 64 studies (16 reached
+  about 11 studies a second against the rate limit's 18).
+
+**Consequences.** One migration (the rule and the action's choice). The
+reviewer's own request templates keep their old wording until Restore
+defaults; older runs keep theirs and their rule ("all"). A start through the
+API that leaves fields out now repeats the last run of the action rather than
+Parsifal's defaults; scripts that relied on the defaults pass `defaults`.

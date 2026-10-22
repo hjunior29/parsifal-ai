@@ -39,7 +39,7 @@ template). `DATABASE_URL` is parsed by `dj-database-url`.
 | ~~`ELSEVIER_API_KEY`~~ | — | — | Scopus search removed (cleanup round, 2026-10-16). |
 | `PARSIFAL_ALLOW_SIGNUP` | `False` | `SignUpView`, header, cover page | Added in phase 1. When `False`, `/signup/` answers 403 unless the request carries a pending invite code; the admin creates accounts (`createsuperuser`, admin site) or users arrive through co-author invites. |
 | `PARSIFAL_ENVIRONMENT` | `local` | context processor, `environment` command | Keep. |
-| `JEV_API_URL` | `https://api.typesafe.ai` | `core/jev.py` | Base URL of Jev for *Exclude/Include with AI*; can point to a compatible server. The API key is per user, in Settings → Integrations. |
+| `JEV_API_URL` | `https://api.typesafe.ai` | `core/jev.py` | Base URL of Jev for *Exclude/Include/Screen with AI*; can point to a compatible server. The API key is per user, in Settings → Integrations. |
 | `JEV_REQUESTS_PER_MINUTE` | `1080` | `core/jev.py` | Requests per minute sent to Jev with one key, across the threads of a process (TypeSafe allows 1,200); a 429 holds them all for its Retry-After. Lower it if Jev answers 429 often; `0` turns the spacing off. |
 | `PARSIFAL_HTTPS` | `False` | `production.py` | Phase 6. Enables secure cookies, HSTS and the HTTPS redirect. |
 | `CSRF_TRUSTED_ORIGINS` | empty (CSV) | `production.py` | Phase 6. |

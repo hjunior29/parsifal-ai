@@ -49,7 +49,7 @@ parameters in kebab-case; `--review` accepts a numeric id or `author/slug`.
 | `analytics` | `selection-by-source`, `final-by-year`, `facet-frequencies`, `facet-matrix` |
 | `export` | `articles`, `extraction`, `report` (all take `-o FILE`) |
 | `integration jev` | `show`, `set`, `test`, `remove` |
-| `ai-screening` | `setup`, `preview` (the request a run would send), `start`, `step`, `runs`, `show`, `results`, and `run` (start, or continue with `--run`, and screen to the end; `--phase inclusion` for Include with AI) — see [Exclude and include with AI](/docs/ai-screening/) |
+| `ai-screening` | `setup`, `preview` (the request a run would send), `impact` (what a run would rewrite), `start`, `step`, `runs`, `show`, `results`, `rerun` (a new run with another's settings), `undo-preview`, `undo` (the latest run), and `run` (start, or continue with `--run`, and screen to the end; `--phase inclusion` for Include with AI, `--phase screen` for Screen with AI; what is left out takes the last run's settings, `--defaults` Parsifal's; `--criteria-ids` picks the criteria sent) — see [Exclude, include and screen with AI](/docs/ai-screening/) |
 
 `parsifal <group> --help` lists the options of every command.
 
@@ -63,7 +63,9 @@ parameters in kebab-case; `--review` accepts a numeric id or `author/slug`.
 - Exit codes: `0` ok · `1` error · `2` invalid input · `3` authentication or
   permission · `4` not found · `5` conflict · `6` cannot connect.
 - Destructive commands ask for confirmation only on an interactive terminal;
-  scripts pass `--yes`.
+  scripts pass `--yes`. Some say first what they will do: `ai-screening undo`
+  shows what undoing the run takes back, and `ai-screening start`, `run` and
+  `rerun` ask only when the run would rewrite the reviewer's decisions.
 
 ## Example
 

@@ -78,4 +78,20 @@ $(function () {
       }
     });
   });
+
+  // Whether a study must meet all the inclusion criteria or at least one.
+  $("#inclusion-rule").change(function () {
+    var $status = $(".js-inclusion-rule-status").text("Saving…");
+    $.ajax({
+      url: "/reviews/planning/save_inclusion_rule/",
+      type: "post",
+      data: {
+        "review-id": $("#review-id").val(),
+        "inclusion-rule": $(this).val(),
+        "csrfmiddlewaretoken": $("input[name=csrfmiddlewaretoken]").first().val()
+      },
+      success: function () { $status.text("Saved."); },
+      error: function (xhr) { $status.text(xhr.responseText || "Could not save."); }
+    });
+  });
 });

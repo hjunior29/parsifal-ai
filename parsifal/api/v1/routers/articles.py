@@ -33,11 +33,13 @@ def articles_list(
     q: str | None = None,
     finished_data_extraction: bool | None = None,
     starred: bool | None = None,
+    order: str | None = None,
 ):
     """
     Articles of the review; ``status`` is U (unclassified), A (accepted), R (rejected) or D (duplicated); ``q``
     searches the title, DOI and BibTeX key (a DOI may be pasted as a doi.org link); ``starred=true`` keeps the
-    starred ones (``false``, the others).
+    starred ones (``false``, the others). ``order``: ``title`` (default) or ``ai_score``, the most likely relevant
+    first by the latest AI run (``ai_score``), the studies no run answered about last.
     """
     review = get_review(request, review_id)
     return studies.list_articles(
@@ -47,6 +49,7 @@ def articles_list(
         query=q,
         finished_data_extraction=finished_data_extraction,
         starred=starred,
+        order=order,
     ).select_related("created_by", "updated_by")
 
 

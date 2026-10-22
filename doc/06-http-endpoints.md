@@ -109,6 +109,7 @@ Action endpoints, all under `/reviews/planning/`, guard **A** unless noted:
 | `remove_source/` | GET* | `review-id`, `source-id` | Detaches; default source → deletes review articles + search string from it; custom → deletes `Source` row |
 | `add_criteria/` | GET* | `review-id`, `criteria`, `criteria-type` (`I`/`E`) | frag `<option>` |
 | `remove_criteria/` | GET* | `review-id`, `criteria-ids` (csv) | empty |
+| `save_inclusion_rule/` | POST | `review-id`, `inclusion-rule` (`all`/`any`) | the rule's label, or 400 with the reason; whether a study must meet all the inclusion criteria or one (Include and Screen with AI follow it) |
 | `add_quality_assessment_question/` | GET | | frag empty form |
 | `edit_quality_assessment_question/` | GET | `review-id` (sent by JS, used only by the guard), `quality-question-id` | frag form (child lookup not scoped to the review) |
 | `save_quality_assessment_question/` | POST | `review-id`, `quality-question-id` (`None`/id), `description` | frag |
@@ -162,10 +163,14 @@ Action endpoints under `/reviews/conducting/`, guard **A** unless noted:
 | `resolve_duplicated/` | POST | `article-id` | status `D` (checks review membership) |
 | `resolve_all/` | POST | `review-id` | Marks all but first of each group `D`; csv of ids |
 | `export_results/` | POST | `review-id` | `articles.xls` |
-| `ai_screening/` | GET | `review-id`, `phase` (exclusion, default, or inclusion) | frag of the *Exclude with AI* / *Include with AI* window (setup form prefilled from the review, or a pointer to Settings → Integrations / Planning) |
-| `ai_screening/start/` | POST | `review-id`, `context-<field>` (title, objective, research_questions, population, intervention, comparison, outcome, context), `guidance`, `template` (the request to Jev as JSON text), `threshold` (exclusion: to reject; inclusion: to accept), `source-id` (empty = all), `statuses` (repeated: U, R, A, D), `reviewer-id`, `model`, `phase` | JSON `{run}` or 400 `{error}`; opens a `ScreeningRun` |
-| `ai_screening/preview/` | POST | the fields of `ai_screening/start/` that shape the request (`phase`, `model`, `context-<field>`, `guidance`, `template`, `source-id`, `statuses`), optional `article-id` | JSON `{article: {id, title}, request: {model, state, questions}}` or 400 `{error}`; what a run would send about the first study in scope; nothing is sent |
-| `ai_screening/step/` | POST | `review-id`, `run-id` | JSON `{run, results[]}`; screens the next 8 studies; also continues an interrupted run (the window offers it) |
+| `ai_screening/` | GET | `review-id`, `phase` (exclusion, default, inclusion or screen), optional `run-id`, optional `defaults` | frag of the *Exclude with AI* / *Include with AI* / *Screen with AI* window (setup form prefilled with every setting of the review's last run of the action; with `defaults`, Parsifal's (*Restore defaults*); with `run-id`, that run's, in its action, for *Run again*; or a pointer to Settings → Integrations / Planning) |
+| `ai_screening/start/` | POST | `review-id`, `context-<field>` (title, objective, research_questions, population, intervention, comparison, outcome, context), `guidance`, `template` (the request to Jev as JSON text), `threshold` (exclusion and screen: to reject), `threshold-I1`… (inclusion and screen: to accept), `source-id` (empty = all), `statuses` (repeated: U, R, A, D), `criteria` (repeated criteria ids, with `criteria-sent=1`: the criteria sent), `reviewer-id`, `model`, `phase` | JSON `{run}` or 400 `{error}`; opens a `ScreeningRun` |
+| `ai_screening/preview/` | POST | the fields of `ai_screening/start/` that shape the request (`phase`, `model`, `context-<field>`, `guidance`, `template`, `source-id`, `statuses`, `criteria`), optional `article-id` | JSON `{article: {id, title}, request: {model, state, questions}}` or 400 `{error}`; what a run would send about the first study in scope; nothing is sent |
+| `ai_screening/step/` | POST | `review-id`, `run-id` | JSON `{run, results[]}`; screens the next 64 studies, up to 32 at a time; also continues an interrupted run (the window offers it) |
+| `ai_screening/impact/` | POST | `review-id`, `reviewer-id`, `phase`, `source-id`, `statuses` | JSON `{studies, decisions, classified, confirm, message, …}` or 400 `{error}`; what the run would rewrite, asked by *Start screening* (when `confirm`, the button becomes *Start anyway*) |
+| `ai_runs/` | GET | `review-id` | frag of the *AI runs* window: the runs, newest first, with how much of each still stands and Details, Run again, Undo (on the latest run) |
+| `ai_runs/run/` | GET | `review-id`, `run-id` | frag: one run's settings and Jev's answer for each study |
+| `ai_runs/undo/` | GET · POST | `review-id`, `run-id` | GET: frag of what undoing the run would do, with a confirmation checkbox; POST: undoes it and returns the list frag with what was done; 400 with the reason when it cannot be undone (only the latest run can) |
 | `save_quality_assessment/` | POST | `article-id`, `question-id`, `answer-id` | Upsert assessment; text score (**no review scoping**) |
 | `quality_assessment_detailed/` | GET | `review-id` | frag per-article tables (order from session) |
 | `quality_assessment_summary/` | GET | `review-id` | frag |

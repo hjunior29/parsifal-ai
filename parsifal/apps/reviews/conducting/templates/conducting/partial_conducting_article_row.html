@@ -8,5 +8,6 @@
   <td>{{ article.year|default_if_none:"" }}</td>
   <td>{{ article.created_by.profile.get_screen_name }}</td>
   <td>{{ article.created_at|date:"d M Y H:i:s" }}</td>
+  {% with score=article.ai_score %}<td class="text-right" data-score="{{ score|default_if_none:'' }}"{% if article.ai_score_label %} title="{{ article.ai_score_label }}"{% endif %}>{% if score is not None %}{{ score|stringformat:".2f" }}{% endif %}</td>{% endwith %}
   <td class="js-status">{{ article.get_status_html|safe }}</td>
 </tr>
