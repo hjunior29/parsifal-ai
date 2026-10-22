@@ -238,6 +238,8 @@ class AiScreeningViewsTest(AiScreeningViewsBase):
                 {
                     "title": "A study",
                     "outcome": "excluded",
+                    "status": "Rejected",  # a status the study list has, never "excluded" or "passed"
+                    "kept": None,
                     "p_exclude": 0.96,
                     "p_include": None,
                     "criteria": "E1",

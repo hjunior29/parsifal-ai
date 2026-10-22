@@ -213,6 +213,10 @@ class ScreeningResultOut(Schema):
     # Inclusion and screen: p(meets) of the deciding criterion — rule "all": the one closest to (or furthest below)
     # its threshold; rule "any": the one furthest above (or closest to) it. Older retention runs: p(retain).
     p_include: float | None
+    # The status the run gave the study, as the study list names them (the reviewer's decision): R, A or U; null when
+    # it was not screened (pending, error). ``outcome`` says which answer led there.
+    status: str | None = None
+    kept_status: str | None = None  # the status the study kept instead, when the run could not change it
     criteria_key: str | None  # E1… of the criterion the study was rejected with
     selection_criteria_id: int | None
     # exclusion: {option: p}; inclusion: {criterion: p(meets)}; screen: both; older retention runs: {retain: p}
@@ -224,6 +228,14 @@ class ScreeningResultOut(Schema):
     @staticmethod
     def resolve_title(obj):
         return obj.article.title
+
+    @staticmethod
+    def resolve_status(obj):
+        return ai_screening.result_status(obj)
+
+    @staticmethod
+    def resolve_kept_status(obj):
+        return ai_screening.kept_status(obj)
 
     @staticmethod
     def resolve_criteria_key(obj):

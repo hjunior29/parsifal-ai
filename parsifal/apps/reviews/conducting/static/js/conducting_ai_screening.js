@@ -261,19 +261,25 @@ $(function () {
     var $log = $modal.find(".js-ai-log");
     $.each(results, function (index, result) {
       var $item = $("<li>");
-      if (result.outcome === "excluded") {
-        $item.append($("<span class='label label-danger'>").text("Rejected · " + result.criteria + " · " + result.p_exclude.toFixed(2)));
-      } else if (result.outcome === "passed") {
-        $item.append($("<span class='label label-default'>").text("Passed · " + result.p_exclude.toFixed(2)));
-      } else if (result.outcome === "included") {
-        $item.append($("<span class='label label-success'>").text("Accepted · " + result.p_include.toFixed(2)));
-      } else if (result.outcome === "undecided") {
-        $item.append($("<span class='label label-default'>").text("Undecided · " + result.p_include.toFixed(2)));
+      // The status the run gave the study, as the study list names it, with Jev's probability.
+      var labels = {Rejected: "label-danger", Accepted: "label-success", Unclassified: "label-default"};
+      if (result.status) {
+        var text = result.status;
+        if (result.criteria && result.outcome === "excluded") { text += " · " + result.criteria; }
+        var probability = result.outcome === "excluded" || result.p_include === null ? result.p_exclude : result.p_include;
+        if (probability !== null) { text += " · " + probability.toFixed(2); }
+        $item.append($("<span class='label'>").addClass(labels[result.status]).text(text));
+        if (result.kept) {
+          $item.attr("title", "Kept " + result.kept + ": classified by someone else; the reviewer's decision is recorded");
+        }
       } else {
         $item.append($("<span class='label label-warning'>").text("Error"));
         $item.attr("title", result.error);
       }
       $item.append(" ").append($("<span>").text(result.title));
+      if (result.kept) {
+        $item.append(" ").append($("<span class='text-muted'>").text("— kept " + result.kept));
+      }
       if (result.outcome === "error") {
         $item.append(" ").append($("<span class='text-muted'>").text("— " + result.error));
       }
@@ -329,9 +335,9 @@ $(function () {
     render(state, []);
     var titles = {finished: "Finished in " + clock(elapsed()) + ".", cancelled: "Discarded: another run was started."};
     var summaries = {
-      exclusion: " " + state.excluded + " rejected, " + state.passed + " passed (no criterion)",
-      inclusion: " " + state.included + " accepted, " + state.undecided + " undecided (left unclassified)",
-      screen: " " + state.excluded + " rejected, " + state.included + " accepted, " + state.undecided + " undecided (left unclassified)"
+      exclusion: " " + state.excluded + " rejected, " + state.passed + " unclassified",
+      inclusion: " " + state.included + " accepted, " + state.undecided + " unclassified",
+      screen: " " + state.excluded + " rejected, " + state.included + " accepted, " + state.undecided + " unclassified"
     };
     var summary = summaries[state.phase] || summaries.exclusion;
     if (state.failed) { summary += ", " + state.failed + " errors (those studies keep the reviewer's previous decision)"; }

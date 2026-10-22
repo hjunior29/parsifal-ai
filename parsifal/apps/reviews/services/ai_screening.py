@@ -1079,6 +1079,38 @@ def progress(run):
     return {"id": run.pk, "phase": run.phase, "status": run.status, "total": run.total, "error": run.error, **counts}
 
 
+# What a result means for the study, in the statuses the study list has --------------------------------------------
+
+# The reviewer's decision each answer records: the run gives the study this status when it may change it.
+DECISIONS = {
+    ScreeningResult.EXCLUDED: Article.REJECTED,
+    ScreeningResult.PASSED: Article.UNCLASSIFIED,
+    ScreeningResult.INCLUDED: Article.ACCEPTED,
+    ScreeningResult.UNDECIDED: Article.UNCLASSIFIED,
+}
+STATUS_NAMES = dict(Article.ARTICLE_STATUS)
+
+
+def result_status(result):
+    """
+    The status a run gave a study, as the study list names it — Rejected, Accepted or Unclassified (the reviewer's
+    decision) —, or None when the study was not screened (pending, error).
+    """
+    return DECISIONS.get(result.outcome)
+
+
+def kept_status(result):
+    """
+    The status the study kept instead of ``result_status``, when the run could not change it (it was classified by
+    someone else, or the action does not decide it), or None. Known for the runs that keep what came before them.
+    """
+    decided = result_status(result)
+    if decided is None or not result.run.undoable:
+        return None
+    status = result.status_set or result.previous_status
+    return status if status != decided else None
+
+
 # How likely a study is relevant, by the latest AI answer about it ---------------------------------------------------
 
 

@@ -1006,6 +1006,9 @@ def ai_screening_step(request):
                 {
                     "title": result.article.title or result.article.bibtex_key,
                     "outcome": result.outcome,
+                    # The status names the study list has: the run's decision, and the one the study kept instead.
+                    "status": ai_screening_service.STATUS_NAMES.get(ai_screening_service.result_status(result)),
+                    "kept": ai_screening_service.STATUS_NAMES.get(ai_screening_service.kept_status(result)),
                     "p_exclude": result.p_exclude,
                     "p_include": result.p_include,
                     "criteria": ai_screening_service.criteria_key(run, result.selection_criteria_id),
@@ -1104,15 +1107,6 @@ def ai_runs_window(request):
     return render(request, "conducting/partial_conducting_ai_runs.html", _ai_runs_context(request, review))
 
 
-# How a result reads in the run's details, by phase and outcome.
-OUTCOME_LABELS = {
-    ai_screening_service.EXCLUSION: {"excluded": "Rejected", "passed": "Passed"},
-    ai_screening_service.INCLUSION: {"included": "Accepted", "undecided": "Undecided"},
-    ai_screening_service.SCREEN: {"excluded": "Rejected", "included": "Accepted", "undecided": "Undecided"},
-    ai_screening_service.RETENTION: {"included": "Retained", "excluded": "Not retained"},
-}
-
-
 @author_required
 @login_required
 def ai_run(request):
@@ -1124,7 +1118,6 @@ def ai_run(request):
         return HttpResponseBadRequest(str(error))
     standing = set(run.decisions.values_list("article_id", flat=True))
     statuses = dict(Article.ARTICLE_STATUS)
-    labels = OUTCOME_LABELS[run.phase]
     results = []
     for result in ai_screening_service.list_results(run):
         if run.phase in (ai_screening_service.EXCLUSION, ai_screening_service.SCREEN):
@@ -1142,7 +1135,9 @@ def ai_run(request):
                 "result": result,
                 "title": result.article.title or result.article.bibtex_key,
                 "previous": statuses.get(result.previous_status, ""),
-                "outcome": labels.get(result.outcome) or result.get_outcome_display(),
+                # The study's status as the run left it (a status the study list has), or why it was not screened.
+                "outcome": statuses.get(ai_screening_service.result_status(result)) or result.get_outcome_display(),
+                "kept": statuses.get(ai_screening_service.kept_status(result)),
                 "probability": probability,
                 "detail": detail,
                 "standing": result.article_id in standing,

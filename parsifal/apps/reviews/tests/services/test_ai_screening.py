@@ -1099,3 +1099,27 @@ class TestRelevance(AiScreeningTestCase):
         self.assertEqual([likely, unlikely, unscreened], list(studies.list_articles(self.review)))  # by title
         with self.assertRaisesMessage(ValidationError, "order must be title or ai_score"):
             studies.list_articles(self.review, order="year")
+
+
+class TestResultStatus(AiScreeningTestCase):
+    """What a result shows: only the statuses the study list has (never "passed" or "undecided")."""
+
+    def test_the_status_the_run_gave_and_the_one_kept(self):
+        for title in ("Rejected", "Passed"):
+            self.article(title=title)
+        self.article(title="Accepted by the owner", status=Article.ACCEPTED, updated_by=self.owner)
+        run = self.start(statuses=["U", "A"])
+        self.step(run, [EXCLUDE_E2, KEEP, EXCLUDE_E1])
+        statuses = {
+            result.article.title: (ai_screening.result_status(result), ai_screening.kept_status(result))
+            for result in run.results.select_related("article", "run")
+        }
+        self.assertEqual(
+            {
+                "Rejected": (Article.REJECTED, None),
+                "Passed": (Article.UNCLASSIFIED, None),
+                "Accepted by the owner": (Article.REJECTED, Article.ACCEPTED),  # the reviewer's decision; kept
+            },
+            statuses,
+        )
+        self.assertEqual({"R", "U", "A"}, set(ai_screening.STATUS_NAMES) - {"D"})

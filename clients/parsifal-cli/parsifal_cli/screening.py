@@ -87,13 +87,14 @@ class Stopwatch:
 
 
 def progress_line(run, stopwatch=None):
+    # The studies by the status the run gave them, as the study list names it.
     if run.get("phase") == "inclusion":
-        outcomes = f"{run['included']} accepted · {run['undecided']} undecided"
+        outcomes = f"{run['included']} accepted · {run['undecided']} unclassified"
     elif run.get("phase") == "screen":
-        outcomes = f"{run['excluded']} rejected · {run['included']} accepted · {run['undecided']} undecided"
+        outcomes = f"{run['excluded']} rejected · {run['included']} accepted · {run['undecided']} unclassified"
     elif run.get("phase") == "retention":  # older runs of the removed Retain with AI
-        outcomes = f"{run['included']} retained · {run['excluded']} not retained"
+        outcomes = f"{run['included']} accepted · {run['excluded']} rejected"
     else:
-        outcomes = f"{run['excluded']} rejected · {run['passed']} passed"
+        outcomes = f"{run['excluded']} rejected · {run['passed']} unclassified"
     line = f"{run['processed']}/{run['total']} screened · {outcomes} · {run['failed']} errors"
     return f"{line} · {stopwatch.text(run)}" if stopwatch else line

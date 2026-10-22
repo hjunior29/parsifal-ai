@@ -66,7 +66,7 @@ def test_cli_run_starts_and_screens_to_the_end(runner, fake_api):
     )
     assert result.exit_code == 0, result.output
     assert "Run 3: 2 studies to screen." in result.output
-    assert "1/2 screened · 1 rejected · 0 passed · 0 errors" in result.output
+    assert "1/2 screened · 1 rejected · 0 unclassified · 0 errors" in result.output
     assert '"status": "finished"' in result.output
     assert bodies(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs") == [
         {"guidance": "Be strict.", "threshold": 0.95, "statuses": ["R", "A"]}
@@ -108,7 +108,7 @@ def test_drive_stops_at_the_time_budget(fake_api):
         on_step=lambda r, _: seen.append(r["processed"]),
     )
     assert (run["status"], run["processed"], seen) == ("running", 1, [1])
-    assert screening.progress_line(run) == "1/2 screened · 1 rejected · 0 passed · 0 errors"
+    assert screening.progress_line(run) == "1/2 screened · 1 rejected · 0 unclassified · 0 errors"
 
 
 def interrupted_routes(fake_api):
@@ -178,7 +178,7 @@ def test_cli_run_include_with_ai(runner, fake_api):
         ],
     )
     assert result.exit_code == 0, result.output
-    assert "2/2 screened · 1 accepted · 1 undecided · 0 errors" in result.output
+    assert "2/2 screened · 1 accepted · 1 unclassified · 0 errors" in result.output
     assert bodies(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs") == [
         {"reviewer_id": 4, "phase": "inclusion", "threshold": 0.95}
     ]
@@ -186,13 +186,13 @@ def test_cli_run_include_with_ai(runner, fake_api):
 
 def test_progress_line_per_phase():
     assert screening.progress_line(progressed(processed=2, excluded=1, passed=1)) == (
-        "2/2 screened · 1 rejected · 1 passed · 0 errors"
+        "2/2 screened · 1 rejected · 1 unclassified · 0 errors"
     )
     assert screening.progress_line(progressed(phase="inclusion", processed=2, included=2)) == (
-        "2/2 screened · 2 accepted · 0 undecided · 0 errors"
+        "2/2 screened · 2 accepted · 0 unclassified · 0 errors"
     )
     assert screening.progress_line(progressed(phase="retention", processed=2, included=1, excluded=1)) == (
-        "2/2 screened · 1 retained · 1 not retained · 0 errors"
+        "2/2 screened · 1 accepted · 1 rejected · 0 errors"
     )
 
 
@@ -217,7 +217,7 @@ def test_stopwatch_elapsed_and_time_left_at_the_current_pace():
     stopwatch.step(run, [{}] * 30)  # 10 were screened before (a continued run): 30 in 30 s here
     assert stopwatch.text(run) == "0:30 elapsed · about 1:00 left"
     assert screening.progress_line(run, stopwatch) == (
-        "40/100 screened · 40 rejected · 0 passed · 0 errors · 0:30 elapsed · about 1:00 left"
+        "40/100 screened · 40 rejected · 0 unclassified · 0 errors · 0:30 elapsed · about 1:00 left"
     )
     now[0] += 60
     stopwatch.step(dict(run, processed=100, status="finished"), [{}] * 60)

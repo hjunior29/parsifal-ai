@@ -1,12 +1,12 @@
-{# The outcomes of a run, named as its action decides: ``run`` and its ``progress``. #}
+{# The studies of a run by the status it gave them (the statuses the study list has): ``run`` and its ``progress``. #}
 {% if run.phase == "inclusion" %}
-  {{ progress.included }} accepted · {{ progress.undecided }} undecided
+  {{ progress.included }} accepted · {{ progress.undecided }} unclassified
 {% elif run.phase == "screen" %}
-  {{ progress.excluded }} rejected · {{ progress.included }} accepted · {{ progress.undecided }} undecided
+  {{ progress.excluded }} rejected · {{ progress.included }} accepted · {{ progress.undecided }} unclassified
 {% elif run.phase == "retention" %}
-  {{ progress.included }} retained · {{ progress.excluded }} not retained
+  {{ progress.included }} accepted · {{ progress.excluded }} rejected
 {% else %}
-  {{ progress.excluded }} rejected · {{ progress.passed }} passed
+  {{ progress.excluded }} rejected · {{ progress.passed }} unclassified
 {% endif %}
 {% if progress.failed %} · {{ progress.failed }} errors{% endif %}
 <span class="text-muted">({{ progress.processed }} of {{ progress.total }})</span>

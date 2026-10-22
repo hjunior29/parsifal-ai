@@ -69,7 +69,7 @@
         <tr>
           <th>Study</th>
           <th>Before</th>
-          <th>Answer</th>
+          <th title="The status the run gave the study (the reviewer's decision)">Status</th>
           <th class="text-right">{% if run.phase == "exclusion" or run.phase == "screen" %}p(exclude){% elif run.phase == "retention" %}p(retain){% else %}p(meets){% endif %}</th>
           <th title="Whether the reviewer's decision on the study is still this run's">Stands</th>
         </tr>
@@ -81,6 +81,7 @@
             <td>{{ answer.previous }}</td>
             <td>
               {{ answer.outcome }}{% if answer.detail %} <span class="text-muted">· {{ answer.detail }}</span>{% endif %}
+              {% if answer.kept %}<br><small class="text-muted">kept {{ answer.kept }}: classified by someone else</small>{% endif %}
               {% if answer.result.error %}<br><span class="text-danger">{{ answer.result.error }}</span>{% endif %}
             </td>
             <td class="text-right">{% if answer.probability is not None %}{{ answer.probability|floatformat:2|unlocalize }}{% endif %}</td>

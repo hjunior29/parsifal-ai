@@ -228,7 +228,7 @@ def test_ai_screening_run_tool(server, fake_api):
         )
     )
     assert (result["id"], result["status"], result["excluded"]) == (RUN["id"], "finished", 1)
-    assert result["message"] == "Run finished: 2/2 screened · 1 rejected · 1 passed · 0 errors · 0:00 elapsed."
+    assert result["message"] == "Run finished: 2/2 screened · 1 rejected · 1 unclassified · 0 errors · 0:00 elapsed."
     assert "parameters" not in result
     assert bodies(fake_api, "POST", "/api/v1/reviews/7/ai-screening/runs") == [
         {"threshold": 0.95, "statuses": ["R", "U", "A"]}

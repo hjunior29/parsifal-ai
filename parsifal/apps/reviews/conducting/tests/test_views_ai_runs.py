@@ -47,7 +47,7 @@ class AiRunsViewsTest(AiScreeningViewsBase):
         self.assertContains(response, self.bot.username)
         self.assertContains(response, "Threshold 0.90")
         self.assertContains(response, "Rejected, Unclassified")
-        self.assertContains(response, "1 rejected · 0 passed")
+        self.assertContains(response, "1 rejected · 0 unclassified")
         # Undo on the latest run only.
         self.assertContains(response, f'data-run-id="{run.pk}">Undo</button>', html=False)
         self.assertNotContains(response, f'data-run-id="{older.pk}">Undo</button>', html=False)
