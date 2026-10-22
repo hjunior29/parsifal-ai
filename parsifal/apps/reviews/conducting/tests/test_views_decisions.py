@@ -1,6 +1,7 @@
 from django.test import TestCase
 from django.urls import reverse
 
+from parsifal.apps.accounts.models import LibraryAccess
 from parsifal.apps.authentication.tests.factories import UserFactory
 from parsifal.apps.reviews.conducting.views import build_article_table_row
 from parsifal.apps.reviews.models import Article, StudyDecision
@@ -56,6 +57,26 @@ class TestDecisionViews(TestCase):
         self.assertContains(response, 'title="Change the URL via Article URL"')
         Article.objects.filter(pk=self.a1.pk).update(url="", doi="")
         self.assertNotContains(details(), "External Link")
+
+    def test_via_capes_with_the_users_library_access(self):
+        self.client.force_login(self.human)
+        url = reverse("reviews:conducting:article_details")
+        params = {"review-id": self.review.pk, "article-id": self.a1.pk}
+        Article.objects.filter(pk=self.a1.pk).update(url="https://www.scopus.com/record/1", doi="10.1109/X.1")
+        self.assertNotContains(self.client.get(url, params), "js-access-link")
+        LibraryAccess.objects.create(user=self.human, proxy="ez99.periodicos.capes.gov.br")
+        response = self.client.get(url, params)
+        self.assertContains(response, 'href="https://doi-org.ez99.periodicos.capes.gov.br/10.1109/X.1"')
+        self.assertContains(response, "Via CAPES")
+        self.assertContains(response, "Opens the DOI through your institution's access")
+        self.assertContains(response, "External Link")  # unchanged, next to it
+        # Without a DOI, the study's URL through the proxy.
+        Article.objects.filter(pk=self.a1.pk).update(doi="")
+        response = self.client.get(url, params)
+        self.assertContains(response, 'href="https://www-scopus-com.ez99.periodicos.capes.gov.br/record/1"')
+        # Each member's own access: another reviewer without one sees no link.
+        self.client.force_login(self.agent)
+        self.assertNotContains(self.client.get(url, params), "js-access-link")
 
     def test_article_details_shows_reviewers_tab(self):
         StudyDecision.objects.create(review=self.review, article=self.a1, user=self.agent, status="A")

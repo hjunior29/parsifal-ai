@@ -1,10 +1,11 @@
 """
-The user's integrations with third-party services (only Jev for now), shared by Settings → Integrations and the
-JSON API. The API key is never returned, only ``Integration.masked_key``.
+The user's integrations with third-party services, shared by Settings and the JSON API: Jev (Settings →
+Integrations), whose API key is never returned, only ``Integration.masked_key``; and the library proxy (Settings →
+Library access) through which the study window links each study.
 """
 
-from parsifal.apps.accounts.models import Integration
-from parsifal.apps.core import crypto, jev
+from parsifal.apps.accounts.models import Integration, LibraryAccess
+from parsifal.apps.core import crypto, jev, library_proxy
 from parsifal.apps.core.exceptions import UpstreamError, ValidationError
 
 API_KEY_LENGTH = Integration.API_KEY_LENGTH
@@ -85,4 +86,33 @@ def jev_models(user, *, api_key=None):
 def remove_jev(user):
     """Delete the user's Jev integration; returns whether there was one."""
     deleted, _ = Integration.objects.filter(user=user, provider=Integration.JEV).delete()
+    return bool(deleted)
+
+
+# Library access -----------------------------------------------------------------------------------------------------
+
+
+def get_library_access(user):
+    """The user's library proxy (``LibraryAccess``), or None."""
+    return LibraryAccess.objects.filter(user=user).first()
+
+
+def library_proxy_address(user):
+    """The address of the user's library proxy, or None."""
+    return LibraryAccess.objects.filter(user=user).values_list("proxy", flat=True).first()
+
+
+def save_library_access(user, *, address):
+    """
+    Save the user's library proxy from ``address``: the proxy's address or that of any page opened through it
+    (``library_proxy.clean_host``). Replaces the one saved before.
+    """
+    proxy = library_proxy.clean_host(address)
+    access, _created = LibraryAccess.objects.update_or_create(user=user, defaults={"proxy": proxy})
+    return access
+
+
+def remove_library_access(user):
+    """Forget the user's library proxy; returns whether there was one."""
+    deleted, _ = LibraryAccess.objects.filter(user=user).delete()
     return bool(deleted)

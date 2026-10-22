@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+
+{% load i18n %}
+
+{% block title %}{% trans "Library access" %} · Parsifal{% endblock %}
+
+{% block content %}
+  <div class="row">
+    <div class="col-md-3">
+      {% include "accounts/menu.html" %}
+    </div>
+    <div class="col-md-9">
+
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h3 class="panel-title">
+            {% trans "Library access (CAPES)" %}
+            {% if access %}
+              <span class="label label-success">{% trans "configured" %}</span>
+            {% else %}
+              <span class="label label-default">{% trans "not configured" %}</span>
+            {% endif %}
+          </h3>
+        </div>
+        <div class="panel-body">
+          <p>
+            {% blocktrans %}Open each study at the publisher with your institution's access. Signed in to the CAPES <em>Portal de Periódicos</em> through <strong>Acesso CAFe</strong>, the publishers' pages are served from an address of your institution: the publisher's address with its dots turned into hyphens, followed by your institution's part.{% endblocktrans %}
+          </p>
+          <pre class="small">https://ieeexplore.ieee.org/document/1234567
+https://ieeexplore-ieee-org.<strong>ezNN.periodicos.capes.gov.br</strong>/document/1234567</pre>
+          <p>
+            {% blocktrans %}Save that part here and the study window gets a <strong>Via CAPES</strong> link, next to <em>External Link</em>, that opens the study the same way: by its DOI (which leads to the publisher's page) or, without a DOI, by its URL.{% endblocktrans %}
+          </p>
+
+          {% if access %}
+            <dl class="dl-horizontal">
+              <dt>{% trans "Proxy" %}</dt>
+              <dd><code>{{ access.proxy }}</code></dd>
+              <dt>{% trans "Link" %}</dt>
+              <dd>{{ label }}: <code>https://doi-org.{{ access.proxy }}/&lt;{% trans "the study's DOI" %}&gt;</code></dd>
+              <dt>{% trans "Updated" %}</dt>
+              <dd>{{ access.updated_at|date:"SHORT_DATETIME_FORMAT" }}</dd>
+            </dl>
+          {% endif %}
+
+          <h4>{% if access %}{% trans "Change it" %}{% else %}{% trans "How to set it up" %}{% endif %}</h4>
+          <ol>
+            <li>{% blocktrans %}Sign in at <a href="https://www.periodicos.capes.gov.br" target="_blank" rel="noopener">www.periodicos.capes.gov.br</a> with <strong>Acesso CAFe</strong> (your institution's login).{% endblocktrans %}</li>
+            <li>{% trans "Open any study at the publisher through the portal, or any link you already have that goes through CAPES." %}</li>
+            <li>{% trans "Copy the address from the browser's address bar and paste it below. Parsifal keeps only your institution's part (like ezNN.periodicos.capes.gov.br)." %}</li>
+          </ol>
+
+          <form method="post" action="{% url 'settings:library_access' %}" autocomplete="off">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save">
+            <div class="form-group{% if error %} has-error{% endif %}">
+              <label for="id_address" class="control-label">{% trans "Address of a page opened through CAPES, or the proxy's address" %}</label>
+              <input type="text" name="address" id="id_address" class="form-control" maxlength="2000" value="{{ address }}" placeholder="https://ieeexplore-ieee-org.ezNN.periodicos.capes.gov.br/document/1234567">
+              {% if error %}<span class="help-block">{{ error }}</span>{% endif %}
+              <p class="help-block">{% trans "Another library's EZproxy works too: paste the address of a page opened through it." %}</p>
+            </div>
+            <p class="small text-muted">
+              <span class="glyphicon glyphicon-lock"></span>
+              {% blocktrans %}Parsifal never asks for your CAFe login nor sees it: the sign-in, and the session that gives you access, stay in your browser. Only the proxy's address is stored. If you are not signed in when you click the link, CAPES asks you to sign in first.{% endblocktrans %}
+            </p>
+            <button type="submit" class="btn btn-success">{% trans "Save" %}</button>
+            <a href="{% url 'docs:page' 'library-access' %}" class="btn btn-link">{% trans "How it works" %}</a>
+          </form>
+        </div>
+        {% if access %}
+          <div class="panel-footer clearfix">
+            <form method="post" action="{% url 'settings:library_access' %}" class="pull-right js-confirm" data-confirm="{% trans "Remove the library access? The study window goes back to External Link only." %}">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="remove">
+              <button type="submit" class="btn btn-danger btn-sm">{% trans "Remove" %}</button>
+            </form>
+          </div>
+        {% endif %}
+      </div>
+
+      <script>
+        document.querySelectorAll("form.js-confirm").forEach(function (form) {
+          form.addEventListener("submit", function (event) {
+            if (!window.confirm(form.dataset.confirm)) { event.preventDefault(); }
+          });
+        });
+      </script>
+
+    </div>
+  </div>
+{% endblock content %}

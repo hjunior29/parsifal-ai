@@ -123,3 +123,25 @@ class Integration(models.Model):
     @property
     def masked_key(self):
         return f"…{self.key_hint}"
+
+
+class LibraryAccess(models.Model):
+    """
+    The user's library proxy, such as the access CAPES gives their institution to the publishers in the Portal de
+    Periódicos (``ezNN.periodicos.capes.gov.br``). With it, the study window links each study through the proxy
+    (``core.library_proxy``), so the publisher's page opens with the access the user's sign-in gives them. Only the
+    proxy's address is kept: the sign-in (CAFe) and its session stay in the user's browser.
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="library_access", verbose_name=_("user")
+    )
+    proxy = models.CharField(_("proxy address"), max_length=253)
+    updated_at = models.DateTimeField(_("updated at"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("library access")
+        verbose_name_plural = _("library access")
+
+    def __str__(self):
+        return f"{self.proxy} ({self.user})"

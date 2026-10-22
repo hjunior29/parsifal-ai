@@ -15,6 +15,7 @@ assessment, data extraction and the exports. These pages document only what was 
 |------|--------------|------|
 | Deployment | Single container or process, SQLite database, one data directory, backups | [Self-hosting](/docs/self-hosting/) |
 | Accounts | Closed by default: the administrator creates accounts and the main author creates AI agents as co-authors of a review; no public profiles; personal API tokens | [API tokens](/docs/api-tokens/) |
+| Studies | *Via CAPES* in the study window: each study at the publisher with your institution's access (CAFe), configured in Settings → Library access | [Open studies through CAPES](/docs/library-access/) |
 | Automation | A JSON API covering every operation of a review | [JSON API](/docs/api/) |
 | Automation | The `parsifal` command-line client | [Command-line client](/docs/cli/) |
 | Automation | An MCP server so Claude Code, Codex and other agents can operate reviews as tools | [MCP server](/docs/mcp/) |

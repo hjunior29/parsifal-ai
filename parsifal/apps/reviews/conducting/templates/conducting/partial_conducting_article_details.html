@@ -41,6 +41,17 @@
         </li>
       {% endif %}
       {% endwith %}
+      {% if access_url %}
+        {# Through the user's library proxy (Settings → Library access): the sign-in stays in the browser. #}
+        <li class="pull-right">
+          <a href="{{ access_url }}" target="_blank" rel="noopener" role="tab" class="js-access-link" title="{% if article.doi_url %}Opens the DOI{% else %}Opens the study's URL{% endif %} through your institution's access (Settings → Library access). Not signed in? You are asked to sign in first.">
+            <small>
+              <span class="glyphicon glyphicon-lock"></span>
+              {{ access_label }}
+            </small>
+          </a>
+        </li>
+      {% endif %}
     </ul>
     <div class="tab-content">
       <div role="tabpanel" class="tab-pane active" id="tab-details">

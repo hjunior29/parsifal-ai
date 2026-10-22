@@ -210,6 +210,10 @@ group and marks the rest `D`.
   with a key derived from `SECRET_KEY` (`core/crypto.py`, Fernet), `key_hint` keeps its last 4 characters for
   display, `model` is the default model. Unique per
   (user, provider).
+- `accounts.LibraryAccess(user 1:1, proxy, updated_at)`: the address of the user's library proxy, such as their
+  institution's CAPES access (`ezNN.periodicos.capes.gov.br`). The study window's *Via CAPES* and the API's
+  `access_url` are `Article.access_url(proxy)`: the DOI, else the URL, through the proxy (`core/library_proxy.py`).
+  Only the address is kept; the sign-in (CAFe) stays in the user's browser.
 
 ## People and collaboration
 

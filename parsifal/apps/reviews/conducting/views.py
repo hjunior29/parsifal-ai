@@ -20,6 +20,7 @@ import xlwt
 
 from parsifal.apps.accounts import services as integrations
 from parsifal.apps.accounts.forms import model_label
+from parsifal.apps.core import library_proxy
 from parsifal.apps.core.exceptions import DomainError
 from parsifal.apps.core.models import files_are_local, files_storage
 from parsifal.apps.reviews.decorators import author_required
@@ -641,6 +642,9 @@ def article_details(request):
     )
 
     context = {"review": review, "article": article, "pdf_max_mb": full_texts.max_size_mb()}
+    # Via CAPES: the study through the user's library proxy (Settings → Library access).
+    proxy = integrations.library_proxy_address(request.user)
+    context.update(access_url=article.access_url(proxy), access_label=library_proxy.label(proxy) if proxy else "")
     context.update(_decisions_context(request, review, article))
     return render(request, "conducting/partial_conducting_article_details.html", context)
 

@@ -11,7 +11,7 @@ from django.views.generic import FormView, RedirectView, UpdateView
 from parsifal.apps.accounts import services
 from parsifal.apps.accounts.forms import ApiTokenForm, JevIntegrationForm, ProfileForm, UserEmailForm, model_label
 from parsifal.apps.accounts.models import ApiToken
-from parsifal.apps.core import jev
+from parsifal.apps.core import jev, library_proxy
 from parsifal.apps.core.exceptions import DomainError
 
 
@@ -150,3 +150,42 @@ class IntegrationsView(LoginRequiredMixin, View):
         services.save_jev(request.user, api_key=form.cleaned_data["api_key"], model=form.cleaned_data["model"])
         messages.success(request, gettext("Jev settings saved."))
         return redirect("settings:integrations")
+
+
+class LibraryAccessView(LoginRequiredMixin, View):
+    """
+    The user's library proxy (CAPES access through CAFe, or another library's EZproxy): save it from the address of
+    a page opened through it, or remove it. The study window then has a Via CAPES link (``Article.access_url``).
+    """
+
+    template_name = "accounts/library_access.html"
+
+    def _render(self, address="", error=""):
+        access = services.get_library_access(self.request.user)
+        context = {
+            "access": access,
+            "label": library_proxy.label(access.proxy) if access else "Via CAPES",
+            "address": address,
+            "error": error,
+        }
+        return render(self.request, self.template_name, context)
+
+    def get(self, request):
+        return self._render()
+
+    def post(self, request):
+        if request.POST.get("action") == "remove":
+            if services.remove_library_access(request.user):
+                messages.success(request, gettext("The library access was removed."))
+            return redirect("settings:library_access")
+        address = request.POST.get("address", "")
+        try:
+            access = services.save_library_access(request.user, address=address)
+        except DomainError as error:
+            return self._render(address=address, error=str(error))
+        messages.success(
+            request,
+            gettext("Saved. Studies now open through %(proxy)s with %(label)s in the study window.")
+            % {"proxy": access.proxy, "label": library_proxy.label(access.proxy)},
+        )
+        return redirect("settings:library_access")

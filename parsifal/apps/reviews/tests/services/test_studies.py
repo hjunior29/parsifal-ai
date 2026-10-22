@@ -313,6 +313,21 @@ class TestDuplicates(TestCase):
             with self.subTest(url=url, doi=doi):
                 self.assertEqual(expected, Article(url=url, doi=doi).external_url)
 
+    def test_via_capes_is_the_doi_or_else_the_url_through_the_proxy(self):
+        proxy = "ez99.periodicos.capes.gov.br"
+        cases = [
+            ("https://www.scopus.com/record/1", "10.1109/X.1", f"https://doi-org.{proxy}/10.1109/X.1"),
+            ("https://www.scopus.com/record/1", "", f"https://www-scopus-com.{proxy}/record/1"),
+            (f"https://doi-org.{proxy}/10.1145/1", "", f"https://doi-org.{proxy}/10.1145/1"),
+            ("https://www.e-periodica.ch/1", None, None),
+            ("javascript:alert(1)", "", None),
+            (None, None, None),
+        ]
+        for url, doi, expected in cases:
+            with self.subTest(url=url, doi=doi):
+                self.assertEqual(expected, Article(url=url, doi=doi).access_url(proxy))
+        self.assertIsNone(Article(url="https://example.org/1", doi="10.1/x").access_url(None))
+
     def test_wos_and_scopus_dois_differing_by_an_escape_are_duplicates(self):
         review = ReviewFactory(sources=[self.source])
         wos = ArticleFactory(review=review, source=self.source, title="A study", doi="10.1007/978-3-031-70518-2\\_12")

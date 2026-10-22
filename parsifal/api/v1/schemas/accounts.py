@@ -40,3 +40,16 @@ class TokenCreateIn(Schema):
 
 class TokenCreatedOut(TokenOut):
     key: str
+
+
+class LibraryAccessIn(Schema):
+    # The proxy's address (ezNN.periodicos.capes.gov.br) or that of any page opened through it, as the browser shows
+    # it when signed in to CAPES through CAFe; only the proxy's address is kept.
+    address: str
+
+
+class LibraryAccessOut(Schema):
+    configured: bool
+    proxy: str | None = None  # e.g. ezNN.periodicos.capes.gov.br
+    label: str | None = None  # the link's name in the study window: "Via CAPES", or "Via proxy" for another library
+    updated_at: datetime | None = None

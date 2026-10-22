@@ -185,3 +185,14 @@ def test_delete_requires_yes_only_on_tty(runner, fake_api):
 def test_docs_and_version(runner):
     assert "Planning" in runner.invoke(cli.app, ["docs"]).output
     assert runner.invoke(cli.app, ["version"]).output.strip() == cli.__version__
+
+
+def test_library_access_set_sends_the_address(runner, fake_api):
+    address = "https://ieeexplore-ieee-org.ez99.periodicos.capes.gov.br/document/1234567"
+    saved = {"configured": True, "proxy": "ez99.periodicos.capes.gov.br", "label": "Via CAPES", "updated_at": None}
+    fake_api.route("PUT", "/api/v1/integrations/library-access", 200, saved)
+    result = invoke(runner, ["integration", "library-access", "set", "--address", address])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["proxy"] == "ez99.periodicos.capes.gov.br"
+    request = fake_api.requests[-1]
+    assert json.loads(request.content) == {"address": address}

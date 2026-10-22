@@ -3,6 +3,7 @@ from django.test import Client
 from parsifal.api.tests.base import API, ApiTestCase
 from parsifal.apps.accounts.models import ApiToken
 from parsifal.apps.authentication.tests.factories import UserFactory
+from parsifal.apps.reviews.tests.factories import ArticleFactory
 
 
 class TestAuthentication(ApiTestCase):
@@ -133,3 +134,38 @@ class TestMeUpdate(ApiTestCase):
         self.assertEqual(
             ("Ada", "Lovelace", "ada@example.org"), (self.author.first_name, self.author.last_name, self.author.email)
         )
+
+
+class TestLibraryAccess(ApiTestCase):
+    PROXY = "ez99.periodicos.capes.gov.br"
+
+    def test_set_show_remove_and_the_studies_access_url(self):
+        article = ArticleFactory(review=self.review, source=self.source, doi="10.1109/X.1", url="")
+        article_path = self.review_path(f"/articles/{article.pk}")
+        self.assertEqual(
+            {"configured": False, "proxy": None, "label": None, "updated_at": None},
+            self.api("get", "/integrations/library-access").json(),
+        )
+        self.assertIsNone(self.api("get", article_path).json()["access_url"])
+
+        address = f"https://ieeexplore-ieee-org.{self.PROXY}/document/1234567"
+        response = self.api("put", "/integrations/library-access", {"address": address})
+        self.assertEqual(200, response.status_code, response.content)
+        self.assertEqual(
+            (True, self.PROXY, "Via CAPES"), tuple(response.json()[k] for k in ("configured", "proxy", "label"))
+        )
+        expected = f"https://doi-org.{self.PROXY}/10.1109/X.1"
+        self.assertEqual(expected, self.api("get", article_path).json()["access_url"])
+        listed = self.api("get", self.review_path("/articles")).json()["items"]
+        self.assertEqual([expected], [item["access_url"] for item in listed])
+        # Each user's own: a co-author without one gets none.
+        co_author = self.client_for(self.co_author)
+        self.assertIsNone(self.api("get", article_path, client=co_author).json()["access_url"])
+
+        response = self.api("put", "/integrations/library-access", {"address": "https://www.periodicos.capes.gov.br"})
+        self.assertEqual(422, response.status_code)
+        self.assertIn("the CAPES portal itself", response.content.decode())
+
+        self.assertEqual(204, self.api("delete", "/integrations/library-access").status_code)
+        self.assertFalse(self.api("get", "/integrations/library-access").json()["configured"])
+        self.assertIsNone(self.api("get", article_path).json()["access_url"])

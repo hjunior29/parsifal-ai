@@ -49,6 +49,7 @@ parameters in kebab-case; `--review` accepts a numeric id or `author/slug`.
 | `analytics` | `selection-by-source`, `final-by-year`, `facet-frequencies`, `facet-matrix` |
 | `export` | `articles`, `extraction`, `report` (all take `-o FILE`) |
 | `integration jev` | `show`, `set`, `test`, `remove` |
+| `integration library-access` | `show`, `set --address URL`, `remove` — your library proxy (e.g. CAPES), so studies carry `access_url`; see [Open studies through CAPES](/docs/library-access/) |
 | `ai-screening` | `setup`, `preview` (the request a run would send), `impact` (what a run would rewrite), `start`, `step`, `runs`, `show`, `results`, `rerun` (a new run with another's settings), `undo-preview`, `undo` (the latest run), and `run` (start, or continue with `--run`, and screen to the end; `--phase inclusion` for Include with AI, `--phase screen` for Screen with AI; what is left out takes the last run's settings, `--defaults` Parsifal's; `--criteria-ids` picks the criteria sent) — see [Exclude, include and screen with AI](/docs/ai-screening/) |
 
 `parsifal <group> --help` lists the options of every command.

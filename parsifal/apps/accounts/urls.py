@@ -13,4 +13,5 @@ urlpatterns = [
     path("tokens/<int:token_id>/delete/", views.ApiTokenDeleteView.as_view(), name="token_delete"),
     path("integrations/", views.IntegrationsView.as_view(), name="integrations"),
     path("integrations/models/", views.IntegrationModelsView.as_view(), name="integration_models"),
+    path("library-access/", views.LibraryAccessView.as_view(), name="library_access"),
 ]

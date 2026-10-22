@@ -1493,6 +1493,39 @@ OPERATIONS = (
             B("ids", LIST_INT, help="Restrict to these articles."),
         ),
     ),
+    # Library access (CAPES) ------------------------------------------------------------------------------------------
+    Operation(
+        "library_access_get",
+        "GET",
+        "/integrations/library-access",
+        ("integration", "library-access"),
+        "show",
+        "Your library proxy (e.g. your institution's CAPES access), through which studies get an access_url.",
+    ),
+    Operation(
+        "library_access_set",
+        "PUT",
+        "/integrations/library-access",
+        ("integration", "library-access"),
+        "set",
+        "Save your library proxy from the address of a page opened through it (only the proxy's address is kept).",
+        (
+            B(
+                "address",
+                required=True,
+                help="e.g. https://ieeexplore-ieee-org.ezNN.periodicos.capes.gov.br/document/1234567, or the proxy.",
+            ),
+        ),
+    ),
+    Operation(
+        "library_access_delete",
+        "DELETE",
+        "/integrations/library-access",
+        ("integration", "library-access"),
+        "remove",
+        "Forget your library proxy (studies no longer carry an access_url).",
+        destructive=True,
+    ),
     # Exclude with AI (Jev) -------------------------------------------------------------------------------------------
     Operation(
         "jev_integration_get",

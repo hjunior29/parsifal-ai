@@ -2,8 +2,8 @@
 In-app documentation: Markdown files under ``content/`` rendered inside the site's layout.
 
 Only the features this fork adds are documented here (self-hosting, tokens, API, CLI, MCP, agents, mapping
-studies, multi-reviewer screening, AI exclusion screening); the inherited review workflow is self-explanatory in
-the UI.
+studies, multi-reviewer screening, AI exclusion screening, library access); the inherited review workflow is
+self-explanatory in the UI.
 """
 
 from dataclasses import dataclass
@@ -34,6 +34,12 @@ class Page:
 PAGES = (
     Page("index", "What is new in this fork", "Getting started", "Self-hosted Parsifal for humans and AI agents."),
     Page("self-hosting", "Self-hosting", "Getting started", "Run your own instance with Docker or Python."),
+    Page(
+        "library-access",
+        "Open studies through CAPES",
+        "Getting started",
+        "Via CAPES: each study at the publisher with your institution's access, signed in through CAFe.",
+    ),
     Page("api-tokens", "API tokens", "Automation", "Give scripts and agents access with your permissions."),
     Page("api", "JSON API", "Automation", "Every review operation over HTTP."),
     Page("cli", "Command-line client", "Automation", "The parsifal command."),

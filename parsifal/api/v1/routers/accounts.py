@@ -6,10 +6,21 @@ from django.db import IntegrityError
 from ninja import Router
 
 from parsifal.api.deps import require_superuser
-from parsifal.api.v1.schemas.accounts import MeOut, MeUpdateIn, TokenCreatedOut, TokenCreateIn, TokenOut, UserCreateIn
+from parsifal.api.v1.schemas.accounts import (
+    LibraryAccessIn,
+    LibraryAccessOut,
+    MeOut,
+    MeUpdateIn,
+    TokenCreatedOut,
+    TokenCreateIn,
+    TokenOut,
+    UserCreateIn,
+)
 from parsifal.api.v1.schemas.common import UserOut
+from parsifal.apps.accounts import services as integrations
 from parsifal.apps.accounts.models import ApiToken
 from parsifal.apps.authentication.validators import ASCIIUsernameValidator, validate_forbidden_usernames
+from parsifal.apps.core import library_proxy
 from parsifal.apps.core.exceptions import Conflict, NotFound, ValidationError
 
 router = Router(tags=["account"])
@@ -134,4 +145,38 @@ def tokens_delete(request, token_id: int):
     if token.is_active:
         raise Conflict("Revoke the token before deleting it.")
     token.delete()
+    return 204, None
+
+
+def _library_access_out(access):
+    if access is None:
+        return LibraryAccessOut(configured=False)
+    return LibraryAccessOut(
+        configured=True, proxy=access.proxy, label=library_proxy.label(access.proxy), updated_at=access.updated_at
+    )
+
+
+@router.get("/integrations/library-access", response=LibraryAccessOut, operation_id="library_access_get")
+def library_access_get(request):
+    """
+    Your library proxy (Settings → Library access), such as your institution's CAPES access: studies then carry an
+    ``access_url`` that opens them through it, with the access your sign-in in the browser gives you.
+    """
+    return _library_access_out(integrations.get_library_access(request.auth))
+
+
+@router.put("/integrations/library-access", response=LibraryAccessOut, operation_id="library_access_set")
+def library_access_set(request, payload: LibraryAccessIn):
+    """
+    Save your library proxy from ``address``: the proxy's address (ezNN.periodicos.capes.gov.br) or that of any page
+    opened through it (https://ieeexplore-ieee-org.ezNN.periodicos.capes.gov.br/document/1234567). Only the proxy's
+    address is kept; Parsifal never signs in to CAPES. 422 when it is not a web address.
+    """
+    return _library_access_out(integrations.save_library_access(request.auth, address=payload.address))
+
+
+@router.delete("/integrations/library-access", response={204: None}, operation_id="library_access_delete")
+def library_access_delete(request):
+    """Forget your library proxy: studies no longer carry an ``access_url``."""
+    integrations.remove_library_access(request.auth)
     return 204, None

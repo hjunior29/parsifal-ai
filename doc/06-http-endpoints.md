@@ -54,6 +54,7 @@ Conventions used below:
 | `/docs/`, `/docs/<slug>/` | – | In-app documentation of the new features (phase 9). |
 | `/settings/tokens/`, `/settings/tokens/<id>/revoke/`, `/settings/tokens/<id>/delete/` (revoked only) | L | API tokens (phase 3). |
 | `/settings/integrations/` (save/test/remove the Jev key, default model from Jev's list), `/settings/integrations/models/` (POST `api_key`: JSON list of Jev's models for a key being typed) | L | Integrations. |
+| `/settings/library-access/` (POST `action` save with `address` — the proxy's or any page opened through it —, or remove) | L | Library access: the proxy behind the study window's *Via CAPES* link. |
 | `/api/v1/...` | token or session | JSON API — [14-api.md](14-api.md). |
 | ~~`/media/<path>`~~ | – | No longer served: nothing public is uploaded, and the studies' PDFs live apart (`/reviews/conducting/articles/<id>/pdf/`). |
 

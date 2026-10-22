@@ -508,6 +508,35 @@ status when the run is undone, the safe side: undo never overwrites a later
 change. To undo an older run, the runs after it are undone first. Undoing cannot
 itself be undone, and leaves no log of the deleted run.
 
+## Library access: open studies through CAPES without signing in for the user
+
+**Context.** Helder reads the studies at the publishers with his institution's
+access through the CAPES *Portal de Periódicos*, signed in with CAFe. Signed in,
+the browser reaches a publisher at an address of the institution (EZproxy's
+"HttpsHyphens" naming: `ieeexplore.ieee.org` →
+`ieeexplore-ieee-org.ezNN.periodicos.capes.gov.br`), while the study window's
+*External Link* goes to the publisher directly, without access. He asked whether
+Parsifal could sign in to CAPES itself.
+
+**Decision.** No sign-in in Parsifal: CAFe is a SAML federation that would have
+to register Parsifal as a service, and keeping the user's institutional password
+to sign in for them is unsafe and against the portal's terms (no robots). The
+sign-in stays in the browser; Parsifal only writes links. Each user saves their
+proxy's address (Settings → Library access, `accounts.LibraryAccess`), pasted as
+any page opened through CAPES, of which only the proxy's part is kept. The study
+window gets *Via CAPES* next to *External Link*: the study's DOI through the
+proxy (`doi-org.ezNN…`, which Helder checked opens the publisher with access,
+and asks to sign in when there is no session), else its URL through it. The DOI
+comes first because it reaches the publisher's page from any source (Scopus and
+Web of Science links open their record pages), and almost every study of a
+review has one. Same in the API (`/integrations/library-access`, `access_url`
+in every study), CLI and MCP.
+
+**Consequences.** One table. *External Link* is unchanged. No link for a study
+without a DOI whose URL's address has hyphens, since how EZproxy rewrites those
+is not documented. The setting is per user: a co-author at another institution
+has their own proxy, or none. Parsifal still downloads nothing from CAPES.
+
 ## AI screening without phases: Screen with AI, criteria chosen, the last run's settings
 
 **Context.** Helder went through an external critique of how Parsifal uses Jev

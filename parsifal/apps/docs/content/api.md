@@ -24,7 +24,7 @@ document at `/api/v1/openapi.json`.
 
 | Resource | Paths |
 |----------|-------|
-| Account | `/me` (GET, PATCH), `/tokens`, `/users` (administrators), `/sources/defaults` |
+| Account | `/me` (GET, PATCH), `/tokens`, `/users` (administrators), `/sources/defaults`, `/integrations/library-access` (GET, PUT, DELETE: your library proxy, e.g. CAPES; studies then carry `access_url` — see [Open studies through CAPES](/docs/library-access/)) |
 | Reviews | `/reviews`, `/reviews/{id}`, `/overview`, `/name`, `/members`, `/selection/reset` (back to the start of study selection; main author) |
 | Protocol | `/questions`, `/keywords` (+ `/import-picoc`), `/search-string` (+ `/generate`), `/sources` (+ `/search-strings`, `/{id}/search-string`, `/{id}/search`), `/criteria` |
 | Quality assessment | `/quality/questions`, `/quality/answers` (+ `/suggested`), `/quality/max-score`, `/quality/cutoff`, `/quality/summary`, `/articles/{id}/quality` |

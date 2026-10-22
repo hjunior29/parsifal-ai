@@ -379,6 +379,11 @@ class Article(models.Model):
         url = (self.url or "").strip()
         if urlsplit(url).scheme.lower() in ("http", "https"):
             return url
+        return self.doi_url
+
+    @property
+    def doi_url(self):
+        """The study's DOI at doi.org, or None."""
         from parsifal.apps.reviews.services.studies import clean_doi  # the services import this module
 
         doi = clean_doi(self.doi)
@@ -397,6 +402,20 @@ class Article(models.Model):
         from parsifal.apps.reviews.services.ai_screening import LABELS
 
         return LABELS.get(getattr(self, "ai_phase", None) or "", "")
+
+    def access_url(self, proxy):
+        """
+        Where the study window's Via CAPES link goes for a user whose library proxy is ``proxy`` (Settings → Library
+        access; ``core.library_proxy``): the DOI through the proxy, which reaches the publisher's page, or else the
+        study's URL through it; None without a proxy or when neither can go through it.
+        """
+        from parsifal.apps.core import library_proxy
+
+        if not proxy:
+            return None
+        if self.doi_url:
+            return library_proxy.proxied(self.doi_url, proxy)
+        return library_proxy.proxied(self.url, proxy)
 
     def get_score(self):
         score = QualityAssessment.objects.filter(article__id=self.id).aggregate(Sum("answer__weight"))
