@@ -252,3 +252,6 @@ PARSIFAL_ALLOW_SIGNUP = config("PARSIFAL_ALLOW_SIGNUP", default=False, cast=bool
 # Jev (TypeSafe), used by the AI exclusion screening. Each user sets the API key in Settings → Integrations; the
 # URL can point to a compatible server instead.
 JEV_API_URL = config("JEV_API_URL", default="https://api.typesafe.ai")
+# Requests per minute sent with one key, across all the threads of a process: 90% of the 1,200 TypeSafe allows (about
+# the 55 ms between requests of Matsui and Takaesu's study, which met no rate limit); 0: no spacing.
+JEV_REQUESTS_PER_MINUTE = config("JEV_REQUESTS_PER_MINUTE", default=1080, cast=int)

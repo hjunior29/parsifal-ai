@@ -4,8 +4,14 @@ questions against a state (``POST /v1/systemone``) and lists the models a key ca
 
 The base URL comes from the ``JEV_API_URL`` setting, so a compatible server can stand in for TypeSafe's. Errors never
 carry the API key.
+
+Requests made with the same key are spaced so that, however many threads send them, they stay under Jev's rate limit
+(``JEV_REQUESTS_PER_MINUTE``, 1,080 by default, 90% of TypeSafe's 1,200; 0 turns the spacing off). When Jev answers
+429 every request with that key waits, not only the one refused.
 """
 
+import hashlib
+import threading
 import time
 
 from django.conf import settings
@@ -18,6 +24,11 @@ RETRY_STATUSES = {429, 500, 502, 503, 504, 529}  # rate limited, overloaded or a
 RETRY_DELAYS = (1, 2, 4)  # seconds; Retry-After wins when present, capped at MAX_RETRY_AFTER
 MAX_RETRY_AFTER = 10
 QUICK_TIMEOUT = 5  # seconds, for lookups made while a page loads (one try, no retries)
+DEFAULT_REQUESTS_PER_MINUTE = 1080
+
+_now = time.monotonic
+_turns = {}  # SHA-256 of a key -> the earliest moment its next request may leave
+_turns_lock = threading.Lock()
 
 
 class JevError(Exception):
@@ -40,6 +51,39 @@ def _retry_after(response, default):
         return default
 
 
+def _spacing():
+    """Seconds between two requests with the same key; 0 when the spacing is off."""
+    rate = getattr(settings, "JEV_REQUESTS_PER_MINUTE", DEFAULT_REQUESTS_PER_MINUTE)
+    return 60.0 / rate if rate and rate > 0 else 0.0
+
+
+def _key_id(api_key):
+    return hashlib.sha256(api_key.encode()).hexdigest()  # the key itself is never kept
+
+
+def _wait_turn(api_key, sleep):
+    """Wait until a request with this key may leave, and book the next turn."""
+    spacing = _spacing()
+    if not spacing:
+        return
+    key = _key_id(api_key)
+    with _turns_lock:
+        now = _now()
+        turn = max(now, _turns.get(key, 0.0))
+        _turns[key] = turn + spacing
+    if turn > now:
+        sleep(turn - now)
+
+
+def _hold(api_key, seconds):
+    """Jev asked to slow down: no request with this key leaves for ``seconds``, from any thread."""
+    if not _spacing():
+        return
+    key = _key_id(api_key)
+    with _turns_lock:
+        _turns[key] = max(_turns.get(key, 0.0), _now() + seconds)
+
+
 def _detail(response):
     try:
         body = response.json()
@@ -58,6 +102,8 @@ def _request(method, path, api_key, *, json=None, sleep=time.sleep, quick=False)
     delays = [] if quick else list(RETRY_DELAYS)
     timeout = QUICK_TIMEOUT if quick else TIMEOUT
     while True:
+        if not quick:
+            _wait_turn(api_key, sleep)
         try:
             response = requests.request(method, url, headers=headers, json=json, timeout=timeout)
         except requests.RequestException as error:
@@ -66,7 +112,10 @@ def _request(method, path, api_key, *, json=None, sleep=time.sleep, quick=False)
             sleep(delays.pop(0))
             continue
         if response.status_code in RETRY_STATUSES and delays:
-            sleep(_retry_after(response, delays.pop(0)))
+            delay = _retry_after(response, delays.pop(0))
+            if response.status_code == 429:
+                _hold(api_key, delay)
+            sleep(delay)
             continue
         break
     if response.status_code in (401, 403):

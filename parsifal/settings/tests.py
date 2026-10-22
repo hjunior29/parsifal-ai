@@ -15,3 +15,6 @@ STORAGES["files"] = {
     "BACKEND": "django.core.files.storage.FileSystemStorage",
     "OPTIONS": {"location": str(Path(tempfile.gettempdir()) / "parsifal-test-files")},
 }
+
+# Requests to Jev are mocked in tests: no spacing, so that the retries' waits are the only ones.
+JEV_REQUESTS_PER_MINUTE = 0

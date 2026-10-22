@@ -103,3 +103,57 @@ class TestJevClient(SimpleTestCase):
         self.assertEqual(1, request.call_count)
         self.assertEqual(jev.QUICK_TIMEOUT, request.call_args.kwargs["timeout"])
         self.sleep.assert_not_called()
+
+
+@override_settings(JEV_API_URL="https://jev.example/", JEV_REQUESTS_PER_MINUTE=600)
+class TestJevPacing(SimpleTestCase):
+    """At 600 requests per minute, requests with one key leave at least 0.1 s apart."""
+
+    def setUp(self):
+        self.clock = [100.0]
+        self.waits = []
+        patcher = mock.patch.object(jev, "_now", side_effect=lambda: self.clock[0])
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        jev._turns.clear()
+        self.addCleanup(jev._turns.clear)
+
+    def sleep(self, seconds):
+        self.waits.append(round(seconds, 6))
+        self.clock[0] += seconds
+
+    def test_requests_with_one_key_are_spaced(self):
+        with mock.patch.object(requests, "request", return_value=response(200, ANSWER)):
+            for _ in range(3):
+                jev.evaluate("secret", model="m", state="s", questions={}, sleep=self.sleep)
+            self.assertEqual([0.1, 0.1], self.waits)  # back to back: each waits for its turn
+            self.waits.clear()
+            jev.evaluate("another key", model="m", state="s", questions={}, sleep=self.sleep)
+            self.assertEqual([], self.waits)  # each key has its own turns
+            self.clock[0] += 5
+            jev.evaluate("secret", model="m", state="s", questions={}, sleep=self.sleep)
+            self.assertEqual([], self.waits)  # its turn has passed
+        self.assertNotIn("secret", repr(jev._turns))
+
+    def test_a_rate_limit_holds_every_request_with_the_key(self):
+        replies = [response(429, {}, headers={"Retry-After": "3"}), response(200, ANSWER)]
+        with mock.patch.object(requests, "request", side_effect=replies):
+            jev.evaluate("secret", model="m", state="s", questions={}, sleep=self.sleep)
+        self.assertEqual([3.0], self.waits)  # Retry-After, then the retry left at once
+        self.waits.clear()
+        jev._hold("secret", 3)  # what another thread meets while a 429 is being waited out
+        jev._wait_turn("secret", self.sleep)
+        self.assertEqual([3.0], self.waits)
+
+    def test_quick_lookups_and_zero_skip_the_spacing(self):
+        with mock.patch.object(requests, "request", return_value=response(200, [])):
+            for _ in range(2):
+                jev.list_models("secret", sleep=self.sleep, quick=True)
+        self.assertEqual([], self.waits)
+        with (
+            override_settings(JEV_REQUESTS_PER_MINUTE=0),
+            mock.patch.object(requests, "request", return_value=response(200, ANSWER)),
+        ):
+            for _ in range(3):
+                jev.evaluate("secret", model="m", state="s", questions={}, sleep=self.sleep)
+        self.assertEqual([], self.waits)
