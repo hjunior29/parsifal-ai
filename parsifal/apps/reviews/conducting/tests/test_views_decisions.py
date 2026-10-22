@@ -99,10 +99,10 @@ class TestDecisionViews(TestCase):
             {
                 "review-id": self.review.pk,
                 "article-id": self.a1.pk,
-                "status": "R",
-                "stage": "title_abstract",
-                "selection_criteria": self.criteria.pk,
-                "comments": "out of scope",
+                "decision-status": "R",
+                "decision-stage": "title_abstract",
+                "decision-criteria": self.criteria.pk,
+                "decision-comments": "out of scope",
             },
         )
         self.assertEqual(200, response.status_code)
@@ -117,16 +117,53 @@ class TestDecisionViews(TestCase):
         with self.subTest(msg="invalid status"):
             response = self.client.post(
                 reverse("reviews:conducting:record_decision"),
-                {"review-id": self.review.pk, "article-id": self.a1.pk, "status": "Z"},
+                {"review-id": self.review.pk, "article-id": self.a1.pk, "decision-status": "Z"},
             )
             self.assertEqual(400, response.status_code)
         with self.subTest(msg="outsider forbidden"):
             self.client.force_login(self.outsider)
             response = self.client.post(
                 reverse("reviews:conducting:record_decision"),
-                {"review-id": self.review.pk, "article-id": self.a1.pk, "status": "A"},
+                {"review-id": self.review.pk, "article-id": self.a1.pk, "decision-status": "A"},
             )
             self.assertEqual(403, response.status_code)
+
+    def test_saving_the_study_keeps_its_own_fields_after_the_reviewers_tab_was_opened(self):
+        """
+        The Reviewers tab sits inside the study's form once opened: saving the study used to send the decision's
+        empty comment, status and reason in place of the study's, and the study lost its comments.
+        """
+        self.client.force_login(self.human)
+        details = self.client.get(
+            reverse("reviews:conducting:article_details"), {"review-id": self.review.pk, "article-id": self.a1.pk}
+        )
+        for name in ("decision-status", "decision-stage", "decision-criteria", "decision-comments"):
+            self.assertContains(details, f'name="{name}"')
+        self.assertNotContains(details, 'name="comments" class="form-control input-sm"')
+        fields = {
+            "review-id": self.review.pk,
+            "article-id": self.a1.pk,
+            **{name: "" for name in ("bibtex-key", "author", "journal", "year", "pages", "volume", "abstract")},
+            **{name: "" for name in ("document-type", "doi", "url", "affiliation", "author_keywords", "keywords")},
+            **{name: "" for name in ("publisher", "issn", "language", "note")},
+            "title": "A study",
+            "status": "R",
+            "selection_criteria": self.criteria.pk,
+            "comments": "Excluded: not about screening tools.",
+            # What the Reviewers tab adds to the form, as the browser sends it.
+            "decision-status": "A",
+            "decision-stage": "title_abstract",
+            "decision-criteria": "",
+            "decision-comments": "",
+        }
+        response = self.client.post(reverse("reviews:conducting:save_article_details"), fields)
+        self.assertEqual(200, response.status_code)
+        self.a1.refresh_from_db()
+        self.assertEqual(
+            ("Excluded: not about screening tools.", "R", self.criteria),
+            (self.a1.comments, self.a1.status, self.a1.selection_criteria),
+        )
+        self.assertFalse(StudyDecision.objects.filter(article=self.a1).exists())  # saving the study records none
 
     def test_agreement_and_consolidate(self):
         for article, human, agent in ((self.a1, "A", "A"), (self.a2, "A", "R")):

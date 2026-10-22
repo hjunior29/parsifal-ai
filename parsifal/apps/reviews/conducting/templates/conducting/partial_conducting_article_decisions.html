@@ -41,7 +41,9 @@
 
   {% comment %}
     A div, not a form: this pane is moved into the article modal, inside the article form, and a nested form tag
-    would be dropped by the browser. The JS serializes the inputs of #decision-form.
+    would be dropped by the browser. The JS serializes the inputs of #decision-form. Their names start with
+    "decision-": the study's own fields are called status, selection_criteria and comments, and saving the study
+    must not send these in their place.
   {% endcomment %}
   <div id="decision-form" class="form-horizontal">
     {% csrf_token %}
@@ -50,21 +52,21 @@
     <div class="form-group">
       <label class="col-sm-2 control-label">My decision</label>
       <div class="col-sm-3">
-        <select name="status" class="form-control input-sm">
+        <select name="decision-status" class="form-control input-sm">
           {% for status in decision_statuses %}
             <option value="{{ status.0 }}"{% if my_decision and my_decision.status == status.0 %} selected{% endif %}>{{ status.1 }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="col-sm-3">
-        <select name="stage" class="form-control input-sm">
+        <select name="decision-stage" class="form-control input-sm">
           {% for stage in decision_stages %}
             <option value="{{ stage.0 }}"{% if my_decision and my_decision.stage == stage.0 %} selected{% endif %}>{{ stage.1 }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="col-sm-4">
-        <select name="selection_criteria" class="form-control input-sm">
+        <select name="decision-criteria" class="form-control input-sm">
           <option value="">Reason (criteria)...</option>
           {% for criteria in review.get_inclusion_criterias %}
             <option value="{{ criteria.id }}"{% if my_decision and my_decision.selection_criteria_id == criteria.id %} selected{% endif %}>[I] {{ criteria.description }}</option>
@@ -77,7 +79,7 @@
     </div>
     <div class="form-group">
       <div class="col-sm-offset-2 col-sm-7">
-        <input type="text" name="comments" class="form-control input-sm" placeholder="Comments (optional)" value="{% if my_decision %}{{ my_decision.comments }}{% endif %}" maxlength="2000">
+        <input type="text" name="decision-comments" class="form-control input-sm" placeholder="Comments (optional)" value="{% if my_decision %}{{ my_decision.comments }}{% endif %}" maxlength="2000">
       </div>
       <div class="col-sm-3">
         <button type="button" class="btn btn-primary btn-sm btn-block btn-record-decision">Record my decision</button>

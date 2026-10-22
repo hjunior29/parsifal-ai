@@ -742,10 +742,10 @@ def record_decision(request):
             review=review,
             article_id=request.POST.get("article-id"),
             actor=request.user,
-            status=request.POST.get("status"),
-            stage=request.POST.get("stage") or StudyDecision.TITLE_ABSTRACT,
-            criteria_id=request.POST.get("selection_criteria") or None,
-            comments=request.POST.get("comments", ""),
+            status=request.POST.get("decision-status"),
+            stage=request.POST.get("decision-stage") or StudyDecision.TITLE_ABSTRACT,
+            criteria_id=request.POST.get("decision-criteria") or None,
+            comments=request.POST.get("decision-comments", ""),
         )
     except DomainError as error:
         return HttpResponseBadRequest(str(error))

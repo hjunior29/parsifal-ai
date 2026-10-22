@@ -439,7 +439,8 @@ $(function () {
     $.ajax({
       url: '/reviews/conducting/save_article_details/',
       cache: false,
-      data: $("#article-details").serialize(),
+      // The study's fields only: the Reviewers tab, once opened, sits inside this form with the decision's own.
+      data: $("#article-details :input").not("#tab-reviewers :input").serialize(),
       type: 'post',
       beforeSend: function () {
         $(".btn-save-article").prop("disabled", true);
