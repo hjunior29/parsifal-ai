@@ -1495,7 +1495,14 @@ def new_article(request):
 @login_required
 def data_analysis(request, username, review_name):
     review = get_object_or_404(Review, name=review_name, author__username__iexact=username)
-    return render(request, "conducting/conducting_data_analysis.html", {"review": review})
+    context = {
+        "review": review,
+        # The study selection in numbers, and the data of the charts below the first three.
+        "summary": analytics.selection_summary(review),
+        "criteria": analytics.criteria_usage(review),
+        "years": analytics.studies_by_year(review),
+    }
+    return render(request, "conducting/conducting_data_analysis.html", context)
 
 
 @author_required

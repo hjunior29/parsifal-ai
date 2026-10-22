@@ -158,6 +158,14 @@ class TestAnalyticsAndExports(ApiTestCase):
         self.assertEqual([(self.source.name, 2, 1)], [(r["source"], r["total"], r["accepted"]) for r in rows])
         rows = self.api("get", self.review_path("/analytics/final-by-year")).json()
         self.assertEqual([{"year": 2020, "count": 1}], rows)
+        summary = self.api("get", self.review_path("/analytics/selection-summary")).json()
+        self.assertEqual(
+            (2, 1, 1, 0.5), (summary["total"], summary["accepted"], summary["rejected"], summary["accepted_share"])
+        )
+        usage = self.api("get", self.review_path("/analytics/criteria-usage")).json()
+        self.assertEqual((1, 1), (usage["rejected_without_criterion"], usage["accepted_without_criterion"]))
+        years = self.api("get", self.review_path("/analytics/studies-by-year")).json()
+        self.assertEqual([(2020, 1, 0), (2021, 0, 1)], [(r["year"], r["accepted"], r["rejected"]) for r in years])
 
     def test_exports(self):
         with self.subTest(msg="json"):

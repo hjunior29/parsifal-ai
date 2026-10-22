@@ -32,6 +32,75 @@ class TestAnalytics(TestCase):
         self.assertEqual([(2021, 1), (2020, 1), (None, 1)], [(r["year"], r["count"]) for r in rows])
 
 
+class TestSelectionAnalytics(TestCase):
+    """The numbers and rankings added below the first charts of Data Analysis."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.scopus = SourceFactory(name="Scopus")
+        cls.ieee = SourceFactory(name="IEEE")
+        cls.review = ReviewFactory(sources=[cls.scopus, cls.ieee])
+        # Listed alphabetically: "Not a primary study" (E1), "Not in English" (E2); "About tools" (I1).
+        cls.primary = SelectionCriteriaFactory(review=cls.review, criteria_type="E", description="Not a primary study")
+        cls.english = SelectionCriteriaFactory(review=cls.review, criteria_type="E", description="Not in English")
+        cls.tools = SelectionCriteriaFactory(review=cls.review, criteria_type="I", description="About tools")
+        for status, criterion, year, source in (
+            ("R", cls.english, "2021", cls.scopus),
+            ("R", cls.english, "2022", cls.scopus),
+            ("R", cls.primary, "2022", cls.ieee),
+            ("R", None, "2022", cls.ieee),
+            ("A", cls.tools, "2022", cls.scopus),
+            ("A", None, "n.d.", cls.scopus),
+            ("U", None, "2021", cls.ieee),
+            ("D", None, "2021", cls.scopus),
+            ("D", None, "2021", cls.scopus),
+            ("U", None, "2023", cls.scopus),
+        ):
+            ArticleFactory(review=cls.review, source=source, status=status, selection_criteria=criterion, year=year)
+
+    def test_selection_summary(self):
+        summary = analytics.selection_summary(self.review)
+        self.assertEqual(
+            (10, 2, 8, 2, 4, 2, 2),
+            tuple(
+                summary[k] for k in ("total", "duplicated", "unique", "accepted", "rejected", "unclassified", "final")
+            ),
+        )
+        self.assertEqual(
+            (0.2, 0.25, 0.5, 0.25),
+            tuple(summary[f"{k}_share"] for k in ("duplicated", "accepted", "rejected", "unclassified")),
+        )
+        self.assertEqual(
+            [("IEEE", 3, 0, 2, 1, 0), ("Scopus", 7, 2, 2, 1, 2)],
+            [
+                (r["source"], r["total"], r["accepted"], r["rejected"], r["unclassified"], r["duplicated"])
+                for r in summary["by_source"]
+            ],
+        )
+        empty = analytics.selection_summary(ReviewFactory())
+        self.assertEqual((0, None, None), (empty["total"], empty["duplicated_share"], empty["accepted_share"]))
+
+    def test_criteria_most_used_first(self):
+        usage = analytics.criteria_usage(self.review)
+        self.assertEqual(
+            [("E2", "Not in English", 2), ("E1", "Not a primary study", 1)],
+            [(r["key"], r["description"], r["studies"]) for r in usage["exclusion"]],
+        )
+        self.assertEqual([("I1", 1)], [(r["key"], r["studies"]) for r in usage["inclusion"]])
+        self.assertEqual((1, 1), (usage["rejected_without_criterion"], usage["accepted_without_criterion"]))
+
+    def test_studies_by_year_without_duplicates(self):
+        self.assertEqual(
+            [
+                {"year": 2021, "accepted": 0, "rejected": 1, "unclassified": 1},
+                {"year": 2022, "accepted": 1, "rejected": 3, "unclassified": 0},
+                {"year": 2023, "accepted": 0, "rejected": 0, "unclassified": 1},
+                {"year": None, "accepted": 1, "rejected": 0, "unclassified": 0},
+            ],
+            analytics.studies_by_year(self.review),
+        )
+
+
 class TestReports(TestCase):
     @classmethod
     def setUpTestData(cls):

@@ -8,7 +8,13 @@ from ninja import Router
 from openpyxl import Workbook
 
 from parsifal.api.deps import get_review
-from parsifal.api.v1.schemas.analytics import ByYearOut, SelectionBySourceOut
+from parsifal.api.v1.schemas.analytics import (
+    ByYearOut,
+    CriteriaUsageOut,
+    SelectionBySourceOut,
+    SelectionSummaryOut,
+    YearStatusesOut,
+)
 from parsifal.apps.core.exceptions import ValidationError
 from parsifal.apps.reviews.services import analytics, reports
 
@@ -33,6 +39,42 @@ def analytics_selection_by_source(request, review_id: int):
 )
 def analytics_final_by_year(request, review_id: int):
     return analytics.final_selection_by_year(get_review(request, review_id))
+
+
+@router.get(
+    "/reviews/{int:review_id}/analytics/selection-summary",
+    response=SelectionSummaryOut,
+    operation_id="analytics_selection_summary",
+)
+def analytics_selection_summary(request, review_id: int):
+    """
+    The study selection in numbers: studies per status, duplicates against every study imported, accepted, rejected
+    and unclassified against the studies that are not duplicates, the final selection, and the statuses per source.
+    """
+    return analytics.selection_summary(get_review(request, review_id))
+
+
+@router.get(
+    "/reviews/{int:review_id}/analytics/criteria-usage",
+    response=CriteriaUsageOut,
+    operation_id="analytics_criteria_usage",
+)
+def analytics_criteria_usage(request, review_id: int):
+    """
+    Each exclusion criterion by the rejected studies that have it, and each inclusion criterion by the accepted ones,
+    most used first; and how many rejected and accepted studies have no criterion.
+    """
+    return analytics.criteria_usage(get_review(request, review_id))
+
+
+@router.get(
+    "/reviews/{int:review_id}/analytics/studies-by-year",
+    response=list[YearStatusesOut],
+    operation_id="analytics_studies_by_year",
+)
+def analytics_studies_by_year(request, review_id: int):
+    """The studies that are not duplicates per publication year and status, oldest first (no year: None, last)."""
+    return analytics.studies_by_year(get_review(request, review_id))
 
 
 def _serialise(value):

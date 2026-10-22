@@ -202,6 +202,19 @@ class TestDecisionViews(TestCase):
         self.a2.refresh_from_db()
         self.assertEqual(Article.REJECTED, self.a2.status)
 
+    def test_data_analysis_shows_the_selection_in_numbers(self):
+        Article.objects.filter(pk=self.a1.pk).update(status=Article.REJECTED, selection_criteria=self.criteria)
+        Article.objects.filter(pk=self.a2.pk).update(status=Article.DUPLICATED)
+        self.client.force_login(self.human)
+        page = self.client.get(reverse("data_analysis", args=(self.human.username, self.review.name)))
+        self.assertContains(page, "Study Selection in Numbers")
+        self.assertContains(page, "<strong>2</strong> imported", html=False)
+        self.assertContains(page, "50% of the imported")
+        self.assertContains(page, "100% of the not duplicated")  # the one study left is rejected
+        self.assertContains(page, "Exclusion Criteria Most Used")
+        self.assertContains(page, 'id="analysis-criteria"', html=False)
+        self.assertContains(page, "Studies Per Year and Status")
+
     def test_agreement_and_consolidate(self):
         for article, human, agent in ((self.a1, "A", "A"), (self.a2, "A", "R")):
             StudyDecision.objects.create(review=self.review, article=article, user=self.human, status=human)

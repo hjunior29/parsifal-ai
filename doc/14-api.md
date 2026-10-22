@@ -222,6 +222,7 @@ user's folder or document answers `404`.
 | Method & path | operationId |
 |---------------|-------------|
 | `GET /reviews/{rid}/analytics/selection-by-source` · `GET /analytics/final-by-year` | `analytics_*` |
+| `GET /reviews/{rid}/analytics/selection-summary` · `GET /analytics/criteria-usage` · `GET /analytics/studies-by-year` | `analytics_selection_summary` (total, duplicated, unique, accepted, rejected, unclassified, final, the shares — duplicates of the imported, the others of the not duplicated —, per source) · `analytics_criteria_usage` (exclusion criteria by the rejected studies with them and inclusion criteria by the accepted ones, most used first; studies without a criterion) · `analytics_studies_by_year` (not duplicated, per year and status) — what the Data Analysis page shows below its first charts |
 | `GET /reviews/{rid}/export/articles.{csv|xlsx|json}` · `GET /export/extraction.{csv|xlsx|json}` | `export_articles` · `export_extraction` |
 | `GET /reviews/{rid}/export/report.docx?sections=name,picoc,…` | `export_report` (section keys in [07-import-export.md](07-import-export.md)) |
 

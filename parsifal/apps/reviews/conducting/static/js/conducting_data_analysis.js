@@ -90,3 +90,81 @@ $(function () {
       });
     }
 });
+
+/* The charts below the first three: the study selection in numbers, the statuses per source, the criteria most used
+   and the studies per year. Their data come with the page (json_script). */
+$(function () {
+  var COLORS = {accepted: "#5cb85c", rejected: "#d9534f", unclassified: "#999999", duplicated: "#f0ad4e"};
+
+  function data(id) {
+    var node = document.getElementById(id);
+    return node ? JSON.parse(node.textContent) : null;
+  }
+
+  function stacked(elementId, rows, statuses) {
+    var element = document.getElementById(elementId);
+    if (!element || rows.length < 2) { return; }
+    var chart = new google.visualization.ColumnChart(element);
+    chart.draw(google.visualization.arrayToDataTable(rows), {
+      height: 400,
+      isStacked: true,
+      colors: statuses.map(function (status) { return COLORS[status]; }),
+      vAxis: {title: "Number of Articles", titleTextStyle: {color: "#3A3D40"}},
+      legend: {position: "top"}
+    });
+  }
+
+  function ranking(elementId, criteria, color) {
+    var element = document.getElementById(elementId);
+    if (!element || !criteria.length) { return; }
+    var rows = [["Criterion", "Studies"]];
+    criteria.forEach(function (criterion) {
+      var description = criterion.description.length > 70 ? criterion.description.slice(0, 67) + "…" : criterion.description;
+      rows.push([criterion.key + " — " + description, criterion.studies]);
+    });
+    var chart = new google.visualization.BarChart(element);
+    chart.draw(google.visualization.arrayToDataTable(rows), {
+      height: Math.max(160, 40 * criteria.length + 60),
+      colors: [color],
+      legend: {position: "none"},
+      chartArea: {left: "45%", width: "50%"},
+      hAxis: {title: "Number of Articles", minValue: 0, format: "0"}
+    });
+  }
+
+  function draw() {
+    var summary = data("analysis-summary");
+    var criteria = data("analysis-criteria");
+    var years = data("analysis-years-data");
+    if (!summary) { return; }
+
+    var statuses = ["accepted", "rejected", "unclassified", "duplicated"];
+    var pie = document.getElementById("analysis-statuses");
+    if (pie && summary.total) {
+      var rows = [["Status", "Studies"]];
+      statuses.forEach(function (status) { rows.push([status.charAt(0).toUpperCase() + status.slice(1), summary[status]]); });
+      new google.visualization.PieChart(pie).draw(google.visualization.arrayToDataTable(rows), {
+        height: 320,
+        colors: statuses.map(function (status) { return COLORS[status]; })
+      });
+    }
+
+    var sources = [["Source", "Accepted", "Rejected", "Unclassified", "Duplicated"]];
+    summary.by_source.forEach(function (row) {
+      sources.push([row.source, row.accepted, row.rejected, row.unclassified, row.duplicated]);
+    });
+    stacked("analysis-sources", sources, statuses);
+
+    ranking("analysis-exclusion", criteria.exclusion, COLORS.rejected);
+    ranking("analysis-inclusion", criteria.inclusion, COLORS.accepted);
+
+    var perYear = [["Year", "Accepted", "Rejected", "Unclassified"]];
+    years.forEach(function (row) {
+      perYear.push([row.year === null ? "Unknown" : String(row.year), row.accepted, row.rejected, row.unclassified]);
+    });
+    stacked("analysis-years", perYear, ["accepted", "rejected", "unclassified"]);
+  }
+
+  google.load("visualization", "1.0", {packages: ["corechart"]});
+  google.setOnLoadCallback(draw);
+});

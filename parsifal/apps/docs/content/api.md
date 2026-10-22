@@ -34,7 +34,7 @@ document at `/api/v1/openapi.json`.
 | Multiple reviewers | `/decisions`, `/articles/{id}/decisions`, `/decisions/agreement`, `/decisions/disagreements`, `/decisions/consolidate` |
 | Exclude, include and screen with AI (Jev) | `/integrations/jev` (+ `/test`; not review-scoped), `/ai-screening?phase=`, `/ai-screening/preview`, `/ai-screening/impact`, `/ai-screening/runs` (+ `/{id}`, `/{id}/step`, `/{id}/results`, `/{id}/rerun`, `/{id}/undo`; `phase` exclusion, inclusion or screen; `/ai-screening?defaults=true` for Parsifal's defaults instead of the last run's settings) — see [Exclude, include and screen with AI](/docs/ai-screening/) |
 | Library (personal, not review-scoped) | `/library/folders` (+ `/{id}/documents`, `/remove`, `/move`), `/library/documents` (+ `/delete`), `/library/import` (+ `/file`) |
-| Analytics and exports | `/analytics/selection-by-source`, `/analytics/final-by-year`, `/export/articles.{csv,xlsx,json}`, `/export/extraction.{csv,xlsx,json}`, `/export/report.docx` |
+| Analytics and exports | `/analytics/selection-by-source`, `/analytics/final-by-year`, `/analytics/selection-summary`, `/analytics/criteria-usage`, `/analytics/studies-by-year` (what Data Analysis shows), `/export/articles.{csv,xlsx,json}`, `/export/extraction.{csv,xlsx,json}`, `/export/report.docx` |
 
 All review-scoped paths are prefixed with `/api/v1/reviews/{review_id}`; the library paths are scoped to the
 authenticated user instead.

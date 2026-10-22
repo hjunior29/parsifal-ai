@@ -2,6 +2,16 @@
 
 {% load compress static %}
 
+{% block stylesheet %}
+  {{ block.super }}
+  <style>
+    .analysis-numbers .number { padding: 10px 0; }
+    .analysis-numbers .number strong { display: block; font-size: 24px; line-height: 1.2; }
+    .analysis-numbers .number small { color: #777; }
+    .analysis-empty { color: #777; }
+  </style>
+{% endblock stylesheet %}
+
 {% block javascript %}
   <script src="https://www.google.com/jsapi"></script>
   {% compress js %}
@@ -39,5 +49,89 @@
       <div id="articles-selection-line"></div>
     </div>
   </div>
+
+  {% with total=summary.total unique=summary.unique %}
+  <div class="panel panel-default">
+    <div class="panel-heading">
+      <h3 class="panel-title">Study Selection in Numbers</h3>
+    </div>
+    <div class="panel-body">
+      <div class="row analysis-numbers text-center">
+        <div class="col-xs-6 col-sm-3 number"><strong>{{ total }}</strong> imported</div>
+        <div class="col-xs-6 col-sm-3 number">
+          <strong>{{ summary.duplicated }}</strong> duplicated
+          {% if summary.duplicated_share is not None %}<br><small>{% widthratio summary.duplicated_share 1 100 %}% of the imported</small>{% endif %}
+        </div>
+        <div class="col-xs-6 col-sm-3 number"><strong>{{ unique }}</strong> not duplicated</div>
+        <div class="col-xs-6 col-sm-3 number"><strong>{{ summary.final }}</strong> in the final selection<br><small>accepted{% if review.quality_assessment_cutoff_score %}, above the quality cutoff{% endif %}</small></div>
+      </div>
+      <div class="row analysis-numbers text-center">
+        <div class="col-xs-4 number">
+          <strong class="text-success">{{ summary.accepted }}</strong> accepted
+          {% if summary.accepted_share is not None %}<br><small>{% widthratio summary.accepted_share 1 100 %}% of the not duplicated</small>{% endif %}
+        </div>
+        <div class="col-xs-4 number">
+          <strong class="text-danger">{{ summary.rejected }}</strong> rejected
+          {% if summary.rejected_share is not None %}<br><small>{% widthratio summary.rejected_share 1 100 %}% of the not duplicated</small>{% endif %}
+        </div>
+        <div class="col-xs-4 number">
+          <strong>{{ summary.unclassified }}</strong> unclassified
+          {% if summary.unclassified_share is not None %}<br><small>{% widthratio summary.unclassified_share 1 100 %}% of the not duplicated, still to decide</small>{% endif %}
+        </div>
+      </div>
+      <div id="analysis-statuses"></div>
+    </div>
+  </div>
+  {% endwith %}
+
+  <div class="panel panel-default">
+    <div class="panel-heading">
+      <h3 class="panel-title">Status Per Source</h3>
+    </div>
+    <div class="panel-body">
+      <div id="analysis-sources"></div>
+    </div>
+  </div>
+
+  <div class="panel panel-default">
+    <div class="panel-heading">
+      <h3 class="panel-title">Exclusion Criteria Most Used <small>(rejected studies with each criterion)</small></h3>
+    </div>
+    <div class="panel-body">
+      {% if criteria.exclusion %}
+        <div id="analysis-exclusion"></div>
+      {% else %}
+        <p class="analysis-empty">The review has no exclusion criteria.</p>
+      {% endif %}
+      <p class="small text-muted">{{ criteria.rejected_without_criterion }} rejected stud{{ criteria.rejected_without_criterion|pluralize:"y,ies" }} without a criterion.</p>
+    </div>
+  </div>
+
+  <div class="panel panel-default">
+    <div class="panel-heading">
+      <h3 class="panel-title">Inclusion Criteria Most Used <small>(accepted studies with each criterion)</small></h3>
+    </div>
+    <div class="panel-body">
+      {% if criteria.inclusion %}
+        <div id="analysis-inclusion"></div>
+      {% else %}
+        <p class="analysis-empty">The review has no inclusion criteria.</p>
+      {% endif %}
+      <p class="small text-muted">{{ criteria.accepted_without_criterion }} accepted stud{{ criteria.accepted_without_criterion|pluralize:"y,ies" }} without a criterion.</p>
+    </div>
+  </div>
+
+  <div class="panel panel-default">
+    <div class="panel-heading">
+      <h3 class="panel-title">Studies Per Year and Status <small>(not duplicated)</small></h3>
+    </div>
+    <div class="panel-body">
+      <div id="analysis-years"></div>
+    </div>
+  </div>
+
+  {{ summary|json_script:"analysis-summary" }}
+  {{ criteria|json_script:"analysis-criteria" }}
+  {{ years|json_script:"analysis-years-data" }}
 
 {% endblock tab_content %}
