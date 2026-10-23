@@ -1,10 +1,13 @@
+/* Google Charts is loaded once for the whole page: its loader refuses a second load, which left the charts drawn
+   after it empty. When it is ready, "charts-ready" draws the charts below the first three. */
 $(function () {
-    google.load('visualization', '1.0', {'packages':['corechart']});
-    google.setOnLoadCallback(drawChartCallback);
+    google.charts.load('current', {'packages': ['corechart']});
+    google.charts.setOnLoadCallback(drawChartCallback);
 
     function drawChartCallback() {
       drawChart();
       drawYearLines();
+      $(document).trigger("charts-ready");
     }
 
     function drawPieChart(rows) {
@@ -165,6 +168,5 @@ $(function () {
     stacked("analysis-years", perYear, ["accepted", "rejected", "unclassified"]);
   }
 
-  google.load("visualization", "1.0", {packages: ["corechart"]});
-  google.setOnLoadCallback(draw);
+  $(document).on("charts-ready", draw);
 });
