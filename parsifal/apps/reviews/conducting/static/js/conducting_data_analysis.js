@@ -98,6 +98,38 @@ $(function () {
    and the studies per year. Their data come with the page (json_script). */
 $(function () {
   var COLORS = {accepted: "#5cb85c", rejected: "#d9534f", unclassified: "#999999", duplicated: "#f0ad4e"};
+  // The funnel's stages: the totals in the blue of the charts above, the rest in the statuses' colors.
+  var STAGE_COLORS = {
+    imported: "#3366cc", duplicated: COLORS.duplicated, unique: "#3366cc", rejected: COLORS.rejected,
+    unclassified: COLORS.unclassified, accepted: COLORS.accepted, final: COLORS.accepted
+  };
+
+  function funnel(stages) {
+    var element = document.getElementById("analysis-funnel");
+    if (!element || !stages.length || !stages[0].count) { return; }
+    var data = new google.visualization.DataTable();
+    data.addColumn("string", "Stage");
+    data.addColumn("number", "Number of Articles");
+    data.addColumn({type: "string", role: "style"});
+    data.addColumn({type: "string", role: "annotation"});
+    data.addColumn({type: "string", role: "tooltip"});
+    stages.forEach(function (stage) {
+      var share = stage.of && stage.share !== null ? stage.share + "% " + stage.of : "";
+      data.addRow([
+        stage.label,
+        stage.count,
+        STAGE_COLORS[stage.key],
+        stage.count + (stage.of && stage.share !== null ? " · " + stage.share + "%" : ""),
+        stage.label.replace("− ", "") + ": " + stage.count + (share ? " (" + share + ")" : "")
+      ]);
+    });
+    new google.visualization.BarChart(element).draw(data, {
+      height: 400,
+      legend: {position: "none"},
+      hAxis: {title: "Number of Articles", titleTextStyle: {color: "#3A3D40"}, minValue: 0},
+      annotations: {alwaysOutside: true}
+    });
+  }
 
   function data(id) {
     var node = document.getElementById(id);
@@ -142,6 +174,8 @@ $(function () {
     if (!summary) { return; }
 
     var statuses = ["accepted", "rejected", "unclassified", "duplicated"];
+    funnel(data("analysis-funnel-data") || []);
+
     var sources = [["Source", "Accepted", "Rejected", "Unclassified", "Duplicated"]];
     summary.by_source.forEach(function (row) {
       sources.push([row.source, row.accepted, row.rejected, row.unclassified, row.duplicated]);

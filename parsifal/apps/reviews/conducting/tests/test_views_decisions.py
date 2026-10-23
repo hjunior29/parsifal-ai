@@ -207,12 +207,13 @@ class TestDecisionViews(TestCase):
         self.client.force_login(self.human)
         page = self.client.get(reverse("data_analysis", args=(self.human.username, self.review.name)))
         self.assertContains(page, "Study Selection in Numbers")
-        self.assertContains(
-            page, '<div class="funnel-label">Imported</div>\n            <div class="funnel-count">2</div>', html=False
+        self.assertContains(page, 'id="analysis-funnel"', html=False)  # a bar chart, like the others
+        funnel = page.context["funnel"]
+        self.assertEqual(
+            [("imported", 2, None), ("duplicated", 1, 50), ("unique", 1, 50), ("rejected", 1, 100)],
+            [(stage["key"], stage["count"], stage["share"] if stage["of"] else None) for stage in funnel[:4]],
         )
-        self.assertContains(page, "50% <span>of the imported</span>", html=False)
-        self.assertContains(page, "100% <span>of the not duplicated</span>", html=False)  # the one left is rejected
-        self.assertContains(page, 'style="width: 50.0%; background: #f0ad4e;"', html=False)  # duplicated: half
+        self.assertEqual("of the not duplicated", funnel[3]["of"])
         self.assertContains(page, "Exclusion Criteria Most Used")
         self.assertContains(page, 'id="analysis-criteria"', html=False)
         self.assertContains(page, "Studies Per Year and Status")
