@@ -5,9 +5,20 @@
 {% block stylesheet %}
   {{ block.super }}
   <style>
-    .analysis-numbers .number { padding: 10px 0; }
-    .analysis-numbers .number strong { display: block; font-size: 24px; line-height: 1.2; }
-    .analysis-numbers .number small { color: #777; }
+    .selection-funnel { max-width: 900px; }
+    .funnel-row { display: flex; align-items: center; margin: 6px 0; }
+    .funnel-label { width: 140px; font-weight: bold; }
+    .funnel-removed .funnel-label { font-weight: normal; padding-left: 14px; color: #555; }
+    .funnel-count { width: 60px; text-align: right; padding-right: 12px; font-size: 16px; font-variant-numeric: tabular-nums; }
+    .funnel-track { flex: 1; background: #f5f5f5; border-radius: 3px; height: 20px; }
+    .funnel-bar { height: 20px; border-radius: 3px; min-width: 2px; }
+    .funnel-share { width: 300px; padding-left: 12px; font-variant-numeric: tabular-nums; }
+    .funnel-share span { color: #777; font-size: 12px; }
+    @media (max-width: 767px) {
+      .funnel-row { flex-wrap: wrap; }
+      .funnel-track { flex-basis: 100%; order: 3; }
+      .funnel-share { width: auto; }
+    }
     .analysis-empty { color: #777; }
   </style>
 {% endblock stylesheet %}
@@ -50,39 +61,24 @@
     </div>
   </div>
 
-  {% with total=summary.total unique=summary.unique %}
   <div class="panel panel-default">
     <div class="panel-heading">
       <h3 class="panel-title">Study Selection in Numbers</h3>
     </div>
     <div class="panel-body">
-      <div class="row analysis-numbers text-center">
-        <div class="col-xs-6 col-sm-3 number"><strong>{{ total }}</strong> imported</div>
-        <div class="col-xs-6 col-sm-3 number">
-          <strong>{{ summary.duplicated }}</strong> duplicated
-          {% if summary.duplicated_share is not None %}<br><small>{% widthratio summary.duplicated_share 1 100 %}% of the imported</small>{% endif %}
-        </div>
-        <div class="col-xs-6 col-sm-3 number"><strong>{{ unique }}</strong> not duplicated</div>
-        <div class="col-xs-6 col-sm-3 number"><strong>{{ summary.final }}</strong> in the final selection<br><small>accepted{% if review.quality_assessment_cutoff_score %}, above the quality cutoff{% endif %}</small></div>
+      {# A funnel: each bar as long as its share of the studies imported; the share of the stage it comes from. #}
+      <div class="selection-funnel">
+        {% for stage in funnel %}
+          <div class="funnel-row{% if stage.removed %} funnel-removed{% endif %}">
+            <div class="funnel-label">{% if stage.removed %}− {% endif %}{{ stage.label }}</div>
+            <div class="funnel-count">{{ stage.count }}</div>
+            <div class="funnel-track"><div class="funnel-bar" style="width: {{ stage.width|stringformat:'s' }}%; background: {{ stage.color }};"></div></div>
+            <div class="funnel-share">{% if stage.of and stage.share is not None %}{{ stage.share }}% <span>{{ stage.of }}</span>{% endif %}</div>
+          </div>
+        {% endfor %}
       </div>
-      <div class="row analysis-numbers text-center">
-        <div class="col-xs-4 number">
-          <strong class="text-success">{{ summary.accepted }}</strong> accepted
-          {% if summary.accepted_share is not None %}<br><small>{% widthratio summary.accepted_share 1 100 %}% of the not duplicated</small>{% endif %}
-        </div>
-        <div class="col-xs-4 number">
-          <strong class="text-danger">{{ summary.rejected }}</strong> rejected
-          {% if summary.rejected_share is not None %}<br><small>{% widthratio summary.rejected_share 1 100 %}% of the not duplicated</small>{% endif %}
-        </div>
-        <div class="col-xs-4 number">
-          <strong>{{ summary.unclassified }}</strong> unclassified
-          {% if summary.unclassified_share is not None %}<br><small>{% widthratio summary.unclassified_share 1 100 %}% of the not duplicated, still to decide</small>{% endif %}
-        </div>
-      </div>
-      <div id="analysis-statuses"></div>
     </div>
   </div>
-  {% endwith %}
 
   <div class="panel panel-default">
     <div class="panel-heading">

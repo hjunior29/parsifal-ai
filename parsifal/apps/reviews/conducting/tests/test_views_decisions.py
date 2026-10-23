@@ -207,9 +207,12 @@ class TestDecisionViews(TestCase):
         self.client.force_login(self.human)
         page = self.client.get(reverse("data_analysis", args=(self.human.username, self.review.name)))
         self.assertContains(page, "Study Selection in Numbers")
-        self.assertContains(page, "<strong>2</strong> imported", html=False)
-        self.assertContains(page, "50% of the imported")
-        self.assertContains(page, "100% of the not duplicated")  # the one study left is rejected
+        self.assertContains(
+            page, '<div class="funnel-label">Imported</div>\n            <div class="funnel-count">2</div>', html=False
+        )
+        self.assertContains(page, "50% <span>of the imported</span>", html=False)
+        self.assertContains(page, "100% <span>of the not duplicated</span>", html=False)  # the one left is rejected
+        self.assertContains(page, 'style="width: 50.0%; background: #f0ad4e;"', html=False)  # duplicated: half
         self.assertContains(page, "Exclusion Criteria Most Used")
         self.assertContains(page, 'id="analysis-criteria"', html=False)
         self.assertContains(page, "Studies Per Year and Status")

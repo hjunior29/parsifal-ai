@@ -94,7 +94,7 @@ $(function () {
     }
 });
 
-/* The charts below the first three: the study selection in numbers, the statuses per source, the criteria most used
+/* The charts below the first three and the funnel of the selection: the statuses per source, the criteria most used
    and the studies per year. Their data come with the page (json_script). */
 $(function () {
   var COLORS = {accepted: "#5cb85c", rejected: "#d9534f", unclassified: "#999999", duplicated: "#f0ad4e"};
@@ -142,16 +142,6 @@ $(function () {
     if (!summary) { return; }
 
     var statuses = ["accepted", "rejected", "unclassified", "duplicated"];
-    var pie = document.getElementById("analysis-statuses");
-    if (pie && summary.total) {
-      var rows = [["Status", "Studies"]];
-      statuses.forEach(function (status) { rows.push([status.charAt(0).toUpperCase() + status.slice(1), summary[status]]); });
-      new google.visualization.PieChart(pie).draw(google.visualization.arrayToDataTable(rows), {
-        height: 320,
-        colors: statuses.map(function (status) { return COLORS[status]; })
-      });
-    }
-
     var sources = [["Source", "Accepted", "Rejected", "Unclassified", "Duplicated"]];
     summary.by_source.forEach(function (row) {
       sources.push([row.source, row.accepted, row.rejected, row.unclassified, row.duplicated]);

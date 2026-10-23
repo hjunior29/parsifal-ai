@@ -1511,14 +1511,54 @@ def new_article(request):
     return render(request, "conducting/partial_conducting_article_details.html", {"article": article})
 
 
+def _selection_funnel(summary, review):
+    """
+    The study selection as a funnel of bars (Data Analysis): each stage with its count, a bar as long as its share of
+    the studies imported, and its share of the stage it comes from.
+    """
+    total, unique, accepted = summary["total"], summary["unique"], summary["accepted"]
+
+    def stage(label, count, base, of, color, removed=False):
+        return {
+            "label": label,
+            "count": count,
+            "width": round(100 * count / total, 1) if total else 0,
+            "share": round(100 * count / base) if base else None,
+            "of": of,
+            "color": color,
+            "removed": removed,
+        }
+
+    cutoff = review.has_quality_assessment_checklist() and review.quality_assessment_cutoff_score > 0.0
+    return [
+        stage("Imported", total, total, "", "#337ab7"),
+        stage("Duplicated", summary["duplicated"], total, "of the imported", "#f0ad4e", removed=True),
+        stage("Not duplicated", unique, total, "of the imported", "#5bc0de"),
+        stage("Rejected", summary["rejected"], unique, "of the not duplicated", "#d9534f", removed=True),
+        stage(
+            "Unclassified", summary["unclassified"], unique, "of the not duplicated, still to decide", "#999999", True
+        ),
+        stage("Accepted", accepted, unique, "of the not duplicated", "#5cb85c"),
+        stage(
+            "Final selection",
+            summary["final"],
+            accepted,
+            "of the accepted, above the quality cutoff" if cutoff else "of the accepted",
+            "#2d672d",
+        ),
+    ]
+
+
 @author_required
 @login_required
 def data_analysis(request, username, review_name):
     review = get_object_or_404(Review, name=review_name, author__username__iexact=username)
+    summary = analytics.selection_summary(review)
     context = {
         "review": review,
         # The study selection in numbers, and the data of the charts below the first three.
-        "summary": analytics.selection_summary(review),
+        "summary": summary,
+        "funnel": _selection_funnel(summary, review),
         "criteria": analytics.criteria_usage(review),
         "years": analytics.studies_by_year(review),
     }
