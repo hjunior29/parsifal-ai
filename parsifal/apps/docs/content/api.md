@@ -27,14 +27,14 @@ document at `/api/v1/openapi.json`.
 | Account | `/me` (GET, PATCH), `/tokens`, `/users` (administrators), `/sources/defaults`, `/integrations/library-access` (GET, PUT, DELETE: your library proxy, e.g. CAPES; studies then carry `access_url` — see [Open studies through CAPES](/docs/library-access/)) |
 | Reviews | `/reviews`, `/reviews/{id}`, `/overview`, `/name`, `/members`, `/selection/reset` (back to the start of study selection; main author) |
 | Protocol | `/questions`, `/keywords` (+ `/import-picoc`), `/search-string` (+ `/generate`), `/sources` (+ `/search-strings`, `/{id}/search-string`, `/{id}/search`), `/criteria` |
-| Quality assessment | `/quality/questions`, `/quality/answers` (+ `/suggested`), `/quality/max-score`, `/quality/cutoff`, `/quality/summary`, `/articles/{id}/quality` |
-| Data extraction | `/extraction/fields`, `/articles/{id}/extraction` (+ `/done`) |
+| Quality assessment | `/quality/questions`, `/quality/answers` (+ `/suggested`), `/quality/max-score`, `/quality/cutoff`, `/quality/summary`, `/quality/studies` (searched, filtered, paged), `/articles/{id}/quality` (no `answer_id`: clear the answer) |
+| Data extraction | `/extraction/fields`, `/extraction/studies` (searched, paged), `/articles/{id}/extraction` (+ `/done`) |
 | Articles | `/articles` (list, create), `/articles/{id}`, `/articles/status`, `/articles/import`, `/articles/import/file`, `/articles/duplicates` (+ `/resolve`), `/articles/{id}/pdf` (POST multipart `file`, GET, DELETE: the study's PDF; each article carries `pdf` or `null`), `/articles/{id}/star` (PUT, DELETE: the study's star in the review, shared by every member; `?starred=true` on the list) |
 | Classification (optional) | `/facets` (+ templates, categories), `/articles/{id}/classification`, `/analytics/facets/{id}/frequencies`, `/analytics/facet-matrix`, `/test-set`, `/checklist` |
 | Multiple reviewers | `/decisions`, `/articles/{id}/decisions`, `/decisions/agreement`, `/decisions/disagreements`, `/decisions/consolidate` |
 | Exclude, include and screen with AI (Jev) | `/integrations/jev` (+ `/test`; not review-scoped), `/ai-screening?phase=`, `/ai-screening/preview`, `/ai-screening/impact`, `/ai-screening/runs` (+ `/{id}`, `/{id}/step`, `/{id}/results`, `/{id}/rerun`, `/{id}/undo`; `phase` exclusion, inclusion or screen; `/ai-screening?defaults=true` for Parsifal's defaults instead of the last run's settings) — see [Exclude, include and screen with AI](/docs/ai-screening/) |
 | Library (personal, not review-scoped) | `/library/folders` (+ `/{id}/documents`, `/remove`, `/move`), `/library/documents` (+ `/delete`), `/library/import` (+ `/file`) |
-| Analytics and exports | `/analytics/selection-by-source`, `/analytics/final-by-year`, `/analytics/selection-summary`, `/analytics/criteria-usage`, `/analytics/studies-by-year` (what Data Analysis shows), `/export/articles.{csv,xlsx,json}`, `/export/extraction.{csv,xlsx,json}`, `/export/report.docx` |
+| Analytics and exports | `/analytics/selection-by-source`, `/analytics/final-by-year`, `/analytics/selection-summary`, `/analytics/criteria-usage`, `/analytics/studies-by-year`, `/analytics/quality`, `/analytics/extraction` (what Data Analysis shows), `/export/articles.{csv,xlsx,json}`, `/export/extraction.{csv,xlsx,json}`, `/export/report.docx` |
 
 All review-scoped paths are prefixed with `/api/v1/reviews/{review_id}`; the library paths are scoped to the
 authenticated user instead.

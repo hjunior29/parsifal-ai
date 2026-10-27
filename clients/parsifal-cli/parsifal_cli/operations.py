@@ -1823,6 +1823,25 @@ OPERATIONS = (
         (REVIEW,),
     ),
     Operation(
+        "analytics_quality",
+        "GET",
+        "/reviews/{review_id}/analytics/quality",
+        ("analytics",),
+        "quality",
+        "Quality assessment in numbers: studies assessed, partly or not; above the cutoff; scores; answers per "
+        "question.",
+        (REVIEW,),
+    ),
+    Operation(
+        "analytics_extraction",
+        "GET",
+        "/reviews/{review_id}/analytics/extraction",
+        ("analytics",),
+        "extraction",
+        "Studies per option of each choice field of the extraction form (final selection), the most chosen first.",
+        (REVIEW,),
+    ),
+    Operation(
         "export_articles",
         "GET",
         "/reviews/{review_id}/export/articles.{fmt}",

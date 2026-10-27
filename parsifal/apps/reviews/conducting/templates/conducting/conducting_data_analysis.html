@@ -20,91 +20,185 @@
 
   {% include "conducting/conducting_header.html" with active_tab="analysis" %}
 
-  <div class="panel panel-default">
-    <div class="panel-heading">
-      <h3 class="panel-title">Articles Per Source</h3>
-    </div>
-    <div class="panel-body">
-      <div id="articles-selection-pie"></div>
-    </div>
-  </div>
+  <ul class="nav nav-pills" id="analysis-menu" style="margin-bottom: 20px;">
+    <li{% if section == 'selection' %} class="active"{% endif %}><a href="?section=selection">Study Selection</a></li>
+    <li{% if section == 'quality' %} class="active"{% endif %}><a href="?section=quality">Quality Assessment</a></li>
+    <li{% if section == 'extraction' %} class="active"{% endif %}><a href="?section=extraction">Data Extraction</a></li>
+  </ul>
 
-  <div class="panel panel-default">
-    <div class="panel-heading">
-      <h3 class="panel-title">Accepted Articles Per Source</h3>
-    </div>
-    <div class="panel-body">
-      <div id="articles-selection-column"></div>
-    </div>
-  </div>
+  {% if section == 'quality' %}
 
-  <div class="panel panel-default">
-    <div class="panel-heading">
-      <h3 class="panel-title">Final Articles Per Year <small>(After study selection and quality assessment)</small></h3>
-    </div>
-    <div class="panel-body">
-      <div id="articles-selection-line"></div>
-    </div>
-  </div>
+    {% if quality.questions and quality.answers %}
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h3 class="panel-title">Quality Assessment in Numbers</h3>
+        </div>
+        <div class="panel-body">
+          <div id="analysis-stages"></div>
+        </div>
+      </div>
 
-  <div class="panel panel-default">
-    <div class="panel-heading">
-      <h3 class="panel-title">Study Selection in Numbers</h3>
-    </div>
-    <div class="panel-body">
-      <div id="analysis-funnel"></div>
-      {{ funnel|json_script:"analysis-funnel-data" }}
-    </div>
-  </div>
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h3 class="panel-title">Scores of the Assessed Studies <small>(every question answered; the highest possible score is {{ quality.max_score }}{% if quality.cutoff is not None %}, the cutoff {{ quality.cutoff }}{% endif %})</small></h3>
+        </div>
+        <div class="panel-body">
+          {% if quality.scores %}
+            <div id="analysis-scores"></div>
+          {% else %}
+            <p class="analysis-empty">No study has every question answered yet.</p>
+          {% endif %}
+        </div>
+      </div>
 
-  <div class="panel panel-default">
-    <div class="panel-heading">
-      <h3 class="panel-title">Status Per Source</h3>
-    </div>
-    <div class="panel-body">
-      <div id="analysis-sources"></div>
-    </div>
-  </div>
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h3 class="panel-title">Answers per Question <small>(accepted studies)</small></h3>
+        </div>
+        <div class="panel-body">
+          <div id="analysis-questions"></div>
+        </div>
+      </div>
+      {{ quality|json_script:"analysis-quality" }}
+      {{ stages|json_script:"analysis-stages-data" }}
+    {% else %}
+      <p class="analysis-empty">
+        The review has no quality checklist yet: add its questions and answers on the
+        <a href="{% url 'quality_assessment_checklist' review.author.username review.name %}">planning tab</a>.
+      </p>
+    {% endif %}
 
-  <div class="panel panel-default">
-    <div class="panel-heading">
-      <h3 class="panel-title">Exclusion Criteria Most Used <small>(rejected studies with each criterion)</small></h3>
-    </div>
-    <div class="panel-body">
-      {% if criteria.exclusion %}
-        <div id="analysis-exclusion"></div>
-      {% else %}
-        <p class="analysis-empty">The review has no exclusion criteria.</p>
-      {% endif %}
-      <p class="small text-muted">{{ criteria.rejected_without_criterion }} rejected stud{{ criteria.rejected_without_criterion|pluralize:"y,ies" }} without a criterion.</p>
-    </div>
-  </div>
+  {% elif section == 'extraction' %}
 
-  <div class="panel panel-default">
-    <div class="panel-heading">
-      <h3 class="panel-title">Inclusion Criteria Most Used <small>(accepted studies with each criterion)</small></h3>
-    </div>
-    <div class="panel-body">
-      {% if criteria.inclusion %}
-        <div id="analysis-inclusion"></div>
-      {% else %}
-        <p class="analysis-empty">The review has no inclusion criteria.</p>
-      {% endif %}
-      <p class="small text-muted">{{ criteria.accepted_without_criterion }} accepted stud{{ criteria.accepted_without_criterion|pluralize:"y,ies" }} without a criterion.</p>
-    </div>
-  </div>
+    {% if has_fields %}
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h3 class="panel-title">Data Extraction in Numbers</h3>
+        </div>
+        <div class="panel-body">
+          <div id="analysis-stages"></div>
+        </div>
+      </div>
 
-  <div class="panel panel-default">
-    <div class="panel-heading">
-      <h3 class="panel-title">Studies Per Year and Status <small>(not duplicated)</small></h3>
-    </div>
-    <div class="panel-body">
-      <div id="analysis-years"></div>
-    </div>
-  </div>
+      {% for field in extraction.fields %}
+        <div class="panel panel-default">
+          <div class="panel-heading">
+            <h3 class="panel-title">{{ field.description }} <small>({% if field.field_type == 'M' %}multiple choice: a study may have several{% elif field.field_type == 'O' %}single choice{% else %}true or false{% endif %})</small></h3>
+          </div>
+          <div class="panel-body">
+            {% if field.answered %}
+              <div id="analysis-field-{{ field.id }}"></div>
+            {% else %}
+              <p class="analysis-empty">No study of the final selection has an answer yet.</p>
+            {% endif %}
+            <p class="small text-muted">{{ field.answered }} of {{ extraction.studies }} stud{{ extraction.studies|pluralize:"y,ies" }} of the final selection answered.</p>
+          </div>
+        </div>
+      {% empty %}
+        <p class="analysis-empty">
+          The data extraction form has no single choice, multiple choice or true/false field to draw; text, number and
+          date fields are left out.
+        </p>
+      {% endfor %}
+      {{ extraction|json_script:"analysis-extraction" }}
+      {{ stages|json_script:"analysis-stages-data" }}
+    {% else %}
+      <p class="analysis-empty">
+        The review has no data extraction form yet: add its fields on the
+        <a href="{% url 'data_extraction_form' review.author.username review.name %}">planning tab</a>.
+      </p>
+    {% endif %}
 
-  {{ summary|json_script:"analysis-summary" }}
-  {{ criteria|json_script:"analysis-criteria" }}
-  {{ years|json_script:"analysis-years-data" }}
+  {% else %}
+
+
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">Articles Per Source</h3>
+      </div>
+      <div class="panel-body">
+        <div id="articles-selection-pie"></div>
+      </div>
+    </div>
+
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">Accepted Articles Per Source</h3>
+      </div>
+      <div class="panel-body">
+        <div id="articles-selection-column"></div>
+      </div>
+    </div>
+
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">Final Articles Per Year <small>(After study selection and quality assessment)</small></h3>
+      </div>
+      <div class="panel-body">
+        <div id="articles-selection-line"></div>
+      </div>
+    </div>
+
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">Study Selection in Numbers</h3>
+      </div>
+      <div class="panel-body">
+        <div id="analysis-funnel"></div>
+        {{ funnel|json_script:"analysis-funnel-data" }}
+      </div>
+    </div>
+
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">Status Per Source</h3>
+      </div>
+      <div class="panel-body">
+        <div id="analysis-sources"></div>
+      </div>
+    </div>
+
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">Exclusion Criteria Most Used <small>(rejected studies with each criterion)</small></h3>
+      </div>
+      <div class="panel-body">
+        {% if criteria.exclusion %}
+          <div id="analysis-exclusion"></div>
+        {% else %}
+          <p class="analysis-empty">The review has no exclusion criteria.</p>
+        {% endif %}
+        <p class="small text-muted">{{ criteria.rejected_without_criterion }} rejected stud{{ criteria.rejected_without_criterion|pluralize:"y,ies" }} without a criterion.</p>
+      </div>
+    </div>
+
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">Inclusion Criteria Most Used <small>(accepted studies with each criterion)</small></h3>
+      </div>
+      <div class="panel-body">
+        {% if criteria.inclusion %}
+          <div id="analysis-inclusion"></div>
+        {% else %}
+          <p class="analysis-empty">The review has no inclusion criteria.</p>
+        {% endif %}
+        <p class="small text-muted">{{ criteria.accepted_without_criterion }} accepted stud{{ criteria.accepted_without_criterion|pluralize:"y,ies" }} without a criterion.</p>
+      </div>
+    </div>
+
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">Studies Per Year and Status <small>(not duplicated)</small></h3>
+      </div>
+      <div class="panel-body">
+        <div id="analysis-years"></div>
+      </div>
+    </div>
+
+    {{ summary|json_script:"analysis-summary" }}
+    {{ criteria|json_script:"analysis-criteria" }}
+    {{ years|json_script:"analysis-years-data" }}
+
+  {% endif %}
 
 {% endblock tab_content %}

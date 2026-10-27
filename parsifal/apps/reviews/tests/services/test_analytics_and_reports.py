@@ -1,11 +1,13 @@
 from django.test import TestCase
 
 from parsifal.apps.reviews.models import DataExtractionField
-from parsifal.apps.reviews.services import analytics, extraction, reports
+from parsifal.apps.reviews.services import analytics, extraction, quality, reports
 from parsifal.apps.reviews.tests.factories import (
     ArticleFactory,
     DataExtractionFieldFactory,
     DataExtractionLookupFactory,
+    QualityAnswerFactory,
+    QualityQuestionFactory,
     ReviewFactory,
     SelectionCriteriaFactory,
     SourceFactory,
@@ -99,6 +101,88 @@ class TestSelectionAnalytics(TestCase):
             ],
             analytics.studies_by_year(self.review),
         )
+
+
+class TestQualityAndExtractionAnalytics(TestCase):
+    """The Quality Assessment and Data Extraction sections of Data Analysis."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.source = SourceFactory()
+        cls.review = ReviewFactory(sources=[cls.source], quality_assessment_cutoff_score=1.0)
+        cls.q1, cls.q2 = QualityQuestionFactory.create_batch(2, review=cls.review)
+        cls.yes = QualityAnswerFactory(review=cls.review, description="Yes", weight=1.0)
+        cls.no = QualityAnswerFactory(review=cls.review, description="No", weight=0.0)
+        cls.good, cls.weak, cls.fresh = (
+            ArticleFactory(review=cls.review, source=cls.source, status="A", title=title)
+            for title in ("Good", "Weak", "Fresh")
+        )
+        rejected = ArticleFactory(review=cls.review, source=cls.source, status="R")
+        for article, answers in ((cls.good, (cls.yes, cls.yes)), (cls.weak, (cls.no,)), (rejected, (cls.yes,))):
+            for question, answer in zip((cls.q1, cls.q2), answers):
+                quality.assess(review=cls.review, article_id=article.pk, question_id=question.pk, answer_id=answer.pk)
+
+    def test_quality_overview(self):
+        overview = analytics.quality_overview(self.review)
+        self.assertEqual(
+            (3, 2, 1, 1, 1, 1.0, 1, 2, 2.0),
+            (
+                overview["accepted"],
+                overview["questions"],
+                overview["assessed"],
+                overview["partly"],
+                overview["not_assessed"],
+                overview["cutoff"],
+                overview["above_cutoff"],
+                overview["at_most_cutoff"],
+                overview["max_score"],
+            ),
+        )
+        self.assertEqual([{"score": 2.0, "studies": 1}], overview["scores"])  # only the fully assessed
+        self.assertEqual(["Yes", "No"], [answer["description"] for answer in overview["answers"]])
+        q1, q2 = overview["by_question"]
+        self.assertEqual(("Q1", [1, 1], 1), (q1["key"], [a["studies"] for a in q1["answers"]], q1["unanswered"]))
+        self.assertEqual(("Q2", [1, 0], 2), (q2["key"], [a["studies"] for a in q2["answers"]], q2["unanswered"]))
+        with self.subTest(msg="no cutoff"):
+            quality.set_cutoff(review=self.review, cutoff=0)
+            self.assertEqual(
+                (None, None, None),
+                tuple(
+                    analytics.quality_overview(self.review)[key]
+                    for key in ("cutoff", "above_cutoff", "at_most_cutoff")
+                ),
+            )
+
+    def test_extraction_choices(self):
+        one = DataExtractionFieldFactory(review=self.review, field_type=DataExtractionField.SELECT_ONE_FIELD)
+        many = DataExtractionFieldFactory(review=self.review, field_type=DataExtractionField.SELECT_MANY_FIELD)
+        flag = DataExtractionFieldFactory(review=self.review, field_type=DataExtractionField.BOOLEAN_FIELD)
+        DataExtractionFieldFactory(review=self.review)  # text: left out
+        survey, case = DataExtractionLookupFactory(field=one, value="Survey"), DataExtractionLookupFactory(
+            field=one, value="Case study"
+        )
+        code, tests = DataExtractionLookupFactory(field=many, value="Code"), DataExtractionLookupFactory(
+            field=many, value="Tests"
+        )
+        # The final selection: Good (score 2.0 > 1.0); Weak and Fresh are at most the cutoff.
+        for article in (self.good, self.weak):
+            extraction.set_value(review=self.review, article_id=article.pk, field_id=one.pk, value=survey.pk)
+            extraction.set_value(
+                review=self.review, article_id=article.pk, field_id=many.pk, values=[code.pk, tests.pk]
+            )
+            extraction.set_value(review=self.review, article_id=article.pk, field_id=flag.pk, value="False")
+        extraction.mark_done(review=self.review, article_id=self.good.pk)
+        choices = analytics.extraction_choices(self.review)
+        self.assertEqual((1, 1), (choices["studies"], choices["done"]))
+        by_id = {field["id"]: field for field in choices["fields"]}
+        self.assertEqual([one.pk, many.pk, flag.pk], [field["id"] for field in choices["fields"]])
+        self.assertEqual(
+            [("Survey", 1), ("Case study", 0)], [(o["value"], o["studies"]) for o in by_id[one.pk]["options"]]
+        )
+        self.assertEqual([("Code", 1), ("Tests", 1)], [(o["value"], o["studies"]) for o in by_id[many.pk]["options"]])
+        self.assertEqual([("True", 0), ("False", 1)], [(o["value"], o["studies"]) for o in by_id[flag.pk]["options"]])
+        self.assertEqual((1, 0), (by_id[many.pk]["answered"], by_id[many.pk]["unanswered"]))
+        self.assertEqual(case.pk, by_id[one.pk]["options"][1]["id"])
 
 
 class TestReports(TestCase):

@@ -135,7 +135,7 @@ Pages (guard A, GET): `/<u>/<r>/conducting/` → redirect, `/conducting/search/`
 `/conducting/import/`, `/conducting/studies/?source=<id>`,
 `/conducting/quality/?order=title|-title|year|-year&show=all|done|pending|above|below&q=&page=&per-page=`,
 `/conducting/extraction/?tab=todo|done|all&q=&page=&per-page=` (`part=list`: only the studies and the pager),
-`/conducting/analysis/`.
+`/conducting/analysis/?section=selection|quality|extraction`.
 Each page computes `steps_messages` (prerequisites not yet met) and only
 renders its tool when `finished_all_steps`.
 

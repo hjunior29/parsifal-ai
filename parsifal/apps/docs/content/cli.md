@@ -41,12 +41,12 @@ parameters in kebab-case; `--review` accepts a numeric id or `author/slug`.
 | `question`, `keyword`, `criteria` | `list`, `create`, `update`, `delete` (+ `reorder`, `import-picoc`) |
 | `search-string` | `get`, `set`, `generate` |
 | `source` | `defaults`, `list`, `add`, `update`, `remove`, `document-search`; `source search-string list|set|copy-generic|delete` |
-| `quality` | `question …`, `answer …`, `max-score`, `set-cutoff`, `summary`, `get`, `assess` |
-| `extraction` | `field …`, `get`, `set`, `done` |
+| `quality` | `question …`, `answer …`, `max-score`, `set-cutoff`, `summary`, `studies`, `get`, `assess` |
+| `extraction` | `field …`, `get`, `set`, `done`, `studies` |
 | `article` | `list`, `create`, `get`, `update`, `delete`, `set-status`, `import`, `import-file`, `duplicates`, `resolve-duplicates`, `delete-batch`, `clear`, `star`/`unstar` (`--article`; `list --starred` shows the starred ones); `article pdf upload|download|delete` (the study's PDF: `--article`, `--file` / `-o FILE`) |
 | `facet`, `classification`, `test-set`, `checklist` | optional classification steps — see [Classification and search evaluation](/docs/classification/) |
 | `decision` | `list`, `record`, `remove-mine`, `article`, `summary`, `agreement`, `disagreements`, `consolidate` |
-| `analytics` | `selection-by-source`, `final-by-year`, `selection-summary` (per status, duplicates vs imported, accepted vs not duplicated, per source), `criteria-usage` (criteria by the studies rejected or accepted with them), `studies-by-year` (per year and status), `facet-frequencies`, `facet-matrix` |
+| `analytics` | `selection-by-source`, `final-by-year`, `selection-summary` (per status, duplicates vs imported, accepted vs not duplicated, per source), `criteria-usage` (criteria by the studies rejected or accepted with them), `studies-by-year` (per year and status), `quality` (studies assessed, scores, answers per question), `extraction` (studies per option of each choice field), `facet-frequencies`, `facet-matrix` |
 | `export` | `articles`, `extraction`, `report` (all take `-o FILE`) |
 | `integration jev` | `show`, `set`, `test`, `remove` |
 | `integration library-access` | `show`, `set --address URL`, `remove` — your library proxy (e.g. CAPES), so studies carry `access_url`; see [Open studies through CAPES](/docs/library-access/) |

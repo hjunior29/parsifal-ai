@@ -1624,19 +1624,87 @@ def _selection_funnel(summary, review):
     ]
 
 
+def _quality_stages(overview):
+    """Quality assessment in numbers (Data Analysis, drawn as the selection's funnel): each count and its share."""
+    accepted = overview["accepted"]
+
+    def stage(key, label, count, of="of the accepted"):
+        return {
+            "key": key,
+            "label": label,
+            "count": count,
+            "share": round(100 * count / accepted) if accepted else None,
+            "of": of,
+        }
+
+    stages = [
+        stage("studies", "Accepted", accepted, ""),
+        stage("assessed", "Assessed", overview["assessed"], "of the accepted, every question answered"),
+        stage("partly", "Partly assessed", overview["partly"]),
+        stage("not_assessed", "Not assessed", overview["not_assessed"]),
+    ]
+    if overview["cutoff"] is not None:
+        stages += [
+            stage(
+                "above",
+                f"Above {overview['cutoff']:g}",
+                overview["above_cutoff"],
+                "of the accepted, the final selection",
+            ),
+            stage("at_most", f"At most {overview['cutoff']:g}", overview["at_most_cutoff"]),
+        ]
+    return stages
+
+
+def _extraction_stages(choices):
+    """Data extraction in numbers (Data Analysis, drawn as the selection's funnel): each count and its share."""
+    studies = choices["studies"]
+
+    def stage(key, label, count, of):
+        return {
+            "key": key,
+            "label": label,
+            "count": count,
+            "share": round(100 * count / studies) if studies else None,
+            "of": of,
+        }
+
+    return [
+        stage("selected", "Final selection", studies, ""),
+        stage("done", "Done", choices["done"], "of the final selection"),
+        stage("todo", "To do", studies - choices["done"], "of the final selection"),
+    ]
+
+
+# The sections of Data Analysis: the study selection, the quality assessment and the data extraction.
+ANALYSIS_SECTIONS = ("selection", "quality", "extraction")
+
+
 @author_required
 @login_required
 def data_analysis(request, username, review_name):
     review = get_object_or_404(Review, name=review_name, author__username__iexact=username)
-    summary = analytics.selection_summary(review)
-    context = {
-        "review": review,
-        # The study selection in numbers, and the data of the charts below the first three.
-        "summary": summary,
-        "funnel": _selection_funnel(summary, review),
-        "criteria": analytics.criteria_usage(review),
-        "years": analytics.studies_by_year(review),
-    }
+    section = request.GET.get("section") if request.GET.get("section") in ANALYSIS_SECTIONS else "selection"
+    context = {"review": review, "section": section}
+    if section == "quality":
+        overview = analytics.quality_overview(review)
+        context.update(quality=overview, stages=_quality_stages(overview))
+    elif section == "extraction":
+        choices = analytics.extraction_choices(review)
+        context.update(
+            extraction=choices,
+            stages=_extraction_stages(choices),
+            has_fields=review.dataextractionfield_set.exists(),
+        )
+    else:
+        summary = analytics.selection_summary(review)
+        context.update(
+            # The study selection in numbers, and the data of the charts below the first three.
+            summary=summary,
+            funnel=_selection_funnel(summary, review),
+            criteria=analytics.criteria_usage(review),
+            years=analytics.studies_by_year(review),
+        )
     return render(request, "conducting/conducting_data_analysis.html", context)
 
 

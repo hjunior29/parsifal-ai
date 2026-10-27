@@ -5,8 +5,10 @@ $(function () {
     google.charts.setOnLoadCallback(drawChartCallback);
 
     function drawChartCallback() {
-      drawChart();
-      drawYearLines();
+      if (document.getElementById('articles-selection-pie')) {  // the Study Selection section
+        drawChart();
+        drawYearLines();
+      }
       $(document).trigger("charts-ready");
     }
 
@@ -101,11 +103,17 @@ $(function () {
   // The funnel's stages: the totals in the blue of the charts above, the rest in the statuses' colors.
   var STAGE_COLORS = {
     imported: "#3366cc", duplicated: COLORS.duplicated, unique: "#3366cc", rejected: COLORS.rejected,
-    unclassified: COLORS.unclassified, accepted: COLORS.accepted, final: COLORS.accepted
+    unclassified: COLORS.unclassified, accepted: COLORS.accepted, final: COLORS.accepted,
+    // Quality Assessment and Data Extraction in numbers
+    studies: "#3366cc", assessed: COLORS.accepted, partly: COLORS.duplicated, not_assessed: COLORS.unclassified,
+    above: COLORS.accepted, at_most: COLORS.rejected, selected: "#3366cc", done: COLORS.accepted,
+    todo: COLORS.unclassified
   };
 
-  function funnel(stages) {
-    var element = document.getElementById("analysis-funnel");
+  /* A funnel of bars (each stage's count, and its share of the stage it comes from); also the numbers of Quality
+     Assessment and Data Extraction. */
+  function funnel(stages, elementId) {
+    var element = document.getElementById(elementId || "analysis-funnel");
     if (!element || !stages.length || !stages[0].count) { return; }
     var data = new google.visualization.DataTable();
     data.addColumn("string", "Stage");
@@ -124,7 +132,7 @@ $(function () {
       ]);
     });
     new google.visualization.BarChart(element).draw(data, {
-      height: 400,
+      height: elementId ? Math.max(220, 55 * stages.length + 90) : 400,
       legend: {position: "none"},
       hAxis: {title: "Number of Articles", titleTextStyle: {color: "#3A3D40"}, minValue: 0},
       annotations: {alwaysOutside: true}
@@ -190,6 +198,118 @@ $(function () {
       perYear.push([row.year === null ? "Unknown" : String(row.year), row.accepted, row.rejected, row.unclassified]);
     });
     stacked("analysis-years", perYear, ["accepted", "rejected", "unclassified"]);
+  }
+
+  $(document).on("charts-ready", draw);
+  $(document).on("draw-stages", function (event, stages) { funnel(stages, "analysis-stages"); });
+});
+
+/* The Quality Assessment and Data Extraction sections: their numbers, the scores, the answers to each question, and
+   how often each option of the choice fields was chosen. Their data come with the page (json_script). */
+$(function () {
+  var BLUE = "#3366cc";
+  var GRAY = "#999999";
+
+  function data(id) {
+    var node = document.getElementById(id);
+    return node ? JSON.parse(node.textContent) : null;
+  }
+
+  function shortLabel(text, size) {
+    return text.length > size ? text.slice(0, size - 3) + "…" : text;
+  }
+
+  function percent(part, whole) {
+    return whole ? Math.round(100 * part / whole) + "%" : "";
+  }
+
+  /* The answers' colors, from the highest weight to the lowest: green to red when there are two or three. */
+  function answerColors(count) {
+    if (count === 2) { return ["#5cb85c", "#d9534f"]; }
+    if (count === 3) { return ["#5cb85c", "#f0ad4e", "#d9534f"]; }
+    return null;  // Google's own, in order
+  }
+
+  function scores(quality) {
+    var element = document.getElementById("analysis-scores");
+    if (!element || !quality.scores.length) { return; }
+    var rows = [["Score", "Number of Articles"]];
+    quality.scores.forEach(function (row) { rows.push([String(row.score), row.studies]); });
+    new google.visualization.ColumnChart(element).draw(google.visualization.arrayToDataTable(rows), {
+      height: 400,
+      colors: [BLUE],
+      legend: {position: "none"},
+      hAxis: {title: "Score"},
+      vAxis: {title: "Number of Articles", titleTextStyle: {color: "#3A3D40"}, minValue: 0, format: "0"}
+    });
+  }
+
+  function questions(quality) {
+    var element = document.getElementById("analysis-questions");
+    if (!element || !quality.by_question.length) { return; }
+    var header = ["Question"];
+    quality.answers.forEach(function (answer) { header.push(answer.description); });
+    header.push("No answer");
+    var rows = [header];
+    quality.by_question.forEach(function (question) {
+      var row = [question.key + " — " + shortLabel(question.description, 70)];
+      question.answers.forEach(function (answer) { row.push(answer.studies); });
+      row.push(question.unanswered);
+      rows.push(row);
+    });
+    var colors = answerColors(quality.answers.length);
+    var options = {
+      height: Math.max(200, 50 * quality.by_question.length + 80),
+      isStacked: true,
+      legend: {position: "top"},
+      chartArea: {left: "45%", width: "50%"},
+      hAxis: {title: "Number of Articles", minValue: 0, format: "0"}
+    };
+    if (colors) { options.colors = colors.concat([GRAY]); }
+    new google.visualization.BarChart(element).draw(google.visualization.arrayToDataTable(rows), options);
+  }
+
+  /* One chart per choice field: each option's studies, the most chosen first, with its share of the studies that
+     answered (a multiple choice field's shares may add up to more than 100%). */
+  function field(field) {
+    var element = document.getElementById("analysis-field-" + field.id);
+    if (!element) { return; }
+    var table = new google.visualization.DataTable();
+    table.addColumn("string", "Option");
+    table.addColumn("number", "Number of Articles");
+    table.addColumn({type: "string", role: "annotation"});
+    table.addColumn({type: "string", role: "tooltip"});
+    field.options.forEach(function (option) {
+      var share = percent(option.studies, field.answered);
+      table.addRow([
+        shortLabel(option.value, 60),
+        option.studies,
+        option.studies + (share ? " · " + share : ""),
+        option.value + ": " + option.studies + (share ? " (" + share + " of the " + field.answered + " that answered)" : "")
+      ]);
+    });
+    new google.visualization.BarChart(element).draw(table, {
+      height: Math.max(140, 40 * field.options.length + 60),
+      colors: [BLUE],
+      legend: {position: "none"},
+      chartArea: {left: "35%", width: "55%"},
+      hAxis: {title: "Number of Articles", minValue: 0, format: "0"},
+      annotations: {alwaysOutside: true}
+    });
+  }
+
+  function draw() {
+    var quality = data("analysis-quality");
+    var extraction = data("analysis-extraction");
+    if (!quality && !extraction) { return; }
+    $(document).trigger("draw-stages", [data("analysis-stages-data") || []]);
+    if (quality) {
+      scores(quality);
+      questions(quality);
+    }
+    if (extraction) {
+      extraction.fields.forEach(field);
+    }
   }
 
   $(document).on("charts-ready", draw);

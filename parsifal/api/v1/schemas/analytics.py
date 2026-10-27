@@ -57,3 +57,63 @@ class YearStatusesOut(Schema):
     accepted: int
     rejected: int
     unclassified: int
+
+
+class ScoreStudiesOut(Schema):
+    score: float
+    studies: int  # fully assessed studies with this score
+
+
+class AnswerWeightOut(Schema):
+    id: int
+    description: str
+    weight: float
+
+
+class AnswerStudiesOut(Schema):
+    answer_id: int
+    studies: int
+
+
+class QuestionAnswersOut(Schema):
+    id: int
+    key: str  # Q1…, in the checklist's order
+    description: str
+    answers: list[AnswerStudiesOut]  # in the order of ``answers``: the highest weight first
+    unanswered: int
+
+
+class QualityOverviewOut(Schema):
+    accepted: int
+    questions: int
+    assessed: int  # every question answered
+    partly: int
+    not_assessed: int
+    cutoff: float | None  # None without a checklist or a cutoff
+    above_cutoff: int | None
+    at_most_cutoff: int | None
+    max_score: float
+    scores: list[ScoreStudiesOut]  # lowest first
+    answers: list[AnswerWeightOut]
+    by_question: list[QuestionAnswersOut]
+
+
+class ChoiceOptionOut(Schema):
+    id: int | None = None  # the lookup's id; None for true/false
+    value: str
+    studies: int
+
+
+class ChoiceFieldOut(Schema):
+    id: int
+    description: str
+    field_type: str  # O (single choice), M (multiple choice) or B (true/false)
+    answered: int
+    unanswered: int
+    options: list[ChoiceOptionOut]  # the most chosen first; true before false
+
+
+class ExtractionChoicesOut(Schema):
+    studies: int  # in the final selection
+    done: int  # marked as done
+    fields: list[ChoiceFieldOut]

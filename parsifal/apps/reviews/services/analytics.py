@@ -4,7 +4,8 @@ from collections import Counter
 
 from django.db.models import Count, Q
 
-from parsifal.apps.reviews.models import Article
+from parsifal.apps.reviews.models import Article, DataExtraction, DataExtractionField, QualityAssessment
+from parsifal.apps.reviews.services import quality
 
 
 def selection_by_source(review):
@@ -128,3 +129,115 @@ def studies_by_year(review):
         )
         year[STATUS_NAMES[row["status"]]] = row["count"]
     return sorted(years.values(), key=lambda row: (row["year"] is None, row["year"] or 0))
+
+
+def quality_overview(review):
+    """
+    Quality assessment in numbers, over the accepted studies: how many are assessed (every question answered),
+    partly assessed or not yet; with a cutoff, how many are above it and how many at most; how many fully assessed
+    studies have each score; and how many studies have each answer to each question (and none).
+    """
+    questions = list(review.qualityquestion_set.all())
+    answers = list(review.qualityanswer_set.all())  # the highest weight first
+    rows = list(quality.assessment_list(review).values("score", "answered"))
+    count = len(questions)
+    assessed = sum(1 for row in rows if count and row["answered"] >= count)
+    partly = sum(1 for row in rows if 0 < row["answered"] < count)
+    cutoff = review.quality_assessment_cutoff_score
+    has_cutoff = review.has_quality_assessment_checklist() and cutoff > 0
+    above = sum(1 for row in rows if row["score"] > cutoff) if has_cutoff else None
+    scores = Counter(round(row["score"], 2) for row in rows if count and row["answered"] >= count)
+    chosen = Counter(
+        {
+            (row["question_id"], row["answer_id"]): row["studies"]
+            for row in QualityAssessment.objects.filter(
+                article__review=review, article__status=Article.ACCEPTED, answer__isnull=False
+            )
+            .values("question_id", "answer_id")
+            .annotate(studies=Count("pk"))
+            .order_by()
+        }
+    )
+    by_question = []
+    for index, question in enumerate(questions, start=1):
+        per_answer = [{"answer_id": answer.pk, "studies": chosen[(question.pk, answer.pk)]} for answer in answers]
+        by_question.append(
+            {
+                "id": question.pk,
+                "key": f"Q{index}",
+                "description": question.description,
+                "answers": per_answer,
+                "unanswered": len(rows) - sum(row["studies"] for row in per_answer),
+            }
+        )
+    return {
+        "accepted": len(rows),
+        "questions": count,
+        "assessed": assessed,
+        "partly": partly,
+        "not_assessed": len(rows) - assessed - partly,
+        "cutoff": cutoff if has_cutoff else None,
+        "above_cutoff": above,
+        "at_most_cutoff": len(rows) - above if has_cutoff else None,
+        "max_score": quality.max_score(review),
+        "scores": [{"score": score, "studies": studies} for score, studies in sorted(scores.items())],
+        "answers": [{"id": a.pk, "description": a.description, "weight": a.weight} for a in answers],
+        "by_question": by_question,
+    }
+
+
+# The fields Data Analysis draws: those whose answers are options to choose (text, numbers and dates are left out).
+CHOICE_FIELDS = (
+    DataExtractionField.SELECT_ONE_FIELD,
+    DataExtractionField.SELECT_MANY_FIELD,
+    DataExtractionField.BOOLEAN_FIELD,
+)
+
+
+def extraction_choices(review):
+    """
+    How often each option of the choice fields (single choice, multiple choice, true/false) was chosen for the
+    studies of the final selection, in the form's order: each option with its studies, the most chosen first (true
+    before false), and how many studies have an answer and how many have none. A study may have several options of a
+    multiple choice field. Also how many studies are in the final selection and how many are marked as done.
+    """
+    studies = review.get_final_selection_articles()
+    ids = list(studies.values_list("pk", flat=True))
+    fields = review.dataextractionfield_set.filter(field_type__in=CHOICE_FIELDS).prefetch_related(
+        "dataextractionlookup_set"
+    )
+    rows = []
+    for field in fields:
+        extractions = DataExtraction.objects.filter(field=field, article_id__in=ids)
+        if field.field_type == DataExtractionField.BOOLEAN_FIELD:
+            counts = Counter(extractions.exclude(value="").values_list("value", flat=True))
+            options = [{"id": None, "value": value, "studies": counts[value]} for value in ("True", "False")]
+            answered = sum(option["studies"] for option in options)
+        else:
+            chosen = extractions.filter(select_values__isnull=False)
+            counts = dict(
+                chosen.values_list("select_values").annotate(studies=Count("article", distinct=True)).order_by()
+            )
+            options = sorted(
+                (
+                    {"id": lookup.pk, "value": lookup.value, "studies": counts.get(lookup.pk, 0)}
+                    for lookup in field.dataextractionlookup_set.all()
+                ),
+                key=lambda option: -option["studies"],
+            )
+            answered = chosen.values("article").distinct().count()
+        rows.append(
+            {
+                "id": field.pk,
+                "description": field.description,
+                "field_type": field.field_type,
+                "answered": answered,
+                "unanswered": len(ids) - answered,
+                "options": options,
+            }
+        )
+    return {
+        "studies": len(ids),
+        "done": studies.filter(finished_data_extraction=True).count(),
+        "fields": rows,
+    }

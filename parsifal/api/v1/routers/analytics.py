@@ -11,6 +11,8 @@ from parsifal.api.deps import get_review
 from parsifal.api.v1.schemas.analytics import (
     ByYearOut,
     CriteriaUsageOut,
+    ExtractionChoicesOut,
+    QualityOverviewOut,
     SelectionBySourceOut,
     SelectionSummaryOut,
     YearStatusesOut,
@@ -75,6 +77,32 @@ def analytics_criteria_usage(request, review_id: int):
 def analytics_studies_by_year(request, review_id: int):
     """The studies that are not duplicates per publication year and status, oldest first (no year: None, last)."""
     return analytics.studies_by_year(get_review(request, review_id))
+
+
+@router.get(
+    "/reviews/{int:review_id}/analytics/quality", response=QualityOverviewOut, operation_id="analytics_quality"
+)
+def analytics_quality(request, review_id: int):
+    """
+    Quality assessment in numbers, over the accepted studies: how many are assessed (every question answered), partly
+    or not yet; with a cutoff, how many are above it and at most it; how many fully assessed studies have each score;
+    and how many studies have each answer to each question.
+    """
+    return analytics.quality_overview(get_review(request, review_id))
+
+
+@router.get(
+    "/reviews/{int:review_id}/analytics/extraction",
+    response=ExtractionChoicesOut,
+    operation_id="analytics_extraction",
+)
+def analytics_extraction(request, review_id: int):
+    """
+    How often each option of the choice fields (single choice, multiple choice, true/false) was chosen for the
+    studies of the final selection, the most chosen first, with how many studies answered each field; text, number
+    and date fields are left out.
+    """
+    return analytics.extraction_choices(get_review(request, review_id))
 
 
 def _serialise(value):

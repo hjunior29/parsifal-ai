@@ -166,6 +166,17 @@ class TestAnalyticsAndExports(ApiTestCase):
         self.assertEqual((1, 1), (usage["rejected_without_criterion"], usage["accepted_without_criterion"]))
         years = self.api("get", self.review_path("/analytics/studies-by-year")).json()
         self.assertEqual([(2020, 1, 0), (2021, 0, 1)], [(r["year"], r["accepted"], r["rejected"]) for r in years])
+        overview = self.api("get", self.review_path("/analytics/quality")).json()
+        self.assertEqual(
+            (1, 0, 0, 1, None),
+            tuple(overview[key] for key in ("accepted", "questions", "assessed", "not_assessed", "cutoff")),
+        )
+        choices = self.api("get", self.review_path("/analytics/extraction")).json()
+        self.assertEqual({"studies": 1, "done": 0, "fields": []}, choices)
+        self.assertEqual(
+            404,
+            self.api("get", self.review_path("/analytics/quality"), client=self.client_for(self.outsider)).status_code,
+        )
 
     def test_exports(self):
         with self.subTest(msg="json"):

@@ -150,11 +150,24 @@ Prerequisites: sources, articles, ≥1 accepted article, ≥1 extraction field.
 
 ### 2.6 Data analysis — `/<u>/<r>/conducting/analysis/`
 
-Two client-rendered charts fed by text endpoints:
-`articles_selection_chart` (per source: imported vs accepted) and
-`articles_per_year` (final selection by `year`). K 6.5 data synthesis
-(descriptive tables, forest plots, qualitative synthesis) is otherwise
-absent.
+Three sections, chosen with pills (`?section=selection|quality|extraction`):
+
+- **Study Selection**: two client-rendered charts fed by text endpoints,
+  `articles_selection_chart` (per source: imported vs accepted) and
+  `articles_per_year` (final selection by `year`), then the selection in
+  numbers (a funnel of bars), the statuses per source, the criteria most used
+  and the studies per year and status (`analytics.selection_summary`,
+  `criteria_usage`, `studies_by_year`).
+- **Quality Assessment** (`analytics.quality_overview`): the accepted studies
+  assessed, partly or not yet, above and at most the cutoff; the scores of the
+  fully assessed ones; the answers per question.
+- **Data Extraction** (`analytics.extraction_choices`): the final selection
+  done and to do; one chart per single choice, multiple choice or true/false
+  field with the studies per option (text, number and date fields are left
+  out).
+
+K 6.5 data synthesis (descriptive tables, forest plots, qualitative
+synthesis) is otherwise absent.
 
 ## 3. Reporting (K 7)
 
