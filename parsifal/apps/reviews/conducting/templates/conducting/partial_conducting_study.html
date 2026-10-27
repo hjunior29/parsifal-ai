@@ -1,0 +1,65 @@
+{% comment %}
+  A study to read while its quality is assessed or its data extracted (study_window): its details, abstract and
+  comments as they are, and its full text. Its status was decided on Study Selection, so nothing here screens it; only
+  the PDF may be uploaded, replaced or removed. The window opens on the full text when there is one.
+{% endcomment %}
+<div id="study-window" data-article-id="{{ article.id }}" data-review-id="{{ review.id }}">
+  {% csrf_token %}
+  <h4 class="study-window-title">{{ article.title }}</h4>
+  {% if article.author %}<p class="text-muted">{{ article.author }}</p>{% endif %}
+
+  <ul class="nav nav-tabs" role="tablist">
+    <li role="presentation"{% if not article.pdf %} class="active"{% endif %}>
+      <a href="#study-details" aria-controls="study-details" role="tab" data-toggle="tab">Details</a>
+    </li>
+    <li role="presentation"{% if article.pdf %} class="active"{% endif %}>
+      <a href="#study-full-text" aria-controls="study-full-text" role="tab" data-toggle="tab">Full text{% if article.pdf %} <span class="glyphicon glyphicon-file" title="Has a PDF"></span>{% endif %}</a>
+    </li>
+    {% with external_url=article.external_url %}
+      {% if external_url %}
+        <li class="pull-right">
+          <a href="{{ external_url }}" target="_blank" rel="noopener" title="{% if external_url == article.url %}Opens the study's URL{% else %}Opens the DOI at doi.org{% endif %}">
+            <small><span class="glyphicon glyphicon-new-window"></span> External Link</small>
+          </a>
+        </li>
+      {% endif %}
+    {% endwith %}
+    {% if access_url %}
+      {# Through the user's library proxy (Settings → Library access): the sign-in stays in the browser. #}
+      <li class="pull-right">
+        <a href="{{ access_url }}" target="_blank" rel="noopener" title="{% if article.doi_url %}Opens the DOI{% else %}Opens the study's URL{% endif %} through your institution's access (Settings → Library access). Not signed in? You are asked to sign in first.">
+          <small><span class="glyphicon glyphicon-lock"></span> {{ access_label }}</small>
+        </a>
+      </li>
+    {% endif %}
+  </ul>
+
+  <div class="tab-content">
+    <div role="tabpanel" class="tab-pane{% if not article.pdf %} active{% endif %}" id="study-details">
+      <dl class="dl-horizontal study-window-facts">
+        {% if article.year %}<dt>Year</dt><dd>{{ article.year }}</dd>{% endif %}
+        {% if article.journal %}<dt>Journal</dt><dd>{{ article.journal }}{% if article.volume %}, vol. {{ article.volume }}{% endif %}{% if article.pages %}, pp. {{ article.pages }}{% endif %}</dd>{% endif %}
+        {% if article.document_type %}<dt>Document type</dt><dd>{{ article.document_type }}</dd>{% endif %}
+        {% if article.doi %}<dt>DOI</dt><dd>{% if article.doi_url %}<a href="{{ article.doi_url }}" target="_blank" rel="noopener">{{ article.doi }}</a>{% else %}{{ article.doi }}{% endif %}</dd>{% endif %}
+        {% if article.keywords %}<dt>Keywords</dt><dd>{{ article.keywords }}</dd>{% endif %}
+        {% if article.author_keywords %}<dt>Author keywords</dt><dd>{{ article.author_keywords }}</dd>{% endif %}
+        {% if article.selection_criteria %}<dt>Criterion</dt><dd>{{ article.selection_criteria.description }}</dd>{% endif %}
+        <dt>Source</dt><dd>{{ article.source.name }}</dd>
+        {% if article.bibtex_key %}<dt>BibTeX key</dt><dd>{{ article.bibtex_key }}</dd>{% endif %}
+      </dl>
+      <h5><strong>Abstract</strong></h5>
+      {% if article.abstract %}
+        <p class="study-window-abstract">{{ article.abstract|linebreaksbr }}</p>
+      {% else %}
+        <p class="text-muted">The study has no abstract.</p>
+      {% endif %}
+      {% if article.comments %}
+        <h5><strong>Comments</strong></h5>
+        <p>{{ article.comments|linebreaksbr }}</p>
+      {% endif %}
+    </div>
+    <div role="tabpanel" class="tab-pane{% if article.pdf %} active{% endif %}" id="study-full-text">
+      {% include 'conducting/partial_conducting_article_pdf.html' %}
+    </div>
+  </div>
+</div>

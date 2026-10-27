@@ -1,5 +1,10 @@
 from parsifal.api.tests.base import ApiTestCase
-from parsifal.apps.reviews.tests.factories import ArticleFactory
+from parsifal.apps.reviews.tests.factories import (
+    ArticleFactory,
+    DataExtractionFieldFactory,
+    QualityAnswerFactory,
+    QualityQuestionFactory,
+)
 
 
 class TestQualityApi(ApiTestCase):
@@ -132,3 +137,60 @@ class TestExtractionApi(ApiTestCase):
             self.assertEqual(
                 204, self.api("delete", self.review_path(f"/extraction/fields/{notes['id']}")).status_code
             )
+
+
+class TestStudyListsApi(ApiTestCase):
+    """The lists of Quality Assessment and Data Extraction, searched, filtered and paged as the pages do."""
+
+    def setUp(self):
+        super().setUp()
+        self.question = QualityQuestionFactory(review=self.review)
+        self.yes = QualityAnswerFactory(review=self.review, weight=1.0)
+        self.field = DataExtractionFieldFactory(review=self.review)
+        self.beta = ArticleFactory(review=self.review, source=self.source, status="A", title="Beta", year="2021")
+        self.alpha = ArticleFactory(review=self.review, source=self.source, status="A", title="Alpha", year="2020")
+        ArticleFactory(review=self.review, source=self.source, status="R", title="Rejected")
+
+    def test_quality_studies(self):
+        self.api(
+            "put",
+            self.review_path(f"/articles/{self.beta.pk}/quality"),
+            {"question_id": self.question.pk, "answer_id": self.yes.pk},
+        )
+        body = self.api("get", self.review_path("/quality/studies")).json()
+        self.assertEqual(2, body["count"])
+        self.assertEqual(
+            [
+                {"article_id": self.alpha.pk, "title": "Alpha", "year": "2020", "score": 0.0, "answered": 0},
+                {"article_id": self.beta.pk, "title": "Beta", "year": "2021", "score": 1.0, "answered": 1},
+            ],
+            body["items"],
+        )
+        for query, expected in (
+            ("state=done", ["Beta"]),
+            ("state=pending", ["Alpha"]),
+            ("q=alp", ["Alpha"]),
+            ("order=-year", ["Beta", "Alpha"]),
+            ("limit=1&offset=1", ["Beta"]),
+        ):
+            with self.subTest(query=query):
+                items = self.api("get", self.review_path("/quality/studies"), QUERY_STRING=query).json()["items"]
+                self.assertEqual(expected, [item["title"] for item in items])
+        self.assertEqual(
+            422, self.api("get", self.review_path("/quality/studies"), QUERY_STRING="state=x").status_code
+        )
+
+    def test_extraction_studies(self):
+        self.api(
+            "put", self.review_path(f"/articles/{self.alpha.pk}/extraction"), {"field_id": self.field.pk, "value": "x"}
+        )
+        self.api("put", self.review_path(f"/articles/{self.alpha.pk}/extraction/done"), {"done": True})
+        body = self.api("get", self.review_path("/extraction/studies")).json()
+        self.assertEqual(
+            [("Alpha", 1, True), ("Beta", 0, False)],
+            [(item["title"], item["filled"], item["finished_data_extraction"]) for item in body["items"]],
+        )
+        for query, expected in (("done=true", ["Alpha"]), ("done=false", ["Beta"]), ("q=bet", ["Beta"])):
+            with self.subTest(query=query):
+                items = self.api("get", self.review_path("/extraction/studies"), QUERY_STRING=query).json()["items"]
+                self.assertEqual(expected, [item["title"] for item in items])

@@ -888,6 +888,21 @@ OPERATIONS = (
         (REVIEW,),
     ),
     Operation(
+        "quality_studies",
+        "GET",
+        "/reviews/{review_id}/quality/studies",
+        ("quality",),
+        "studies",
+        "The accepted studies to assess, with their score and how many questions each has an answer to.",
+        (
+            REVIEW,
+            Q("q", help="Search the title."),
+            Q("state", help="done (every question answered), pending, above or below (the cutoff)."),
+            Q("order", help="title (default), -title, year or -year."),
+        ),
+        paginated=True,
+    ),
+    Operation(
         "article_quality_get",
         "GET",
         "/reviews/{review_id}/articles/{article_id}/quality",
@@ -994,6 +1009,20 @@ OPERATIONS = (
         "done",
         "Mark extraction as done (or undone with --no-done).",
         (REVIEW, ARTICLE, B("done", BOOL)),
+    ),
+    Operation(
+        "extraction_studies",
+        "GET",
+        "/reviews/{review_id}/extraction/studies",
+        ("extraction",),
+        "studies",
+        "The final-selection studies to extract data from, with their quality score and how many fields have a value.",
+        (
+            REVIEW,
+            Q("q", help="Search the title."),
+            Q("done", BOOL, help="Only the studies marked as done (--no-done: the others)."),
+        ),
+        paginated=True,
     ),
     # Articles -------------------------------------------------------------------------------------------------------
     Operation(

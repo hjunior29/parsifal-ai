@@ -406,18 +406,18 @@ ul.review-menu li.active {
   }
 }
 
-#tbl-quality td.answer {
+.panel-quality-assessment td.answer {
   cursor: pointer;
   text-align: center;
   width: 100px;
   transition: all 0.2s ease 0s;
 }
 
-#tbl-quality td.answer:hover {
+.panel-quality-assessment td.answer:hover {
   background-color: #f5f5f5;
 }
 
-#tbl-quality td.selected-answer {
+.panel-quality-assessment td.selected-answer {
   background-color: #337ab7!important;
   color: #fff;
 }
@@ -513,6 +513,51 @@ th.headerSortUp:after {
 .conducting-pager-info select {
   width: auto;
   display: inline-block;
+}
+
+/* The studies of Quality Assessment and Data Extraction: a panel per study, opened from its heading */
+.js-toggle-study {
+  cursor: pointer;
+}
+
+.js-toggle-study .js-toggle-icon {
+  font-size: 11px;
+  color: #999;
+  margin-right: 4px;
+}
+
+.study-heading-controls {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.study-heading-controls > * {
+  margin-left: 10px;
+}
+
+.study-heading-controls small {
+  font-size: 100%;
+}
+
+.panel-quality-assessment .table {
+  margin-bottom: 0;
+}
+
+.study-list-controls .form-inline .form-control,
+.study-list-controls .form-inline .control-label {
+  margin-left: 6px;
+}
+
+.study-list-controls .control-label {
+  font-weight: normal;
+}
+
+.study-window-facts dt {
+  width: 120px;
+}
+
+.study-window-facts dd {
+  margin-left: 135px;
 }
 
 /* A list reloading (another page, filter or order): what it showed fades until the new one comes */

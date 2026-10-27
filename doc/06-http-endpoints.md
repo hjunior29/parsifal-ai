@@ -133,8 +133,9 @@ Action endpoints, all under `/reviews/planning/`, guard **A** unless noted:
 
 Pages (guard A, GET): `/<u>/<r>/conducting/` → redirect, `/conducting/search/`,
 `/conducting/import/`, `/conducting/studies/?source=<id>`,
-`/conducting/quality/?order=title|-title|year|-year`,
-`/conducting/extraction/?tab=todo|done|all`, `/conducting/analysis/`.
+`/conducting/quality/?order=title|-title|year|-year&show=all|done|pending|above|below&q=&page=&per-page=`,
+`/conducting/extraction/?tab=todo|done|all&q=&page=&per-page=` (`part=list`: only the studies and the pager),
+`/conducting/analysis/`.
 Each page computes `steps_messages` (prerequisites not yet met) and only
 renders its tool when `finished_all_steps`.
 
@@ -154,6 +155,7 @@ Action endpoints under `/reviews/conducting/`, guard **A** unless noted:
 | `new_article/` | GET | `review-id`, `source-id` | frag empty article form |
 | `source_articles/` | GET | `review-id`, `source-id` (`None` = all), `status` (`ALL`/U/A/R/D), `q` (title, DOI or BibTeX key), `starred` (`1`: only the starred), `order` (a column, `-` reverses it), `page`, `per-page` (10, 25 — the default —, 50 or 100; kept in the session), `part` (`list`: only the table and its pager) | frag of a source's tab: its controls and the page of studies with a star column and a pager; filters, search and order apply to the whole list, on the server; 400 text for an unknown status or order |
 | `article_details/` | GET | `review-id`, `article-id` | frag details form (tabs Details, Comments, Full text, Reviewers); its star is moved to the window's title |
+| `study/` | GET | `review-id`, `article-id` | frag of the study window of Quality Assessment and Data Extraction: details, abstract, comments and Full text (PDF upload/replace/remove), links to the study; nothing that screens it; opens on the full text when there is one |
 | `article_star/` | POST | `review-id`, `article-id`, `starred` (`1` star, `0` unstar) | frag of the study's star (list column and window title); status untouched |
 | `articles/<article_id>/pdf/` | GET | — (L; 404 unless a member of the article's review and the article has a PDF) | The study's PDF, inline: sent from the server when kept in `<data dir>/files`, or a redirect to a signed bucket link that expires. `X-Frame-Options: SAMEORIGIN` (the Full text tab frames it) |
 | `article_pdf/upload/` | POST multipart | `review-id`, `article-id`, `pdf` | frag Full text tab; replaces the previous PDF; 400 text when not a PDF or too big |
@@ -174,7 +176,7 @@ Action endpoints under `/reviews/conducting/`, guard **A** unless noted:
 | `ai_runs/run/` | GET | `review-id`, `run-id` | frag: one run's settings and Jev's answer for each study |
 | `ai_runs/undo/` | GET · POST | `review-id`, `run-id` | GET: frag of what undoing the run would do, with a confirmation checkbox; POST: undoes it and returns the list frag with what was done; 400 with the reason when it cannot be undone (only the latest run can) |
 | `save_quality_assessment/` | POST | `review-id`, `article-id`, `question-id`, `answer-id` (empty: clear the answer, as when the chosen answer is clicked again) | Upsert or delete the assessment (scoped to the review); text score |
-| `quality_assessment_detailed/` | GET | `review-id` | frag per-article tables (order from session) |
+| `quality_assessment_detailed/` | GET | `review-id`, `q` (title), `show` (all, done, pending, above, below the cutoff), `order` (title/year, `-` reverses; kept in the session), `page`, `per-page` (kept in the session), `part` (`list`: only the studies and the pager) | frag Detailed tab: a closed panel per study with its progress, score and a link to its window |
 | `quality_assessment_summary/` | GET | `review-id` | frag |
 | `save_data_extraction/` | POST | `article-id`, `field-id`, `value` | Upsert + `set_value`; empty; 400 with error text on coercion failure (checks `article.review`) |
 | `save_data_extraction_status/` | POST | `article-id`, `action` (`mark_as_done` / other) | toggles `finished_data_extraction` (**no review scoping**) |

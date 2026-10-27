@@ -48,6 +48,7 @@ $(function () {
         $('.score', tbl).text(data);
         td.siblings().removeClass("selected-answer");
         td.toggleClass("selected-answer", !clear);
+        $('.study-progress', tbl).text($("td.selected-answer", tbl).length + " of " + $("#questions-count").val() + " answered");
       },
       complete: function () {
         td.removeClass("processing").text(old_text);
@@ -55,62 +56,4 @@ $(function () {
     });
   });
 
-  $(".quality-container").on("click", "#all-filter", function () {
-    $(".quality-assessment .panel-quality-assessment").show();
-  });
-
-  $(".quality-container").on("click", "#done-filter", function () {
-    var questions_count = parseInt($("#questions-count").val());
-    $(".quality-assessment .panel-quality-assessment").each(function () {
-      if ($("table td.selected-answer", this).length != questions_count) {
-        $(this).hide();
-      }
-      else {
-        $(this).show();
-      }
-    });
-  });
-
-  $(".quality-container").on("click", "#pending-filter", function () {
-    var questions_count = parseInt($("#questions-count").val());
-    $(".quality-assessment .panel-quality-assessment").each(function () {
-      if ($("table td.selected-answer", this).length != questions_count) {
-        $(this).show();
-      }
-      else {
-        $(this).hide();
-      }
-    });
-  });
-
-  $(".quality-container").on("click", "#score-higher-filter", function () {
-    var cutoff_score = parseFloat($("#cutoff-score").val());
-    $(".quality-assessment .panel-quality-assessment").each(function () {
-      var score = parseFloat($("span.score", this).text());
-      if (score > cutoff_score) {
-        $(this).show();
-      }
-      else {
-        $(this).hide();
-      }
-    });
-  });
-
-  $(".quality-container").on("click", "#score-lower-filter", function () {
-    var cutoff_score = parseFloat($("#cutoff-score").val());
-    $(".quality-assessment .panel-quality-assessment").each(function () {
-      var score = parseFloat($("span.score", this).text());
-      if (score <= cutoff_score) {
-        $(this).show();
-      }
-      else {
-        $(this).hide();
-      }
-    });
-  });
-
-  $(".quality-container").on("change", "#quality-assessment-order", function () {
-    $(this).closest("form").submit();
-  });
-      
 });

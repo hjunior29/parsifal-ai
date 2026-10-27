@@ -5,8 +5,6 @@ from collections import Counter
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Sum, Value
-from django.db.models.functions import Coalesce
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.context_processors import csrf
@@ -199,63 +197,100 @@ def save_study_columns(request):
     return JsonResponse({"columns": columns})
 
 
-def build_quality_assessment_table(request, review, order):
-    selected_studies = (
-        review.get_accepted_articles()
-        .prefetch_related("qualityassessment_set")
-        .annotate(score=Coalesce(Sum("qualityassessment__answer__weight"), Value(0.0)))
-        .order_by(order)
+def _study_heading(study, progress, controls=""):
+    """
+    The heading of a study's panel on Quality Assessment and Data Extraction: a click opens or closes the panel (closed
+    at first); it shows the study's title and year, how far it went (``progress``), the link to see the study and
+    ``controls`` (HTML).
+    """
+    year = " <small>({0})</small>".format(escape(study.year)) if study.year else ""
+    return """
+      <div class="panel-heading js-toggle-study" role="button" tabindex="0" aria-expanded="false">
+        <h3 class="panel-title">
+          <span class="pull-right study-heading-controls">
+            <small class="text-muted study-progress">{progress}</small>
+            {controls}
+            <a href="#" class="js-open-study" data-article-id="{id}" title="See the study: its details and full text">
+              <span class="glyphicon glyphicon-file"></span> Study</a>
+          </span>
+          <span class="glyphicon glyphicon-chevron-right js-toggle-icon" aria-hidden="true"></span>
+          {title}{year}
+        </h3>
+      </div>""".format(
+        progress=progress, controls=controls, id=study.id, title=escape(study.title), year=year
     )
-    quality_questions = review.get_quality_assessment_questions()
-    quality_answers = review.get_quality_assessment_answers()
+
+
+def build_quality_assessment_table(request, review, studies):
+    """
+    The panels of Quality Assessment for ``studies`` (a page of ``quality.assessment_list``, with their assessments
+    prefetched): one per study, its questions closed until its heading is clicked. A click on an answer chooses it,
+    and a click on the chosen one clears it.
+    """
+    quality_questions = list(review.get_quality_assessment_questions())
+    quality_answers = list(review.get_quality_assessment_answers())
+    if not (quality_questions and quality_answers):
+        return ""
 
     csrf_token = csrf(request)["csrf_token"]
+    str_table = ""
+    for study in studies:
+        chosen = {qa.question_id: qa.answer_id for qa in study.qualityassessment_set.all()}
+        progress = "{0} of {1} answered".format(study.answered, len(quality_questions))
+        str_table += """
+        <div class="panel panel-default panel-quality-assessment" data-article-id="{id}">
+          {heading}
+          <div class="collapse">
+            <table class="table" article-id="{id}" csrf-token="{csrf_token}">
+              <tbody>""".format(
+            id=study.id,
+            heading=_study_heading(study, progress, '<span class="badge score">{0}</span>'.format(study.score)),
+            csrf_token=csrf_token,
+        )
 
-    quality_index = {}
-    for study in selected_studies:
-        quality_index[study.pk] = {}
-        for qa in study.qualityassessment_set.all():
-            quality_index[study.pk][qa.question_id] = qa.answer_id
-
-    if quality_questions and quality_answers:
-        str_table = ""
-        for study in selected_studies:
-            str_table += """
-            <div class="panel panel-default panel-quality-assessment">
-              <div class="panel-heading">
-                <h3 class="panel-title">{0} <small>({4})</small><span class="badge score pull-right">{1}</span></h3>
-              </div>
-
-            <table class="table" id="tbl-quality" article-id="{2}" csrf-token="{3}">
-                <tbody>""".format(
-                escape(study.title), study.score, study.id, csrf_token, escape(study.year)
+        for question in quality_questions:
+            str_table += '<tr question-id="{question_id}"><td>{question_description}</td>'.format(
+                question_id=question.pk,
+                question_description=escape(question.description),
             )
-
-            for question in quality_questions:
-                str_table += '<tr question-id="{question_id}"><td>{question_description}</td>'.format(
-                    question_id=question.pk,
-                    question_description=escape(question.description),
+            for answer in quality_answers:
+                selected_answer = " selected-answer" if chosen.get(question.pk) == answer.id else ""
+                str_table += '<td class="answer{selected}" answer-id="{answer_id}">{answer_description}</td>'.format(
+                    selected=selected_answer,
+                    answer_id=answer.pk,
+                    answer_description=escape(answer.description),
                 )
+            str_table += "</tr>"
 
-                question_answer_id = quality_index[study.pk].get(question.pk)
+        str_table += "</tbody></table></div></div>"
+    return str_table
 
-                for answer in quality_answers:
-                    selected_answer = ""
-                    if answer.id == question_answer_id:
-                        selected_answer = " selected-answer"
-                    str_table += (
-                        '<td class="answer {selected}" answer-id="{answer_id}">{answer_description}</td>'.format(
-                            selected=selected_answer,
-                            answer_id=answer.pk,
-                            answer_description=escape(answer.description),
-                        )
-                    )
-                str_table += "</tr>"
 
-            str_table += "</tbody></table></div>"
-        return str_table
-    else:
-        return ""
+def _quality_list(request, review):
+    """
+    The page of studies to assess asked for, for the list's template: those whose title has ``q``, in the state
+    ``show`` (all, done, pending, above or below the cutoff), in ``order`` (title or year, a leading "-" reverses it;
+    kept in the session), ``page`` and ``per-page``.
+    """
+    order = request.GET.get("order") or request.session.get("quality_assessment_order") or "title"
+    if order not in ("title", "-title", "year", "-year"):
+        order = "title"
+    if request.session.get("quality_assessment_order") != order:
+        request.session["quality_assessment_order"] = order
+    show = request.GET.get("show") if request.GET.get("show") in quality.STATES else "all"
+    query = request.GET.get("q", "").strip()
+    studies = quality.assessment_list(
+        review, query=query, state=None if show == "all" else show, order=order
+    ).prefetch_related("qualityassessment_set")
+    context = _paginate(request, studies, "quality_per_page")
+    context.update(
+        order=order,
+        show=show,
+        query=query,
+        filtered=bool(query) or show != "all",
+        quality_assessment_table=build_quality_assessment_table(request, review, context["page"]),
+    )
+    return context
 
 
 @author_required
@@ -314,28 +349,10 @@ def quality_assessment(request, username, review_name):
 
     finished_all_steps = len(steps_messages) == 0
 
-    order = "title"
-    if "order" in request.GET:
-        order = request.GET.get("order")
-    elif "quality_assessment_order" in request.session:
-        order = request.session.get("quality_assessment_order")
-    if order not in ("title", "-title", "year", "-year"):
-        order = "title"
-    request.session["quality_assessment_order"] = order
-
-    quality_assessment_table = build_quality_assessment_table(request, review, order)
-
-    return render(
-        request,
-        "conducting/conducting_quality_assessment.html",
-        {
-            "review": review,
-            "steps_messages": steps_messages,
-            "quality_assessment_table": quality_assessment_table,
-            "finished_all_steps": finished_all_steps,
-            "order": order,
-        },
-    )
+    context = {"review": review, "steps_messages": steps_messages, "finished_all_steps": finished_all_steps}
+    if finished_all_steps:
+        context.update(_quality_list(request, review))
+    return render(request, "conducting/conducting_quality_assessment.html", context)
 
 
 def build_data_extraction_field_row(article, field):
@@ -416,55 +433,42 @@ def build_data_extraction_field_row(article, field):
     return str_field
 
 
-def build_data_extraction_table(review, is_finished):
-    selected_studies = review.get_final_selection_articles().prefetch_related(
-        "dataextraction_set__field",
-        "dataextraction_set__select_values",
-    )
-    if is_finished is not None:
-        selected_studies = selected_studies.filter(finished_data_extraction=is_finished)
-    data_extraction_fields = review.get_data_extraction_fields().prefetch_related("dataextractionlookup_set")
-    has_quality_assessment = review.has_quality_assessment_checklist()
-    if selected_studies and data_extraction_fields:
-        str_table = '<div class="panel-group">'
-        for study in selected_studies:
-            if has_quality_assessment:
-                str_table += """<div class="panel panel-default data-extraction-panel">
-                  <div class="panel-heading">
-                    <h3 class="panel-title">{0}
-                      <span class="badge">{1}</span>""".format(
-                    escape(study.title), study.score
-                )
-
-                if study.finished_data_extraction:
-                    str_table += '<span class="pull-right"><a href="javascript:void(0);" class="js-finished-button js-mark-as-not-finished"><span class="glyphicon glyphicon-check"></span> <span class="action-text">mark as undone</span></a></span>'  # noqa
-                else:
-                    str_table += '<span class="pull-right"><a href="javascript:void(0);" class="js-finished-button js-mark-as-finished"><span class="glyphicon glyphicon-unchecked"></span> <span class="action-text">mark as done</span></a></span>'  # noqa
-
-                str_table += "</h3></div>"
-                str_table += '<div class="panel-body form-horizontal" data-article-id="{0}">'.format(study.id)
-            else:
-                str_table += """<div class="panel panel-default data-extraction-panel">
-                  <div class="panel-heading">
-                    <h3 class="panel-title">{1}</h3>
-                  </div>
-                  <div class="panel-body form-horizontal" data-article-id="{0}">""".format(
-                    study.id, escape(study.title)
-                )
-            for field in data_extraction_fields:
-                str_table += """<div class="form-group" data-field-id="{0}">
-                    <label class="control-label col-md-2">{1}</label>
-                    <div class="col-md-10">{2}<span class="help-block error" style="display: none;"></span>
-                    </div>
-                </div>
-                """.format(
-                    field.id, escape(field.description), build_data_extraction_field_row(study, field)
-                )
-            str_table += "</div></div>"
-        str_table += "</div>"
-        return str_table
-    else:
+def build_data_extraction_table(review, studies):
+    """
+    The panels of Data Extraction for ``studies`` (a page of ``extraction.extraction_list``): one per study, its form
+    closed until its heading is clicked, with how many fields have a value and the link to mark it as done.
+    """
+    data_extraction_fields = list(review.get_data_extraction_fields().prefetch_related("dataextractionlookup_set"))
+    if not (studies and data_extraction_fields):
         return ""
+    has_quality_assessment = review.has_quality_assessment_checklist()
+    str_table = '<div class="panel-group">'
+    for study in studies:
+        if study.finished_data_extraction:
+            controls = '<a href="javascript:void(0);" class="js-finished-button js-mark-as-not-finished"><span class="glyphicon glyphicon-check"></span> <span class="action-text">mark as undone</span></a>'  # noqa
+        else:
+            controls = '<a href="javascript:void(0);" class="js-finished-button js-mark-as-finished"><span class="glyphicon glyphicon-unchecked"></span> <span class="action-text">mark as done</span></a>'  # noqa
+        if has_quality_assessment:
+            controls = '<span class="badge" title="Quality score">{0}</span> {1}'.format(study.score, controls)
+        progress = "{0} of {1} fields".format(extraction.filled(study), len(data_extraction_fields))
+        str_table += """<div class="panel panel-default data-extraction-panel" data-article-id="{0}">
+          {1}
+          <div class="collapse">
+            <div class="panel-body form-horizontal" data-article-id="{0}">""".format(
+            study.id, _study_heading(study, progress, controls)
+        )
+        for field in data_extraction_fields:
+            str_table += """<div class="form-group" data-field-id="{0}">
+                <label class="control-label col-md-2">{1}</label>
+                <div class="col-md-10">{2}<span class="help-block error" style="display: none;"></span>
+                </div>
+            </div>
+            """.format(
+                field.id, escape(field.description), build_data_extraction_field_row(study, field)
+            )
+        str_table += "</div></div></div>"
+    str_table += "</div>"
+    return str_table
 
 
 @author_required
@@ -527,23 +531,28 @@ def data_extraction(request, username, review_name):
     elif tab == "all":
         is_finished = None
 
-    try:
-        data_extraction_table = build_data_extraction_table(review, is_finished)
-    except Exception:
-        logger.exception("An error occurred while trying to build data extraction table.")
-        data_extraction_table = "<h3>Something went wrong while rendering the data extraction form.</h3>"
-
-    return render(
-        request,
-        "conducting/conducting_data_extraction.html",
-        {
-            "review": review,
-            "steps_messages": steps_messages,
-            "data_extraction_table": data_extraction_table,
-            "finished_all_steps": finished_all_steps,
-            "tab": tab,
-        },
-    )
+    # The studies of the tab, a page at a time, those whose title has ``q``; ``part=list``: only them and the pager.
+    query = request.GET.get("q", "").strip()
+    context = {
+        "review": review,
+        "steps_messages": steps_messages,
+        "finished_all_steps": finished_all_steps,
+        "tab": tab,
+        "query": query,
+    }
+    if finished_all_steps:
+        studies_to_extract = extraction.extraction_list(review, query=query, done=is_finished)
+        context.update(_paginate(request, studies_to_extract, "extraction_per_page"))
+        try:
+            context["data_extraction_table"] = build_data_extraction_table(review, context["page"])
+        except Exception:
+            logger.exception("An error occurred while trying to build data extraction table.")
+            context["data_extraction_table"] = (
+                "<h3>Something went wrong while rendering the data extraction form.</h3>"
+            )
+    if request.GET.get("part") == "list":
+        return render(request, "conducting/partial_conducting_data_extraction_list.html", context)
+    return render(request, "conducting/conducting_data_extraction.html", context)
 
 
 def _import_articles(request, review, source, content):
@@ -717,6 +726,30 @@ def article_details(request):
     context.update(access_url=article.access_url(proxy), access_label=library_proxy.label(proxy) if proxy else "")
     context.update(_decisions_context(request, review, article))
     return render(request, "conducting/partial_conducting_article_details.html", context)
+
+
+@author_required
+@login_required
+def study_window(request):
+    """
+    The study window of Quality Assessment and Data Extraction: the study to read (``article-id``), not to screen —
+    its details, abstract and comments, its full text, and the links to it (through the user's library proxy too).
+    """
+    review = get_object_or_404(Review, pk=request.GET.get("review-id"))
+    article = get_object_or_404(
+        Article.objects.select_related("pdf__uploaded_by__profile", "source", "selection_criteria"),
+        pk=request.GET.get("article-id"),
+        review=review,
+    )
+    proxy = integrations.library_proxy_address(request.user)
+    context = {
+        "review": review,
+        "article": article,
+        "pdf_max_mb": full_texts.max_size_mb(),
+        "access_url": article.access_url(proxy),
+        "access_label": library_proxy.label(proxy) if proxy else "",
+    }
+    return render(request, "conducting/partial_conducting_study.html", context)
 
 
 def _article_pdf_tab(request, review, article_id, message=None):
@@ -1402,18 +1435,12 @@ def save_quality_assessment(request):
 @author_required
 @login_required
 def quality_assessment_detailed(request):
-    try:
-        review_id = request.GET["review-id"]
-        review = Review.objects.get(pk=review_id)
-        order = request.session.get("quality_assessment_order", "title")
-        quality_assessment_table = build_quality_assessment_table(request, review, order)
-        return render(
-            request,
-            "conducting/partial_conducting_quality_assessment_detailed.html",
-            {"review": review, "quality_assessment_table": quality_assessment_table, "order": order},
-        )
-    except Exception:
-        return HttpResponseBadRequest()
+    """The Detailed tab of Quality Assessment (see ``_quality_list``); ``part=list``: only the studies and pager."""
+    review = get_object_or_404(Review, pk=request.GET.get("review-id"))
+    context = {"review": review, **_quality_list(request, review)}
+    if request.GET.get("part") == "list":
+        return render(request, "conducting/partial_conducting_quality_assessment_list.html", context)
+    return render(request, "conducting/partial_conducting_quality_assessment_detailed.html", context)
 
 
 @author_required

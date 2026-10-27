@@ -3,7 +3,8 @@
 {% load static %}
 
 {% block javascript %}
-  <script type="text/javascript" src="{% static 'js/conducting_quality_assessment.js' %}?v=3"></script>
+  <script type="text/javascript" src="{% static 'js/conducting_study_lists.js' %}?v=1"></script>
+  <script type="text/javascript" src="{% static 'js/conducting_quality_assessment.js' %}?v=4"></script>
 {% endblock javascript %}
 
 {% block tab_content %}
@@ -17,8 +18,9 @@
     </ul>
 
     <div class="quality-container">
-      {% include "conducting/partial_conducting_quality_assessment_detailed.html" with review=review quality_assessment_table=quality_assessment_table %}
+      {% include "conducting/partial_conducting_quality_assessment_detailed.html" %}
     </div>
+    {% include "conducting/partial_conducting_study_window.html" %}
   {% else %}
     <p>There are a few steps you have to finish before assess the quality of the studies:</p>
     <ul>

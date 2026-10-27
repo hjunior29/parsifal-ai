@@ -140,6 +140,29 @@ def mark_done(*, review, article_id, done=True):
     return article
 
 
+def extraction_list(review, *, query=None, done=None):
+    """
+    The studies of the final selection, the ones to extract data from, by title: only those whose title has
+    ``query``, and only the ones marked as done (``done=True``) or not (``False``) when asked; each with its quality
+    score (``score``) and its extracted values prefetched (see ``filled``).
+    """
+    articles = (
+        review.get_final_selection_articles()
+        .prefetch_related("dataextraction_set__select_values")
+        .order_by("title", "pk")
+    )
+    if query and query.strip():
+        articles = articles.filter(title__icontains=query.strip())
+    if done is not None:
+        articles = articles.filter(finished_data_extraction=done)
+    return articles
+
+
+def filled(article):
+    """How many fields have a value for ``article`` (of ``extraction_list``: its values come prefetched)."""
+    return sum(1 for value in article.dataextraction_set.all() if value.value != "" or value.select_values.all())
+
+
 def article_values(*, review, article_id):
     """One entry per field of the review, with the typed value (or None) for the article."""
     article = get_child(review.article_set, article_id, label="Article")

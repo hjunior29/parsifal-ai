@@ -1,0 +1,17 @@
+{% comment %}
+  A page of the studies of the tab (data_extraction with part=list): their panels, closed, and the pager.
+{% endcomment %}
+<div class="js-study-list-page" data-page="{{ page.number }}">
+  {% if data_extraction_table %}
+    {{ data_extraction_table|safe }}
+  {% elif query %}
+    <p class="text-muted">No studies match the search.</p>
+  {% elif tab == 'todo' %}
+    <h4>No studies to extract data from: every one is done.</h4>
+  {% elif tab == 'done' %}
+    <h4>No studies marked as done yet.</h4>
+  {% else %}
+    <h4>No studies in the final selection (accepted, and above the quality cutoff score).</h4>
+  {% endif %}
+  {% include "conducting/partial_conducting_pager.html" %}
+</div>

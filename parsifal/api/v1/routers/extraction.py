@@ -1,4 +1,5 @@
 from ninja import Router
+from ninja.pagination import LimitOffsetPagination, paginate
 
 from parsifal.api.deps import get_review
 from parsifal.api.v1.schemas.common import OrderIn
@@ -6,6 +7,7 @@ from parsifal.api.v1.schemas.extraction import (
     ArticleExtractionOut,
     DoneIn,
     ExtractedValueOut,
+    ExtractionStudyOut,
     FieldIn,
     FieldOut,
     FieldUpdateIn,
@@ -64,6 +66,21 @@ def extraction_fields_delete(request, review_id: int, field_id: int):
 )
 def extraction_fields_reorder(request, review_id: int, payload: OrderIn):
     return extraction.reorder_fields(review=get_review(request, review_id), ordered_ids=payload.ids)
+
+
+@router.get(
+    "/reviews/{int:review_id}/extraction/studies",
+    response=list[ExtractionStudyOut],
+    operation_id="extraction_studies",
+)
+@paginate(LimitOffsetPagination)
+def extraction_studies(request, review_id: int, q: str | None = None, done: bool | None = None):
+    """
+    The studies of the final selection, the ones to extract data from, as Data Extraction lists them (by title): each
+    with its quality score and how many fields have a value. ``q`` searches the title; ``done``: only the studies
+    marked as done (true) or the others (false).
+    """
+    return extraction.extraction_list(get_review(request, review_id), query=q, done=done)
 
 
 def _article_extraction(review, article_id):

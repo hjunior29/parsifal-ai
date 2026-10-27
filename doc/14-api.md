@@ -85,6 +85,7 @@ An **agent** is an AI co-author with an account of its own, created for one revi
 | `GET/POST /reviews/{rid}/quality/answers` (`description`, `weight`) · `POST /answers/suggested` · `PATCH/DELETE /{id}` | `quality_answers_*` |
 | `GET /reviews/{rid}/quality/max-score` · `PUT /quality/cutoff {cutoff}` · `GET /quality/summary` | `quality_max_score` · `quality_set_cutoff` · `quality_summary` |
 | `GET /reviews/{rid}/articles/{aid}/quality` · `PUT {question_id, answer_id}` (no `answer_id`: clear the answer) | `article_quality_get` · `article_quality_assess` (records the acting user) |
+| `GET /reviews/{rid}/quality/studies?q=&state=done|pending|above|below&order=title|-title|year|-year&limit=&offset=` | `quality_studies` — the accepted studies as Quality Assessment lists them, each with `score` and `answered` (questions with an answer); `q` searches the title; `above`/`below`: score above the cutoff, or at most it |
 
 ### Data extraction
 
@@ -92,6 +93,7 @@ An **agent** is an AI co-author with an account of its own, created for one revi
 |---------------|-------------|
 | `GET/POST /reviews/{rid}/extraction/fields` (`field_type` B/S/F/I/D/O/M, `lookup_values[]`) · `PATCH/DELETE /{id}` · `PUT /order` | `extraction_fields_*` |
 | `GET /reviews/{rid}/articles/{aid}/extraction` · `PUT {field_id, value | values[]}` · `PUT /extraction/done {done}` | `article_extraction_*` |
+| `GET /reviews/{rid}/extraction/studies?q=&done=&limit=&offset=` | `extraction_studies` — the final-selection studies as Data Extraction lists them (by title), each with its quality `score`, `finished_data_extraction` and `filled` (fields with a value); `q` searches the title |
 
 Values: booleans `"True"/"False"`, floats accept `,`, dates `MM/DD/YYYY`
 (returned as `YYYY-MM-DD`), select-one takes a lookup id in `value`,

@@ -2,6 +2,8 @@ from typing import Any
 
 from ninja import Schema
 
+from parsifal.apps.reviews.services import extraction
+
 
 class LookupOut(Schema):
     id: int
@@ -55,3 +57,22 @@ class ArticleExtractionOut(Schema):
 
 class DoneIn(Schema):
     done: bool = True
+
+
+class ExtractionStudyOut(Schema):
+    """A study of Data Extraction's list."""
+
+    article_id: int
+    title: str
+    year: str | None = None
+    score: float  # its quality score
+    finished_data_extraction: bool
+    filled: int  # fields with a value
+
+    @staticmethod
+    def resolve_article_id(obj):
+        return obj.pk
+
+    @staticmethod
+    def resolve_filled(obj):
+        return extraction.filled(obj)

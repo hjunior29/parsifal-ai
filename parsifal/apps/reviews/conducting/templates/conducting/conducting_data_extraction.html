@@ -3,7 +3,8 @@
 {% load static %}
 
 {% block javascript %}
-  <script type="text/javascript" src="{% static 'js/conducting_data_extraction.js' %}?_=3"></script>
+  <script type="text/javascript" src="{% static 'js/conducting_study_lists.js' %}?v=1"></script>
+  <script type="text/javascript" src="{% static 'js/conducting_data_extraction.js' %}?_=4"></script>
 {% endblock javascript %}
 
 {% block tab_content %}
@@ -22,21 +23,27 @@
 
   {% if finished_all_steps %}
     {% csrf_token %}
+    <form class="js-study-list-controls pull-right form-inline" data-url="{{ request.path }}" role="search">
+      <input type="hidden" name="tab" value="{{ tab }}">
+      <input type="search" name="q" class="form-control js-study-search" value="{{ query }}" placeholder="Search title" aria-label="Search the title" autocomplete="off">
+    </form>
     <ul class="nav nav-pills" id="data-extraction-menu" style="margin-bottom: 20px;">
       <li{% if tab == 'todo' %} class="active"{% endif %}><a href="?tab=todo">To-do</a></li>
       <li{% if tab == 'done' %} class="active"{% endif %}><a href="?tab=done">Done</a></li>
       <li{% if tab == 'all' %} class="active"{% endif %}><a href="?tab=all">All</a></li>
     </ul>
     <input type="hidden" id="data-extraction-tab" value="{{ tab }}">
-    {% if data_extraction_table %}
-      {{ data_extraction_table|safe }}
-    {% else %}
-      {% if tab == 'all' %}
-        <h4>No study above the quality cutoff score.</h4>
-      {% else %}
-        <h4>No data extraction form.</h4>
-      {% endif %}
-    {% endif %}
+    <p class="clearfix">
+      <span class="pull-right">
+        <button type="button" class="btn btn-link btn-xs js-expand-all"><span class="glyphicon glyphicon-plus"></span> Expand all</button>
+        <button type="button" class="btn btn-link btn-xs js-collapse-all"><span class="glyphicon glyphicon-minus"></span> Collapse all</button>
+      </span>
+      Open a study to fill in its form; each value is saved as soon as it changes.
+    </p>
+    <div class="extraction-container js-study-list">
+      {% include "conducting/partial_conducting_data_extraction_list.html" %}
+    </div>
+    {% include "conducting/partial_conducting_study_window.html" %}
   {% else %}
     <p>There are a few steps you have to finish before extract data of the studies:</p>
     <ul>

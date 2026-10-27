@@ -1,4 +1,5 @@
 from ninja import Router
+from ninja.pagination import LimitOffsetPagination, paginate
 
 from parsifal.api.deps import get_review
 from parsifal.api.v1.schemas.common import OrderIn
@@ -12,6 +13,7 @@ from parsifal.api.v1.schemas.quality import (
     QualityAnswerUpdateIn,
     QualityQuestionIn,
     QualityQuestionOut,
+    QualityStudyOut,
     QualitySummaryOut,
 )
 from parsifal.apps.reviews.services import quality
@@ -125,6 +127,17 @@ def quality_set_cutoff(request, review_id: int, payload: CutoffIn):
 @router.get("/reviews/{int:review_id}/quality/summary", response=QualitySummaryOut, operation_id="quality_summary")
 def quality_summary(request, review_id: int):
     return quality.summary(get_review(request, review_id))
+
+
+@router.get("/reviews/{int:review_id}/quality/studies", response=list[QualityStudyOut], operation_id="quality_studies")
+@paginate(LimitOffsetPagination)
+def quality_studies(request, review_id: int, q: str | None = None, state: str | None = None, order: str | None = None):
+    """
+    The accepted studies to assess, as Quality Assessment lists them: each with its score and how many questions it
+    has an answer to. ``q`` searches the title; ``state``: done (every question answered), pending, above (score
+    above the cutoff) or below (at most the cutoff); ``order``: title (default) or year, a leading ``-`` reverses it.
+    """
+    return quality.assessment_list(get_review(request, review_id), query=q, state=state, order=order)
 
 
 def _article_quality(review, article_id):

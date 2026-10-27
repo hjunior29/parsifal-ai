@@ -1,6 +1,6 @@
 """Quality assessment: checklist (questions, weighted answers, cut-off) and per-article assessments."""
 
-from django.db.models import Sum, Value
+from django.db.models import Count, F, Q, Sum, Value
 from django.db.models.functions import Coalesce
 
 from parsifal.apps.core.exceptions import Conflict, ValidationError
@@ -112,6 +112,50 @@ def article_assessments(*, review, article_id):
 def article_score(*, review, article_id):
     article = get_child(review.article_set, article_id, label="Article")
     return article.get_score()
+
+
+# The orders of the studies to assess (a leading "-" reverses one); studies without a year go last either way.
+ORDERS = {"title": F("title"), "year": F("year_int")}
+# What the list of studies to assess may be limited to.
+STATES = ("done", "pending", "above", "below")
+
+
+def assessment_list(review, *, query=None, state=None, order=None):
+    """
+    The accepted studies to assess, with their score (``score``) and how many questions each has an answer to
+    (``answered``): only those whose title has ``query``, and in ``state``, if any — done (every question answered),
+    pending (not yet), above (score above the cutoff) or below (at most the cutoff); in ``order``: title (default) or
+    year, a leading "-" reverses it.
+    """
+    order = (order or "title").strip()
+    key = order.lstrip("-")
+    if key not in ORDERS or order.count("-") > 1:
+        raise ValidationError("order must be title, -title, year or -year.", field="order")
+    value = ORDERS[key].desc(nulls_last=True) if order.startswith("-") else ORDERS[key].asc(nulls_last=True)
+    articles = (
+        review.get_accepted_articles()
+        .annotate(
+            score=Coalesce(Sum("qualityassessment__answer__weight"), Value(0.0)),
+            answered=Count("qualityassessment", filter=Q(qualityassessment__answer__isnull=False)),
+        )
+        .order_by(value, "title", "pk")
+    )
+    if query and query.strip():
+        articles = articles.filter(title__icontains=query.strip())
+    if state:
+        if state not in STATES:
+            raise ValidationError(f"state must be one of {', '.join(STATES)}.", field="state")
+        questions = review.qualityquestion_set.count()
+        cutoff = review.quality_assessment_cutoff_score
+        articles = articles.filter(
+            {
+                "done": Q(answered__gte=questions),
+                "pending": Q(answered__lt=questions),
+                "above": Q(score__gt=cutoff),
+                "below": Q(score__lte=cutoff),
+            }[state]
+        )
+    return articles
 
 
 def summary(review):

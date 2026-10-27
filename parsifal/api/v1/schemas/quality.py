@@ -63,3 +63,17 @@ class QualitySummaryOut(Schema):
     cutoff: float
     has_checklist: bool
     articles: list[dict[str, Any]]
+
+
+class QualityStudyOut(Schema):
+    """A study of Quality Assessment's list."""
+
+    article_id: int
+    title: str
+    year: str | None = None
+    score: float  # the sum of its answers' weights
+    answered: int  # questions with an answer
+
+    @staticmethod
+    def resolve_article_id(obj):
+        return obj.pk

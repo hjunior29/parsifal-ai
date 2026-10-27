@@ -117,9 +117,15 @@ full text; K 6.2.3 reliability with two assessors.
 Prerequisites: sources, imported articles, ≥1 accepted article, QA questions
 and answers.
 
-- Per accepted article, a table question × answer (`build_quality_assessment_table`);
-  clicking an answer calls `save_quality_assessment` and returns the new
-  score (Σ weights); clicking the chosen answer again clears it. Ordering by title/year kept in session.
+- Per accepted article, a panel with a table question × answer
+  (`build_quality_assessment_table`), closed until its heading is clicked
+  (Expand all / Collapse all), with how many questions are answered, the
+  score and a "Study" link to the study window (details, abstract, full
+  text). Clicking an answer calls `save_quality_assessment` and returns the
+  new score (Σ weights); clicking the chosen answer again clears it. A page
+  at a time (25 by default, up to 100); the title search, "Show" (all,
+  done, pending, above/below the cutoff) and the order (title/year, kept in
+  session) filter the whole list on the server.
 - Summary tab (`quality_assessment_summary`).
 - The score feeds the **final selection**: accepted articles with
   `score > cutoff` when a checklist exists and `cutoff > 0`
@@ -132,7 +138,9 @@ and answers.
 Prerequisites: sources, articles, ≥1 accepted article, ≥1 extraction field.
 
 - For each final-selection article, one panel with one input per field
-  (`build_data_extraction_table`); each change posts `save_data_extraction`
+  (`build_data_extraction_table`), closed until its heading is clicked, with
+  how many fields have a value and a "Study" link to the study window; a
+  page at a time, searched by title; each change posts `save_data_extraction`
   (typed coercion in `DataExtraction.set_value`); "mark as done" toggles
   `finished_data_extraction` (`save_data_extraction_status`). Tabs
   todo/done/all.

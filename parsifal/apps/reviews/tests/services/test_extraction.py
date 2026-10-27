@@ -153,3 +153,42 @@ class TestValues(TestCase):
         rows = extraction.article_values(review=self.review, article_id=self.article.pk)
         self.assertEqual([(field.pk, "2021-01-02")], [(r["field"].pk, r["value"]) for r in rows])
         self.assertEqual(datetime.date(2021, 1, 2), rows[0]["extraction"].get_value())
+
+
+class TestExtractionList(TestCase):
+    """The studies of Data Extraction's list: the final selection, searched, done or not."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.source = SourceFactory()
+        cls.review = ReviewFactory(sources=[cls.source])
+        cls.text = DataExtractionFieldFactory(review=cls.review)
+        cls.many = DataExtractionFieldFactory(review=cls.review, field_type=DataExtractionField.SELECT_MANY_FIELD)
+        cls.lookup = DataExtractionLookupFactory(field=cls.many)
+        cls.beta = ArticleFactory(review=cls.review, source=cls.source, status="A", title="Beta")
+        cls.alpha = ArticleFactory(
+            review=cls.review, source=cls.source, status="A", title="Alpha", finished_data_extraction=True
+        )
+        ArticleFactory(review=cls.review, source=cls.source, status="U", title="Unclassified")
+
+    def test_final_selection_by_title_searched_and_done(self):
+        def titles(**kwargs):
+            return [article.title for article in extraction.extraction_list(self.review, **kwargs)]
+
+        self.assertEqual(["Alpha", "Beta"], titles())
+        self.assertEqual(["Beta"], titles(query="bet"))
+        self.assertEqual(["Alpha"], titles(done=True))
+        self.assertEqual(["Beta"], titles(done=False))
+
+    def test_filled_counts_the_fields_with_a_value(self):
+        def filled():
+            return {a.title: extraction.filled(a) for a in extraction.extraction_list(self.review)}
+
+        self.assertEqual({"Alpha": 0, "Beta": 0}, filled())
+        extraction.set_value(review=self.review, article_id=self.beta.pk, field_id=self.text.pk, value="notes")
+        extraction.set_value(review=self.review, article_id=self.beta.pk, field_id=self.many.pk, values=[])
+        self.assertEqual({"Alpha": 0, "Beta": 1}, filled())  # an empty selection is no value
+        extraction.set_value(
+            review=self.review, article_id=self.beta.pk, field_id=self.many.pk, values=[self.lookup.pk]
+        )
+        self.assertEqual({"Alpha": 0, "Beta": 2}, filled())
