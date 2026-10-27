@@ -4,6 +4,7 @@ from collections import Counter
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db.models import Sum, Value
 from django.db.models.functions import Coalesce
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
@@ -620,36 +621,83 @@ def clear_source_articles(request):
     return redirect(r("import_studies", args=(review.author.username, review.name)))
 
 
+# The page sizes of the lists of Conducting: the study list, quality assessment and data extraction.
+PER_PAGE_CHOICES = (10, 25, 50, 100)
+PER_PAGE = 25
+
+
+def _paginate(request, queryset, session_key):
+    """
+    The page of ``queryset`` asked for (``page``; past the last, the last), of the size chosen (``per-page``, kept in
+    the session under ``session_key`` for the next time), with what the pager shows.
+    """
+    try:
+        per_page = int(request.GET.get("per-page") or request.session.get(session_key) or PER_PAGE)
+    except (TypeError, ValueError):
+        per_page = PER_PAGE
+    if per_page not in PER_PAGE_CHOICES:
+        per_page = PER_PAGE
+    if request.session.get(session_key) != per_page:
+        request.session[session_key] = per_page
+    page = Paginator(queryset, per_page).get_page(request.GET.get("page"))
+    return {
+        "page": page,
+        "page_range": page.paginator.get_elided_page_range(page.number, on_each_side=2, on_ends=1),
+        "per_page_choices": PER_PAGE_CHOICES,
+    }
+
+
+# The order of the study list by each column (services.studies.ORDERS), where its name differs from the column's.
+COLUMN_ORDERS = {"ai_relevance": "ai_score"}
+
+
 @author_required
 @login_required
 def source_articles(request):
-    review_id = request.GET["review-id"]
-    source_id = request.GET["source-id"]
-
-    review = Review.objects.get(pk=review_id)
-    if source_id != "None":
-        articles = review.get_source_articles(source_id)
-        source = Source.objects.get(pk=source_id)
-    else:
-        articles = review.get_source_articles()
-        source = Source()
-    articles = articles.select_related("source", "selection_criteria", "updated_by__profile")
-    # The AI relevance column: the latest answer about each study.
-    articles = ai_screening_service.with_relevance(articles)
+    """
+    The study list of a source's tab (``source-id``; ``None``: every source), a page at a time: the studies with a
+    status (``status``: U, A, R or D; ``ALL``, every status), that match ``q`` (title, DOI or BibTeX key), only the
+    starred ones (``starred=1``), in ``order`` (a column; a leading "-" reverses it). ``part=list`` sends only the
+    table and its pager: another page, filter or order.
+    """
+    review = get_object_or_404(Review, pk=request.GET.get("review-id"))
+    source_id = request.GET.get("source-id")
+    source = Source() if source_id in (None, "", "None") else get_object_or_404(review.sources, pk=source_id)
+    status = request.GET.get("status") or "ALL"
+    query = request.GET.get("q", "").strip()
+    starred = request.GET.get("starred") == "1"
+    order = request.GET.get("order") or "title"
+    try:
+        articles = studies.list_articles(
+            review,
+            source_id=source.pk,
+            status=None if status == "ALL" else status,
+            query=query,
+            starred=True if starred else None,
+            order=order,
+        ).select_related("created_by__profile", "updated_by__profile", "starred_by__profile")
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
     columns = study_columns.for_user(request.user)
-
-    return render(
-        request,
-        "conducting/partial_conducting_articles.html",
-        {
-            "review": review,
-            "source": source,
-            "articles": articles,
-            "columns": columns,
-            "headings": study_columns.headings(columns),
-            "starred_count": articles.filter(starred_at__isnull=False).count(),
-        },
-    )
+    headings = []
+    for heading in study_columns.headings(columns):
+        key = COLUMN_ORDERS.get(heading["key"], heading["key"])
+        sort = "asc" if order == key else "desc" if order == f"-{key}" else ""
+        headings.append(dict(heading, order=key, sort=sort))
+    context = {
+        "review": review,
+        "source": source,
+        "columns": columns,
+        "headings": headings,
+        "order": order,
+        "filtered": status != "ALL" or bool(query) or starred,
+        **_paginate(request, articles, "studies_per_page"),
+    }
+    if request.GET.get("part") == "list":
+        return render(request, "conducting/partial_conducting_articles_list.html", context)
+    in_source = review.article_set.filter(source_id=source.pk) if source.pk else review.article_set
+    context["starred_count"] = in_source.filter(starred_at__isnull=False).count()
+    return render(request, "conducting/partial_conducting_articles.html", context)
 
 
 @author_required

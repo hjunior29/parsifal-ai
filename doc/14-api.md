@@ -101,7 +101,7 @@ select-many takes the full list of lookup ids in `values` (set semantics).
 
 | Method & path | operationId |
 |---------------|-------------|
-| `GET /reviews/{rid}/articles?source_id=&status=U|A|R|D&q=&finished_data_extraction=&starred=&order=title|ai_score&limit=&offset=` | `articles_list` — `order=ai_score`: the most likely relevant first by the latest AI run (every study carries `ai_score`, 0–1: exclusion 1 − p(exclude), inclusion the deciding p(meets), screen the lower; null when no run answered about it); `q` searches the title, DOI (also pasted as a doi.org link) and BibTeX key; `starred=true` keeps the starred ones |
+| `GET /reviews/{rid}/articles?source_id=&status=U|A|R|D&q=&finished_data_extraction=&starred=&order=&limit=&offset=` | `articles_list` — `order` is a column of the study list (`title`, the default, `ai_score`, `star`, `bibtex_key`, `author`, `journal`, `year`, `source`, `doi`, `document_type`, `language`, `publisher`, `criteria`, `created_by`, `created_at`, `updated_by`, `updated_at`, `status`; `-` before it reverses it; studies without the value last, ties by title); `order=ai_score`: the most likely relevant first by the latest AI run (every study carries `ai_score`, 0–1: exclusion 1 − p(exclude), inclusion the deciding p(meets), screen the lower; null when no run answered about it); `q` searches the title, DOI (also pasted as a doi.org link) and BibTeX key; `starred=true` keeps the starred ones |
 | `POST /reviews/{rid}/articles {source_id, …fields}` | `articles_create` |
 | `GET/PATCH/DELETE /reviews/{rid}/articles/{aid}` | `articles_get` · `articles_update` · `articles_delete` |
 | `POST /reviews/{rid}/articles/status {ids[], status, selection_criteria_id?, comments?}` | `articles_set_status` |

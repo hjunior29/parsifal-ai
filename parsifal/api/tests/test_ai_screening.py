@@ -490,7 +490,7 @@ class TestScreenWithAiApi(AiScreeningApiBase):
         self.assertEqual(
             [(self.primary.pk, 0.9), (self.secondary.pk, 0.1)], [(item["id"], item["ai_score"]) for item in ranked]
         )
-        self.assertEqual(422, self.api("get", self.review_path("/articles"), QUERY_STRING="order=year").status_code)
+        self.assertEqual(422, self.api("get", self.review_path("/articles"), QUERY_STRING="order=nope").status_code)
         # The next run starts from this one: the criteria left out stay out.
         setup = self.api("get", self.review_path("/ai-screening"), QUERY_STRING="phase=screen").json()["start"]
         self.assertEqual(

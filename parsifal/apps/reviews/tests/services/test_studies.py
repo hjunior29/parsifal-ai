@@ -4,7 +4,7 @@ from django.test import TestCase
 
 from parsifal.apps.core.exceptions import NotFound, ValidationError
 from parsifal.apps.reviews.models import Article
-from parsifal.apps.reviews.services import studies
+from parsifal.apps.reviews.services import studies, study_columns
 from parsifal.apps.reviews.tests.factories import (
     ArticleFactory,
     ReviewFactory,
@@ -216,6 +216,31 @@ class TestArticleCrud(TestCase):
             self.assertEqual("Alpha study", studies.list_articles(self.review, status="A").get().title)
         with self.subTest(msg="by query"):
             self.assertEqual("Beta study", studies.list_articles(self.review, query="beta").get().title)
+
+    def test_list_articles_orders_by_any_column(self):
+        c = ArticleFactory(review=self.review, source=self.source, title="C", year="2019", journal="", status="U")
+        ArticleFactory(review=self.review, source=self.source, title="A", year="2021", journal="TSE", status="R")
+        ArticleFactory(review=self.review, source=self.source, title="B", year=None, journal="EMSE", status="A")
+        studies.set_starred(review=self.review, article_id=c.pk, starred=True)
+
+        def titles(order):
+            return [article.title for article in studies.list_articles(self.review, order=order)]
+
+        for order, expected in (
+            (None, ["A", "B", "C"]),
+            ("-title", ["C", "B", "A"]),
+            ("year", ["C", "A", "B"]),  # no year: last
+            ("-year", ["A", "C", "B"]),  # last either way
+            ("journal", ["B", "A", "C"]),  # an empty journal goes with the missing ones
+            ("star", ["C", "A", "B"]),  # starred first, then by title
+            ("-star", ["A", "B", "C"]),
+            ("status", ["B", "A", "C"]),  # A, R, U
+        ):
+            with self.subTest(order=order):
+                self.assertEqual(expected, titles(order))
+        self.assertEqual(set(studies.ORDERS) - {"ai_score"}, set(study_columns.KEYS) - {"ai_relevance"})
+        with self.assertRaises(ValidationError):
+            studies.list_articles(self.review, order="--title")
 
     def test_search_title_doi_and_bibtex_key(self):
         doi = ArticleFactory(review=self.review, source=self.source, title="One", doi="10.1145/3368089.3409741")

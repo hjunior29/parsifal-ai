@@ -1010,7 +1010,12 @@ OPERATIONS = (
             Q("q", help="Search the title, DOI and BibTeX key (contains, ignoring case)."),
             Q("finished_data_extraction", BOOL),
             Q("starred", BOOL, help="Only the starred studies (--no-starred: the others)."),
-            Q("order", help="title (default) or ai_score: the most likely relevant first, by the latest AI run."),
+            Q(
+                "order",
+                help="A column: title (default), ai_score (most likely relevant first), star, bibtex_key, author, "
+                "journal, year, source, doi, document_type, language, publisher, criteria, created_by, created_at, "
+                "updated_by, updated_at or status; a leading - reverses it.",
+            ),
         ),
         paginated=True,
     ),

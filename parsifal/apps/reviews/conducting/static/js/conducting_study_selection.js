@@ -33,30 +33,72 @@ $(function () {
     $("#modal-add-article").modal('show');
   });
 
-  // The AI relevance column sorts the most likely relevant first, and the studies no AI run answered about last. (The sorter
-  // passes the cell third when it builds its cache, second when it updates one cell.)
-  $.tablesorter.addParser({
-    id: "ai-score",
-    is: function () { return false; },
-    format: function (text, table, cell) {
-      var score = $(cell || table).attr("data-score");
-      return score === undefined || score === "" ? 2 : -parseFloat(score);
-    },
-    type: "numeric"
+  /* The study list of the open tab comes a page at a time: what "Show", the search and the star ask for, in the order
+     of the heading clicked, is sent to the server, which sends back that page of the list and its pager. */
+  function listState(changes) {
+    var content = $(".source-tab-content");
+    var list = content.find(".js-article-list");
+    return $.extend({
+      'review-id': $("#review-id").val(),
+      'source-id': list.attr("data-source-id"),
+      'status': content.find("input[name=filter]:checked").val() || "ALL",
+      'q': $.trim(content.find(".js-article-search").val() || ""),
+      'starred': content.find(".js-starred-filter").hasClass("active") ? "1" : "",
+      'order': list.attr("data-order") || "",
+      'page': list.attr("data-page") || 1,
+      'part': 'list'
+    }, changes || {});
+  }
+
+  var listRequest = null;
+
+  /* Loads the list again with ``changes`` (another page, size, order or filter); ``done`` runs once it is shown. */
+  function loadList(changes, done) {
+    var container = $(".source-tab-content .source-articles");
+    if (listRequest) { listRequest.abort(); }
+    listRequest = $.ajax({
+      url: '/reviews/conducting/source_articles/',
+      data: listState(changes),
+      type: 'get',
+      cache: false,
+      beforeSend: function () { container.addClass("list-reloading"); },
+      success: function (data) {
+        container.html(data);
+        updateSelectedArticlesCount();
+        if (done) { done(); }
+      },
+      error: function (xhr, status) {
+        if (status !== "abort") {
+          $.parsifal.alert("Could not load the studies", requestError(xhr));
+        }
+      },
+      complete: function (xhr, status) {
+        if (status !== "abort") {
+          listRequest = null;
+          container.removeClass("list-reloading");
+        }
+      }
+    });
+  }
+
+  $(document).on("studies-changed", function () { loadList(); });  // e.g. an AI run undone
+
+  $(".source-tab-content").on("click", ".js-article-list th[data-order]", function () {
+    var key = $(this).attr("data-order");
+    var order = $(this).closest(".js-article-list").attr("data-order");
+    loadList({'order': order === key ? "-" + key : key, 'page': 1});
   });
 
-  function sortableTable() {
-    var headers = {0: {sorter: false}};
-    var ai = $(".source-tab-content th.ai-header").index();
-    if (ai >= 0) { headers[ai] = {sorter: "ai-score"}; }
-    $(".source-tab-content table").tablesorter({headers: headers});
-  }
+  $(".source-tab-content").on("click", ".js-page", function (event) {
+    event.preventDefault();
+    loadList({'page': $(this).attr("data-page")}, function () {
+      $('html, body').animate({scrollTop: $(".source-tab-content").offset().top}, 200);
+    });
+  });
 
-  /* The sorter keeps the rows it last saw: after a row is replaced, removed or changes status it must read the table
-     again, or the next sort puts the old rows back (a saved study would show twice, and stay where it was). */
-  function tableChanged() {
-    $(".source-tab-content table").trigger("update");
-  }
+  $(".source-tab-content").on("change", ".js-per-page", function () {
+    loadList({'per-page': $(this).val(), 'page': 1});
+  });
 
   $("#source-tab a").click(function () {
     var source_id = $(this).attr("source-id");
@@ -73,7 +115,7 @@ $(function () {
       },
       success: function (data) {
         $(".source-tab-content").html(data);
-        sortableTable();
+        updateSelectedArticlesCount();
       },
       complete: function () {
         $(".source-tab-content").spinner();
@@ -89,10 +131,12 @@ $(function () {
     var review_id = $("#review-id").val();
     var container = $(this);
 
-    var rows = $(".source-articles tbody tr:visible").not(".no-data");
-    var position = rows.index(rows.filter("[oid=" + article_id + "]")) + 1;
-    $("#modal-article span.current-article").text(position || "–");
-    $("#modal-article span.total-articles").text(rows.length);
+    // Where the study is in the whole list (every page), when this page has it.
+    var list = $(".source-tab-content .js-article-list");
+    var rows = $(".source-articles tbody tr").not(".no-data");
+    var index = rows.index(rows.filter("[oid=" + article_id + "]"));
+    $("#modal-article span.current-article").text(index >= 0 ? parseInt(list.attr("data-start"), 10) + index : "–");
+    $("#modal-article span.total-articles").text(list.attr("data-count") || rows.length);
 
     $.ajax({
       url: '/reviews/conducting/article_details/',
@@ -184,10 +228,16 @@ $(function () {
         $(".js-star[data-article-id=" + articleId + "]").each(function () {
           $(this).replaceWith(updated.clone());
         });
-        $(".source-articles tbody tr[oid=" + articleId + "]").attr("article-starred", updated.hasClass("starred") ? "1" : "0");
-        $(".source-tab-content .starred-count").text($(".source-articles tbody tr[article-starred=1]").length);
-        tableChanged();  // the sort by star sees the change
-        applyFilters();
+        var row = $(".source-articles tbody tr[oid=" + articleId + "]");
+        var wasStarred = star.hasClass("starred");
+        row.attr("article-starred", updated.hasClass("starred") ? "1" : "0");
+        if (wasStarred !== updated.hasClass("starred")) {
+          var count = $(".source-tab-content .starred-count");
+          count.text(Math.max(0, parseInt(count.text(), 10) + (wasStarred ? -1 : 1)));
+        }
+        if (wasStarred && $(".source-tab-content .js-starred-filter").hasClass("active")) {
+          loadList();  // only the starred ones are shown: this one leaves the list
+        }
       },
       error: function (xhr) {
         $.parsifal.alert("Could not change the star", requestError(xhr));
@@ -201,7 +251,7 @@ $(function () {
   $(".source-tab-content").on("click", ".js-starred-filter", function () {
     var button = $(this).toggleClass("active");
     button.attr("aria-pressed", button.hasClass("active") ? "true" : "false");
-    applyFilters();
+    loadList({'page': 1});
   });
 
   /* Full text tab: the PDF is fetched only when the tab is opened, not with every article of Previous/Next. */
@@ -363,7 +413,7 @@ $(function () {
   $("#modal-agreement").on("hidden.bs.modal", function () {
     if (agreementConsolidated) {
       agreementConsolidated = false;
-      $("#source-tab li.active a").click();
+      loadList();
     }
   });
 
@@ -417,39 +467,59 @@ $(function () {
     }
   });
 
-  function move(step) {
-    if ($(".source-articles tbody tr:visible").not(".no-data").length === 0) {
-      return;  // every row is filtered out
-    }
-    var active = $(".source-articles tbody tr.active").index();
-    var old_active = active;
-    var size = $(".source-articles tbody tr").length;
-    var next;
-    do {
-      active = (active + step) % size;
-      next = $(".source-articles tbody tr:eq("+active+")");
-    } while($(next).is(":hidden"));
+  /* Makes ``row`` the active one, scrolled into sight. */
+  function activate(row, step) {
     $(".source-articles tbody tr").removeClass("active");
-    $(next).addClass("active");
-
-    var row = $(".source-articles tbody tr.active");
-
-    if (!isScrolledIntoView(row)) {
-      if (active > old_active)
+    row.addClass("active");
+    if (row.length && !isScrolledIntoView(row)) {
+      if (step > 0)
         $('html, body').animate({scrollTop: $(row).offset().top}, 2000);
       else
         $('html, body').animate({scrollTop: $(row).offset().top - $(window).height()}, 2000);
     }
   }
 
-  $("#btn-previous").click(function () {
-    move(BACKWARD);
+  /* The next study (``step`` 1) or the previous one (-1) becomes the active one: on this page, or the first of the
+     next page (the last of the previous one); past the end of the list, its start again. ``done`` runs when it is. */
+  function move(step, done) {
+    var rows = $(".source-articles tbody tr").not(".no-data");
+    if (rows.length === 0) {
+      return;  // nothing on this page
+    }
+    var index = rows.index(rows.filter(".active"));
+    var next = index === -1 ? (step > 0 ? 0 : rows.length - 1) : index + step;
+    var list = $(".source-tab-content .js-article-list");
+    var page = parseInt(list.attr("data-page"), 10) || 1;
+    var pages = parseInt(list.attr("data-pages"), 10) || 1;
+    if (next >= 0 && next < rows.length) {
+      activate(rows.eq(next), step);
+      if (done) { done(); }
+    }
+    else if (pages <= 1) {
+      activate(rows.eq((next + rows.length) % rows.length), step);
+      if (done) { done(); }
+    }
+    else {
+      var target = page + step;
+      target = target < 1 ? pages : target > pages ? 1 : target;
+      loadList({'page': target}, function () {
+        var fresh = $(".source-articles tbody tr").not(".no-data");
+        activate(step > 0 ? fresh.first() : fresh.last(), step);
+        if (done) { done(); }
+      });
+    }
+  }
+
+  function loadActive() {
     $("#modal-article .modal-body").loadActiveArticle();
+  }
+
+  $("#btn-previous").click(function () {
+    move(BACKWARD, loadActive);
   });
 
   $("#btn-next").click(function () {
-    move(FORWARD);
-    $("#modal-article .modal-body").loadActiveArticle();
+    move(FORWARD, loadActive);
   });
 
   function save_article(move_next) {
@@ -466,10 +536,8 @@ $(function () {
       success: function (data) {
         $(".source-articles table tbody tr[oid=" + article_id + "]").replaceWith(data);
         $(".source-articles table tbody tr[oid=" + article_id + "]").addClass("active");
-        tableChanged();
         if (move_next) {
-          move(FORWARD);
-          $("#modal-article .modal-body").loadActiveArticle();
+          move(FORWARD, loadActive);
         }
         else {
           $("#modal-article .alert .modal-alert").text("Article successfully saved!");
@@ -507,52 +575,16 @@ $(function () {
     }
   });
 
-  /* Rows shown: those with the status chosen in "Show" that match the search (title, DOI or BibTeX key), and only
-     the starred ones when the star next to the search is on. A row that gets hidden is unselected, so that an
-     action never applies to rows out of sight. */
-  var DOI_PREFIX = /^(?:(?:https?:\/\/)?(?:dx\.)?doi\.org\/|doi:\s*)/i;
-
-  function applyFilters() {
-    var content = $(".source-tab-content");
-    var status = content.find("input[name=filter]:checked").val() || "ALL";
-    var query = $.trim(content.find(".js-article-search").val() || "").toLowerCase();
-    var starredOnly = content.find(".js-starred-filter").hasClass("active");
-    var doi = query.replace(DOI_PREFIX, "");
-    var rows = content.find(".source-articles table tbody tr").not(".no-data");
-    var shown = 0;
-    rows.each(function () {
-      var row = $(this);
-      // The row's attributes, not its cells: the columns shown are the user's choice.
-      var matches = (status === "ALL" || row.attr("article-status") === status) &&
-        (!starredOnly || row.attr("article-starred") === "1") && (
-        !query ||
-        (row.attr("article-key") || "").toLowerCase().indexOf(query) !== -1 ||
-        (row.attr("article-title") || "").toLowerCase().indexOf(query) !== -1 ||
-        (row.attr("article-doi") || "").toLowerCase().indexOf(doi) !== -1
-      );
-      row.toggle(matches);
-      if (matches) {
-        shown++;
-      } else {
-        row.removeClass("active").find("input[type=checkbox]").prop("checked", false);
-      }
-    });
-    content.find(".js-no-match").toggle(rows.length > 0 && shown === 0);
-    var checked = content.find(".source-articles tbody tr:visible td input[type=checkbox]:checked").length;
-    $("#ck-all-articles").prop("checked", shown > 0 && checked === shown);
-    updateSelectedArticlesCount();
-  }
-
+  /* "Show", the search (title, DOI or BibTeX key) and the star filter the whole list, on the server: the list comes
+     again from its first page, with nothing selected. */
   $(".source-tab-content").on("click", "input[name=filter]", function () {
-    $(".source-tab-content input[type=checkbox]").prop("checked", false);
-    $(".source-articles tbody tr").removeClass("active");
-    applyFilters();
+    loadList({'page': 1});
   });
 
   var searchTimer = null;
   $(".source-tab-content").on("input", ".js-article-search", function () {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(applyFilters, 150);
+    searchTimer = setTimeout(function () { loadList({'page': 1}); }, 300);
   });
 
   $(".source-tab-content").on("click", "table tbody tr td input[type=checkbox]", function (event) {
@@ -587,9 +619,7 @@ $(function () {
       success: function (data) {
         switch (action) {
           case "remove":
-            $(".source-articles table tbody input[type=checkbox]:checked").each(function () {
-              $(this).closest("tr").remove();
-            });
+            loadList();  // the studies after them move up into this page
             break;
           case "unclassify":
             $(".source-articles table tbody input[type=checkbox]:checked").each(function () {
@@ -620,7 +650,6 @@ $(function () {
             });
             break;
         }
-        tableChanged();
       },
       error: function () {
 
@@ -744,7 +773,6 @@ $(function () {
         var article_row = $(".source-tab-content .source-articles tr[oid=" + article_id + "]");
         $(article_row).attr("article-status", "D");
         $("td.js-status", article_row).html("<span class=\"label label-warning\">Duplicated</span>");
-        tableChanged();
       },
       error: function () {
         $(btn).prop("disabled", false);
@@ -780,8 +808,7 @@ $(function () {
             $(article_row).attr("article-status", "D");
             $("td.js-status", article_row).html("<span class=\"label label-warning\">Duplicated</span>");
           }
-          tableChanged();
-        }
+          }
       },
       complete: function () {
         $(btn).prop("disabled", false);

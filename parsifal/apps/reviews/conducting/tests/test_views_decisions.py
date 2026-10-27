@@ -238,7 +238,7 @@ class TestDecisionViews(TestCase):
         self.assertLess(page.index(">Status</th>"), page.index(">DOI</th>"))
         self.assertLess(page.index(">DOI</th>"), page.index(">Title</th>"))
         self.assertNotIn(">Author</th>", page)
-        self.assertNotIn('class="ai-header"', page)
+        self.assertNotIn("ai-header", page)
         self.assertIn(f'article-title="{self.a1.title}"', page)  # the search reads the row, whatever is shown
         # Another user keeps the default; the Columns window lists the user's columns first, checked.
         self.client.force_login(self.agent)

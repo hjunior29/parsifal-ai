@@ -38,8 +38,11 @@ def articles_list(
     """
     Articles of the review; ``status`` is U (unclassified), A (accepted), R (rejected) or D (duplicated); ``q``
     searches the title, DOI and BibTeX key (a DOI may be pasted as a doi.org link); ``starred=true`` keeps the
-    starred ones (``false``, the others). ``order``: ``title`` (default) or ``ai_score``, the most likely relevant
-    first by the latest AI run (``ai_score``), the studies no run answered about last.
+    starred ones (``false``, the others). ``order``: a column of the study list — ``title`` (default), ``ai_score``
+    (the most likely relevant first by the latest AI run), ``star`` (starred first), ``bibtex_key``, ``author``,
+    ``journal``, ``year``, ``source``, ``doi``, ``document_type``, ``language``, ``publisher``, ``criteria``,
+    ``created_by``, ``created_at``, ``updated_by``, ``updated_at`` or ``status``; a leading ``-`` reverses it. The
+    studies without the value go last either way, and ties go by title.
     """
     review = get_review(request, review_id)
     return studies.list_articles(

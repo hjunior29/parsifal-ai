@@ -78,7 +78,9 @@ class AiScreeningViewsTest(AiScreeningViewsBase):
         self.assertContains(response, "Screen with AI")
         self.assertNotContains(response, "Retain with AI")
         self.assertNotContains(response, "Phase 1")
-        self.assertContains(response, 'class="ai-header"', html=False)  # the AI column, empty before any run
+        self.assertContains(
+            response, 'ai-header" data-order="ai_score"', html=False
+        )  # the AI column, empty before any run
         self.assertContains(response, '<td class="text-right" data-score=""></td>', html=False)
 
     def test_asks_for_the_key_first(self):

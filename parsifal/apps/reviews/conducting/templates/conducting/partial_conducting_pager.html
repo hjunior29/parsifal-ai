@@ -1,0 +1,45 @@
+{% comment %}
+  The pager of a list of Conducting (``page``, ``page_range`` and ``per_page_choices`` from views._paginate): where the
+  page is in the list, the other pages, and how many studies a page shows. The page's script loads the page clicked
+  (``.js-page``, ``data-page``) or the size chosen (``.js-per-page``).
+{% endcomment %}
+{% if page.paginator.count %}
+  <div class="conducting-pager clearfix">
+    {% if page.paginator.num_pages > 1 %}
+      <ul class="pagination pagination-sm pull-right">
+        {% if page.has_previous %}
+          <li><a href="#" class="js-page" data-page="{{ page.previous_page_number }}" aria-label="Previous page"><span aria-hidden="true">&laquo;</span></a></li>
+        {% else %}
+          <li class="disabled"><span aria-hidden="true">&laquo;</span></li>
+        {% endif %}
+        {% for number in page_range %}
+          {% if number == page.number %}
+            <li class="active"><span>{{ number }} <span class="sr-only">(current)</span></span></li>
+          {% elif number == page.paginator.ELLIPSIS %}
+            <li class="disabled"><span>&hellip;</span></li>
+          {% else %}
+            <li><a href="#" class="js-page" data-page="{{ number }}">{{ number }}</a></li>
+          {% endif %}
+        {% endfor %}
+        {% if page.has_next %}
+          <li><a href="#" class="js-page" data-page="{{ page.next_page_number }}" aria-label="Next page"><span aria-hidden="true">&raquo;</span></a></li>
+        {% else %}
+          <li class="disabled"><span aria-hidden="true">&raquo;</span></li>
+        {% endif %}
+      </ul>
+    {% endif %}
+    <p class="form-inline text-muted conducting-pager-info">
+      <strong>{{ page.start_index }}</strong>–<strong>{{ page.end_index }}</strong> of <strong>{{ page.paginator.count }}</strong> stud{{ page.paginator.count|pluralize:"y,ies" }}
+      ·
+      <label class="control-label">
+        Show
+        <select class="form-control input-sm js-per-page" aria-label="Studies per page">
+          {% for size in per_page_choices %}
+            <option value="{{ size }}"{% if size == page.paginator.per_page %} selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+        per page
+      </label>
+    </p>
+  </div>
+{% endif %}

@@ -68,7 +68,7 @@ $(function () {
   $modal.on("hidden.bs.modal", function () {
     if (undone) {
       undone = false;
-      $("#source-tab li.active a").click();
+      $(document).trigger("studies-changed");  // the study list again, on the same page and filters
     }
   });
 });

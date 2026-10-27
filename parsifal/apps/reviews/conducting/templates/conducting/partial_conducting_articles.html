@@ -32,7 +32,7 @@
       <div class="pull-right studies-search">
         <div class="input-group">
           <span class="input-group-btn">
-            <button type="button" class="btn btn-default js-starred-filter" aria-pressed="false" title="Show only the starred studies (with the status chosen in Show and the search)">
+            <button type="button" class="btn btn-default js-starred-filter" aria-pressed="false" title="Show only the starred studies (with the status chosen in Show and the search); the number counts every starred study of this tab">
               <span class="glyphicon glyphicon-star"></span> <span class="starred-count">{{ starred_count }}</span>
             </button>
           </span>
@@ -54,7 +54,7 @@
         <option value="duplicated">Mark as duplicated</option>
       </select>
       <button type="button" class="btn btn-default go-button">Go</button>
-      <span class="text-muted"><span class="articles-selected">0</span> of <span class="articles-total">{{ articles.count }}</span> selected</span>
+      <span class="text-muted"><span class="articles-selected">0</span> of <span class="articles-total">{{ page.object_list|length }}</span> selected on this page</span>
     </div>
     <p>
       <strong>Show:</strong>
@@ -76,31 +76,6 @@
     </p>
   </div>
   <div class="source-articles">
-    <table class="table table-hover table-bordered" csrf-token="{{ csrf_token }}" source-id="{{ source.id }}" style="font-size: 13px">
-      <thead>
-        <tr>
-          <th style="width: 35px; text-align: center;"><input type="checkbox" id="ck-all-articles"></th>
-          {% for column in headings %}
-            {% if column.key == "star" %}
-              <th class="star-header" style="width: 48px; text-align: center;" title="{{ column.help }}"><span class="glyphicon glyphicon-star"></span><span class="sr-only">Starred</span></th>
-            {% elif column.key == "ai_relevance" %}
-              <th class="ai-header" style="min-width: 90px;" title="{{ column.help }}">{{ column.label }}</th>
-            {% else %}
-              <th{% if column.help %} title="{{ column.help }}"{% endif %}{% if column.key == "year" %} style="min-width: 80px;"{% elif column.key == "created_by" or column.key == "created_at" or column.key == "updated_by" or column.key == "updated_at" %} style="min-width: 100px;"{% endif %}>{{ column.label }}</th>
-            {% endif %}
-          {% endfor %}
-        </tr>
-      </thead>
-      <tbody>
-        {% for article in articles %}
-          {% include "conducting/partial_conducting_article_row.html" %}
-        {% empty %}
-          <tr class="no-data">
-            <td colspan="{{ headings|length|add:1 }}">No articles.</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    <p class="text-muted js-no-match" style="display: none;">No articles match the search.</p>
+    {% include "conducting/partial_conducting_articles_list.html" %}
   </div>
 </div>

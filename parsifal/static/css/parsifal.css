@@ -492,6 +492,36 @@ th.headerSortUp:after {
   font-weight: 300;
 }
 
+/* The pager of the lists of Conducting: the study list, quality assessment, data extraction */
+.conducting-pager {
+  margin: 0 0 20px;
+}
+
+.conducting-pager .pagination {
+  margin: 0 0 10px 10px;
+}
+
+.conducting-pager-info {
+  margin: 5px 0 10px;
+}
+
+.conducting-pager-info .control-label {
+  font-weight: normal;
+  margin: 0;
+}
+
+.conducting-pager-info select {
+  width: auto;
+  display: inline-block;
+}
+
+/* A list reloading (another page, filter or order): what it showed fades until the new one comes */
+.list-reloading {
+  opacity: 0.5;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+
 select optgroup {
   font-family: inherit;
   font-size: inherit;

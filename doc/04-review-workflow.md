@@ -92,9 +92,12 @@ shows its tool when all are met.
 K 6.2.2 "study selection process": multi-stage, titles/abstracts first then
 full text; K 6.2.3 reliability with two assessors.
 
-- Tabs per source list articles (`source_articles`); clicking opens a modal
-  (`article_details`) with the full record, `status`, `selection_criteria`
-  (reason) and `comments`; keyboard navigation through the list.
+- Tabs per source list articles (`source_articles`), a page at a time (25 by
+  default, up to 100; the size is kept in the session): "Show", the search
+  and the star filter, and the headings sort, the whole list on the server.
+  Clicking opens a modal (`article_details`) with the full record, `status`,
+  `selection_criteria` (reason) and `comments`; keyboard navigation and the
+  modal's Previous/Next go on to the next page at its ends.
 - Save: `save_article_details` (whole form, including bibliographic edits).
 - Bulk: select rows → accept / reject / unclassify / mark duplicated / remove
   (`multiple_articles_action_*`).

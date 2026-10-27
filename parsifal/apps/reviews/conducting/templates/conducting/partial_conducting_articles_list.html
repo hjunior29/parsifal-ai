@@ -1,0 +1,27 @@
+{% comment %}
+  The study list's table and pager (source_articles; alone with part=list: another page, filter or order). The
+  filters and the order are applied on the server: a heading sorts the list by its column, and a second click
+  reverses it.
+{% endcomment %}
+<div class="js-article-list" data-source-id="{{ source.id|default_if_none:'None' }}" data-order="{{ order }}" data-page="{{ page.number }}" data-pages="{{ page.paginator.num_pages }}" data-count="{{ page.paginator.count }}" data-start="{{ page.start_index }}">
+  <table class="table table-hover table-bordered" csrf-token="{{ csrf_token }}" source-id="{{ source.id }}" style="font-size: 13px">
+    <thead>
+      <tr>
+        <th style="width: 35px; text-align: center;"><input type="checkbox" id="ck-all-articles" aria-label="Select the studies of this page"></th>
+        {% for column in headings %}
+          <th class="header{% if column.sort == 'asc' %} headerSortDown{% elif column.sort == 'desc' %} headerSortUp{% endif %}{% if column.key == 'star' %} star-header{% elif column.key == 'ai_relevance' %} ai-header{% endif %}" data-order="{{ column.order }}"{% if column.sort %} aria-sort="{% if column.sort == 'asc' %}ascending{% else %}descending{% endif %}"{% endif %}{% if column.help %} title="{{ column.help }}"{% endif %}{% if column.key == "star" %} style="width: 48px; text-align: center;"{% elif column.key == "ai_relevance" %} style="min-width: 90px;"{% elif column.key == "year" %} style="min-width: 80px;"{% elif column.key == "created_by" or column.key == "created_at" or column.key == "updated_by" or column.key == "updated_at" %} style="min-width: 100px;"{% endif %}>{% if column.key == "star" %}<span class="glyphicon glyphicon-star"></span><span class="sr-only">Starred</span>{% else %}{{ column.label }}{% endif %}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for article in page %}
+        {% include "conducting/partial_conducting_article_row.html" %}
+      {% empty %}
+        <tr class="no-data">
+          <td colspan="{{ headings|length|add:1 }}">{% if filtered %}No articles match the search and filters.{% else %}No articles.{% endif %}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% include "conducting/partial_conducting_pager.html" %}
+</div>

@@ -87,7 +87,7 @@ lookups raising `NotFound`, `check_length`, `require`, `reorder`):
 | `quality.py` | QA questions/answers CRUD + reorder, `add_suggested_answers`, `max_score`, `set_cutoff`, `assess(article, question, answer, actor)`, `article_score`, `summary(review)` | `planning/views.py`, `conducting/views.py` |
 | `extraction.py` | fields CRUD (+ lookups sync, type-change wipe), `set_value(article, field, value, actor)` with **set semantics for select-many**, `mark_done`, `matrix(review)` | `planning/views.py`, `conducting/views.py`, `models.DataExtraction` |
 | `search.py` | per-source search sessions: `add`, `set_string`, `copy_generic`, `remove`; Scopus proxy | `conducting/views.py` |
-| `studies.py` | `import_bibtex(review, source, text|file, actor) -> ImportResult`, `create_article`, `update_article`, `delete_articles`, `set_status(review, ids, status, criteria=None, actor)`, `find_duplicates`, `resolve_duplicates`, `list_articles(filters, order: title or ai_score)` | `conducting/views.py` |
+| `studies.py` | `import_bibtex(review, source, text|file, actor) -> ImportResult`, `create_article`, `update_article`, `delete_articles`, `set_status(review, ids, status, criteria=None, actor)`, `find_duplicates`, `resolve_duplicates`, `list_articles(filters, order: a column of the study list, - reverses it)` | `conducting/views.py` |
 | `analytics.py` | `selection_by_source`, `final_selection_by_year` (+ later facet matrices) | `conducting/views.py` |
 | `reports.py` | `build_docx(review, sections) -> bytes`, `articles_rows(review)`, `extraction_rows(review)` (shared by XLSX/CSV/JSON) | `reporting/export.py`, XLS exports |
 

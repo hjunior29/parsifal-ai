@@ -53,7 +53,7 @@ class TestStarViews(TestCase):
         self.star(self.a1)
         response = self.study_list()
         content = response.content.decode()
-        self.assertContains(response, 'class="star-header"')
+        self.assertContains(response, 'star-header" data-order="star"')  # sorts the list on the server
         self.assertContains(response, f'<tr oid="{self.a1.pk}" article-status="U"', html=False)
         self.assertContains(response, 'article-starred="1"')
         self.assertContains(response, 'article-starred="0"')

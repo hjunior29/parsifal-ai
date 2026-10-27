@@ -7,7 +7,8 @@ from dataclasses import dataclass, field as dataclass_field
 from difflib import SequenceMatcher
 
 from django.db import transaction
-from django.db.models import F, Q
+from django.db.models import BooleanField, ExpressionWrapper, F, Q, Value
+from django.db.models.functions import NullIf
 from django.utils import timezone
 from django.utils.text import slugify
 
@@ -302,7 +303,46 @@ def set_starred(*, review, article_id, starred, actor=None):
     return get_article(review=review, article_id=article.pk)
 
 
-ORDERS = ("title", "ai_score")
+def _blank_last(name):
+    # An empty text sorts with the missing ones (last), not before every letter.
+    return NullIf(F(name), Value(""))
+
+
+# The orders of the study list, one per column of Study Selection: the value it sorts by and whether it goes down
+# first (the starred, the most likely relevant). A "-" before the name reverses it; studies without the value go last
+# either way, and ties go by title.
+ORDERS = {
+    "title": (F("title"), False),
+    "ai_score": (F("ai_relevance"), True),
+    "star": (ExpressionWrapper(Q(starred_at__isnull=False), output_field=BooleanField()), True),
+    "bibtex_key": (_blank_last("bibtex_key"), False),
+    "author": (_blank_last("author"), False),
+    "journal": (_blank_last("journal"), False),
+    "year": (F("year_int"), False),
+    "source": (F("source__name"), False),
+    "doi": (_blank_last("doi"), False),
+    "document_type": (_blank_last("document_type"), False),
+    "language": (_blank_last("language"), False),
+    "publisher": (_blank_last("publisher"), False),
+    "criteria": (F("selection_criteria__description"), False),
+    "created_by": (F("created_by__username"), False),
+    "created_at": (F("created_at"), False),
+    "updated_by": (F("updated_by__username"), False),
+    "updated_at": (F("updated_at"), False),
+    "status": (F("status"), False),
+}
+
+
+def ordering(order):
+    """The ``order_by`` of the study list for ``order``: a key of ``ORDERS``, reversed by a leading "-"."""
+    order = (order or "title").strip()
+    reverse = order.startswith("-")
+    key = order[1:] if reverse else order
+    if key not in ORDERS:
+        raise ValidationError(f"order must be one of {', '.join(ORDERS)} (a leading - reverses it).", field="order")
+    value, down = ORDERS[key]
+    value = value.desc(nulls_last=True) if down != reverse else value.asc(nulls_last=True)
+    return value, "title", "pk"
 
 
 def list_articles(
@@ -310,18 +350,11 @@ def list_articles(
 ):
     """
     The review's studies, filtered, with how likely each is relevant by the latest AI answer (``ai_score``);
-    ``order``: by title (default) or by that score, the most likely first.
+    ``order``: a column of the study list (``ORDERS``, by title when none), a leading "-" reverses it.
     """
-    order = order or "title"
-    if order not in ORDERS:
-        raise ValidationError(f"order must be {' or '.join(ORDERS)}.", field="order")
     queryset = ai_screening.with_relevance(
         review.article_set.select_related("source", "selection_criteria", "pdf__uploaded_by", "starred_by")
-    )
-    if order == "ai_score":
-        queryset = queryset.order_by(F("ai_relevance").desc(nulls_last=True), "title", "pk")
-    else:
-        queryset = queryset.order_by("title", "pk")
+    ).order_by(*ordering(order))
     if source_id is not None:
         queryset = queryset.filter(source_id=source_id)
     if status is not None:

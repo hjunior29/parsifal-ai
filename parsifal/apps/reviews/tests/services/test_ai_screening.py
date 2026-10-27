@@ -1097,8 +1097,9 @@ class TestRelevance(AiScreeningTestCase):
         self.assertEqual([0.9, 0.03, None], [article.ai_score for article in ranked])
         self.assertEqual(0.03, Article.objects.get(pk=unlikely.pk).ai_score)  # looked up when not annotated
         self.assertEqual([likely, unlikely, unscreened], list(studies.list_articles(self.review)))  # by title
-        with self.assertRaisesMessage(ValidationError, "order must be title or ai_score"):
-            studies.list_articles(self.review, order="year")
+        self.assertEqual([unlikely, likely, unscreened], list(studies.list_articles(self.review, order="-ai_score")))
+        with self.assertRaisesMessage(ValidationError, "order must be one of title, ai_score"):
+            studies.list_articles(self.review, order="nope")
 
 
 class TestResultStatus(AiScreeningTestCase):
