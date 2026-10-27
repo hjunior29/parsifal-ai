@@ -62,6 +62,22 @@ class TestQualityAssessmentView(ConductingActionsTestCase):
         self.assertEqual("0.5", response.content.decode())
         self.assertEqual(self.review.author, QualityAssessment.objects.get(article=article, question=question).user)
 
+    def test_save_quality_assessment_without_answer_clears_it(self):
+        article = ArticleFactory(review=self.review, source=self.source, status="A")
+        question, other = QualityQuestionFactory.create_batch(2, review=self.review)
+        answer = QualityAnswerFactory(review=self.review, weight=1.0)
+        for each in (question, other):
+            self.post(
+                "save_quality_assessment", **{"article-id": article.pk, "question-id": each.pk, "answer-id": answer.pk}
+            )
+        response = self.post(
+            "save_quality_assessment", **{"article-id": article.pk, "question-id": question.pk, "answer-id": ""}
+        )
+        self.assertEqual(200, response.status_code)
+        self.assertEqual("1.0", response.content.decode())
+        self.assertFalse(QualityAssessment.objects.filter(article=article, question=question).exists())
+        self.assertTrue(QualityAssessment.objects.filter(article=article, question=other).exists())
+
     def test_save_quality_assessment_foreign_question(self):
         article = ArticleFactory(review=self.review, source=self.source, status="A")
         question = QualityQuestionFactory(review=self.other_review)

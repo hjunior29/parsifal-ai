@@ -116,7 +116,7 @@ and answers.
 
 - Per accepted article, a table question × answer (`build_quality_assessment_table`);
   clicking an answer calls `save_quality_assessment` and returns the new
-  score (Σ weights). Ordering by title/year kept in session.
+  score (Σ weights); clicking the chosen answer again clears it. Ordering by title/year kept in session.
 - Summary tab (`quality_assessment_summary`).
 - The score feeds the **final selection**: accepted articles with
   `score > cutoff` when a checklist exists and `cutoff > 0`

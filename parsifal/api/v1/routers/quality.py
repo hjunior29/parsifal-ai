@@ -150,7 +150,10 @@ def article_quality_get(request, review_id: int, article_id: int):
     operation_id="article_quality_assess",
 )
 def article_quality_assess(request, review_id: int, article_id: int, payload: AssessmentIn):
-    """Answer one checklist question for the article (replaces a previous answer to the same question)."""
+    """
+    Answer one checklist question for the article (replaces a previous answer to the same question); without
+    ``answer_id``, clear the answer: the question is unanswered again.
+    """
     review = get_review(request, review_id)
     quality.assess(
         review=review,

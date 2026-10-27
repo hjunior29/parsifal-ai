@@ -22,42 +22,37 @@ $(function () {
     return false;
   });
 
+  /* A click on an answer chooses it; a click on the chosen one clears it, and the question is unanswered again. */
   $(".quality-container").on("click", "td.answer", function () {
-    if (!$(this).hasClass("selected-answer")) {
-      var answer_id = $(this).attr("answer-id");
-      var question_id = $(this).closest("tr").attr("question-id");
-      var article_id = $(this).closest("table").attr("article-id");
-      var csrf_token = $(this).closest("table").attr("csrf-token");
-      var review_id = $("#review-id").val();
+    var td = $(this);
+    if (td.hasClass("processing")) { return; }
+    var clear = td.hasClass("selected-answer");
+    var tbl = td.closest(".panel");
+    var old_text = td.text();
 
-      var tbl = $(this).closest(".panel");
-      var td = $(this);
-
-      var old_text = $(td).text();
-
-      $.ajax({
-        url: '/reviews/conducting/save_quality_assessment/',
-        data: {'review-id': review_id, 
-          'article-id': article_id, 
-          'question-id': question_id, 
-          'answer-id': answer_id,
-          'csrfmiddlewaretoken': csrf_token
-        },
-        type: 'post',
-        cache: false,
-        beforeSend: function () {
-          $(td).text("Processing...");
-        },
-        success: function (data) {
-          $('.score', tbl).text(data);
-          $(td).siblings().removeClass("selected-answer");
-          $(td).addClass("selected-answer");
-        },
-        complete: function () {
-          $(td).text(old_text);
-        }
-      });
-    }
+    $.ajax({
+      url: '/reviews/conducting/save_quality_assessment/',
+      data: {
+        'review-id': $("#review-id").val(),
+        'article-id': td.closest("table").attr("article-id"),
+        'question-id': td.closest("tr").attr("question-id"),
+        'answer-id': clear ? "" : td.attr("answer-id"),
+        'csrfmiddlewaretoken': td.closest("table").attr("csrf-token")
+      },
+      type: 'post',
+      cache: false,
+      beforeSend: function () {
+        td.addClass("processing").text("Processing...");
+      },
+      success: function (data) {
+        $('.score', tbl).text(data);
+        td.siblings().removeClass("selected-answer");
+        td.toggleClass("selected-answer", !clear);
+      },
+      complete: function () {
+        td.removeClass("processing").text(old_text);
+      }
+    });
   });
 
   $(".quality-container").on("click", "#all-filter", function () {

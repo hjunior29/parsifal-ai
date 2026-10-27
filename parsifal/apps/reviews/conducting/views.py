@@ -1333,16 +1333,18 @@ def save_article_details(request):
 @author_required
 @login_required
 def save_quality_assessment(request):
+    """Answer a question for a study, or clear its answer (an empty ``answer-id``: the answer clicked again)."""
     try:
         review = get_object_or_404(Review, pk=request.POST["review-id"])
-        assessment = quality.assess(
+        article_id = request.POST["article-id"]
+        quality.assess(
             review=review,
-            article_id=request.POST["article-id"],
+            article_id=article_id,
             question_id=request.POST["question-id"],
-            answer_id=request.POST["answer-id"],
+            answer_id=request.POST["answer-id"] or None,
             actor=request.user,
         )
-        return HttpResponse(assessment.article.get_score())
+        return HttpResponse(quality.article_score(review=review, article_id=article_id))
     except DomainError as error:
         return HttpResponseBadRequest(str(error))
     except KeyError:

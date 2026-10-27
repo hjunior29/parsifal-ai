@@ -88,12 +88,16 @@ def set_cutoff(*, review, cutoff):
 
 
 def assess(*, review, article_id, question_id, answer_id, actor=None):
-    """Record (or replace) the answer to one checklist question for one article."""
+    """
+    Record (or replace) the answer to one checklist question for one article; without an answer (``None``), clear it:
+    the question goes back to unanswered (returns None).
+    """
     article = get_child(review.article_set, article_id, label="Article")
     question = get_child(review.qualityquestion_set, question_id, label="Quality question")
-    answer = None
-    if answer_id is not None:
-        answer = get_child(review.qualityanswer_set, answer_id, label="Quality answer")
+    if answer_id is None:
+        QualityAssessment.objects.filter(article=article, question=question).delete()
+        return None
+    answer = get_child(review.qualityanswer_set, answer_id, label="Quality answer")
     assessment, _created = QualityAssessment.objects.update_or_create(
         article=article, question=question, defaults={"answer": answer, "user": actor}
     )

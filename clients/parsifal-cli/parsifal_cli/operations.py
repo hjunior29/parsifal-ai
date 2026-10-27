@@ -903,7 +903,12 @@ OPERATIONS = (
         ("quality",),
         "assess",
         "Answer one checklist question for an article.",
-        (REVIEW, ARTICLE, B("question_id", INT, True), B("answer_id", INT, help="Omit to clear the answer.")),
+        (
+            REVIEW,
+            ARTICLE,
+            B("question_id", INT, True),
+            B("answer_id", INT, help="Omit to clear the answer (the question is unanswered again)."),
+        ),
     ),
     # Data extraction ------------------------------------------------------------------------------------------------
     Operation(

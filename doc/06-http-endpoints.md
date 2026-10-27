@@ -173,7 +173,7 @@ Action endpoints under `/reviews/conducting/`, guard **A** unless noted:
 | `ai_runs/` | GET | `review-id` | frag of the *AI runs* window: the runs, newest first, with how much of each still stands and Details, Run again, Undo (on the latest run) |
 | `ai_runs/run/` | GET | `review-id`, `run-id` | frag: one run's settings and Jev's answer for each study |
 | `ai_runs/undo/` | GET · POST | `review-id`, `run-id` | GET: frag of what undoing the run would do, with a confirmation checkbox; POST: undoes it and returns the list frag with what was done; 400 with the reason when it cannot be undone (only the latest run can) |
-| `save_quality_assessment/` | POST | `article-id`, `question-id`, `answer-id` | Upsert assessment; text score (**no review scoping**) |
+| `save_quality_assessment/` | POST | `review-id`, `article-id`, `question-id`, `answer-id` (empty: clear the answer, as when the chosen answer is clicked again) | Upsert or delete the assessment (scoped to the review); text score |
 | `quality_assessment_detailed/` | GET | `review-id` | frag per-article tables (order from session) |
 | `quality_assessment_summary/` | GET | `review-id` | frag |
 | `save_data_extraction/` | POST | `article-id`, `field-id`, `value` | Upsert + `set_value`; empty; 400 with error text on coercion failure (checks `article.review`) |

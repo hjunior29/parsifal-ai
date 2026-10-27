@@ -29,6 +29,13 @@ class TestQualityApi(ApiTestCase):
             self.assertEqual(2.0, body["score"])
             self.assertEqual(2, len(body["assessments"]))
 
+        with self.subTest(msg="no answer clears it"):
+            body = self.api("put", path, {"question_id": q2["id"]}).json()
+            self.assertEqual(1.0, body["score"])
+            self.assertEqual([q1["id"]], [row["question_id"] for row in body["assessments"]])
+            body = self.api("put", path, {"question_id": q2["id"], "answer_id": yes["id"]}).json()
+            self.assertEqual(2.0, body["score"])
+
         with self.subTest(msg="summary"):
             summary = self.api("get", self.review_path("/quality/summary")).json()
             self.assertEqual([True], [row["passes_cutoff"] for row in summary["articles"]])

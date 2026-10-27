@@ -96,6 +96,20 @@ class TestAssessments(TestCase):
         with self.subTest(msg="actor recorded"):
             self.assertEqual(self.actor, QualityAssessment.objects.get(article=self.article, question=self.q1).user)
 
+    def test_assess_without_answer_clears_it(self):
+        quality.assess(review=self.review, article_id=self.article.pk, question_id=self.q1.pk, answer_id=self.yes.pk)
+        quality.assess(review=self.review, article_id=self.article.pk, question_id=self.q2.pk, answer_id=self.yes.pk)
+        cleared = quality.assess(
+            review=self.review, article_id=self.article.pk, question_id=self.q1.pk, answer_id=None
+        )
+        self.assertIsNone(cleared)
+        answered = QualityAssessment.objects.filter(article=self.article).values_list("question", flat=True)
+        self.assertEqual([self.q2.pk], list(answered))
+        self.assertEqual(1.0, quality.article_score(review=self.review, article_id=self.article.pk))
+        with self.subTest(msg="clearing an unanswered question is a no-op"):
+            quality.assess(review=self.review, article_id=self.article.pk, question_id=self.q1.pk, answer_id=None)
+            self.assertEqual(1, QualityAssessment.objects.filter(article=self.article).count())
+
     def test_assess_scoping(self):
         foreign_question = QualityQuestionFactory()
         with self.assertRaises(NotFound):

@@ -84,7 +84,7 @@ An **agent** is an AI co-author with an account of its own, created for one revi
 | `GET/POST /reviews/{rid}/quality/questions` · `PATCH/DELETE /{id}` · `PUT /order` | `quality_questions_*` |
 | `GET/POST /reviews/{rid}/quality/answers` (`description`, `weight`) · `POST /answers/suggested` · `PATCH/DELETE /{id}` | `quality_answers_*` |
 | `GET /reviews/{rid}/quality/max-score` · `PUT /quality/cutoff {cutoff}` · `GET /quality/summary` | `quality_max_score` · `quality_set_cutoff` · `quality_summary` |
-| `GET /reviews/{rid}/articles/{aid}/quality` · `PUT {question_id, answer_id}` | `article_quality_get` · `article_quality_assess` (records the acting user) |
+| `GET /reviews/{rid}/articles/{aid}/quality` · `PUT {question_id, answer_id}` (no `answer_id`: clear the answer) | `article_quality_get` · `article_quality_assess` (records the acting user) |
 
 ### Data extraction
 
