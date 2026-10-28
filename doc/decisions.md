@@ -596,3 +596,39 @@ reviewer's own request templates keep their old wording until Restore
 defaults; older runs keep theirs and their rule ("all"). A start through the
 API that leaves fields out now repeats the last run of the action rather than
 Parsifal's defaults; scripts that relied on the defaults pass `defaults`.
+
+
+## PRISMA 2020 flow diagram from the reviewers' decisions
+
+**Context.** Helder wanted the PRISMA 2020 flow diagram (2026-10-28), with his
+notes on PRISMA 2020 as the reference. Parsifal keeps one status per study, but
+the stage is recorded with each reviewer's decision: he marks in the Reviewers
+tab whether an accept or reject was at the title and abstract or at the full
+text, and the definitive one is at the full text, with a criterion.
+
+**Decision.**
+- The boxes come from the statuses and the decisions' stage
+  (`analytics.prisma`): rejected without a full-text decision = excluded at
+  the screening; with one = a report assessed for eligibility; accepted with
+  one = included. Accepted at the screening without a full-text decision, and
+  unclassified studies, are reported as still awaiting, outside the boxes.
+- Records identified per source are the studies imported from it (not the
+  hits noted in the search session).
+- Records excluded at the screening are split by people and automation tools
+  (note b of the diagram): automation when only AI agents rejected the study
+  there and no person decided it.
+- "Reports not retrieved": the review marks one exclusion criterion as "full
+  text not retrieved" (`Review.prisma_not_retrieved`); full-text rejections
+  with it move from excluded to not retrieved. Without one the box is left
+  out.
+- Included = accepted at the full text. Quality is assessed on the included
+  studies (PRISMA item 18), so the quality cutoff is no box of the flow.
+- Boxes that do not apply are left out (previous studies, registers,
+  automation before screening, other removals). Sources searched by
+  snowballing, manual or other searches form the "other methods" column.
+- Data Analysis only (SVG drawn in the browser, downloaded as SVG or PNG); the
+  API, CLI and MCP give the numbers (`analytics_prisma`,
+  `analytics_prisma_settings`). Not in the .docx.
+
+**Consequences.** Migration `reviews.0051`. A review whose full-text decisions
+were never recorded shows every accepted study as awaiting.

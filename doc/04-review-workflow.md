@@ -177,7 +177,9 @@ planning sections and for conducting search strings / import counts; the
 "Quality Assessment", "Data Extraction" and "Data Analysis" sections are
 headings only. K 7.2 (Table 9 report structure: background, review
 questions, methods, included/excluded studies, results, discussion,
-conclusions) is only partially covered.
+conclusions) is only partially covered. The PRISMA 2020 flow diagram (item 16a)
+is on Data Analysis (Study Selection), built from the stage of the reviewers'
+decisions, and downloads as SVG or PNG.
 
 ## 4. Where an AI agent would act (preview)
 

@@ -1852,6 +1852,25 @@ OPERATIONS = (
         (REVIEW,),
     ),
     Operation(
+        "analytics_prisma",
+        "GET",
+        "/reviews/{review_id}/analytics/prisma",
+        ("analytics",),
+        "prisma",
+        "The PRISMA 2020 flow diagram in numbers: identified per source, duplicates, screened, excluded (people and "
+        "automation tools), sought, not retrieved, assessed, excluded by criterion, included, still awaiting.",
+        (REVIEW,),
+    ),
+    Operation(
+        "analytics_prisma_settings",
+        "PUT",
+        "/reviews/{review_id}/analytics/prisma",
+        ("analytics",),
+        "prisma-settings",
+        'Choose the exclusion criterion that means "full text not retrieved" in the PRISMA diagram.',
+        (REVIEW, B("not_retrieved_criteria_id", INT, help="An exclusion criterion's id; 0: none.")),
+    ),
+    Operation(
         "export_articles",
         "GET",
         "/reviews/{review_id}/export/articles.{fmt}",

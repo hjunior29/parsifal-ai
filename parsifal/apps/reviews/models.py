@@ -85,6 +85,11 @@ class Review(models.Model):
     )
     synthesis_strategy = models.TextField(_("synthesis strategy"), blank=True)
     validity_threats = models.TextField(_("validity threats"), blank=True)
+    # PRISMA flow diagram: the exclusion criterion that means "full text not retrieved" (a study rejected at the
+    # full text with it counts as a report not retrieved, not as one excluded).
+    prisma_not_retrieved = models.ForeignKey(
+        "SelectionCriteria", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
 
     class Meta:
         verbose_name = _("review")

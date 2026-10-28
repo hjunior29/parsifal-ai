@@ -10,6 +10,7 @@ from parsifal.apps.reviews.tests.factories import (
     QualityAnswerFactory,
     QualityQuestionFactory,
     ReviewFactory,
+    SelectionCriteriaFactory,
     SourceFactory,
 )
 
@@ -87,6 +88,30 @@ class TestDataAnalysisSections(TestCase):
         self.assertContains(response, 'id="analysis-funnel"', html=False)
         self.assertNotContains(response, 'id="analysis-quality"', html=False)
         self.assertEqual("selection", self.client.get(self.url, {"section": "nope"}).context["section"])
+
+    def test_the_prisma_diagram_and_its_not_retrieved_criterion(self):
+        missing = self.review.selectioncriteria_set.create(criteria_type="E", description="Full text missing")
+        self.review.selectioncriteria_set.create(criteria_type="I", description="Proposes a tool")
+        response = self.client.get(self.url)
+        self.assertContains(response, "PRISMA 2020 Flow Diagram")
+        self.assertContains(response, 'id="analysis-prisma-data"', html=False)
+        self.assertContains(response, f'<option value="{missing.pk}">Full text missing</option>', html=True)
+        self.assertNotContains(response, "Proposes a tool</option>", html=False)  # exclusion criteria only
+        self.assertEqual(1, response.context["prisma"]["awaiting_full_text"])  # accepted, no full-text decision
+        url = reverse("reviews:conducting:save_prisma_settings")
+        data = {"review-id": self.review.pk, "not-retrieved-criteria-id": missing.pk}
+        self.assertEqual(405, self.client.get(url, data).status_code)
+        response = self.client.post(url, data)
+        self.assertEqual(missing.pk, response.json()["not_retrieved_criteria_id"])
+        self.review.refresh_from_db()
+        self.assertEqual(missing, self.review.prisma_not_retrieved)
+        self.assertContains(
+            self.client.get(self.url), f'<option value="{missing.pk}" selected>Full text missing</option>', html=True
+        )
+        self.assertIsNone(self.client.post(url, {"review-id": self.review.pk}).json()["not_retrieved_criteria_id"])
+        other = SelectionCriteriaFactory(criteria_type="E")
+        refused = self.client.post(url, {"review-id": self.review.pk, "not-retrieved-criteria-id": other.pk})
+        self.assertEqual(400, refused.status_code)
 
     def test_quality_assessment(self):
         response = self.client.get(self.url, {"section": "quality"})

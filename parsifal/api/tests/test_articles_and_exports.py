@@ -194,6 +194,21 @@ class TestAnalyticsAndExports(ApiTestCase):
         )
         choices = self.api("get", self.review_path("/analytics/extraction")).json()
         self.assertEqual({"studies": 1, "done": 0, "fields": []}, choices)
+        prisma = self.api("get", self.review_path("/analytics/prisma")).json()
+        self.assertEqual(
+            (2, 0, 2, 1, 1, 0),
+            tuple(
+                prisma[key]
+                for key in ("records", "duplicates", "screened", "excluded", "awaiting_full_text", "included")
+            ),
+        )
+        criteria = self.review.selectioncriteria_set.create(criteria_type="E", description="Full text missing")
+        settings = self.review_path("/analytics/prisma")
+        response = self.api("put", settings, {"not_retrieved_criteria_id": criteria.pk})
+        self.assertEqual((200, criteria.pk), (response.status_code, response.json()["not_retrieved_criteria_id"]))
+        response = self.api("put", settings, {"not_retrieved_criteria_id": 0})
+        self.assertIsNone(response.json()["not_retrieved_criteria_id"])
+        self.assertEqual(404, self.api("put", settings, {"not_retrieved_criteria_id": 99999}).status_code)
         self.assertEqual(
             404,
             self.api("get", self.review_path("/analytics/quality"), client=self.client_for(self.outsider)).status_code,

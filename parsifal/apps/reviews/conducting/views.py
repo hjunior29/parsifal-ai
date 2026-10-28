@@ -1572,8 +1572,24 @@ def data_analysis(request, username, review_name):
             funnel=_selection_funnel(summary, review),
             criteria=analytics.criteria_usage(review),
             years=analytics.studies_by_year(review),
+            prisma=analytics.prisma(review),
+            exclusion_criteria=review.get_exclusion_criterias(),
         )
     return render(request, "conducting/conducting_data_analysis.html", context)
+
+
+@author_required
+@login_required
+@require_POST
+def save_prisma_settings(request):
+    """The exclusion criterion that means "full text not retrieved" in the PRISMA diagram; returns its numbers."""
+    try:
+        review = analytics.set_prisma_not_retrieved(
+            review=request.review, criteria_id=request.POST.get("not-retrieved-criteria-id") or None
+        )
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
+    return JsonResponse(analytics.prisma(review))
 
 
 @author_required

@@ -1,7 +1,8 @@
 from django.test import TestCase
 
-from parsifal.apps.reviews.models import DataExtractionField
-from parsifal.apps.reviews.services import analytics, extraction, quality, reports
+from parsifal.apps.core.exceptions import NotFound, ValidationError
+from parsifal.apps.reviews.models import DataExtractionField, SearchSession, StudyDecision
+from parsifal.apps.reviews.services import agents, analytics, extraction, quality, reports
 from parsifal.apps.reviews.tests.factories import (
     ArticleFactory,
     DataExtractionFieldFactory,
@@ -226,3 +227,108 @@ class TestReports(TestCase):
         self.assertIn("Report SLR", texts)
         self.assertTrue(any(t.startswith("Scopus (https://") for t in texts))
         self.assertIn("Planning", texts)
+
+
+class TestPrisma(TestCase):
+    """The PRISMA 2020 flow diagram in numbers, from the statuses and the stage of the reviewers' decisions."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.scopus = SourceFactory(name="Scopus")
+        cls.ieee = SourceFactory(name="IEEE")
+        cls.snowballing = SourceFactory(name="Snowballing")
+        cls.review = ReviewFactory(sources=[cls.scopus, cls.ieee, cls.snowballing])
+        SearchSession.objects.create(review=cls.review, source=cls.snowballing, search_type=SearchSession.SNOWBALLING)
+        SearchSession.objects.create(review=cls.review, source=cls.scopus, search_type=SearchSession.DATABASE)
+        cls.person = cls.review.author
+        cls.agent = agents.create_agent(review=cls.review, actor=cls.person, name="Jev").agent.user
+        cls.language = SelectionCriteriaFactory(review=cls.review, criteria_type="E", description="Not in English")
+        cls.missing = SelectionCriteriaFactory(review=cls.review, criteria_type="E", description="Full text missing")
+        cls.method = SelectionCriteriaFactory(review=cls.review, criteria_type="E", description="No evaluation")
+        cls.inclusion = SelectionCriteriaFactory(review=cls.review, criteria_type="I", description="Proposes a tool")
+
+        def study(source, status, criteria=None):
+            return ArticleFactory(review=cls.review, source=source, status=status, selection_criteria=criteria)
+
+        def decide(article, user, stage, status, criteria=None):
+            StudyDecision.objects.create(
+                review=cls.review, article=article, user=user, stage=stage, status=status, selection_criteria=criteria
+            )
+
+        TA, FT = StudyDecision.TITLE_ABSTRACT, StudyDecision.FULL_TEXT
+        study(cls.scopus, "D")
+        study(cls.ieee, "D")
+        study(cls.scopus, "U")  # awaiting the screening
+        for _ in range(3):  # rejected at the screening by the AI agent alone
+            decide(study(cls.scopus, "R"), cls.agent, TA, "R")
+        both = study(cls.ieee, "R")  # the agent and a person
+        decide(both, cls.agent, TA, "R")
+        decide(both, cls.person, TA, "R")
+        study(cls.ieee, "R")  # rejected in the list, no decision: a person
+        decide(study(cls.scopus, "A"), cls.agent, TA, "A")  # accepted at the screening: awaiting the full text
+        for _ in range(2):
+            decide(study(cls.scopus, "A"), cls.person, FT, "A")  # included
+        decide(study(cls.ieee, "R", cls.language), cls.person, FT, "R", cls.language)
+        decide(study(cls.ieee, "R", cls.missing), cls.person, FT, "R", cls.missing)
+        decide(study(cls.scopus, "R"), cls.person, FT, "R", cls.method)  # the reason of its full-text decision
+        decide(study(cls.snowballing, "A"), cls.person, FT, "A")
+        decide(study(cls.snowballing, "R", cls.method), cls.person, FT, "R", cls.method)
+        study(cls.snowballing, "R", cls.language)  # no full-text decision: other methods have no screening
+        study(cls.snowballing, "D")
+
+    def test_the_boxes(self):
+        prisma = analytics.prisma(self.review)
+        self.assertEqual([{"source": "IEEE", "records": 5}, {"source": "Scopus", "records": 9}], prisma["databases"])
+        self.assertEqual((14, 2, 12), (prisma["records"], prisma["duplicates"], prisma["screened"]))
+        self.assertEqual(
+            (5, 2, 3), (prisma["excluded"], prisma["excluded_by_people"], prisma["excluded_by_automation"])
+        )
+        self.assertEqual((6, 0, 5), (prisma["sought"], prisma["not_retrieved"], prisma["assessed"]))
+        self.assertEqual(
+            [
+                {"reason": "Full text missing", "studies": 1},
+                {"reason": "No evaluation", "studies": 1},
+                {"reason": "Not in English", "studies": 1},
+            ],
+            prisma["excluded_reports"],
+        )
+        self.assertEqual((1, 1), (prisma["awaiting_screening"], prisma["awaiting_full_text"]))
+        self.assertEqual(
+            {
+                "methods": [{"method": "Citation searching", "records": 4}],
+                "records": 4,
+                "sought": 3,
+                "not_retrieved": 0,
+                "assessed": 3,
+                "excluded_reports": [
+                    {"reason": "No evaluation", "studies": 1},
+                    {"reason": "Not in English", "studies": 1},
+                ],
+                "included": 1,
+            },
+            prisma["other_methods"],
+        )
+        self.assertEqual(3, prisma["included"])  # 2 from the databases, 1 from snowballing
+        self.assertEqual(prisma["screened"], prisma["excluded"] + prisma["sought"] + prisma["awaiting_screening"])
+
+    def test_not_retrieved_is_a_criterion_of_the_full_text(self):
+        analytics.set_prisma_not_retrieved(review=self.review, criteria_id=self.missing.pk)
+        prisma = analytics.prisma(self.review)
+        self.assertEqual((6, 1, 4), (prisma["sought"], prisma["not_retrieved"], prisma["assessed"]))
+        self.assertNotIn("Full text missing", [row["reason"] for row in prisma["excluded_reports"]])
+        self.assertEqual(self.missing.pk, prisma["not_retrieved_criteria_id"])
+        analytics.set_prisma_not_retrieved(review=self.review, criteria_id=0)
+        self.assertIsNone(analytics.prisma(self.review)["not_retrieved_criteria_id"])
+
+    def test_the_criterion_must_be_one_of_the_reviews_exclusion_criteria(self):
+        with self.assertRaisesMessage(ValidationError, "Choose an exclusion criterion."):
+            analytics.set_prisma_not_retrieved(review=self.review, criteria_id=self.inclusion.pk)
+        with self.assertRaises(NotFound):
+            analytics.set_prisma_not_retrieved(review=self.review, criteria_id=SelectionCriteriaFactory().pk)
+
+    def test_an_empty_review(self):
+        prisma = analytics.prisma(ReviewFactory())
+        self.assertEqual(
+            (0, 0, 0, 0, None),
+            (prisma["records"], prisma["screened"], prisma["sought"], prisma["included"], prisma["other_methods"]),
+        )

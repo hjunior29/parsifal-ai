@@ -12,6 +12,8 @@ from parsifal.api.v1.schemas.analytics import (
     ByYearOut,
     CriteriaUsageOut,
     ExtractionChoicesOut,
+    PrismaOut,
+    PrismaSettingsIn,
     QualityOverviewOut,
     SelectionBySourceOut,
     SelectionSummaryOut,
@@ -103,6 +105,30 @@ def analytics_extraction(request, review_id: int):
     and date fields are left out.
     """
     return analytics.extraction_choices(get_review(request, review_id))
+
+
+@router.get("/reviews/{int:review_id}/analytics/prisma", response=PrismaOut, operation_id="analytics_prisma")
+def analytics_prisma(request, review_id: int):
+    """
+    The PRISMA 2020 flow diagram in numbers. Records identified per source (snowballing, manual and other searches
+    go to "other methods"); duplicates removed; records screened and excluded without a full-text decision (by
+    automation tools when only AI agents rejected them); reports sought, not retrieved (rejected at the full text with
+    the review's "not retrieved" criterion), assessed and excluded by criterion; studies included (accepted at the
+    full text); and the studies still awaiting a decision. The stages come from the reviewers' decisions.
+    """
+    return analytics.prisma(get_review(request, review_id))
+
+
+@router.put("/reviews/{int:review_id}/analytics/prisma", response=PrismaOut, operation_id="analytics_prisma_settings")
+def analytics_prisma_settings(request, review_id: int, payload: PrismaSettingsIn):
+    """
+    The exclusion criterion that means "full text not retrieved" in the diagram (``not_retrieved_criteria_id``; null
+    or 0: none, and the box is left out); returns the diagram's numbers.
+    """
+    review = analytics.set_prisma_not_retrieved(
+        review=get_review(request, review_id), criteria_id=payload.not_retrieved_criteria_id
+    )
+    return analytics.prisma(review)
 
 
 def _serialise(value):

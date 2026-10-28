@@ -117,3 +117,53 @@ class ExtractionChoicesOut(Schema):
     studies: int  # in the final selection
     done: int  # marked as done
     fields: list[ChoiceFieldOut]
+
+
+class PrismaSourceOut(Schema):
+    source: str
+    records: int
+
+
+class PrismaMethodOut(Schema):
+    method: str  # Citation searching (snowballing), Hand searching (manual), Other methods
+    records: int
+
+
+class PrismaReasonOut(Schema):
+    reason: str  # the criterion's description ("No reason given" when the study has none)
+    studies: int
+
+
+class PrismaOtherMethodsOut(Schema):
+    methods: list[PrismaMethodOut]
+    records: int
+    sought: int
+    not_retrieved: int
+    assessed: int
+    excluded_reports: list[PrismaReasonOut]
+    included: int
+
+
+class PrismaOut(Schema):
+    """The boxes of the PRISMA 2020 flow diagram (identification via databases and registers; other methods)."""
+
+    databases: list[PrismaSourceOut]  # records identified per source
+    records: int
+    duplicates: int  # removed before screening
+    screened: int
+    excluded: int  # at the screening of titles and abstracts
+    excluded_by_people: int
+    excluded_by_automation: int  # only AI agents rejected them
+    sought: int  # reports sought for retrieval
+    not_retrieved: int  # rejected at the full text with the "not retrieved" criterion
+    assessed: int  # reports assessed for eligibility
+    excluded_reports: list[PrismaReasonOut]  # rejected at the full text, by criterion
+    other_methods: PrismaOtherMethodsOut | None = None  # sources searched by snowballing, manual or other searches
+    included: int  # studies (and reports) included: accepted at the full text
+    awaiting_screening: int  # still unclassified
+    awaiting_full_text: int  # accepted at the screening, no full-text decision yet
+    not_retrieved_criteria_id: int | None = None
+
+
+class PrismaSettingsIn(Schema):
+    not_retrieved_criteria_id: int | None = None  # an exclusion criterion; None or 0: none

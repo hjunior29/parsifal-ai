@@ -4,8 +4,19 @@ from collections import Counter
 
 from django.db.models import Count, Q
 
-from parsifal.apps.reviews.models import Article, DataExtraction, DataExtractionField, QualityAssessment
+from parsifal.apps.core.exceptions import ValidationError
+from parsifal.apps.reviews.models import (
+    Article,
+    DataExtraction,
+    DataExtractionField,
+    QualityAssessment,
+    ReviewAgent,
+    SearchSession,
+    SelectionCriteria,
+    StudyDecision,
+)
 from parsifal.apps.reviews.services import quality
+from parsifal.apps.reviews.services._common import get_child
 
 
 def selection_by_source(review):
@@ -241,3 +252,168 @@ def extraction_choices(review):
         "done": studies.filter(finished_data_extraction=True).count(),
         "fields": rows,
     }
+
+
+# PRISMA 2020 flow diagram -------------------------------------------------------------------------------------------
+
+OTHER_METHODS = {  # how a search session that is not a database search appears in "other methods"
+    SearchSession.SNOWBALLING: "Citation searching",
+    SearchSession.MANUAL: "Hand searching",
+    SearchSession.OTHER: "Other methods",
+}
+NO_REASON = "No reason given"
+
+
+def _eligibility(studies, full_text, not_retrieved, *, screened):
+    """
+    The PRISMA boxes of a column of studies (none duplicated). With ``screened`` (databases and registers), studies
+    rejected without a full-text decision were excluded at the screening of titles and abstracts; in "other methods"
+    there is no such screening and every rejection is a report excluded.
+    """
+    boxes = {
+        "excluded": 0,
+        "excluded_by_people": 0,
+        "excluded_by_automation": 0,
+        "not_retrieved": 0,
+        "reasons": Counter(),
+        "included": 0,
+        "awaiting_screening": 0,
+        "awaiting_full_text": 0,
+    }
+    for study in studies:
+        decided = study["id"] in full_text
+        if study["status"] == Article.UNCLASSIFIED and not decided:
+            boxes["awaiting_screening"] += 1
+        elif study["status"] == Article.REJECTED and not decided and screened:
+            boxes["excluded"] += 1
+            boxes["excluded_by_automation" if study["by_agent"] else "excluded_by_people"] += 1
+        elif study["status"] == Article.REJECTED:
+            reason = study["criteria"] or full_text.get(study["id"])
+            if not_retrieved is not None and reason == not_retrieved:
+                boxes["not_retrieved"] += 1
+            else:
+                boxes["reasons"][reason] += 1
+        elif study["status"] == Article.ACCEPTED and decided:
+            boxes["included"] += 1
+        else:  # accepted at the screening, or decided at the full text but unclassified since
+            boxes["awaiting_full_text"] += 1
+    excluded_reports = sum(boxes["reasons"].values())
+    boxes["assessed"] = excluded_reports + boxes["included"]
+    boxes["sought"] = boxes["assessed"] + boxes["not_retrieved"] + boxes["awaiting_full_text"]
+    return boxes
+
+
+def _reasons(counter, descriptions):
+    rows = [{"reason": descriptions.get(pk, NO_REASON), "studies": count} for pk, count in counter.items()]
+    return sorted(rows, key=lambda row: (-row["studies"], row["reason"] == NO_REASON, row["reason"]))
+
+
+def prisma(review):
+    """
+    The numbers of the PRISMA 2020 flow diagram, from the studies' statuses and the stage of the reviewers' decisions
+    (title and abstract, full text: the Reviewers tab, as the PRISMA notes ask).
+
+    - Records identified: the studies imported from each source; a source whose search session is snowballing,
+      manual or other goes to "other methods", the others to databases and registers.
+    - Records removed before screening: the duplicates.
+    - Records excluded: rejected without a full-text decision, split by people and automation tools (note b of the
+      diagram): automation when only AI agents rejected it at the screening (no person decided it there).
+    - Reports sought: the studies past the screening (with a full-text decision, or accepted and waiting for one);
+      not retrieved: rejected at the full text with the review's "not retrieved" criterion; excluded with reasons:
+      rejected at the full text, by criterion (the study's, else its full-text decision's).
+    - Studies included: accepted at the full text. Quality is assessed on the included studies (PRISMA item 18), so
+      the quality cutoff is no box of the flow.
+    - Awaiting: studies still unclassified, and accepted at the screening without a full-text decision yet.
+    """
+    agents = set(ReviewAgent.objects.filter(review=review).values_list("user_id", flat=True))
+    rejected_by_agents, decided_by_people = set(), set()
+    for article_id, user_id, status in StudyDecision.objects.filter(
+        review=review, stage=StudyDecision.TITLE_ABSTRACT
+    ).values_list("article_id", "user_id", "status"):
+        if user_id not in agents:
+            decided_by_people.add(article_id)
+        elif status == Article.REJECTED:
+            rejected_by_agents.add(article_id)
+    full_text = {}  # study with a full-text decision → the criterion of a rejection there (None: none)
+    for article_id, status, criteria_id in (
+        StudyDecision.objects.filter(review=review, stage=StudyDecision.FULL_TEXT)
+        .order_by("decided_at")
+        .values_list("article_id", "status", "selection_criteria_id")
+    ):
+        if full_text.get(article_id) is None:
+            full_text[article_id] = criteria_id if status == Article.REJECTED else None
+    methods = dict(
+        review.searchsession_set.exclude(source=None)
+        .exclude(search_type=SearchSession.DATABASE)
+        .values_list("source_id", "search_type")
+    )
+    sources = dict(review.sources.values_list("pk", "name"))
+    databases, other = Counter(), Counter()
+    database_studies, other_studies, duplicates = [], [], 0
+    for article_id, source_id, status, criteria_id in review.article_set.values_list(
+        "pk", "source_id", "status", "selection_criteria_id"
+    ):
+        by_agent = article_id in rejected_by_agents and article_id not in decided_by_people
+        study = {"id": article_id, "status": status, "criteria": criteria_id, "by_agent": by_agent}
+        if source_id in methods:
+            other[OTHER_METHODS[methods[source_id]]] += 1
+            if status != Article.DUPLICATED:
+                other_studies.append(study)
+            continue
+        databases[sources.get(source_id) or "Other"] += 1
+        if status == Article.DUPLICATED:
+            duplicates += 1
+        else:
+            database_studies.append(study)
+    not_retrieved = review.prisma_not_retrieved_id
+    descriptions = dict(review.selectioncriteria_set.values_list("pk", "description"))
+    main = _eligibility(database_studies, full_text, not_retrieved, screened=True)
+    result = {
+        "databases": [{"source": name, "records": count} for name, count in sorted(databases.items())],
+        "records": sum(databases.values()),
+        "duplicates": duplicates,
+        "screened": len(database_studies),
+        "excluded": main["excluded"],
+        "excluded_by_people": main["excluded_by_people"],
+        "excluded_by_automation": main["excluded_by_automation"],
+        "sought": main["sought"],
+        "not_retrieved": main["not_retrieved"],
+        "assessed": main["assessed"],
+        "excluded_reports": _reasons(main["reasons"], descriptions),
+        "other_methods": None,
+        "included": main["included"],
+        "awaiting_screening": main["awaiting_screening"],
+        "awaiting_full_text": main["awaiting_full_text"],
+        "not_retrieved_criteria_id": not_retrieved,
+    }
+    if other:
+        extra = _eligibility(other_studies, full_text, not_retrieved, screened=False)
+        result["other_methods"] = {
+            "methods": [{"method": name, "records": count} for name, count in sorted(other.items())],
+            "records": sum(other.values()),
+            "sought": extra["sought"],
+            "not_retrieved": extra["not_retrieved"],
+            "assessed": extra["assessed"],
+            "excluded_reports": _reasons(extra["reasons"], descriptions),
+            "included": extra["included"],
+        }
+        result["included"] += extra["included"]
+        result["awaiting_screening"] += extra["awaiting_screening"]
+        result["awaiting_full_text"] += extra["awaiting_full_text"]
+    return result
+
+
+def set_prisma_not_retrieved(*, review, criteria_id):
+    """
+    The exclusion criterion that means "full text not retrieved" in the PRISMA diagram (None or 0: none, and the box
+    "Reports not retrieved" is left out).
+    """
+    if criteria_id in (None, 0, "", "0"):
+        criteria = None
+    else:
+        criteria = get_child(review.selectioncriteria_set, criteria_id, label="Selection criteria")
+        if criteria.criteria_type != SelectionCriteria.EXCLUSION:
+            raise ValidationError("Choose an exclusion criterion.", field="criteria_id")
+    review.prisma_not_retrieved = criteria
+    review.save(update_fields=["prisma_not_retrieved"])
+    return review

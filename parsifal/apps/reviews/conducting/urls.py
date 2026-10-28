@@ -58,6 +58,7 @@ urlpatterns = [
     path("save_data_extraction_status/", views.save_data_extraction_status, name="save_data_extraction_status"),
     path("articles_selection_chart/", views.articles_selection_chart, name="articles_selection_chart"),
     path("articles_per_year/", views.articles_per_year, name="articles_per_year"),
+    path("save_prisma_settings/", views.save_prisma_settings, name="save_prisma_settings"),
     path("export_data_extraction/", views.export_data_extraction, name="export_data_extraction"),
     path("record_decision/", views.record_decision, name="record_decision"),
     path("agreement/", views.agreement, name="agreement"),

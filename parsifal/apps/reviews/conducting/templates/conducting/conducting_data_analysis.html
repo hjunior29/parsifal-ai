@@ -6,6 +6,8 @@
   {{ block.super }}
   <style>
     .analysis-empty { color: #777; }
+    #analysis-prisma svg { display: block; max-width: 100%; height: auto; margin: 0 auto 15px; }
+    .prisma-settings select { max-width: 420px; }
   </style>
 {% endblock stylesheet %}
 
@@ -13,6 +15,7 @@
   <script src="https://www.gstatic.com/charts/loader.js"></script>
   {% compress js %}
     <script src="{% static 'js/conducting_data_analysis.js' %}"></script>
+    <script src="{% static 'js/conducting_prisma.js' %}"></script>
   {% endcompress %}
 {% endblock javascript %}
 
@@ -111,6 +114,38 @@
 
   {% else %}
 
+    <div class="panel panel-default">
+      <div class="panel-heading clearfix">
+        <div class="pull-right">
+          <button type="button" class="btn btn-default btn-xs js-prisma-download" data-format="svg"><span class="glyphicon glyphicon-download-alt"></span> SVG</button>
+          <button type="button" class="btn btn-default btn-xs js-prisma-download" data-format="png"><span class="glyphicon glyphicon-download-alt"></span> PNG</button>
+        </div>
+        <h3 class="panel-title">PRISMA 2020 Flow Diagram</h3>
+      </div>
+      <div class="panel-body">
+        <p class="text-warning small js-prisma-awaiting" style="display: none;"></p>
+        <div id="analysis-prisma"></div>
+        <form class="form-inline small prisma-settings" onsubmit="return false;">
+          {% csrf_token %}
+          <label for="prisma-not-retrieved">Full text not retrieved:</label>
+          <select id="prisma-not-retrieved" class="form-control input-sm js-prisma-not-retrieved">
+            <option value="">no criterion (the box is left out)</option>
+            {% for criteria in exclusion_criteria %}
+              <option value="{{ criteria.id }}"{% if prisma.not_retrieved_criteria_id == criteria.id %} selected{% endif %}>{{ criteria.description }}</option>
+            {% endfor %}
+          </select>
+          <span class="text-muted">studies rejected at the full text with this exclusion criterion are reports not retrieved.</span>
+        </form>
+        <p class="small text-muted">
+          The stages come from the reviewers' decisions: a study rejected without a full-text decision was excluded at
+          the screening of titles and abstracts (by automation tools when only AI agents rejected it); one with a
+          full-text decision (Reviewers tab of the study) was assessed for eligibility, and is included when accepted.
+          Duplicates are removed before the screening; sources searched by snowballing, manual or other searches
+          (Search tab) are other methods.
+        </p>
+        {{ prisma|json_script:"analysis-prisma-data" }}
+      </div>
+    </div>
 
     <div class="panel panel-default">
       <div class="panel-heading">

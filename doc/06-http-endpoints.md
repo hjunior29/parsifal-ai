@@ -187,6 +187,7 @@ Action endpoints under `/reviews/conducting/`, guard **A** unless noted:
 | `save_data_extraction_status/` | POST | `review-id`, `article-id`, `action` (`mark_as_done` / other) | toggles `finished_data_extraction` (`services.extraction.mark_done`, scoped) |
 | `export_data_extraction/` | POST | `review-id` | `data_extraction.xls` (final selection) |
 | `articles_selection_chart/` | GET | `review-id` | text `Source:total:accepted,…` (guard A since phase 0) |
+| `save_prisma_settings/` | POST | `review-id`, `not-retrieved-criteria-id` (empty: none) | JSON: the PRISMA diagram's numbers (`analytics.prisma`) |
 | `articles_per_year/` | GET | `review-id` | text `year:count,…` for final selection (guard A since phase 0) |
 
 ## 6. Reporting phase
