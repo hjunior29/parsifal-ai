@@ -100,6 +100,9 @@ $(function () {
    and the studies per year. Their data come with the page (json_script). */
 $(function () {
   var COLORS = {accepted: "#5cb85c", rejected: "#d9534f", unclassified: "#999999", duplicated: "#f0ad4e"};
+  // Pixels under a horizontal bar chart for the axis numbers and its title: left to Google Charts, a short chart (one
+  // or two bars) drops the numbers.
+  var AXIS_ROOM = 70;
   // The funnel's stages: the totals in the blue of the charts above, the rest in the statuses' colors.
   var STAGE_COLORS = {
     imported: "#3366cc", duplicated: COLORS.duplicated, unique: "#3366cc", rejected: COLORS.rejected,
@@ -167,10 +170,10 @@ $(function () {
     });
     var chart = new google.visualization.BarChart(element);
     chart.draw(google.visualization.arrayToDataTable(rows), $.parsifal.chartOptions({
-      height: Math.max(160, 40 * criteria.length + 60),
+      height: Math.max(170, 40 * criteria.length + 100),
       colors: [color],
       legend: {position: "none"},
-      chartArea: {left: "45%", width: "50%"},
+      chartArea: {left: "45%", width: "50%", top: 20, bottom: AXIS_ROOM},
       hAxis: {title: "Number of Articles", minValue: 0, format: "0"}
     }));
   }
@@ -209,6 +212,7 @@ $(function () {
 $(function () {
   var BLUE = "#3366cc";
   var GRAY = "#999999";
+  var AXIS_ROOM = 70;  // as above
 
   function data(id) {
     var node = document.getElementById(id);
@@ -259,10 +263,10 @@ $(function () {
     });
     var colors = answerColors(quality.answers.length);
     var options = {
-      height: Math.max(200, 50 * quality.by_question.length + 80),
+      height: Math.max(200, 50 * quality.by_question.length + 120),
       isStacked: true,
       legend: {position: "top"},
-      chartArea: {left: "45%", width: "50%"},
+      chartArea: {left: "45%", width: "50%", top: 50, bottom: AXIS_ROOM},
       hAxis: {title: "Number of Articles", minValue: 0, format: "0"}
     };
     if (colors) { options.colors = colors.concat([GRAY]); }
@@ -289,10 +293,10 @@ $(function () {
       ]);
     });
     new google.visualization.BarChart(element).draw(table, $.parsifal.chartOptions({
-      height: Math.max(140, 40 * field.options.length + 60),
+      height: Math.max(170, 40 * field.options.length + 100),
       colors: [BLUE],
       legend: {position: "none"},
-      chartArea: {left: "35%", width: "55%"},
+      chartArea: {left: "35%", width: "55%", top: 20, bottom: AXIS_ROOM},
       hAxis: {title: "Number of Articles", minValue: 0, format: "0"},
       annotations: {alwaysOutside: true}
     }));
