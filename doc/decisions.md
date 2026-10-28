@@ -287,7 +287,10 @@ reviewed (Akita, 2026-10-03).
   1 − accept); runs made then keep `accept_threshold` and
   `reject_threshold` in their parameters. The decision replaces the reviewer's
   phase-1 decision (same stage), so agreement compares the reviewer's last
-  word.
+  word. Amended 2026-10-28: each inclusion criterion's threshold goes from
+  0.01 to 0.99 (exclusion keeps 0.5–0.99). Inclusion never rejects, so a lower
+  threshold only accepts on a weaker yes; below 0.5, exclusion would reject
+  studies Jev finds more likely to stay.
 
 **Consequences.** Migrations `accounts.0002`, `accounts.0003` (encrypted key), `reviews.0042`, `reviews.0043`
 (reviewer, no agent kind), `reviews.0044` (`last_step_at`), `reviews.0045` (`phase`, `p_include`, outcomes

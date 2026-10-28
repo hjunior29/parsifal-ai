@@ -748,12 +748,18 @@ class TestInclusion(AiScreeningTestCase):
                 {"I1": 0.7, "I2": 0.7}, ai_screening.starting_settings(self.review, "inclusion")["thresholds"]
             )
 
+        with self.subTest(msg="inclusion never rejects: a criterion may accept on a weaker yes, down to 0.01"):
+            self.assertEqual(
+                {"I1": 0.3, "I2": 0.01}, self.start(thresholds="I1=0.3,I2=0.01".split(",")).parameters["thresholds"]
+            )
+            self.assertEqual({"I1": 0.2, "I2": 0.2}, self.start(threshold=0.2).parameters["thresholds"])
         for kwargs, message in (
             ({"thresholds": {"I3": 0.9}}, "Unknown inclusion criterion I3: the run sends I1, I2."),
-            ({"thresholds": {"I1": 0.3}}, "The threshold of I1 must be between 0.5 and 0.99."),
+            ({"thresholds": {"I1": 0.005}}, "The threshold of I1 must be between 0.01 and 0.99."),
+            ({"thresholds": {"I1": 1}}, "The threshold of I1 must be between 0.01 and 0.99."),
             ({"thresholds": {"I1": "high"}}, "The threshold of I1 must be a number."),
             ({"thresholds": ["I1"]}, "Write each threshold as KEY=value"),
-            ({"threshold": 0.3}, "The threshold must be between 0.5 and 0.99."),
+            ({"threshold": 0.005}, "The threshold must be between 0.01 and 0.99."),
             ({"threshold": ""}, "The threshold must be a number."),
         ):
             with self.subTest(**kwargs), self.assertRaisesMessage(ValidationError, message):
@@ -1026,6 +1032,13 @@ class TestScreen(AiScreeningTestCase):
                 for k in ("phase", "threshold", "thresholds", "inclusion_rule", "statuses")
             ),
         )
+
+    def test_the_exclusion_threshold_starts_at_half_the_inclusion_ones_lower(self):
+        self.article()
+        run = self.start(threshold=0.5, thresholds={"I1": 0.2})
+        self.assertEqual((0.5, {"I1": 0.2}), (run.parameters["threshold"], run.parameters["thresholds"]))
+        with self.assertRaisesMessage(ValidationError, "The threshold must be between 0.5 and 0.99."):
+            self.start(threshold=0.2)
 
     def test_exclusion_wins_then_inclusion_accepts_else_undecided(self):
         both = self.article(title="Excluded and included")

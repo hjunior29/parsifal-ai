@@ -971,7 +971,7 @@ def ai_screening(request):
         )
         for option in ai_screening_service.criteria_options(review, phase)
     ]
-    threshold, min_threshold, max_threshold = ai_screening_service.threshold_range()
+    threshold, min_threshold, max_threshold, min_inclusion_threshold = ai_screening_service.threshold_range()
     if settings["threshold"] is not None:
         threshold = settings["threshold"]
     statuses = settings["statuses"] or ai_screening_service.DEFAULT_STATUSES[phase]
@@ -1008,6 +1008,7 @@ def ai_screening(request):
         "threshold": threshold,
         "min_threshold": min_threshold,
         "max_threshold": max_threshold,
+        "min_inclusion_threshold": min_inclusion_threshold,
         "sources": [
             {"id": "", "name": "All sources"},
             *({"id": s.pk, "name": s.name} for s in review.sources.order_by("name")),

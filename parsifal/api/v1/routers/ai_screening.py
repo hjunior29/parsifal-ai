@@ -123,7 +123,7 @@ def ai_screening_setup(request, review_id: int, phase: str = "exclusion", defaul
     review = get_review(request, review_id)
     phase = ai_screening.clean_phase(phase)
     start = ai_screening.starting_settings(review, phase, defaults=defaults)
-    threshold_default, threshold_min, threshold_max = ai_screening.threshold_range()
+    threshold_default, threshold_min, threshold_max, inclusion_threshold_min = ai_screening.threshold_range()
     integration = integrations.get_jev(request.auth)
     models, models_error = integrations.jev_models(request.auth) if integration else ([], "")
     agent_ids = ai_screening.agent_ids(review)
@@ -181,6 +181,7 @@ def ai_screening_setup(request, review_id: int, phase: str = "exclusion", defaul
         threshold_default=threshold_default,
         threshold_min=threshold_min,
         threshold_max=threshold_max,
+        inclusion_threshold_min=inclusion_threshold_min,
         statuses=[{"status": code, "name": label} for code, label in ai_screening.STATUSES],
         statuses_default=ai_screening.clean_statuses(None, phase),
         scopes=scopes,
@@ -201,13 +202,13 @@ def ai_screening_start(request, review_id: int, payload: ScreeningStartIn):
     run of that action (see the setup's ``start``), or Parsifal's defaults with ``defaults``. ``criteria_ids``: the
     criteria sent (leave out those Jev cannot judge from a title and abstract). Exclusion rejects when some exclusion
     criterion applies with at least ``threshold`` (0.5–0.99). Inclusion accepts when the inclusion criteria are met,
-    each with at least its own threshold (``thresholds``, e.g. {"I1": 0.9, "I2": 0.85}) — every one of them, or at
-    least one with the protocol's rule "any" —, and never rejects. Screen asks both in one request: rejected when the
-    exclusion threshold is reached (even when the inclusion criteria are met), else accepted when the inclusion
+    each with at least its own threshold (``thresholds``, 0.01–0.99, e.g. {"I1": 0.9, "I2": 0.85}) — every one of them,
+    or at least one with the protocol's rule "any" —, and never rejects. Screen asks both in one request: rejected when
+    the exclusion threshold is reached (even when the inclusion criteria are met), else accepted when the inclusion
     criteria are met, else left unclassified. Only unclassified studies and those this reviewer classified change
     status (exclusion: its rejections; inclusion: its acceptances; screen: both); the others only get the reviewer's
-    decision. Only the main author may name another member. ``template`` is the request sent about each study (see
-    the setup and the preview operation). Nothing is screened yet: call the step operation until the run is no longer
+    decision. Only the main author may name another member. ``template`` is the request sent about each study (see the
+    setup and the preview operation). Nothing is screened yet: call the step operation until the run is no longer
     running.
     """
     review = get_review(request, review_id)

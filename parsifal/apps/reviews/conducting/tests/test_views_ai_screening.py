@@ -346,7 +346,7 @@ class IncludeWithAiViewsTest(AiScreeningViewsBase):
         self.assertContains(response, '<input type="hidden" name="phase" value="inclusion">', html=False)
         # The same window as Exclude with AI: one threshold, which accepts; nothing is rejected.
         # One threshold per inclusion criterion, none for the whole run.
-        self.assertRegex(response.content.decode(), r'name="threshold-I1" [^>]*value="0.9" min="0.5" max="0.99"')
+        self.assertRegex(response.content.decode(), r'name="threshold-I1" [^>]*value="0.9" min="0.01" max="0.99"')
         self.assertNotContains(response, 'name="threshold"')
         self.assertContains(response, "reaches that criterion's threshold")
         self.assertContains(response, "It never rejects")
@@ -370,9 +370,9 @@ class IncludeWithAiViewsTest(AiScreeningViewsBase):
     def test_start_and_step_an_inclusion_run(self):
         self.connect()
         inclusion = {"phase": "inclusion", "threshold": None, "statuses": ["U", "A"]}  # the window has no single one
-        response = self.start(**inclusion, **{"threshold-I1": "0.2"})
+        response = self.start(**inclusion, **{"threshold-I1": "0.005"})
         self.assertEqual(400, response.status_code)
-        self.assertIn("The threshold of I1 must be between 0.5 and 0.99", response.json()["error"])
+        self.assertIn("The threshold of I1 must be between 0.01 and 0.99", response.json()["error"])
         response = self.start(**inclusion, **{"threshold-I1": "0.95"})
         self.assertEqual(200, response.status_code, response.content)
         run = response.json()["run"]

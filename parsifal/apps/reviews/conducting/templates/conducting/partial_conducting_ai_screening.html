@@ -170,7 +170,7 @@
         <ul class="list-unstyled ai-criteria ai-thresholds">
           {% for option in inclusion_options %}
             <li>
-              <input type="number" name="threshold-{{ option.key }}" class="form-control input-sm" value="{{ option.threshold|unlocalize }}" min="{{ min_threshold|unlocalize }}" max="{{ max_threshold|unlocalize }}" step="0.01" required aria-label="Threshold of {{ option.key }}">
+              <input type="number" name="threshold-{{ option.key }}" class="form-control input-sm" value="{{ option.threshold|unlocalize }}" min="{{ min_inclusion_threshold|unlocalize }}" max="{{ max_threshold|unlocalize }}" step="0.01" required aria-label="Threshold of {{ option.key }}">
               <label class="ai-criterion"><input type="checkbox" name="criteria" value="{{ option.id }}"{% if option.checked %} checked{% endif %}> <code>{{ option.key }}</code> {{ option.description }}</label>
             </li>
           {% endfor %}

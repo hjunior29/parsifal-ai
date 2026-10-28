@@ -65,7 +65,9 @@ from parsifal.apps.reviews.services import decisions, screening_requests
 from parsifal.apps.reviews.services._common import check_length, get_child
 
 DEFAULT_THRESHOLD = 0.9
-MIN_THRESHOLD = 0.5
+MIN_THRESHOLD = 0.5  # exclusion: below it, Jev would reject studies it finds more likely to stay
+# Inclusion never rejects, so a criterion may accept on a weaker yes: down to 0.01.
+MIN_INCLUSION_THRESHOLD = 0.01
 MAX_THRESHOLD = 0.99
 STEP_SIZE = 64  # studies per step; one request each
 ACTIVE_FOR = 30  # seconds: a running run with a step this recent is being driven somewhere
@@ -371,17 +373,17 @@ def _clean_context(context, guidance):
 
 
 def threshold_range():
-    """(default, lowest, highest) threshold."""
-    return DEFAULT_THRESHOLD, MIN_THRESHOLD, MAX_THRESHOLD
+    """(default, lowest, highest) threshold of exclusion, and the lowest of an inclusion criterion."""
+    return DEFAULT_THRESHOLD, MIN_THRESHOLD, MAX_THRESHOLD, MIN_INCLUSION_THRESHOLD
 
 
-def _threshold(value, *, label="The threshold", field="threshold"):
+def _threshold(value, *, label="The threshold", field="threshold", minimum=MIN_THRESHOLD):
     try:
         value = round(float(value), 4)
     except (TypeError, ValueError):
         raise ValidationError(f"{label} must be a number.", field=field)
-    if not MIN_THRESHOLD <= value <= MAX_THRESHOLD:
-        raise ValidationError(f"{label} must be between {MIN_THRESHOLD} and {MAX_THRESHOLD}.", field=field)
+    if not minimum <= value <= MAX_THRESHOLD:
+        raise ValidationError(f"{label} must be between {minimum} and {MAX_THRESHOLD}.", field=field)
     return value
 
 
@@ -428,7 +430,7 @@ def _given_thresholds(thresholds):
 
 def clean_thresholds(options, thresholds=None, threshold=None, base=None):
     """
-    The threshold of each inclusion criterion of ``options`` (those sent), {I1: 0.9, …}, each 0.5–0.99:
+    The threshold of each inclusion criterion of ``options`` (those sent), {I1: 0.9, …}, each 0.01–0.99:
     ``thresholds`` ({I1: 0.9, …} or ["I1=0.9", …]) for the criteria it gives; for the others, ``threshold`` when
     given, else ``base`` (the settings the run starts from, see ``starting_settings``), else 0.9.
     """
@@ -442,9 +444,15 @@ def clean_thresholds(options, thresholds=None, threshold=None, base=None):
     if threshold is None:
         rest = {key: (base or {}).get(key, DEFAULT_THRESHOLD) for key in keys}
     else:
-        rest = dict.fromkeys(keys, clean_threshold(threshold))
+        rest = dict.fromkeys(keys, _threshold(threshold, minimum=MIN_INCLUSION_THRESHOLD))
     return {
-        key: _threshold(given[key], label=f"The threshold of {key}", field="thresholds") if key in given else rest[key]
+        key: (
+            _threshold(
+                given[key], label=f"The threshold of {key}", field="thresholds", minimum=MIN_INCLUSION_THRESHOLD
+            )
+            if key in given
+            else rest[key]
+        )
         for key in keys
     }
 

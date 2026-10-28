@@ -136,8 +136,9 @@ class ScreeningSetupOut(Schema):
     template_default: dict  # Parsifal's request template; ``start.template`` is the one a run starts from
     placeholders: list[ScreeningPlaceholderOut]
     threshold_default: float
-    threshold_min: float
+    threshold_min: float  # exclusion
     threshold_max: float
+    inclusion_threshold_min: float  # an inclusion criterion's threshold may go down to this
     statuses: list[ScreeningStatusOut]  # statuses of the studies a run may send
     # Parsifal's default statuses: R and U (exclusion), A and U (inclusion), A, R and U (screen).
     statuses_default: list[str]
@@ -175,9 +176,9 @@ class ScreeningSettingsIn(Schema):
 class ScreeningStartIn(ScreeningSettingsIn):
     reviewer_id: int  # the decisions are recorded as this member of the review
     # Exclusion and screen: reject when 1 - p(none) is at least this (0.5–0.99). Inclusion: the threshold of the
-    # criteria that ``thresholds`` leaves out.
+    # criteria that ``thresholds`` leaves out (0.01–0.99).
     threshold: float | None = None
-    # Inclusion and screen: the threshold of each inclusion criterion sent, {"I1": 0.9, "I2": 0.85} or
+    # Inclusion and screen: the threshold of each inclusion criterion sent (0.01–0.99), {"I1": 0.9, "I2": 0.85} or
     # ["I1=0.9", "I2=0.85"]; accept when every p(meets) reaches its own (or one of them, with the protocol's rule
     # "any"). Criteria left out take the last run's, else 0.9 (inclusion: ``threshold`` when given).
     thresholds: dict[str, float] | list[str] | None = None

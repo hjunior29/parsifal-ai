@@ -65,9 +65,10 @@ three and shows what will be sent:
   criterion still takes some of the probability and can reject studies by
   mistake. Exclusion: options `E1`, `E2`… (the protocol's keys) plus `none`.
   Inclusion: `I1`, `I2`…, one yes/no question each.
-- **Thresholds** (from 0.5 to 0.99): how sure Jev must be. Exclusion has one,
-  to reject (default 0.9). Each inclusion criterion has **its own**, next to it,
-  to accept. Screen with AI has both.
+- **Thresholds**: how sure Jev must be. Exclusion has one, to reject, from 0.5
+  to 0.99 (default 0.9). Each inclusion criterion has **its own**, next to it,
+  to accept, from 0.01 to 0.99: inclusion never rejects, so a lower threshold
+  only accepts on a weaker yes. Screen with AI has both.
 - **Studies**: all sources or one, and the **statuses** to send — any mix of
   accepted, rejected, unclassified and duplicated (*All* checks every one).
   Each status shows how many studies it has; nothing is skipped because it was

@@ -348,7 +348,9 @@ class TestIncludeWithAiApi(AiScreeningApiBase):
         self.assertEqual("inclusion", body["phase"])
         self.assertEqual([{"key": "I1", "id": self.inclusion.pk, "description": "Implemented tool"}], body["criteria"])
         self.assertEqual("noul", body["question_type"])
-        self.assertEqual((0.5, 0.99), (body["threshold_min"], body["threshold_max"]))
+        self.assertEqual(
+            (0.5, 0.99, 0.01), (body["threshold_min"], body["threshold_max"], body["inclusion_threshold_min"])
+        )
         self.assertNotIn("reject_threshold_min", body)
         self.assertEqual(screening_requests.default("inclusion"), body["start"]["template"])
         self.assertEqual(["A", "U"], body["statuses_default"])
@@ -365,9 +367,9 @@ class TestIncludeWithAiApi(AiScreeningApiBase):
     def test_inclusion_run(self):
         start = self.review_path("/ai-screening/runs")
         inclusion = {"reviewer_id": self.author.pk, "phase": "inclusion"}
-        refused = self.api("post", start, {**inclusion, "thresholds": {"I1": 0.2}})
+        refused = self.api("post", start, {**inclusion, "thresholds": {"I1": 0.001}})
         self.assertEqual((422, "thresholds"), (refused.status_code, refused.json()["field"]))
-        self.assertIn("The threshold of I1 must be between 0.5 and 0.99", refused.json()["detail"])
+        self.assertIn("The threshold of I1 must be between 0.01 and 0.99", refused.json()["detail"])
         refused = self.api("post", start, {"reviewer_id": self.author.pk, "thresholds": ["E1=0.9"]})
         self.assertIn("Per-criterion thresholds are for the inclusion criteria", refused.json()["detail"])
         response = self.api("post", start, {**inclusion, "thresholds": ["I1=0.85"]})
