@@ -36,6 +36,7 @@ class UserEmailForm(forms.ModelForm):
 class ProfileForm(forms.ModelForm):
     first_name = forms.CharField(label=_("First name"), max_length=150, required=False)
     last_name = forms.CharField(label=_("Last name"), max_length=150, required=False)
+    field_order = ("first_name", "last_name", "theme")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -44,7 +45,7 @@ class ProfileForm(forms.ModelForm):
 
     class Meta:
         model = Profile
-        fields = ()
+        fields = ("theme",)
 
     @transaction.atomic()
     def save(self, commit=True):

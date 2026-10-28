@@ -7,9 +7,17 @@ from parsifal.apps.reviews.models import Review
 
 
 class Profile(models.Model):
+    SYSTEM, LIGHT, DARK = "system", "light", "dark"
+    THEMES = (
+        (SYSTEM, _("The system's (light or dark, as the device is set)")),
+        (LIGHT, _("Light")),
+        (DARK, _("Dark")),
+    )
+
     user = models.OneToOneField(User, on_delete=models.CASCADE, verbose_name=_("user"))
     # The columns of the study list on Study Selection, in order (services/study_columns.py); empty: the default.
     study_columns = models.JSONField(_("columns of the study list"), default=list, blank=True)
+    theme = models.CharField(_("theme"), max_length=6, choices=THEMES, default=SYSTEM)
 
     class Meta:
         verbose_name = _("profile")

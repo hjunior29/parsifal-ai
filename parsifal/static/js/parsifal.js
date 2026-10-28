@@ -154,6 +154,29 @@
       $("#modal-alert").modal("show");
     },
 
+    /* Google Charts options for the page's theme: in the dark theme, a transparent background and light text and
+       lines (the colors of the series stay). */
+    chartOptions: function (options) {
+      if (!document.documentElement.classList.contains("theme-dark")) {
+        return options;
+      }
+      var text = {color: "#d5d8dc"};
+      var axis = {textStyle: text, titleTextStyle: text, gridlines: {color: "#3a3f44"}, minorGridlines: {color: "#2d3135"}, baselineColor: "#5a6066"};
+      var dark = {
+        backgroundColor: "transparent",
+        titleTextStyle: text,
+        hAxis: axis,
+        vAxis: axis,
+        annotations: {textStyle: text},
+        pieSliceBorderColor: "#1e2124",
+        chartArea: {backgroundColor: "transparent"}
+      };
+      if (typeof options.legend !== "string") {
+        dark.legend = {textStyle: text};
+      }
+      return $.extend(true, {}, options, dark);
+    },
+
     /* Short, readable text for a failed AJAX call: plain-text responses (our 400s) are shown as they are, HTML
        error pages are reduced to the status line. */
     requestError: function (xhr) {

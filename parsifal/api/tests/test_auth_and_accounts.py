@@ -180,3 +180,10 @@ class TestStudyColumns(ApiTestCase):
         self.assertEqual(["title", "status"], response.json()["study_columns"])
         self.assertEqual(422, self.api("patch", "/me", {"study_columns": ["nope"]}).status_code)
         self.assertEqual(["title", "status"], self.api("get", "/me").json()["study_columns"])
+
+    def test_theme(self):
+        self.assertEqual("system", self.api("get", "/me").json()["theme"])
+        self.assertEqual("dark", self.api("patch", "/me", {"theme": "dark"}).json()["theme"])
+        refused = self.api("patch", "/me", {"theme": "blue"})
+        self.assertEqual((422, "theme"), (refused.status_code, refused.json()["field"]))
+        self.assertEqual("dark", self.api("get", "/me").json()["theme"])

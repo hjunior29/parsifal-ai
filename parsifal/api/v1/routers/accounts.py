@@ -19,6 +19,7 @@ from parsifal.api.v1.schemas.accounts import (
 from parsifal.api.v1.schemas.common import UserOut
 from parsifal.apps.accounts import services as integrations
 from parsifal.apps.accounts.models import ApiToken
+from parsifal.apps.authentication.models import Profile
 from parsifal.apps.authentication.validators import ASCIIUsernameValidator, validate_forbidden_usernames
 from parsifal.apps.core import library_proxy
 from parsifal.apps.core.exceptions import Conflict, NotFound, ValidationError
@@ -37,6 +38,7 @@ def _me_out(user):
         is_superuser=user.is_superuser,
         active_tokens=user.api_tokens.active().count(),
         study_columns=study_columns.for_user(user),
+        theme=user.profile.theme,
     )
 
 
@@ -48,13 +50,19 @@ def me(request):
 @router.patch("/me", response=MeOut, operation_id="me_update")
 def me_update(request, payload: MeUpdateIn):
     """
-    Change your name or e-mail (the same fields as Settings → Profile), or the columns of the study list on Study
-    Selection (``study_columns``, in order: see ``me``; the web's Columns window).
+    Change your name, e-mail or theme (``theme``: system, light or dark; the same fields as Settings → Profile), or the
+    columns of the study list on Study Selection (``study_columns``, in order: see ``me``; the web's Columns window).
     """
     user = request.auth
     fields = payload.dict(exclude_unset=True)
     if "study_columns" in fields:
         study_columns.save(user, fields.pop("study_columns") or [])
+    if "theme" in fields:
+        theme = fields.pop("theme")
+        if theme not in dict(Profile.THEMES):
+            raise ValidationError("theme must be system, light or dark.", field="theme")
+        user.profile.theme = theme
+        user.profile.save(update_fields=["theme"])
     for name, limit in (("first_name", 150), ("last_name", 150)):
         if name in fields:
             value = (fields[name] or "").strip()

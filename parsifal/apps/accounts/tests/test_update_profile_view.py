@@ -30,6 +30,7 @@ class TestUpdateProfileView(TestCase):
         data = {
             "first_name": "John",
             "last_name": "Doe",
+            "theme": "dark",
         }
         self.client.force_login(self.user)
         response = self.client.post(self.url, data, follow=True)
@@ -42,9 +43,20 @@ class TestUpdateProfileView(TestCase):
         with self.subTest(msg="Test success message"):
             self.assertContains(response, "Your profile was updated with success!")
 
-        for value in data.values():
+        for value in (data["first_name"], data["last_name"]):
             with self.subTest(msg="Test form saved data", value=value):
                 self.assertContains(response, f'value="{value}"')
+
+        with self.subTest(msg="The pages come in the theme chosen"):
+            self.user.profile.refresh_from_db()
+            self.assertEqual("dark", self.user.profile.theme)
+            self.assertContains(response, '<html lang="en" data-theme="dark">', html=False)
+            self.assertContains(response, '<option value="dark" selected>Dark</option>', html=True)
+
+    def test_the_theme_follows_the_device_at_first(self):
+        self.assertContains(self.client.get(reverse("login")), 'data-theme="system"', html=False)
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(self.url), '<html lang="en" data-theme="system">', html=False)
 
     def test_post_fail(self):
         data = {"first_name": "x" * 200}  # first name is limited to 150 characters

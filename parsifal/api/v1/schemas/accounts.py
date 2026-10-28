@@ -11,6 +11,7 @@ class MeOut(UserOut):
     # source, doi, document_type, language, publisher, criteria, ai_relevance, created_by, created_at, updated_by,
     # updated_at, status).
     study_columns: list[str]
+    theme: str  # system (as the device is set), light or dark
 
 
 class MeUpdateIn(Schema):
@@ -20,6 +21,7 @@ class MeUpdateIn(Schema):
     last_name: str | None = None
     email: str | None = None
     study_columns: list[str] | None = None  # the columns of the study list, in order (see me)
+    theme: str | None = None  # system, light or dark
 
 
 class UserCreateIn(Schema):

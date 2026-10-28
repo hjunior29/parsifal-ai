@@ -19,7 +19,7 @@ $(function () {
       data.addRows(rows);
       var options = {'height': 400};
       var chart = new google.visualization.PieChart(document.getElementById('articles-selection-pie'));
-      chart.draw(data, options);
+      chart.draw(data, $.parsifal.chartOptions(options));
     }
 
     function drawColumnChart(rows) {
@@ -29,7 +29,7 @@ $(function () {
         'height': 400
       };
       var chart = new google.visualization.ColumnChart(document.getElementById('articles-selection-column'));
-      chart.draw(data, options);
+      chart.draw(data, $.parsifal.chartOptions(options));
     }
 
     function drawLineChart(rows) {
@@ -39,7 +39,7 @@ $(function () {
         'height': 400
       };
       var chart = new google.visualization.LineChart(document.getElementById('articles-selection-line'));
-      chart.draw(data, options);
+      chart.draw(data, $.parsifal.chartOptions(options));
     }
 
     function drawChart() {
@@ -131,12 +131,12 @@ $(function () {
         stage.label.replace("− ", "") + ": " + stage.count + (share ? " (" + share + ")" : "")
       ]);
     });
-    new google.visualization.BarChart(element).draw(data, {
+    new google.visualization.BarChart(element).draw(data, $.parsifal.chartOptions({
       height: elementId ? Math.max(220, 55 * stages.length + 90) : 400,
       legend: {position: "none"},
       hAxis: {title: "Number of Articles", titleTextStyle: {color: "#3A3D40"}, minValue: 0},
       annotations: {alwaysOutside: true}
-    });
+    }));
   }
 
   function data(id) {
@@ -148,13 +148,13 @@ $(function () {
     var element = document.getElementById(elementId);
     if (!element || rows.length < 2) { return; }
     var chart = new google.visualization.ColumnChart(element);
-    chart.draw(google.visualization.arrayToDataTable(rows), {
+    chart.draw(google.visualization.arrayToDataTable(rows), $.parsifal.chartOptions({
       height: 400,
       isStacked: true,
       colors: statuses.map(function (status) { return COLORS[status]; }),
       vAxis: {title: "Number of Articles", titleTextStyle: {color: "#3A3D40"}},
       legend: {position: "top"}
-    });
+    }));
   }
 
   function ranking(elementId, criteria, color) {
@@ -166,13 +166,13 @@ $(function () {
       rows.push([criterion.key + " — " + description, criterion.studies]);
     });
     var chart = new google.visualization.BarChart(element);
-    chart.draw(google.visualization.arrayToDataTable(rows), {
+    chart.draw(google.visualization.arrayToDataTable(rows), $.parsifal.chartOptions({
       height: Math.max(160, 40 * criteria.length + 60),
       colors: [color],
       legend: {position: "none"},
       chartArea: {left: "45%", width: "50%"},
       hAxis: {title: "Number of Articles", minValue: 0, format: "0"}
-    });
+    }));
   }
 
   function draw() {
@@ -235,13 +235,13 @@ $(function () {
     if (!element || !quality.scores.length) { return; }
     var rows = [["Score", "Number of Articles"]];
     quality.scores.forEach(function (row) { rows.push([String(row.score), row.studies]); });
-    new google.visualization.ColumnChart(element).draw(google.visualization.arrayToDataTable(rows), {
+    new google.visualization.ColumnChart(element).draw(google.visualization.arrayToDataTable(rows), $.parsifal.chartOptions({
       height: 400,
       colors: [BLUE],
       legend: {position: "none"},
       hAxis: {title: "Score"},
       vAxis: {title: "Number of Articles", titleTextStyle: {color: "#3A3D40"}, minValue: 0, format: "0"}
-    });
+    }));
   }
 
   function questions(quality) {
@@ -266,7 +266,7 @@ $(function () {
       hAxis: {title: "Number of Articles", minValue: 0, format: "0"}
     };
     if (colors) { options.colors = colors.concat([GRAY]); }
-    new google.visualization.BarChart(element).draw(google.visualization.arrayToDataTable(rows), options);
+    new google.visualization.BarChart(element).draw(google.visualization.arrayToDataTable(rows), $.parsifal.chartOptions(options));
   }
 
   /* One chart per choice field: each option's studies, the most chosen first, with its share of the studies that
@@ -288,14 +288,14 @@ $(function () {
         option.value + ": " + option.studies + (share ? " (" + share + " of the " + field.answered + " that answered)" : "")
       ]);
     });
-    new google.visualization.BarChart(element).draw(table, {
+    new google.visualization.BarChart(element).draw(table, $.parsifal.chartOptions({
       height: Math.max(140, 40 * field.options.length + 60),
       colors: [BLUE],
       legend: {position: "none"},
       chartArea: {left: "35%", width: "55%"},
       hAxis: {title: "Number of Articles", minValue: 0, format: "0"},
       annotations: {alwaysOutside: true}
-    });
+    }));
   }
 
   function draw() {

@@ -225,6 +225,8 @@ group and marks the rest `D`.
   created by a `post_save` signal (which only makes sure it exists: it does not
   save it again with the user); `study_columns` (the columns of the study list on
   Study Selection, in order; empty: the default — `services/study_columns.py`);
+  `theme` system/light/dark (Settings → Profile; system follows the device:
+  `base.html` puts `theme-dark` on `<html>`, `static/css/parsifal-dark.css`);
   helpers `get_screen_name()`, `get_reviews()` (author + co-author reviews sorted
   by `last_update`). The public fields were removed in phase 1.
 - `invites.Invite(review, invited_by, invitee nullable, invitee_email, status
