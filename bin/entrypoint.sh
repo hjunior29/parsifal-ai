@@ -1,6 +1,6 @@
 #!/bin/sh
 # Container entrypoint.
-#   serve            migrate, load default sources and start gunicorn (default)
+#   serve            back up (when migrations wait), migrate, load default sources and start gunicorn (default)
 #   init [...]       bootstrap the instance (see `manage.py init --help`), e.g. init --username admin --token cli
 #   manage [...]     run any manage.py command
 #   <anything else>  executed as-is
@@ -10,6 +10,10 @@ cd /app
 
 case "$1" in
   serve)
+    # A backup before the database changes: only when migrations are waiting and the database has data already.
+    if ! python manage.py migrate --check >/dev/null 2>&1 && python manage.py showmigrations --plan | grep -q '\[X\]'; then
+      python manage.py backup --keep "${PARSIFAL_BACKUP_KEEP:-10}"
+    fi
     python manage.py migrate --noinput
     python manage.py load_default_sources
     exec gunicorn parsifal.wsgi:application \

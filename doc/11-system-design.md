@@ -64,8 +64,9 @@ STATIC_ROOT = PARSIFAL_DATA_DIR / "static"
   (`QualityAssessment(article, question)`, `DataExtraction(article, field)`,
   `SearchSession(review, source)`), using `UniqueConstraint` with a
   condition for the nullable `source`.
-- Backups: `parsifal backup` runs `sqlite3 .backup` (Python `sqlite3`
-  `Connection.backup`) into `PARSIFAL_DATA_DIR/backups/`.
+- Backups: `manage.py backup` writes one `.tar.gz` into
+  `PARSIFAL_DATA_DIR/backups/`: the database (Python `sqlite3`
+  `Connection.backup`), the stored files and a manifest (`core/backups.py`).
 - Remove `psycopg2-binary`; CI runs without Postgres.
 
 ## 3. Service layer (implemented in phase 2)

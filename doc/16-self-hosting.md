@@ -20,7 +20,9 @@ docker compose up -d            # http://localhost:8000
   administrator (prints a random password unless `--password` is given) and,
   with `--token NAME`, prints an API token for the CLI/MCP clients.
 - `serve` (the container's default command) runs `migrate` and
-  `load_default_sources` on every start, then gunicorn
+  `load_default_sources` on every start — with a `backup` first when
+  migrations are waiting (the newest `PARSIFAL_BACKUP_KEEP`, default 10, are
+  kept) —, then gunicorn
   (`GUNICORN_WORKERS`, default 2; `GUNICORN_TIMEOUT`, default 120).
 - The `./data` directory is mounted at `/data` (`PARSIFAL_DATA_DIR`). Back it
   up, or use `docker compose run --rm parsifal manage backup`.
@@ -106,16 +108,22 @@ where the files live does not move the existing ones — copy them over first
 ## Backups and restore
 
 ```bash
-python manage.py backup                      # <data dir>/backups/parsifal-YYYYmmdd-HHMMSS.sqlite3
-python manage.py backup --output /mnt/nas/parsifal.sqlite3
-python manage.py restore --file backups/parsifal-20261015-120000.sqlite3 --yes
+python manage.py backup                      # <data dir>/backups/parsifal-YYYYmmdd-HHMMSS.tar.gz
+python manage.py backup --keep 10            # then keep the 10 newest parsifal-<timestamp>.tar.gz of that folder
+python manage.py backup --output /mnt/nas/parsifal.tar.gz
+python manage.py restore --file backups/parsifal-20261015-120000.tar.gz --yes
 ```
 
-`backup` uses SQLite's online backup API through a dedicated connection, so it
-is safe while the application is running (WAL mode). `restore` replaces the
-live database contents; stop other processes first. `backup` copies the
-database only: the studies' PDFs are plain files under `<data dir>/files/` —
-include that folder in your backup routine (a bucket is backed up on its own).
+A backup is one `.tar.gz` with `parsifal.sqlite3` (SQLite's online backup API
+through a dedicated connection, so it is safe while the application is
+running, WAL mode), `files/` (every stored file — the studies' PDFs — from
+`<data dir>/files/` or downloaded from the bucket) and `manifest.json` (format,
+date, the last migration of each app, each file's sha256). `restore` checks
+every file against the manifest, takes a backup of the current state first
+(`backups/before-restore-<timestamp>.tar.gz`), replaces the live database and
+writes back the files that are missing (files are keyed by a random name and
+never change, so those present are kept). Stop other processes first. A backup
+from before (`.sqlite3`) still restores the database alone.
 
 ## Upgrading
 

@@ -327,8 +327,8 @@ without a login, was removed: nothing public is uploaded any more.
 Operations `articles_pdf_upload`, `articles_pdf_download`,
 `articles_pdf_delete` (CLI `article pdf upload|download|delete`). Attaching a
 PDF saves only `pdf`, keeping `updated_by`, which AI screening uses to decide
-which statuses a run may change. `manage.py backup` still copies only the
-database: `<data dir>/files` must be backed up with it. Switching between
+which statuses a run may change. `manage.py backup` copied only the database
+then; since 2026-10-28 it writes the database and the files in one `.tar.gz`. Switching between
 folder and bucket does not move existing files. The unused jQuery File Upload
 plugin and the commented-out "Files" tab were removed.
 

@@ -212,7 +212,7 @@ Reference: [16-self-hosting.md](16-self-hosting.md).
 
 Deliverables
 - `Dockerfile`, `docker-compose.yml` (single service, `./data` volume),
-  whitenoise, `make run|init|backup`, `parsifal backup`/`restore`
+  whitenoise, `make run|init|backup`, `manage.py backup`/`restore` (database, files and manifest in one `.tar.gz` since 2026-10-28)
   commands; `doc/16-self-hosting.md`.
 
 Tests

@@ -74,13 +74,19 @@ Put a reverse proxy (Caddy, nginx, Traefik) in front of port 8000, forward
 ## Backups
 
 ```bash
-python manage.py backup                        # <data dir>/backups/parsifal-<timestamp>.sqlite3
-python manage.py restore --file <backup> --yes # replaces the live database; stop other processes first
+python manage.py backup                        # <data dir>/backups/parsifal-<timestamp>.tar.gz
+python manage.py backup --keep 10              # then only the 10 newest of that folder remain
+python manage.py restore --file <backup> --yes # the database and the files; stop other processes first
 ```
 
-`backup` uses SQLite's online backup API and is safe while the application
-runs. It copies the database only: back up the whole data directory to keep the
-studies' PDFs (`files/`) too.
+A backup is one `.tar.gz`: a copy of the database (SQLite's online backup API,
+safe while the application runs), every study's PDF — from `files/` or from
+the bucket — and a manifest with each file's checksum. `restore` checks the
+checksums, backs up the current state first (`backups/before-restore-…`), then
+replaces the database and writes back the PDFs that are missing; an old
+`.sqlite3` backup restores the database alone. In Docker, `serve` takes a
+backup before applying migrations (`PARSIFAL_BACKUP_KEEP`, default 10, are
+kept).
 
 ## Upgrading
 
