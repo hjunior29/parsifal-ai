@@ -41,7 +41,7 @@ $(function () {
       $(this).unselectDocument();
     });
     $(".js-toggle-select-documents .glyphicon").removeClass().addClass("glyphicon glyphicon-unchecked");
-    $(".select-all-pages").val("");
+    $("#select-all-pages").val("");
     hideAllSelectionMessages();
     modifyToolbarButtonsState();
   };
@@ -53,7 +53,7 @@ $(function () {
         $(this).selectDocument();
       });
       $(".js-toggle-select-documents .glyphicon").removeClass().addClass("glyphicon glyphicon-check");
-      $(".select-all-pages").val("");
+      $("#select-all-pages").val("");
       showSelectAllPagesMessage();
       modifyToolbarButtonsState();
     }
@@ -108,7 +108,7 @@ $(function () {
 
     if (isChecked) {
       $(this).unselectDocument();
-      $(".select-all-pages").val("");
+      $("#select-all-pages").val("");
       hideAllSelectionMessages();
     }
     else {

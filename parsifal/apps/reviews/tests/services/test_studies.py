@@ -453,3 +453,38 @@ class TestDuplicates(TestCase):
         foreign = ArticleFactory()
         with self.assertRaises(NotFound):
             studies.resolve_duplicates(review=self.review, article_ids=[foreign.pk])
+
+
+class TestSelectedIds(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.source = SourceFactory()
+        cls.other_source = SourceFactory()
+        cls.review = ReviewFactory(sources=[cls.source, cls.other_source])
+        cls.match = ArticleFactory(review=cls.review, source=cls.source, title="Agents at work")
+        cls.starred = ArticleFactory(review=cls.review, source=cls.source, title="Agents, starred")
+        cls.starred.starred_at = cls.starred.created_at
+        cls.starred.save()
+        cls.accepted = ArticleFactory(review=cls.review, source=cls.source, title="Agents accepted", status="A")
+        cls.elsewhere = ArticleFactory(review=cls.review, source=cls.other_source, title="Agents elsewhere")
+
+    def test_ids_or_every_study_that_matches(self):
+        self.assertEqual([self.match.pk], studies.selected_ids(self.review, ids=[self.match.pk]))
+        every = studies.selected_ids(self.review, all_matching=True)
+        self.assertEqual({self.match.pk, self.starred.pk, self.accepted.pk, self.elsewhere.pk}, set(every))
+        matching = studies.selected_ids(
+            self.review, all_matching=True, source_id=self.source.pk, status="U", query="agents"
+        )
+        self.assertEqual({self.match.pk, self.starred.pk}, set(matching))
+        starred = studies.selected_ids(self.review, all_matching=True, starred=True)
+        self.assertEqual([self.starred.pk], starred)
+
+    def test_refused(self):
+        with self.assertRaisesMessage(ValidationError, "not both"):
+            studies.selected_ids(self.review, ids=[self.match.pk], all_matching=True)
+        with self.assertRaisesMessage(ValidationError, "Give the studies' ids"):
+            studies.selected_ids(self.review)
+        with self.assertRaises(NotFound):
+            studies.selected_ids(self.review, all_matching=True, source_id=SourceFactory().pk)
+        with self.assertRaises(ValidationError):
+            studies.selected_ids(self.review, all_matching=True, status="Z")

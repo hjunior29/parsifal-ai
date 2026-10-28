@@ -560,6 +560,12 @@ th.headerSortUp:after {
   margin-left: 135px;
 }
 
+/* The study list's "select all N studies" line (as the library's) */
+.study-selection-message {
+  padding: 8px;
+  margin-bottom: 10px;
+}
+
 /* A list reloading (another page, filter or order): what it showed fades until the new one comes */
 .list-reloading {
   opacity: 0.5;

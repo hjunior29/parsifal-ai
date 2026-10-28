@@ -88,6 +88,27 @@ class TestArticlesApi(ApiTestCase):
         foreign.refresh_from_db()
         self.assertEqual("U", foreign.status)
 
+    def test_bulk_on_every_study_that_matches(self):
+        agents = [ArticleFactory(review=self.review, source=self.source, title=f"Agents {n}").pk for n in range(2)]
+        other = ArticleFactory(review=self.review, source=self.source, title="Other").pk
+        ArticleFactory(title="Agents of another review")
+        status = self.review_path("/articles/status")
+        body = {"all_matching": True, "match_status": "U", "match_q": "agents", "status": "A"}
+        response = self.api("post", status, body)
+        self.assertEqual((200, 2), (response.status_code, response.json()["count"]))
+        self.assertEqual({"A"}, set(self.review.article_set.filter(pk__in=agents).values_list("status", flat=True)))
+        with self.subTest(msg="ids or all_matching, one of them"):
+            refused = self.api("post", status, {"ids": [other], "all_matching": True, "status": "R"})
+            self.assertEqual((422, "ids"), (refused.status_code, refused.json()["field"]))
+            self.assertEqual(422, self.api("post", status, {"status": "R"}).status_code)
+            self.assertEqual(
+                404,
+                self.api("post", status, {"all_matching": True, "match_source_id": 99999, "status": "R"}).status_code,
+            )
+        response = self.api("post", self.review_path("/articles/delete"), {"all_matching": True, "match_status": "A"})
+        self.assertEqual((200, 2), (response.status_code, response.json()["count"]))
+        self.assertEqual([other], list(self.review.article_set.values_list("pk", flat=True)))
+
     def test_duplicates(self):
         a1 = ArticleFactory(review=self.review, source=self.source, title="Dup Title")
         a2 = ArticleFactory(review=self.review, source=self.source, title="dup title")

@@ -157,7 +157,7 @@ Rules:
 | `/reviews/{id}/extraction/fields` | CRUD (+ `lookup_values[]`) + `/order` | |
 | `/reviews/{id}/articles` | GET (filters: `source`, `status`, `q`, `finished`, pagination), POST | |
 | `/reviews/{id}/articles/{aid}` | GET, PATCH, DELETE | |
-| `/reviews/{id}/articles/status` | POST `{ids[], status, criteria_id?, comments?}` | bulk |
+| `/reviews/{id}/articles/status` | POST `{ids[] or all_matching + match_*, status, criteria_id?, comments?}` | bulk |
 | `/reviews/{id}/articles/import` | POST JSON `{source_id, bibtex}` or multipart | returns `{imported, failed, warnings[]}` |
 | `/reviews/{id}/articles/duplicates` | GET; `/resolve` POST (`all` or `ids[]`) | |
 | `/reviews/{id}/articles/{aid}/quality` | GET, PUT `{question_id, answer_id}` | records `user` |

@@ -42,8 +42,9 @@ def test_tool_schemas_reflect_registry(server):
     tools = {tool.name: tool for tool in run(server.list_tools())}
     set_status = tools["parsifal_articles_set_status"]
     schema = set_status.inputSchema
-    assert set(schema["required"]) == {"review_id", "ids", "status"}
-    assert schema["properties"]["ids"]["type"] == "array"
+    assert set(schema["required"]) == {"review_id", "status"}  # ids, or all_matching
+    assert {"type": "array", "items": {"type": "integer"}} in schema["properties"]["ids"]["anyOf"]
+    assert {"type": "boolean"} in schema["properties"]["all_matching"]["anyOf"]
     assert set_status.annotations.destructiveHint is False
     assert tools["parsifal_reviews_delete"].annotations.destructiveHint is True
     assert tools["parsifal_reviews_get"].annotations.readOnlyHint is True

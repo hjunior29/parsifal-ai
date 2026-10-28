@@ -124,8 +124,21 @@ class ArticleUpdateIn(ArticleFieldsIn):
     selection_criteria_id: int | None = None
 
 
-class StatusIn(Schema):
-    ids: list[int]
+class ArticlesIn(Schema):
+    """
+    The studies an action applies to: ``ids``, or ``all_matching`` with the study list's filters (``match_*``; every
+    study of the review when none is given).
+    """
+
+    ids: list[int] | None = None
+    all_matching: bool = False
+    match_source_id: int | None = None
+    match_status: str | None = None  # U, A, R or D
+    match_q: str | None = None  # title, DOI or BibTeX key
+    match_starred: bool | None = None
+
+
+class StatusIn(ArticlesIn):
     status: str
     selection_criteria_id: int | None = None
     comments: str | None = None
@@ -163,10 +176,6 @@ class DuplicateGroupsOut(Schema):
 
 class ResolveIn(Schema):
     ids: list[int] | None = None
-
-
-class IdsIn(Schema):
-    ids: list[int]
 
 
 class ClearIn(Schema):

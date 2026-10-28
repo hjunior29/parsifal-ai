@@ -80,6 +80,16 @@ def Q(name, type=STR, help=""):
     return Param(name, type, QUERY, False, help)
 
 
+# The studies a bulk action applies to: --ids, or --all-matching with the study list's filters.
+ARTICLE_SELECTION = (
+    B("ids", LIST_INT, help="Article ids (repeat); or --all-matching."),
+    B("all_matching", BOOL, help="Every study that matches the --match-* filters (every study when none is given)."),
+    B("match_source_id", INT, help="With --all-matching: only this source's studies."),
+    B("match_status", help="With --all-matching: only studies with this status (U, A, R or D)."),
+    B("match_q", help="With --all-matching: only studies whose title, DOI or BibTeX key contains this."),
+    B("match_starred", BOOL, help="With --all-matching: only starred studies."),
+)
+
 ARTICLE_FIELDS = (
     B("bibtex_key"),
     B("title"),
@@ -1144,8 +1154,8 @@ OPERATIONS = (
         "/reviews/{review_id}/articles/delete",
         ("article",),
         "delete-batch",
-        "Delete several articles (all or none); their decisions and extractions go with them.",
-        (REVIEW, B("ids", LIST_INT, True, "Article ids (repeat).")),
+        "Delete several articles (all or none), or every one that matches; decisions and extractions go with them.",
+        (REVIEW, *ARTICLE_SELECTION),
         destructive=True,
     ),
     Operation(
@@ -1168,10 +1178,10 @@ OPERATIONS = (
         "/reviews/{review_id}/articles/status",
         ("article",),
         "set-status",
-        "Accept/reject/unclassify/mark duplicated several articles.",
+        "Accept/reject/unclassify/mark duplicated several articles, or every one that matches.",
         (
             REVIEW,
-            B("ids", LIST_INT, True, "Article ids (repeat)."),
+            *ARTICLE_SELECTION,
             B("status", required=True, help="U, A, R or D."),
             B("selection_criteria_id", INT, help="Reason (criteria id)."),
             B("comments", TEXT),

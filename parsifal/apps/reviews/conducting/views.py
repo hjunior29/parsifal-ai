@@ -641,6 +641,13 @@ def _paginate(request, queryset, session_key):
 COLUMN_ORDERS = {"ai_relevance": "ai_score"}
 
 
+def _study_list_filters(review, params):
+    """The study list's source tab (an unsaved Source: every source), status (ALL: any), search and star."""
+    source_id = params.get("source-id")
+    source = Source() if source_id in (None, "", "None") else get_object_or_404(review.sources, pk=source_id)
+    return source, params.get("status") or "ALL", params.get("q", "").strip(), params.get("starred") == "1"
+
+
 @author_required
 @login_required
 def source_articles(request):
@@ -651,11 +658,7 @@ def source_articles(request):
     table and its pager: another page, filter or order.
     """
     review = get_object_or_404(Review, pk=request.GET.get("review-id"))
-    source_id = request.GET.get("source-id")
-    source = Source() if source_id in (None, "", "None") else get_object_or_404(review.sources, pk=source_id)
-    status = request.GET.get("status") or "ALL"
-    query = request.GET.get("q", "").strip()
-    starred = request.GET.get("starred") == "1"
+    source, status, query, starred = _study_list_filters(review, request.GET)
     order = request.GET.get("order") or "title"
     try:
         articles = studies.list_articles(
@@ -1439,9 +1442,24 @@ def quality_assessment_summary(request):
 
 
 def _multiple_articles_action(request, status=None):
+    """
+    The Action of the study list on the studies checked (``article_ids``, "1|2|3"), or with ``select-all=filter`` on
+    every study of the list: its source tab, status, search and star, every page.
+    """
     try:
-        review = get_object_or_404(Review, pk=request.POST["review-id"])
-        article_ids = [pk for pk in request.POST["article_ids"].split("|") if pk]
+        review = request.review
+        if request.POST.get("select-all") == "filter":
+            source, list_status, query, starred = _study_list_filters(review, request.POST)
+            article_ids = studies.selected_ids(
+                review,
+                all_matching=True,
+                source_id=source.pk,
+                status=None if list_status == "ALL" else list_status,
+                query=query,
+                starred=True if starred else None,
+            )
+        else:
+            article_ids = [pk for pk in request.POST["article_ids"].split("|") if pk]
         if article_ids:
             if status is None:
                 studies.delete_articles(review=review, article_ids=article_ids)
@@ -1456,30 +1474,35 @@ def _multiple_articles_action(request, status=None):
 
 @author_required
 @login_required
+@require_POST
 def multiple_articles_action_remove(request):
     return _multiple_articles_action(request)
 
 
 @author_required
 @login_required
+@require_POST
 def multiple_articles_action_unclassify(request):
     return _multiple_articles_action(request, Article.UNCLASSIFIED)
 
 
 @author_required
 @login_required
+@require_POST
 def multiple_articles_action_accept(request):
     return _multiple_articles_action(request, Article.ACCEPTED)
 
 
 @author_required
 @login_required
+@require_POST
 def multiple_articles_action_reject(request):
     return _multiple_articles_action(request, Article.REJECTED)
 
 
 @author_required
 @login_required
+@require_POST
 def multiple_articles_action_duplicated(request):
     return _multiple_articles_action(request, Article.DUPLICATED)
 

@@ -56,7 +56,7 @@ mirror the API parameters in kebab-case; `--review` accepts a numeric id or
 | `criteria` | `list`, `create --description --criteria-type I|E`, `update --id`, `delete --id` |
 | `quality` | `question list|create|update|delete|reorder`, `answer list|create|suggested|update|delete`, `max-score`, `set-cutoff --cutoff`, `summary`, `studies [--q --state done|pending|above|below --order title|-title|year|-year --all]`, `get --article`, `assess --article --question-id [--answer-id]` (no `--answer-id`: clear the answer) |
 | `extraction` | `field list|create|update|delete|reorder`, `get --article`, `set --article --field-id --value | --values …`, `done --article [--no-done]`, `studies [--q --done/--no-done --all]` |
-| `article` | `list [--source-id --status --q --finished-data-extraction --starred --order COLUMN|-COLUMN --all]` (`--order`: title, ai_score, star, year, status… as the study list's columns), `star --article`, `unstar --article`, `create`, `get --id`, `update --id`, `delete --id`, `set-status --ids … --status [--selection-criteria-id --comments]`, `import --source-id --bibtex`, `import-file --source-id --file`, `duplicates`, `resolve-duplicates [--ids …]`, `pdf upload --article --file`, `pdf download --article -o FILE`, `pdf delete --article` |
+| `article` | `list [--source-id --status --q --finished-data-extraction --starred --order COLUMN|-COLUMN --all]` (`--order`: title, ai_score, star, year, status… as the study list's columns), `star --article`, `unstar --article`, `create`, `get --id`, `update --id`, `delete --id`, `set-status --ids …|--all-matching [--match-source-id --match-status --match-q --match-starred] --status [--selection-criteria-id --comments]`, `delete-batch --ids …|--all-matching [--match-*]`, `import --source-id --bibtex`, `import-file --source-id --file`, `duplicates`, `resolve-duplicates [--ids …]`, `pdf upload --article --file`, `pdf download --article -o FILE`, `pdf delete --article` |
 | `analytics` | `selection-by-source`, `final-by-year`, `selection-summary`, `criteria-usage`, `studies-by-year`, `quality`, `extraction`, `facet-frequencies --facet`, `facet-matrix --rows --columns` |
 | `facet` | `templates`, `list`, `create --template | --name [--categories …] [--multiple]`, `update --id`, `delete --id`, `reorder --ids …`; `facet category create|update|delete|reorder --facet` |
 | `classification` | `get --article`, `set --article --facet-id --category-ids …` |
@@ -100,6 +100,7 @@ parsifal article list --review $R --status U --all \
 parsifal criteria list --review $R                         # pick the reason
 parsifal article set-status --review $R --ids 12 --ids 15 --status A --selection-criteria-id 3
 parsifal article set-status --review $R --ids 13 --status R --selection-criteria-id 4 --comments "not empirical"
+parsifal article set-status --review $R --all-matching --match-status U --match-q "survey" --status R  # every match
 parsifal quality assess --review $R --article 12 --question-id 1 --answer-id 2
 parsifal extraction set --review $R --article 12 --field-id 5 --value "ReviewBot"
 parsifal export report --review $R -o report.docx

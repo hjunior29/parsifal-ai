@@ -167,7 +167,7 @@ Action endpoints under `/reviews/conducting/`, guard **A** unless noted:
 | `article_pdf/remove/` | POST | `review-id`, `article-id` | frag Full text tab; 400 text when there is no PDF |
 | `save_study_columns/` | POST | `review-id`, `columns` (repeated keys, in order: star, bibtex_key, title, author, journal, year, source, doi, document_type, language, publisher, criteria, ai_relevance, created_by, created_at, updated_by, updated_at, status) | JSON `{columns}` or 400 `{error}`; the columns of the study list for the user (`Profile.study_columns`) |
 | `save_article_details/` | POST | `review-id`, `article-id` (`None` to create; then `source-id`), `bibtex-key`, `title`, `author`, `journal`, `year`, `pages`, `volume`, `abstract`, `document-type`, `doi`, `url`, `affiliation`, `author_keywords`, `keywords`, `publisher`, `issn`, `language`, `note`, `comments`, `status` (`U/R/A/D`), `selection_criteria` (id or empty) | frag `<tr>`; sets `updated_by` |
-| `multiple_articles_action/accept/` · `reject/` · `unclassify/` · `duplicated/` · `remove/` | POST | `review-id`, `article_ids` (`"1|2|3"`) | Bulk status update / delete, scoped to review |
+| `multiple_articles_action/accept/` · `reject/` · `unclassify/` · `duplicated/` · `remove/` | POST | `review-id`, `article_ids` (`"1|2|3"`); or `select-all=filter` with the list's `source-id`, `status`, `q`, `starred` (every study of the list, every page) | Bulk status update / delete, scoped to review |
 | `find_duplicates/` | GET | `review-id` | frag duplicate groups (DOI / title) |
 | `resolve_duplicated/` | POST | `article-id` | status `D` (checks review membership) |
 | `resolve_all/` | POST | `review-id` | Marks all but first of each group `D`; csv of ids |

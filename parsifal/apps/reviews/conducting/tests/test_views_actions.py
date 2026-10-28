@@ -49,6 +49,44 @@ class TestBulkActions(ConductingActionsTestCase):
         self.foreign_article.refresh_from_db()
         self.assertEqual(Article.UNCLASSIFIED, self.foreign_article.status)
 
+    def test_every_study_of_the_list(self):
+        other = SourceFactory()
+        self.review.sources.add(other)
+        match = [ArticleFactory(review=self.review, source=self.source, title=f"Agents {n}") for n in range(3)]
+        accepted = ArticleFactory(review=self.review, source=self.source, title="Agents accepted", status="A")
+        elsewhere = ArticleFactory(review=self.review, source=other, title="Agents elsewhere")
+        unmatched = ArticleFactory(review=self.review, source=self.source, title="Something else")
+        filters = {"select-all": "filter", "source-id": self.source.pk, "status": "U", "q": "agents", "starred": ""}
+        response = self.post("multiple_articles_action_reject", article_ids="", **filters)
+        self.assertEqual(200, response.status_code)
+        statuses = dict(self.review.article_set.values_list("pk", "status"))
+        self.assertEqual(["R", "R", "R"], [statuses[a.pk] for a in match])
+        self.assertEqual(("A", "U", "U"), (statuses[accepted.pk], statuses[elsewhere.pk], statuses[unmatched.pk]))
+        self.assertEqual({self.review.author.pk}, {a.updated_by_id for a in Article.objects.filter(status="R")})
+
+        response = self.post(
+            "multiple_articles_action_remove",
+            article_ids="",
+            **{"select-all": "filter", "status": "ALL", "q": "agents"},
+        )
+        self.assertEqual(200, response.status_code)
+        self.assertEqual([unmatched.pk], list(self.review.article_set.values_list("pk", flat=True)))
+
+    def test_every_study_of_another_reviews_source_is_not_found(self):
+        source = self.other_review.sources.create(name="Theirs")
+        response = self.post(
+            "multiple_articles_action_accept", article_ids="", **{"select-all": "filter", "source-id": source.pk}
+        )
+        self.assertEqual(404, response.status_code)
+
+    def test_a_get_changes_nothing(self):
+        article = ArticleFactory(review=self.review, source=self.source)
+        url = reverse("reviews:conducting:multiple_articles_action_accept")
+        response = self.client.get(url, {"review-id": self.review.pk, "article_ids": article.pk})
+        self.assertEqual(405, response.status_code)
+        article.refresh_from_db()
+        self.assertEqual(Article.UNCLASSIFIED, article.status)
+
 
 class TestQualityAssessmentView(ConductingActionsTestCase):
     def test_save_quality_assessment_returns_score(self):

@@ -599,17 +599,52 @@ $(function () {
     updateSelectedArticlesCount();
   });
 
+  /* Every study of the list (every page, as filtered), as in the library: offered once the whole page is checked. */
+  var selectingMatching = false;
+
+  function showMatchingMessage() {
+    var list = $(".source-tab-content .js-article-list");
+    var whole = $("#ck-all-articles").is(":checked");
+    if (!whole) { selectingMatching = false; }
+    $(".js-message-select-matching", list).toggle(whole && !selectingMatching);
+    $(".js-message-matching-selected", list).toggle(whole && selectingMatching);
+  }
+
+  $(".source-tab-content").on("click", ".js-select-matching", function () {
+    selectingMatching = true;
+    showMatchingMessage();
+  });
+
+  $(".source-tab-content").on("click", ".js-clear-matching", function () {
+    selectingMatching = false;
+    $("#ck-all-articles").prop("checked", false);
+    $(".source-tab-content table tbody tr td input[type=checkbox]").prop("checked", false);
+    updateSelectedArticlesCount();
+  });
+
   function multiple_articles_actions(article_ids, action) {
     var review_id = $("#review-id").val();
     var csrf_token = $(".source-tab-content table").attr("csrf-token");
+    var data = {
+      'review-id': review_id,
+      'article_ids': article_ids,
+      'csrfmiddlewaretoken': csrf_token
+    };
+    var matching = selectingMatching;
+    if (matching) {
+      var state = listState();
+      $.extend(data, {
+        'select-all': 'filter',
+        'source-id': state['source-id'],
+        'status': state['status'],
+        'q': state['q'],
+        'starred': state['starred']
+      });
+    }
 
     $.ajax({
       url: '/reviews/conducting/multiple_articles_action/' + action + '/',
-      data: {
-        'review-id': review_id,
-        'article_ids': article_ids,
-        'csrfmiddlewaretoken': csrf_token
-      },
+      data: data,
       type: 'post',
       cache: false,
       beforeSend: function () {
@@ -617,6 +652,10 @@ $(function () {
         $(".go-button").text("Processing...");
       },
       success: function (data) {
+        if (matching) {
+          loadList();  // studies of other pages changed too
+          return;
+        }
         switch (action) {
           case "remove":
             loadList();  // the studies after them move up into this page
@@ -715,6 +754,7 @@ $(function () {
     var checked = $(".source-articles table tbody tr td input[type='checkbox']:checked").length;
     $(".articles-selected").text(checked);
     $(".articles-total").text(total);
+    showMatchingMessage();
   };
 
   $(".source-tab-content").on("click", ".btn-find-duplicates", function () {

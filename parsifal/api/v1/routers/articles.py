@@ -7,10 +7,10 @@ from parsifal.api.deps import get_review
 from parsifal.api.v1.schemas.articles import (
     ArticleCreateIn,
     ArticleOut,
+    ArticlesIn,
     ArticleUpdateIn,
     ClearIn,
     DuplicateGroupsOut,
-    IdsIn,
     ImportIn,
     ImportOut,
     PdfOut,
@@ -98,13 +98,28 @@ def articles_resolve_duplicates(request, review_id: int, payload: ResolveIn):
     return studies.resolve_duplicates(review=review, article_ids=payload.ids, actor=request.auth)
 
 
+def _selected_ids(review, payload):
+    return studies.selected_ids(
+        review,
+        ids=payload.ids,
+        all_matching=payload.all_matching,
+        source_id=payload.match_source_id,
+        status=payload.match_status,
+        query=payload.match_q,
+        starred=payload.match_starred,
+    )
+
+
 @router.post("/reviews/{int:review_id}/articles/status", response=CountOut, operation_id="articles_set_status")
 def articles_set_status(request, review_id: int, payload: StatusIn):
-    """Bulk selection decision with an optional criteria (reason) and comments."""
+    """
+    Bulk selection decision with an optional criteria (reason) and comments, on ``ids`` or, with ``all_matching``,
+    on every study that matches the ``match_*`` filters (source, status, search, star).
+    """
     review = get_review(request, review_id)
     count = studies.set_status(
         review=review,
-        article_ids=payload.ids,
+        article_ids=_selected_ids(review, payload),
         status=payload.status,
         selection_criteria_id=payload.selection_criteria_id,
         comments=payload.comments,
@@ -217,12 +232,14 @@ def articles_pdf_delete(request, review_id: int, article_id: int):
 
 
 @router.post("/reviews/{int:review_id}/articles/delete", response=CountOut, operation_id="articles_delete_batch")
-def articles_delete_batch(request, review_id: int, payload: IdsIn):
+def articles_delete_batch(request, review_id: int, payload: ArticlesIn):
     """
-    Delete several articles at once (all ids must belong to the review, otherwise nothing is deleted). Their
-    decisions, quality assessments, extractions, classifications and PDFs are deleted with them.
+    Delete several articles at once: ``ids`` (all must belong to the review, otherwise nothing is deleted), or with
+    ``all_matching`` every study that matches the ``match_*`` filters. Their decisions, quality assessments,
+    extractions, classifications and PDFs are deleted with them.
     """
-    return CountOut(count=studies.delete_articles(review=get_review(request, review_id), article_ids=payload.ids))
+    review = get_review(request, review_id)
+    return CountOut(count=studies.delete_articles(review=review, article_ids=_selected_ids(review, payload)))
 
 
 @router.post("/reviews/{int:review_id}/articles/clear", response=CountOut, operation_id="articles_clear")

@@ -345,6 +345,25 @@ def ordering(order):
     return value, "title", "pk"
 
 
+def selected_ids(review, *, ids=None, all_matching=False, source_id=None, status=None, query=None, starred=None):
+    """
+    The studies an action applies to: ``ids``; or, with ``all_matching``, every study of the review that matches the
+    study list's filters (``source_id``, ``status``, ``query``, ``starred``; every study when none is given).
+    """
+    if all_matching and ids:
+        raise ValidationError("Give the studies' ids or all_matching, not both.", field="ids")
+    if not all_matching:
+        if not ids:
+            raise ValidationError(
+                "Give the studies' ids, or all_matching to act on every study that matches.", field="ids"
+            )
+        return list(ids)
+    if source_id is not None:
+        get_child(review.sources, source_id, label="Source")
+    queryset = list_articles(review, source_id=source_id, status=status, query=query, starred=starred)
+    return list(queryset.values_list("pk", flat=True))
+
+
 def list_articles(
     review, *, source_id=None, status=None, query=None, finished_data_extraction=None, starred=None, order=None
 ):

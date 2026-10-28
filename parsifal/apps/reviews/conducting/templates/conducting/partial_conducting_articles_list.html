@@ -4,6 +4,17 @@
   reverses it.
 {% endcomment %}
 <div class="js-article-list" data-source-id="{{ source.id|default_if_none:'None' }}" data-order="{{ order }}" data-page="{{ page.number }}" data-pages="{{ page.paginator.num_pages }}" data-count="{{ page.paginator.count }}" data-start="{{ page.start_index }}">
+  {% if page.paginator.num_pages > 1 %}
+    {% comment %}As in the library: the Action can go to every study of the list, not only this page's.{% endcomment %}
+    <p class="bg-warning text-center study-selection-message js-message-select-matching" style="display: none;">
+      All <strong>{{ page.object_list|length }}</strong> studies on this page are selected.
+      <a href="javascript:void(0);" class="js-select-matching">Select all <strong>{{ page.paginator.count }}</strong> studies {% if filtered %}that match the filter{% else %}of this list{% endif %}.</a>
+    </p>
+    <p class="bg-warning text-center study-selection-message js-message-matching-selected" style="display: none;">
+      All <strong>{{ page.paginator.count }}</strong> studies {% if filtered %}that match the filter{% else %}of this list{% endif %} are selected.
+      <a href="javascript:void(0);" class="js-clear-matching">Clear selection.</a>
+    </p>
+  {% endif %}
   <table class="table table-hover table-bordered" csrf-token="{{ csrf_token }}" source-id="{{ source.id }}" style="font-size: 13px">
     <thead>
       <tr>

@@ -76,6 +76,7 @@ parsifal review overview --review $R
 parsifal article import --review $R --source-id 7 --bibtex @scopus.bib
 parsifal article list --review $R --status U --all | jq -r '.items[] | "\(.id)\t\(.title)"'
 parsifal article set-status --review $R --ids 12 --ids 15 --status A --selection-criteria-id 3
+parsifal article set-status --review $R --all-matching --match-status U --match-q survey --status R
 parsifal export report --review $R -o report.docx
 ```
 
