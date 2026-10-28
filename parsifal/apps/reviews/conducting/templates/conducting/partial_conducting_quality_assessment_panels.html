@@ -1,0 +1,23 @@
+{% comment %}
+  The panels of Quality Assessment (quality_panels): one per study, its questions closed until its heading is
+  clicked. A click on an answer chooses it, and a click on the chosen one clears it.
+{% endcomment %}
+{% for panel in quality_panels %}
+  <div class="panel panel-default panel-quality-assessment" data-article-id="{{ panel.study.id }}">
+    {% include "conducting/partial_conducting_study_heading.html" with study=panel.study progress=panel.progress kind="quality" %}
+    <div class="collapse">
+      <table class="table" article-id="{{ panel.study.id }}" csrf-token="{{ csrf_token }}">
+        <tbody>
+          {% for row in panel.questions %}
+            <tr question-id="{{ row.question.pk }}">
+              <td>{{ row.question.description }}</td>
+              {% for answer in quality_answers %}
+                <td class="answer{% if row.chosen == answer.pk %} selected-answer{% endif %}" answer-id="{{ answer.pk }}">{{ answer.description }}</td>
+              {% endfor %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endfor %}

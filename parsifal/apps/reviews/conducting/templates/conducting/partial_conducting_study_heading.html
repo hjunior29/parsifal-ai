@@ -1,0 +1,26 @@
+{% comment %}
+  The heading of a study's panel on Quality Assessment (kind "quality") and Data Extraction (kind "extraction"): a
+  click opens or closes the panel (closed at first). It shows the study's title and year, how far it went
+  (progress), its score, the link to mark the extraction as done, and the link to see the study.
+{% endcomment %}
+<div class="panel-heading js-toggle-study" role="button" tabindex="0" aria-expanded="false">
+  <h3 class="panel-title">
+    <span class="pull-right study-heading-controls">
+      <small class="text-muted study-progress">{{ progress }}</small>
+      {% if kind == "quality" %}
+        <span class="badge score">{{ study.score }}</span>
+      {% else %}
+        {% if has_quality_assessment %}<span class="badge" title="Quality score">{{ study.score }}</span>{% endif %}
+        {% if study.finished_data_extraction %}
+          <a href="javascript:void(0);" class="js-finished-button js-mark-as-not-finished"><span class="glyphicon glyphicon-check"></span> <span class="action-text">mark as undone</span></a>
+        {% else %}
+          <a href="javascript:void(0);" class="js-finished-button js-mark-as-finished"><span class="glyphicon glyphicon-unchecked"></span> <span class="action-text">mark as done</span></a>
+        {% endif %}
+      {% endif %}
+      <a href="#" class="js-open-study" data-article-id="{{ study.id }}" title="See the study: its details and full text">
+        <span class="glyphicon glyphicon-file"></span> Study</a>
+    </span>
+    <span class="glyphicon glyphicon-chevron-right js-toggle-icon" aria-hidden="true"></span>
+    {{ study.title }}{% if study.year %} <small>({{ study.year }})</small>{% endif %}
+  </h3>
+</div>

@@ -2,8 +2,8 @@
   A page of the studies of the tab (data_extraction with part=list): their panels, closed, and the pager.
 {% endcomment %}
 <div class="js-study-list-page" data-page="{{ page.number }}">
-  {% if data_extraction_table %}
-    {{ data_extraction_table|safe }}
+  {% if extraction_panels %}
+    {% include "conducting/partial_conducting_data_extraction_panels.html" %}
   {% elif query %}
     <p class="text-muted">No studies match the search.</p>
   {% elif tab == 'todo' %}

@@ -1,0 +1,24 @@
+{% comment %}
+  The panels of Data Extraction (extraction_panels): one per study, its form closed until its heading is clicked,
+  with how many fields have a value and the link to mark it as done. Each value is saved as soon as it changes.
+{% endcomment %}
+<div class="panel-group">
+  {% for panel in extraction_panels %}
+    <div class="panel panel-default data-extraction-panel" data-article-id="{{ panel.study.id }}">
+      {% include "conducting/partial_conducting_study_heading.html" with study=panel.study progress=panel.progress kind="extraction" %}
+      <div class="collapse">
+        <div class="panel-body form-horizontal" data-article-id="{{ panel.study.id }}">
+          {% for row in panel.fields %}
+            <div class="form-group" data-field-id="{{ row.field.id }}">
+              <label class="control-label col-md-2">{{ row.field.description }}</label>
+              <div class="col-md-10">
+                {% include "conducting/partial_conducting_data_extraction_field.html" with study=panel.study field=row.field %}
+                <span class="help-block error" style="display: none;"></span>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</div>

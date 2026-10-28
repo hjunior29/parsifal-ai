@@ -69,7 +69,7 @@ $(function () {
       },
       error: function (xhr, status) {
         if (status !== "abort") {
-          $.parsifal.alert("Could not load the studies", requestError(xhr));
+          $.parsifal.alert("Could not load the studies", $.parsifal.requestError(xhr));
         }
       },
       complete: function (xhr, status) {
@@ -199,7 +199,7 @@ $(function () {
         $("#modal-article #tab-reviewers").html(data);
       },
       error: function (xhr) {
-        $.parsifal.alert("Could not record the decision", requestError(xhr));
+        $.parsifal.alert("Could not record the decision", $.parsifal.requestError(xhr));
       },
       complete: function () { btn.prop("disabled", false); }
     });
@@ -240,7 +240,7 @@ $(function () {
         }
       },
       error: function (xhr) {
-        $.parsifal.alert("Could not change the star", requestError(xhr));
+        $.parsifal.alert("Could not change the star", $.parsifal.requestError(xhr));
       }
     });
   }
@@ -255,73 +255,19 @@ $(function () {
   });
 
   /* Full text tab: the PDF is fetched only when the tab is opened, not with every article of Previous/Next. */
-  function loadPdfFrame() {
-    var frame = $("#modal-article .article-pdf-frame");
-    if (frame.length && !frame.attr("src") && $("#modal-article #tab-full-text").hasClass("active")) {
-      frame.attr("src", frame.data("src"));
-    }
-  }
-
-  $("#modal-article").on("shown.bs.tab", "a[href='#tab-full-text']", loadPdfFrame);
-
-  function postPdf(url, data, title) {
-    data.append("csrfmiddlewaretoken", $("#article-details [name=csrfmiddlewaretoken]").val());
-    data.append("review-id", $("#modal-article #review-id").val());
-    data.append("article-id", $("#modal-article #article-id").val());
-    var buttons = $("#modal-article #article-pdf button");
-    $.ajax({
-      url: url,
-      type: 'post',
-      data: data,
-      cache: false,
-      contentType: false,
-      processData: false,
-      beforeSend: function () { buttons.prop("disabled", true); },
-      success: function (html) {
-        $("#modal-article #article-pdf").replaceWith(html);
-        var tab = $("#modal-article a[href='#tab-full-text']");
-        tab.find(".glyphicon").remove();
-        if ($("#modal-article .article-pdf-frame").length) {
-          tab.append(' <span class="glyphicon glyphicon-file" title="Has a PDF"></span>');
-        }
-        loadPdfFrame();
-      },
-      error: function (xhr) {
-        $.parsifal.alert(title, requestError(xhr));
-      },
-      complete: function () { buttons.prop("disabled", false); }
-    });
-  }
-
-  $("#modal-article").on("click", ".js-choose-pdf", function () {
-    $("#modal-article .js-pdf-file").val("").click();
-  });
-
-  $("#modal-article").on("change", ".js-pdf-file", function () {
-    if (this.files.length) {
-      var data = new FormData();
-      data.append("pdf", this.files[0]);
-      postPdf('/reviews/conducting/article_pdf/upload/', data, "Could not upload the PDF");
-    }
-  });
-
-  $("#modal-article").on("click", ".js-remove-pdf", function () {
-    if (confirm("Remove the PDF of this study? The file is deleted.")) {
-      postPdf('/reviews/conducting/article_pdf/remove/', new FormData(), "Could not remove the PDF");
+  $.parsifal.fullText({
+    window: $("#modal-article"),
+    tab: "#tab-full-text",
+    ids: function () {
+      return {
+        csrf: $("#article-details [name=csrfmiddlewaretoken]").val(),
+        review: $("#modal-article #review-id").val(),
+        article: $("#modal-article #article-id").val()
+      };
     }
   });
 
   var agreementConsolidated = false;
-
-  /* Short, readable text for a failed AJAX call: plain-text responses (our 400s) are shown as they are, HTML
-     error pages are reduced to the status line. */
-  function requestError(xhr) {
-    var text = xhr.responseText || "";
-    if (text && text.indexOf("<") !== 0) {
-      return text;
-    }
-    return "Request failed" + (xhr.status ? " (" + xhr.status + " " + xhr.statusText + ")" : "") + ".";
-  }
 
   /* The agreement panel for a stage and the two reviewers compared (left out: the first two). */
   function loadAgreement(stage, userA, userB) {
@@ -404,7 +350,7 @@ $(function () {
         $("#modal-agreement .modal-body").html(data);
       },
       error: function (xhr) {
-        $.parsifal.alert("Could not consolidate", requestError(xhr));
+        $.parsifal.alert("Could not consolidate", $.parsifal.requestError(xhr));
         btn.prop("disabled", false);
       }
     });

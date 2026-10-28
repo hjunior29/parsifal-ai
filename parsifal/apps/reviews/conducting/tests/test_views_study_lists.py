@@ -1,7 +1,9 @@
 import re
 
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from parsifal.apps.authentication.tests.factories import UserFactory
@@ -110,6 +112,66 @@ class TestDataExtractionList(StudyListsTestCase):
         )
         self.assertContains(self.page(tab="done"), "No studies marked as done yet.")
         self.assertContains(self.page(tab="all", q="nothing like it"), "No studies match the search.")
+
+    def test_each_field_shows_its_value(self):
+        boolean = self.review.dataextractionfield_set.get(field_type=DataExtractionField.BOOLEAN_FIELD)
+        country = DataExtractionFieldFactory(review=self.review, description="Country", field_type="O")
+        brazil, portugal = (country.dataextractionlookup_set.create(value=value) for value in ("Brazil", "Portugal"))
+        topics = DataExtractionFieldFactory(review=self.review, description="Topics", field_type="M")
+        agents, tests = (topics.dataextractionlookup_set.create(value=value) for value in ("Agents", "Tests"))
+        date = DataExtractionFieldFactory(review=self.review, description="Published", field_type="D")
+        study = self.articles[3]
+        save = reverse("reviews:conducting:save_data_extraction")
+        for field, value in (
+            (self.field, "<b>notes</b>"),
+            (country, portugal.pk),
+            (topics, tests.pk),
+            (date, "05/31/2020"),
+        ):
+            data = {"review-id": self.review.pk, "article-id": study.pk, "field-id": field.pk, "value": value}
+            self.assertEqual(200, self.client.post(save, data).status_code)
+        html = self.page(tab="all", q="study 04", part="list").content.decode()
+        self.assertIn(f'name="{study.pk}-{boolean.pk}-value"', html)  # was "value" upstream
+        self.assertNotIn(" selected>True", html)
+        self.assertNotIn(" selected>False", html)  # no value yet: neither is chosen
+        self.assertIn("&lt;b&gt;notes&lt;/b&gt;</textarea>", html)
+        self.assertIn(f'<option value="{portugal.pk}" selected>Portugal</option>', html)
+        self.assertIn(f'<option value="{brazil.pk}">Brazil</option>', html)
+        self.assertIn(f'value="{tests.pk}" checked>Tests', html)
+        self.assertIn(f'value="{agents.pk}">Agents', html)
+        self.assertIn('maxlength="10" value="05/31/2020"', html)
+        self.assertIn("4 of 5 fields", html)
+
+    def test_the_queries_do_not_grow_with_the_studies(self):
+        counts = []
+        for per_page in (10, 25):
+            with CaptureQueriesContext(connection) as captured:
+                self.page(tab="all", **{"per-page": per_page}, part="list")
+            counts.append(len(captured.captured_queries))
+        self.assertEqual(counts[0], counts[1])
+
+
+class TestQualitySummary(StudyListsTestCase):
+    def summary(self):
+        url = reverse("reviews:conducting:quality_assessment_summary")
+        return self.client.get(url, {"review-id": self.review.pk})
+
+    def test_every_accepted_study_by_title_with_its_score(self):
+        self.review.quality_assessment_cutoff_score = 0.5
+        self.review.save()
+        response = self.summary()
+        html = response.content.decode()
+        self.assertEqual([f"Study {index:02d}" for index in range(1, 31)], re.findall(r"<td>(Study \d\d)</td>", html))
+        self.assertRegex(html, r'<tr class="bg-success">\s*<td>Study 01</td>\s*<td>1.0</td>')
+        self.assertEqual(29, html.count('class="bg-danger"'))
+
+    def test_the_queries_do_not_grow_with_the_studies(self):
+        with CaptureQueriesContext(connection) as before:
+            self.summary()
+        ArticleFactory.create_batch(10, review=self.review, source=self.source, status="A")
+        with CaptureQueriesContext(connection) as after:
+            self.summary()
+        self.assertEqual(len(before.captured_queries), len(after.captured_queries))
 
 
 class TestStudyWindow(TemporaryFilesMixin, StudyListsTestCase):

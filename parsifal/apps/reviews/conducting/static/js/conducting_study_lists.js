@@ -8,14 +8,6 @@ $(function () {
 
   var request = null;
 
-  function requestError(xhr) {
-    var text = xhr.responseText || "";
-    if (text && text.indexOf("<") !== 0) {
-      return text;
-    }
-    return "Request failed" + (xhr.status ? " (" + xhr.status + " " + xhr.statusText + ")" : "") + ".";
-  }
-
   /* Loads the list again with ``changes`` (another page or size); ``done`` runs once it is shown. */
   function loadList(changes, done) {
     var form = $(".js-study-list-controls");
@@ -36,7 +28,7 @@ $(function () {
       },
       error: function (xhr, status) {
         if (status !== "abort") {
-          $.parsifal.alert("Could not load the studies", requestError(xhr));
+          $.parsifal.alert("Could not load the studies", $.parsifal.requestError(xhr));
         }
       },
       complete: function (xhr, status) {
@@ -111,12 +103,18 @@ $(function () {
   /* The study's window: its details and its full text, to read while assessing or extracting. */
   var $window = $("#modal-study");
 
-  function loadPdfFrame() {
-    var frame = $window.find(".article-pdf-frame");
-    if (frame.length && !frame.attr("src") && $window.find("#study-full-text").hasClass("active")) {
-      frame.attr("src", frame.data("src"));
+  var fullText = $.parsifal.fullText({
+    window: $window,
+    tab: "#study-full-text",
+    ids: function () {
+      var study = $window.find("#study-window");
+      return {
+        csrf: study.find("[name=csrfmiddlewaretoken]").val(),
+        review: study.attr("data-review-id"),
+        article: study.attr("data-article-id")
+      };
     }
-  }
+  });
 
   $(document).on("click", ".js-study-list .js-open-study", function (event) {
     event.preventDefault();
@@ -131,63 +129,13 @@ $(function () {
       beforeSend: function () { body.loading(); },
       success: function (html) {
         body.html(html);
-        loadPdfFrame();  // it opens on the full text, when there is one
+        fullText.loadFrame();  // it opens on the full text, when there is one
       },
       error: function (xhr) {
-        body.html($("<p class='text-danger'></p>").text(requestError(xhr)));
+        body.html($("<p class='text-danger'></p>").text($.parsifal.requestError(xhr)));
       },
       complete: function () { body.stopLoading(); }
     });
-  });
-
-  $window.on("shown.bs.tab", "a[href='#study-full-text']", loadPdfFrame);
-
-  function postPdf(url, data, title) {
-    var study = $window.find("#study-window");
-    data.append("csrfmiddlewaretoken", study.find("[name=csrfmiddlewaretoken]").val());
-    data.append("review-id", study.attr("data-review-id"));
-    data.append("article-id", study.attr("data-article-id"));
-    var buttons = $window.find("#article-pdf button");
-    $.ajax({
-      url: url,
-      type: 'post',
-      data: data,
-      cache: false,
-      contentType: false,
-      processData: false,
-      beforeSend: function () { buttons.prop("disabled", true); },
-      success: function (html) {
-        $window.find("#article-pdf").replaceWith(html);
-        var tab = $window.find("a[href='#study-full-text']");
-        tab.find(".glyphicon").remove();
-        if ($window.find(".article-pdf-frame").length) {
-          tab.append(' <span class="glyphicon glyphicon-file" title="Has a PDF"></span>');
-        }
-        loadPdfFrame();
-      },
-      error: function (xhr) {
-        $.parsifal.alert(title, requestError(xhr));
-      },
-      complete: function () { buttons.prop("disabled", false); }
-    });
-  }
-
-  $window.on("click", ".js-choose-pdf", function () {
-    $window.find(".js-pdf-file").val("").click();
-  });
-
-  $window.on("change", ".js-pdf-file", function () {
-    if (this.files.length) {
-      var data = new FormData();
-      data.append("pdf", this.files[0]);
-      postPdf('/reviews/conducting/article_pdf/upload/', data, "Could not upload the PDF");
-    }
-  });
-
-  $window.on("click", ".js-remove-pdf", function () {
-    if (confirm("Remove the PDF of this study? The file is deleted.")) {
-      postPdf('/reviews/conducting/article_pdf/remove/', new FormData(), "Could not remove the PDF");
-    }
   });
 
   $window.on("hidden.bs.modal", function () {

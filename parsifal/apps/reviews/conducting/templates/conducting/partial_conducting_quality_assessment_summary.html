@@ -1,4 +1,4 @@
-{% if review.quality_assessment_cutoff_score > 0.0 %}
+{% if summary.cutoff > 0.0 %}
   <p><span class="higher-than-cutoff-label">Green</span> means higher than cutoff score. <span class="lower-than-cutoff-label">Red</span> means lower or equal to the cutoff score.</p>
 {% endif %}
 <table class="table">
@@ -9,9 +9,9 @@
     </tr>
   </thead>
   <tbody>
-    {% for article in review.get_accepted_articles %}
-      {% if review.quality_assessment_cutoff_score > 0.0 %}
-        {% if article.get_score > review.quality_assessment_cutoff_score %} 
+    {% for article in summary.articles %}
+      {% if summary.cutoff > 0.0 %}
+        {% if article.score > summary.cutoff %}
           <tr class="bg-success">
         {% else %}
           <tr class="bg-danger">
@@ -20,7 +20,7 @@
         <tr>
       {% endif%}
         <td>{{ article.title }}</td>
-        <td>{{ article.get_score }}</td>
+        <td>{{ article.score }}</td>
       </tr>
     {% endfor %}
   </tbody>

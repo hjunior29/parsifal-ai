@@ -58,7 +58,7 @@ were GETs). `follow`/`unfollow` no longer exist.
 
 | # | Issue | Consequence |
 |---|-------|-------------|
-| D1 | HTML built with string formatting inside views (`build_*_table`, `html_source`, `suggested_sources`, `add_suggested_answer`; names and urls are escaped). | Business logic and presentation are fused; the service layer must re-derive the data these functions compute (scores, lookups, selected answers). |
+| D1 | HTML built with string formatting inside views (`html_source`, `suggested_sources`, `add_suggested_answer`; names and urls are escaped). The Quality Assessment and Data Extraction panels are templates now (`partial_conducting_*_panels.html`, the views only prepare their data). | Business logic and presentation are fused; the service layer must re-derive the data these functions compute (scores, lookups, selected answers). |
 | D2 | `try: … except Exception: return HttpResponseBadRequest()` in ~50 views (planning views still; conducting action views now catch `DomainError` and return its message). | Services raise typed exceptions (`core/exceptions.py`); the API maps them to 4xx with messages. |
 | D3 | Silent truncation (`[:1000]` etc.) on import and save. | API should validate lengths and report, or truncate explicitly with a warning field. |
 | D4 | ~~No DB uniqueness for `QualityAssessment`, `DataExtraction`, `SearchSession`~~ | Fixed in phase 2 (`reviews.0038`, de-duplicates first). |

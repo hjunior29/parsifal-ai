@@ -154,6 +154,16 @@
       $("#modal-alert").modal("show");
     },
 
+    /* Short, readable text for a failed AJAX call: plain-text responses (our 400s) are shown as they are, HTML
+       error pages are reduced to the status line. */
+    requestError: function (xhr) {
+      var text = xhr.responseText || "";
+      if (text && text.indexOf("<") !== 0) {
+        return text;
+      }
+      return "Request failed" + (xhr.status ? " (" + xhr.status + " " + xhr.statusText + ")" : "") + ".";
+    },
+
     /* Helper functions */
 
     pageLoading: function () {

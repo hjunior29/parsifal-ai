@@ -2,8 +2,8 @@
   A page of the studies to assess (quality_assessment_detailed with part=list): their panels, closed, and the pager.
 {% endcomment %}
 <div class="js-study-list-page" data-page="{{ page.number }}">
-  {% if quality_assessment_table %}
-    {{ quality_assessment_table|safe }}
+  {% if quality_panels %}
+    {% include "conducting/partial_conducting_quality_assessment_panels.html" %}
   {% elif filtered %}
     <p class="text-muted">No studies match the search and "Show".</p>
   {% else %}

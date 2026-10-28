@@ -1,0 +1,28 @@
+{% comment %}
+  The input of a Data Extraction field for a study, by the field's type; row has its value (row.value) or the ids of
+  the options chosen (row.chosen).
+{% endcomment %}
+{% if field.field_type == "B" %}
+  <select name="{{ study.id }}-{{ field.id }}-value" class="form-control">
+    <option value="">Select...</option>
+    <option value="True"{% if row.value == "True" %} selected{% endif %}>True</option>
+    <option value="False"{% if row.value == "False" %} selected{% endif %}>False</option>
+  </select>
+{% elif field.field_type == "D" %}
+  <input type="text" class="form-control" name="{{ study.id }}-{{ field.id }}-value" maxlength="10" value="{{ row.value }}">
+{% elif field.field_type == "O" %}
+  <select name="{{ study.id }}-{{ field.id }}-value" class="form-control">
+    <option value="">Select...</option>
+    {% for option in field.dataextractionlookup_set.all %}
+      <option value="{{ option.id }}"{% if option.id in row.chosen %} selected{% endif %}>{{ option.value }}</option>
+    {% endfor %}
+  </select>
+{% elif field.field_type == "M" %}
+  {% for option in field.dataextractionlookup_set.all %}
+    <label class="checkbox-inline"><input type="checkbox" name="{{ study.id }}-{{ field.id }}-value" value="{{ option.id }}"{% if option.id in row.chosen %} checked{% endif %}>{{ option.value }}</label>
+  {% endfor %}
+{% elif field.field_type == "S" %}
+  <textarea class="form-control" name="{{ study.id }}-{{ field.id }}-value" rows="3">{{ row.value }}</textarea>
+{% else %}
+  <input type="text" class="form-control" maxlength="30" name="{{ study.id }}-{{ field.id }}-value" value="{{ row.value }}">
+{% endif %}
