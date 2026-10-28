@@ -18,4 +18,20 @@
       <a href="{% url 'reviews' user.username %}" class="btn btn-default">Cancel</a>
     </div>
   </form>
+
+  <h3 class="page-header">Or import a review backup</h3>
+  <form method="post" action="{% url 'reviews:import_review' %}" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="form-group">
+      <input type="file" name="file" accept=".gz,.tar.gz,application/gzip" required>
+      <p class="help-block">
+        A backup downloaded from Review settings → Backups, here or in another Parsifal: the review comes back with
+        everything it had, and you are its main author. Its people are matched by username; those without an account
+        here get an inactive one.
+      </p>
+    </div>
+    <div class="form-group">
+      <button type="submit" class="btn btn-default">Import review</button>
+    </div>
+  </form>
 {% endblock content %}

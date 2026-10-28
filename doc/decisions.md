@@ -632,3 +632,32 @@ text, and the definitive one is at the full text, with a criterion.
 
 **Consequences.** Migration `reviews.0051`. A review whose full-text decisions
 were never recorded shows every accepted study as awaiting.
+
+
+## Backups: the instance with its PDFs, and one review at a time
+
+**Context.** `manage.py backup` copied the database only, so the studies'
+PDFs had to be backed up apart. Helder asked (2026-10-28) for backups that
+include them, and for a backup and an import in each review's settings.
+
+**Decision.**
+- **Instance** (`manage.py backup` / `restore`, `core/backups.py`): one
+  `.tar.gz` with the database, every stored file (from the data directory or
+  downloaded from the bucket) and a manifest with checksums; `--keep N`;
+  `restore` checks the checksums and takes a backup of the current state
+  first; the Docker `serve` backs up before applying migrations.
+- **Review** (Review settings → Backups, main author): everything of one
+  review in one `.tar.gz` (`review.json`, the PDFs, a manifest), kept on the
+  server (`PARSIFAL_REVIEW_BACKUPS_KEEP`, 10), downloaded, uploaded back,
+  restored over the review (its content is backed up first; it keeps its name,
+  main author, people and agents with their tokens) or imported as a new
+  review (New review → Import a review backup), here or in another Parsifal.
+- People are matched by **username**; someone without an account gets an
+  inactive one with that username, so decisions and agreement keep their
+  authors. AI agents come back as agents of the review, without tokens. The
+  importer is the new review's main author. Default sources are matched by
+  name; ids inside the AI runs' parameters are mapped.
+- A backup made by a newer Parsifal (a later `reviews` migration) is refused.
+
+**Consequences.** Migration `reviews.0052` (`ReviewBackup`). Review backups
+are stored files, so the instance backup holds them too.

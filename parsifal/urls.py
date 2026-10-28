@@ -43,6 +43,16 @@ urlpatterns = [
         name="manage_access",
     ),
     path(
+        "<str:username>/<str:review_name>/settings/backups/",
+        reviews_settings_views.ReviewBackupsView.as_view(),
+        name="review_backups",
+    ),
+    path(
+        "<str:username>/<str:review_name>/settings/backups/<int:backup_id>/download/",
+        reviews_settings_views.DownloadReviewBackupView.as_view(),
+        name="download_review_backup",
+    ),
+    path(
         "<str:username>/<str:review_name>/settings/delete/",
         reviews_settings_views.DeleteReviewView.as_view(),
         name="delete_review",

@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
+from django.http import FileResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse as r
 from django.utils.text import slugify
@@ -9,10 +10,11 @@ from django.utils.translation import gettext
 from django.views import View
 
 from parsifal.apps.core.exceptions import DomainError
+from parsifal.apps.core.models import files_are_local, files_storage
 from parsifal.apps.reviews.decorators import main_author_required
 from parsifal.apps.reviews.mixins import MainAuthorRequiredMixin, ReviewMixin
 from parsifal.apps.reviews.models import Review
-from parsifal.apps.reviews.services import agents as agent_services, selection
+from parsifal.apps.reviews.services import agents as agent_services, review_backups, selection
 from parsifal.apps.reviews.settings.forms import ReviewSettingsForm
 
 
@@ -125,3 +127,61 @@ class ManageAccessView(LoginRequiredMixin, MainAuthorRequiredMixin, ReviewMixin,
         except DomainError as error:
             messages.error(request, str(error))
         return redirect("manage_access", self.review.author.username, self.review.name)
+
+
+class ReviewBackupsView(LoginRequiredMixin, MainAuthorRequiredMixin, ReviewMixin, View):
+    """
+    The review's backups kept on the server: back it up now, add a backup file, download one, restore one over the
+    review (what it has now is backed up first) or delete one.
+    """
+
+    template_name = "settings/review_backups.html"
+
+    def get(self, request, *args, **kwargs):
+        context = {
+            "review": self.review,
+            "backups": review_backups.list_backups(self.review, request.user),
+            "keep": review_backups.keep(),
+        }
+        return render(request, self.template_name, context)
+
+    def post(self, request, *args, **kwargs):
+        action = request.POST.get("action")
+        try:
+            if action == "create":
+                review_backups.create_backup(review=self.review, actor=request.user)
+                messages.success(request, gettext("The review was backed up."))
+            elif action == "upload":
+                upload = request.FILES.get("file")
+                if upload is None:
+                    raise DomainError(gettext("Choose a backup file."))
+                review_backups.upload_backup(
+                    review=self.review, actor=request.user, filename=upload.name, content=upload.read()
+                )
+                messages.success(request, gettext("The backup file was added to the list."))
+            elif action == "restore":
+                review_backups.restore_backup(
+                    review=self.review, actor=request.user, backup_id=request.POST.get("backup_id")
+                )
+                messages.success(
+                    request, gettext("The review was restored. What it had before is the first backup of the list.")
+                )
+            elif action == "delete":
+                review_backups.delete_backup(
+                    review=self.review, actor=request.user, backup_id=request.POST.get("backup_id")
+                )
+                messages.success(request, gettext("The backup was deleted."))
+        except DomainError as error:
+            messages.error(request, str(error))
+        return redirect("review_backups", self.review.author.username, self.review.name)
+
+
+class DownloadReviewBackupView(LoginRequiredMixin, MainAuthorRequiredMixin, ReviewMixin, View):
+    def get(self, request, *args, **kwargs):
+        try:
+            backup = review_backups.get_backup(self.review, request.user, kwargs["backup_id"])
+        except DomainError:
+            return redirect("review_backups", self.review.author.username, self.review.name)
+        if files_are_local():
+            return FileResponse(backup.file.open(), as_attachment=True, filename=backup.file.filename)
+        return redirect(files_storage().url(backup.file.key))

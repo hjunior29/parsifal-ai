@@ -77,6 +77,8 @@ Conventions used below:
 | `/<username>/<review_name>/settings/` | GET/POST | M | `name` (slug; collisions suffixed) | Rename URL. |
 | `/review_settings/transfer/` | POST | M | `review-id`, `transfer-user` (username) | New author = target; old author becomes co-author. |
 | `/<username>/<review_name>/settings/delete/` | POST | M | | Deletes review and its non-default sources (atomic). |
+| `/<username>/<review_name>/settings/backups/` | GET/POST | M | `action` create / upload (`file`) / restore / delete (`backup_id`) | The review's backups kept on the server (`services/review_backups.py`); `…/backups/<id>/download/` sends the `.tar.gz`. |
+| `/reviews/import/` | POST | L | `file` (a review backup) | A new review from it, the user its main author; redirect to the review page. |
 | `/<username>/<review_name>/settings/reset-selection/` | POST | M | `reviewer_ids` (repeated) | Back to the start of study selection (`services/selection.py`); redirects to the study selection page with the counts. |
 | `/reviews/remove_author/` | POST | M | `review-id`, `user-id` | Remove co-author. |
 | `/reviews/leave/` | POST | A | `review-id` | Current user leaves co-authorship. |

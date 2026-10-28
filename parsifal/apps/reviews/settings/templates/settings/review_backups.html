@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% load i18n %}
+
+{% block title %}{% trans "Backups" %} · {{ review.title }}{% endblock %}
+
+{% block content %}
+  {% include "reviews/review_header.html" %}
+  <div class="row">
+    <div class="col-md-3">
+      {% include "settings/includes/menu.html" with menu="backups" %}
+    </div>
+    <div class="col-md-9">
+
+      <div class="panel panel-default">
+        <div class="panel-heading clearfix">
+          <form method="post" class="pull-right">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <button type="submit" class="btn btn-primary btn-sm"><span class="glyphicon glyphicon-floppy-disk"></span> {% trans "Back up now" %}</button>
+          </form>
+          <h3 class="panel-title" style="padding-top: 5px;">{% trans "Backups of the review" %}</h3>
+        </div>
+        <div class="panel-body">
+          <p class="text-muted" style="margin-bottom: 0;">
+            A backup holds everything of the review: the protocol, the sources and search strings, the studies and
+            their PDFs, the reviewers' decisions, the AI screening runs, quality assessment, data extraction and
+            classification. The newest {{ keep }} are kept here. Download one to keep it elsewhere, or to import it
+            as a new review (New review → Import a review backup), here or in another Parsifal.
+          </p>
+        </div>
+        <table class="table table-v-align-middle">
+          <thead>
+            <tr>
+              <th>{% trans "Backup" %}</th>
+              <th>{% trans "Taken" %}</th>
+              <th style="text-align: right;">{% trans "Studies" %}</th>
+              <th style="text-align: right;">{% trans "Size" %}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for backup in backups %}
+              <tr>
+                <td>
+                  {{ backup.file.filename }}
+                  {% if backup.note %}<br><small class="text-muted">{{ backup.note }}</small>{% endif %}
+                </td>
+                <td>{{ backup.created_at|date:"SHORT_DATETIME_FORMAT" }}{% if backup.created_by %}<br><small class="text-muted">{{ backup.created_by.profile.get_screen_name }}</small>{% endif %}</td>
+                <td style="text-align: right;">{{ backup.studies }}</td>
+                <td style="text-align: right;">{{ backup.file.size|filesizeformat }}</td>
+                <td style="text-align: right; white-space: nowrap;">
+                  <a href="{% url 'download_review_backup' review.author.username review.name backup.pk %}" class="btn btn-default btn-sm"><span class="glyphicon glyphicon-download-alt"></span> {% trans "Download" %}</a>
+                  <button type="button" class="btn btn-warning btn-sm" data-toggle="modal" data-target="#restore-backup-{{ backup.pk }}">{% trans "Restore" %}</button>
+                  <form method="post" style="display: inline;" onsubmit="return confirm('{% trans "Delete this backup? The file is deleted." %}');">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="backup_id" value="{{ backup.pk }}">
+                    <button type="submit" class="btn btn-danger btn-sm"><span class="glyphicon glyphicon-trash"></span></button>
+                  </form>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="text-muted">{% trans "No backups yet." %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h3 class="panel-title">{% trans "Add a backup file" %}</h3>
+        </div>
+        <div class="panel-body">
+          <form method="post" enctype="multipart/form-data" class="form-inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="upload">
+            <div class="form-group">
+              <input type="file" name="file" accept=".gz,.tar.gz,application/gzip" required>
+            </div>
+            <button type="submit" class="btn btn-default btn-sm">{% trans "Add to the list" %}</button>
+          </form>
+          <p class="help-block small" style="margin-bottom: 0;">
+            A backup of this review downloaded before, or of a review from another Parsifal: it is checked and added
+            to the list, to be restored over this review.
+          </p>
+        </div>
+      </div>
+
+      {% for backup in backups %}
+        <div class="modal fade" id="restore-backup-{{ backup.pk }}" tabindex="-1" role="dialog" aria-labelledby="restore-backup-title-{{ backup.pk }}">
+          <div class="modal-dialog" role="document">
+            <form method="post" class="modal-content">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="restore">
+              <input type="hidden" name="backup_id" value="{{ backup.pk }}">
+              <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title" id="restore-backup-title-{{ backup.pk }}">{% trans "Restore this backup?" %}</h4>
+              </div>
+              <div class="modal-body">
+                <p>
+                  Everything of the review is replaced by <strong>{{ backup.file.filename }}</strong>
+                  ({{ backup.studies }} stud{{ backup.studies|pluralize:"y,ies" }}). The review keeps its name, its
+                  main author, its people and AI agents (and their tokens).
+                </p>
+                <p class="text-muted" style="margin-bottom: 0;">What the review has now is backed up first: it will be the first backup of the list.</p>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">{% trans "Cancel" %}</button>
+                <button type="submit" class="btn btn-warning">{% trans "Restore" %}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+
+    </div>
+  </div>
+{% endblock content %}

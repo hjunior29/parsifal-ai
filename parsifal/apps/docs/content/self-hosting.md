@@ -44,6 +44,8 @@ gunicorn parsifal.wsgi:application --bind 0.0.0.0:8000 --workers 2
 | `CSRF_TRUSTED_ORIGINS` | empty | Public origin when it differs from the host Django sees. |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL` | console | Without `EMAIL_HOST`, e-mails (password reset) are written to the log. |
 | `PARSIFAL_PDF_MAX_MB` | `50` | Largest PDF accepted per study. |
+| `PARSIFAL_REVIEW_BACKUPS_KEEP` | `10` | Backups kept per review (Review settings → Backups). |
+| `PARSIFAL_BACKUP_KEEP` | `10` | Docker: instance backups kept when `serve` takes one before migrations. |
 | `PARSIFAL_FILES_BUCKET` | empty | Keep the PDFs in an S3-compatible bucket (next section). |
 
 ## Full texts in a bucket
@@ -87,6 +89,13 @@ replaces the database and writes back the PDFs that are missing; an old
 `.sqlite3` backup restores the database alone. In Docker, `serve` takes a
 backup before applying migrations (`PARSIFAL_BACKUP_KEEP`, default 10, are
 kept).
+
+One review at a time: **Review settings → Backups** backs it up (everything
+of it, PDFs included) into a list kept on the server, to download, restore over
+the review (what it has now is backed up first) or delete. A downloaded backup
+becomes a new review in **New review → Import a review backup**, here or in
+another Parsifal; people are matched by username (those without an account get
+an inactive one) and AI agents come back without tokens.
 
 ## Upgrading
 

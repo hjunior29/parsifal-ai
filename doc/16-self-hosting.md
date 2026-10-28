@@ -84,6 +84,8 @@ still show the nginx + supervisor layout if you prefer a front web server.
 | `EMAIL_*`, `DEFAULT_FROM_EMAIL` | console backend | SMTP delivery. |
 | `GUNICORN_WORKERS`, `GUNICORN_TIMEOUT`, `PORT` | `2`, `120`, `8000` | Container only. |
 | `PARSIFAL_PDF_MAX_MB` | `50` | Largest PDF accepted per study. |
+| `PARSIFAL_REVIEW_BACKUPS_KEEP` | `10` | Backups kept per review (Review settings → Backups). |
+| `PARSIFAL_BACKUP_KEEP` | `10` | Docker: instance backups kept when `serve` takes one before migrations. |
 | `PARSIFAL_FILES_BUCKET` | empty | Keep the PDFs in this S3-compatible bucket instead of `<data dir>/files`. |
 | `AWS_ENDPOINT_URL_S3`, `AWS_REGION` | empty | The bucket's endpoint and region (Tigris: `https://fly.storage.tigris.dev`, `auto`). |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | empty | The bucket's credentials, read by boto3 (never stored in the settings). |

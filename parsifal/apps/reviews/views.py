@@ -7,9 +7,11 @@ from django.urls import reverse as r
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
+from parsifal.apps.core.exceptions import DomainError
 from parsifal.apps.reviews.decorators import author_required, main_author_required
 from parsifal.apps.reviews.forms import CreateReviewForm, ReviewForm
 from parsifal.apps.reviews.models import Review
+from parsifal.apps.reviews.services import review_backups
 
 
 @login_required
@@ -43,6 +45,23 @@ def new(request):
     else:
         form = CreateReviewForm()
     return render(request, "reviews/new.html", {"form": form})
+
+
+@login_required
+@require_POST
+def import_review(request):
+    """A new review from a review backup (downloaded from Review settings → Backups, here or in another Parsifal)."""
+    upload = request.FILES.get("file")
+    if upload is None:
+        messages.error(request, "Choose a review backup file.")
+        return redirect(r("reviews:new"))
+    try:
+        review = review_backups.import_review(actor=request.user, content=upload.read())
+    except DomainError as error:
+        messages.error(request, str(error))
+        return redirect(r("reviews:new"))
+    messages.success(request, "The review was imported from the backup.")
+    return redirect(r("review", args=(review.author.username, review.name)))
 
 
 @author_required

@@ -13,6 +13,7 @@ from parsifal.api.v1.routers import (
     mapping,
     protocol,
     quality,
+    review_backups,
     reviews,
 )
 
@@ -35,6 +36,7 @@ errors.register(api)
 
 api.add_router("", accounts.router)
 api.add_router("", reviews.router)
+api.add_router("", review_backups.router)
 api.add_router("", protocol.router)
 api.add_router("", quality.router)
 api.add_router("", extraction.router)

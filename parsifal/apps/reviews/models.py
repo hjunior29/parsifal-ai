@@ -1019,3 +1019,31 @@ class ScreeningResult(models.Model):
 
     def __str__(self):
         return f"{self.article_id}: {self.get_outcome_display()}"
+
+
+class ReviewBackup(models.Model):
+    """
+    A backup of one review kept on the server: everything of it in one .tar.gz (see services.review_backups), which
+    can be downloaded, restored over the review or imported as a new review.
+    """
+
+    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="backups")
+    file = models.OneToOneField(StoredFile, on_delete=models.CASCADE, related_name="review_backup")
+    note = models.CharField(_("note"), max_length=200, blank=True)  # e.g. taken before a restore, or uploaded
+    studies = models.PositiveIntegerField(_("studies"), default=0)
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("review backup")
+        verbose_name_plural = _("review backups")
+        ordering = ("-created_at", "-pk")
+
+    def __str__(self):
+        return self.file.filename
+
+
+@receiver(post_delete, sender=ReviewBackup)
+def delete_review_backup_file(sender, instance, **kwargs):
+    """The archive goes with its place in the list."""
+    StoredFile.objects.filter(pk=instance.file_id).delete()

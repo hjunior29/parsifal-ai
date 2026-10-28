@@ -182,6 +182,8 @@ group and marks the rest `D`.
   Screen with AI follow it; each run keeps the rule it used in `parameters.inclusion_rule`).
 - `Review.prisma_not_retrieved` (exclusion criterion, nullable): in the PRISMA flow diagram, studies rejected at the
   full text with it are reports not retrieved.
+- `ReviewBackup(review CASCADE, file → core.StoredFile CASCADE (the .tar.gz; deleted with the row), note, studies,
+  created_by SET_NULL, created_at)`: a backup of one review kept on the server (`services/review_backups.py`).
 - `ScreeningRun(review, reviewer → User CASCADE (the member the decisions are recorded as), started_by SET_NULL, phase
   exclusion/inclusion/screen (the action, in no order; retention for the runs of the removed Retain with AI), model, parameters JSON, status running (also while interrupted)/finished/cancelled (discarded by a newer run)/failed
   (older runs only), total, error (why it waits), last_step_at (a step in the last 30 s means it is being driven),

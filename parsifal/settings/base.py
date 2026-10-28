@@ -223,6 +223,8 @@ else:
     }
 
 PARSIFAL_PDF_MAX_MB = config("PARSIFAL_PDF_MAX_MB", default=50, cast=int)
+# Backups of each review kept on the server (Review settings → Backups); the oldest beyond it are deleted.
+PARSIFAL_REVIEW_BACKUPS_KEEP = config("PARSIFAL_REVIEW_BACKUPS_KEEP", default=10, cast=int)
 
 
 # ==============================================================================
