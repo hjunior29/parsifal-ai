@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.forms.formsets import formset_factory
 from django.forms.models import inlineformset_factory
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import Http404, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse as r
@@ -26,7 +26,17 @@ from parsifal.apps.reviews.models import (
     Source,
 )
 from parsifal.apps.reviews.planning.forms import KeywordForm, SynonymForm
-from parsifal.apps.reviews.services import reviews
+from parsifal.apps.reviews.services import protocol as protocol_services, reviews
+
+NEW = ("", "None")  # the id a row's form sends for an object not saved yet
+
+
+def child(queryset, pk):
+    """The review's object with this primary key: 404 when it does not exist or belongs to another review."""
+    try:
+        return queryset.get(pk=pk)
+    except (queryset.model.DoesNotExist, ValueError, TypeError):
+        raise Http404
 
 
 @author_required
@@ -68,11 +78,11 @@ def data_extraction_form(request, username, review_name):
 
 @author_required
 @login_required
+@require_POST
 def save_objective(request):
     try:
-        review_id = request.POST["review-id"]
         objective = request.POST["objective"]
-        review = Review.objects.get(pk=review_id)
+        review = request.review
         if len(objective) > 1000:
             return HttpResponseBadRequest(
                 "The review objectives should not exceed 1000 characters. The given objectives have %s characters."
@@ -93,20 +103,20 @@ def save_objective(request):
 
 @author_required
 @login_required
+@require_POST
 def save_question(request):
     """
     Function used via Ajax request only.
     This function takes a review question form and save on the database
     """
     try:
-        review_id = request.POST["review-id"]
         question_id = request.POST["question-id"]
         description = request.POST["description"]
-        review = Review.objects.get(pk=review_id)
-        try:
-            question = Question.objects.get(pk=question_id)
-        except Exception:
+        review = request.review
+        if question_id in NEW:
             question = Question(review=review)
+        else:
+            question = child(review.research_questions, question_id)
         question.question = description[:500]
         question.save()
         return render(request, "planning/partial_planning_question.html", {"question": question})
@@ -114,18 +124,25 @@ def save_question(request):
         return HttpResponseBadRequest()
 
 
+def save_order(queryset, orders):
+    """Apply "id:order,id:order" to the review's objects; rows still being added ("None") are skipped."""
+    with transaction.atomic():
+        for item in orders.split(","):
+            if item:
+                pk, order = item.split(":")
+                if pk in NEW:
+                    continue
+                obj = child(queryset, pk)
+                obj.order = int(order)
+                obj.save(update_fields=["order"])
+
+
 @author_required
 @login_required
+@require_POST
 def save_question_order(request):
     try:
-        orders = request.POST.get("orders")
-        question_orders = orders.split(",")
-        for question_order in question_orders:
-            if question_order:
-                question_id, order = question_order.split(":")
-                question = Question.objects.get(pk=question_id)
-                question.order = order
-                question.save()
+        save_order(request.review.research_questions, request.POST["orders"])
         return HttpResponse()
     except Exception:
         return HttpResponseBadRequest()
@@ -133,19 +150,19 @@ def save_question_order(request):
 
 @author_required
 @login_required
+@require_POST
 def add_or_edit_question(request):
     """
     Function used via Ajax request only.
     This functions adds a new secondary question to the review.
     """
     try:
-        review_id = request.POST["review-id"]
         question_id = request.POST["question-id"]
-        review = Review.objects.get(pk=review_id)
-        try:
-            question = Question.objects.get(pk=question_id)
-        except Exception:
+        review = request.review
+        if question_id in NEW:
             question = Question(review=review)
+        else:
+            question = child(review.research_questions, question_id)
         return render(request, "planning/partial_planning_question_form.html", {"question": question})
     except Exception:
         return HttpResponseBadRequest()
@@ -153,20 +170,16 @@ def add_or_edit_question(request):
 
 @author_required
 @login_required
+@require_POST
 def remove_question(request):
     """
     Function used via Ajax request only.
     This function removes a secondary question from the review.
     """
     try:
-        review_id = request.POST["review-id"]
         question_id = request.POST["question-id"]
         if question_id != "None":
-            try:
-                question = Question.objects.get(pk=question_id, review_id=review_id)
-                question.delete()
-            except Question.DoesNotExist:
-                return HttpResponseBadRequest()
+            child(request.review.research_questions, question_id).delete()
         return HttpResponse()
     except Exception:
         return HttpResponseBadRequest()
@@ -179,10 +192,10 @@ def remove_question(request):
 
 @author_required
 @login_required
+@require_POST
 def save_picoc(request):
     try:
-        review_id = request.POST["review-id"]
-        review = Review.objects.get(pk=review_id)
+        review = request.review
         review.population = request.POST["population"][:200]
         review.intervention = request.POST["intervention"][:200]
         review.comparison = request.POST["comparison"][:200]
@@ -223,10 +236,10 @@ def extract_keywords(review, pico):
 
 @author_required
 @login_required
+@require_POST
 def import_pico_keywords(request):
     try:
-        review_id = request.GET["review-id"]
-        review = Review.objects.get(pk=review_id)
+        review = request.review
         keywords = []
 
         keywords += extract_keywords(review, Keyword.POPULATION)
@@ -245,13 +258,11 @@ def import_pico_keywords(request):
 
 @author_required
 @login_required
+@require_POST
 def remove_keyword(request):
     try:
-        review_id = request.GET["review-id"]
-        keyword_id = request.GET["keyword-id"]
-        keyword = Keyword.objects.get(pk=keyword_id, review_id=review_id)
-        synonyms = Keyword.objects.filter(synonym_of__id=keyword_id)
-        for synonym in synonyms:
+        keyword = child(request.review.keywords, request.POST["keyword-id"])
+        for synonym in keyword.synonyms.all():
             synonym.delete()
         keyword.delete()
         return HttpResponse()
@@ -263,8 +274,7 @@ def remove_keyword(request):
 @author_required
 @login_required
 def add_keyword(request):
-    review_id = request.GET.get("review-id", request.POST.get("review-id"))
-    review = Review.objects.get(pk=review_id)
+    review = request.review
     SynonymFormSet = formset_factory(SynonymForm)
     response = {}
     if request.method == "POST":
@@ -301,11 +311,8 @@ def add_keyword(request):
 @author_required
 @login_required
 def edit_keyword(request):
-    review_id = request.GET.get("review-id", request.POST.get("review-id"))
-    keyword_id = request.GET.get("keyword-id", request.POST.get("keyword-id"))
-
-    review = get_object_or_404(Review, pk=review_id)
-    keyword = get_object_or_404(Keyword, pk=keyword_id, review_id=review_id)
+    review = request.review
+    keyword = child(review.keywords, request.POST.get("keyword-id") or request.GET.get("keyword-id"))
 
     SynonymFormSet = inlineformset_factory(Keyword, Keyword, SynonymForm, extra=1)
     response = {}
@@ -350,8 +357,7 @@ def generate_search_string(request):
     Function used via Ajax request only.
     Still have to refactor this function. This is just a first approach.
     """
-    review_id = request.GET["review-id"]
-    review = Review.objects.get(pk=review_id)
+    review = request.review
 
     keywords = []
     for key, value in Keyword.RELATED_TO:
@@ -368,11 +374,11 @@ def generate_search_string(request):
 
 @author_required
 @login_required
+@require_POST
 def save_generic_search_string(request):
     try:
-        review_id = request.POST["review-id"]
         search_string = request.POST["search-string"]
-        review = Review.objects.get(pk=review_id)
+        review = request.review
         generic_search_string = review.get_generic_search_string()
         generic_search_string.search_string = search_string
         generic_search_string.save()
@@ -401,6 +407,7 @@ def html_source(source):
 
 @author_required
 @login_required
+@require_POST
 def save_source(request):
     """
     Function used via Ajax request only.
@@ -411,49 +418,27 @@ def save_source(request):
     will just edit the existing source and save the model.
     """
     try:
-        review_id = request.GET["review-id"]
-        source_id = request.GET["source-id"]
-        name = request.GET["name"][:100]
-        url = request.GET["url"][:200]
-
-        review = Review.objects.get(pk=review_id)
+        source_id = request.POST["source-id"]
+        name = request.POST["name"][:100]
+        url = request.POST["url"][:200]
         if source_id:
-            source = get_object_or_404(Source, pk=source_id)
-            source.name = name
-            source.set_url(url)
-            source.save()
-            review.sources.add(source)
-            review.save()
+            source = protocol_services.update_source(review=request.review, source_id=source_id, name=name, url=url)
         else:
-            source = Source()
-            source.name = name
-            source.set_url(url)
-            source.save()
-            review.sources.add(source)
-            review.save()
+            source = protocol_services.create_source(review=request.review, name=name, url=url)
         return HttpResponse(html_source(source))
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
     except Exception:
         return HttpResponseBadRequest()
 
 
 @author_required
 @login_required
+@require_POST
 def remove_source_from_review(request):
+    """Detach one of the review's sources (a custom source is deleted, with the review's studies from it)."""
     try:
-        source_id = request.GET["source-id"]
-        review_id = request.GET["review-id"]
-        source = Source.objects.get(pk=source_id)
-        review = Review.objects.get(pk=review_id)
-        review.sources.remove(source)
-        if source.is_default:
-            review.get_source_articles(source.id).delete()
-            try:
-                review.searchsession_set.filter(source=source).delete()
-            except Exception:
-                pass
-        else:
-            source.delete()
-        review.save()
+        protocol_services.detach_source(review=request.review, source_id=request.POST["source-id"])
         return HttpResponse()
     except Exception:
         return HttpResponseBadRequest()
@@ -463,8 +448,7 @@ def remove_source_from_review(request):
 @login_required
 def suggested_sources(request):
     try:
-        review_id = request.GET["review-id"]
-        review = Review.objects.get(pk=review_id)
+        review = request.review
         default_sources = Source.objects.filter(is_default=True)
         sources = filter(lambda s: s not in review.sources.all(), default_sources)
         return_html = ""
@@ -478,13 +462,13 @@ def suggested_sources(request):
                 + """" name="source-id">
               </td>
               <td>"""
-                + str(source.name)
+                + escape(source.name)
                 + '''</td>
               <td>
                 <a href="'''
-                + source.url
+                + escape(source.url)
                 + """" target="_blank">"""
-                + source.url
+                + escape(source.url)
                 + """</a>
               </td>
             </tr>"""
@@ -496,14 +480,14 @@ def suggested_sources(request):
 
 @author_required
 @login_required
+@require_POST
 def add_suggested_sources(request):
     try:
         source_ids = request.POST.getlist("source-id")
-        review_id = request.POST["review-id"]
-        review = Review.objects.get(pk=review_id)
+        review = request.review
         return_html = ""
         for source_id in source_ids:
-            source = Source.objects.get(pk=source_id)
+            source = child(Source.objects.filter(is_default=True), source_id)
             review.sources.add(source)
             return_html += html_source(source)
         review.save()
@@ -519,13 +503,12 @@ def add_suggested_sources(request):
 
 @author_required
 @login_required
+@require_POST
 def add_criteria(request):
     try:
-        review_id = request.GET["review-id"]
-        description = request.GET["criteria"]
-        criteria_type = request.GET["criteria-type"]
-        review = Review.objects.get(pk=review_id)
-        criteria = SelectionCriteria(review=review, description=description, criteria_type=criteria_type)
+        description = request.POST["criteria"]
+        criteria_type = request.POST["criteria-type"]
+        criteria = SelectionCriteria(review=request.review, description=description, criteria_type=criteria_type)
         criteria.save()
         return render(request, "planning/partial_criteria.html", {"criteria": criteria})
     except Exception:
@@ -537,7 +520,7 @@ def add_criteria(request):
 @require_POST
 def save_inclusion_rule(request):
     """Whether a study must meet all the inclusion criteria or at least one (Include and Screen with AI follow it)."""
-    review = get_object_or_404(Review, pk=request.POST.get("review-id"))
+    review = request.review
     try:
         reviews.update_review(review=review, inclusion_rule=request.POST.get("inclusion-rule"))
     except DomainError as error:
@@ -547,14 +530,12 @@ def save_inclusion_rule(request):
 
 @author_required
 @login_required
+@require_POST
 def remove_criteria(request):
     try:
-        review_id = request.GET["review-id"]
-        criteria_ids = request.GET["criteria-ids"]
-        ids = criteria_ids.split(",")
-        for id in ids:
-            criteria = SelectionCriteria.objects.get(pk=id, review_id=review_id)
-            criteria.delete()
+        criteria = [child(request.review.selectioncriteria_set, pk) for pk in request.POST["criteria-ids"].split(",")]
+        for item in criteria:
+            item.delete()
         return HttpResponse()
     except Exception:
         return HttpResponseBadRequest()
@@ -583,8 +564,7 @@ def add_quality_assessment_question(request):
 @login_required
 def edit_quality_assessment_question(request):
     try:
-        quality_question_id = request.GET["quality-question-id"]
-        quality_question = QualityQuestion.objects.get(pk=quality_question_id)
+        quality_question = child(request.review.qualityquestion_set, request.GET["quality-question-id"])
         return render(
             request,
             "planning/partial_quality_assessment_question_form.html",
@@ -596,18 +576,18 @@ def edit_quality_assessment_question(request):
 
 @author_required
 @login_required
+@require_POST
 def save_quality_assessment_question(request):
     try:
         description = request.POST["description"]
-        review_id = request.POST["review-id"]
         quality_question_id = request.POST["quality-question-id"]
 
-        review = Review.objects.get(pk=review_id)
+        review = request.review
 
-        if quality_question_id == "None":
+        if quality_question_id in NEW:
             quality_question = QualityQuestion(review=review)
         else:
-            quality_question = QualityQuestion.objects.get(pk=quality_question_id)
+            quality_question = child(review.qualityquestion_set, quality_question_id)
 
         quality_question.description = description
         quality_question.save()
@@ -623,16 +603,10 @@ def save_quality_assessment_question(request):
 
 @author_required
 @login_required
+@require_POST
 def save_quality_assessment_question_order(request):
     try:
-        orders = request.POST.get("orders")
-        question_orders = orders.split(",")
-        for question_order in question_orders:
-            if question_order:
-                question_id, order = question_order.split(":")
-                question = QualityQuestion.objects.get(pk=question_id)
-                question.order = order
-                question.save()
+        save_order(request.review.qualityquestion_set, request.POST["orders"])
         return HttpResponse()
     except Exception:
         return HttpResponseBadRequest()
@@ -640,11 +614,10 @@ def save_quality_assessment_question_order(request):
 
 @author_required
 @login_required
+@require_POST
 def remove_quality_assessment_question(request):
     try:
-        quality_question_id = request.GET["quality-question-id"]
-        quality_question = QualityQuestion.objects.get(pk=quality_question_id)
-        quality_question.delete()
+        child(request.review.qualityquestion_set, request.POST["quality-question-id"]).delete()
         return HttpResponse()
     except Exception:
         return HttpResponseBadRequest()
@@ -668,8 +641,7 @@ def add_quality_assessment_answer(request):
 @login_required
 def edit_quality_assessment_answer(request):
     try:
-        quality_answer_id = request.GET["quality-answer-id"]
-        quality_answer = QualityAnswer.objects.get(pk=quality_answer_id)
+        quality_answer = child(request.review.qualityanswer_set, request.GET["quality-answer-id"])
         return render(
             request,
             "planning/partial_quality_assessment_answer_form.html",
@@ -681,11 +653,11 @@ def edit_quality_assessment_answer(request):
 
 @author_required
 @login_required
+@require_POST
 def save_quality_assessment_answer(request):
     try:
         description = request.POST["description"]
         weight = request.POST["weight"]
-        review_id = request.POST["review-id"]
         quality_answer_id = request.POST["quality-answer-id"]
 
         weight = weight.replace(",", ".")
@@ -694,12 +666,12 @@ def save_quality_assessment_answer(request):
         except Exception:
             weight = 0.0
 
-        review = Review.objects.get(pk=review_id)
+        review = request.review
 
-        if quality_answer_id == "None":
+        if quality_answer_id in NEW:
             quality_answer = QualityAnswer(review=review)
         else:
-            quality_answer = QualityAnswer.objects.get(pk=quality_answer_id)
+            quality_answer = child(review.qualityanswer_set, quality_answer_id)
 
         quality_answer.description = description
         quality_answer.weight = weight
@@ -716,11 +688,10 @@ def save_quality_assessment_answer(request):
 
 @author_required
 @login_required
+@require_POST
 def remove_quality_assessment_answer(request):
     try:
-        quality_answer_id = request.GET["quality-answer-id"]
-        quality_answer = QualityAnswer.objects.get(pk=quality_answer_id)
-        quality_answer.delete()
+        child(request.review.qualityanswer_set, request.POST["quality-answer-id"]).delete()
         return HttpResponse()
     except Exception:
         return HttpResponseBadRequest()
@@ -728,10 +699,10 @@ def remove_quality_assessment_answer(request):
 
 @author_required
 @login_required
+@require_POST
 def add_suggested_answer(request):
     try:
-        review_id = request.GET["review-id"]
-        review = Review.objects.get(pk=review_id)
+        review = request.review
         if not review.get_quality_assessment_answers():
             html_answers = ""
             for answer, value in QualityAnswer.SUGGESTED_ANSWERS:
@@ -758,9 +729,7 @@ def add_suggested_answer(request):
 @login_required
 def calculate_max_score(request):
     try:
-        review_id = request.GET["review-id"]
-        review = Review.objects.get(pk=review_id)
-        max_score = review.calculate_quality_assessment_max_score()
+        max_score = request.review.calculate_quality_assessment_max_score()
         return HttpResponse(max_score)
     except Exception:
         return HttpResponseBadRequest()
@@ -768,11 +737,11 @@ def calculate_max_score(request):
 
 @author_required
 @login_required
+@require_POST
 def save_cutoff_score(request):
     try:
-        review_id = request.GET["review-id"]
-        cutoff_score = request.GET["cutoff-score"]
-        review = Review.objects.get(pk=review_id)
+        cutoff_score = request.POST["cutoff-score"]
+        review = request.review
         review.quality_assessment_cutoff_score = float(cutoff_score)
         review.save()
         return HttpResponse("Cutoff score saved successfully!")
@@ -795,16 +764,15 @@ def add_new_data_extraction_field(request):
 @author_required
 @login_required
 def edit_data_extraction_field(request):
-    field_id = request.GET["field-id"]
-    field = DataExtractionField.objects.get(pk=field_id)
+    field = child(request.review.dataextractionfield_set, request.GET.get("field-id"))
     return render(request, "planning/partial_data_extraction_field_form.html", {"field": field})
 
 
 @author_required
 @login_required
+@require_POST
 def save_data_extraction_field(request):
     try:
-        review_id = request.POST["review-id"]
         description = request.POST["description"]
         field_type = request.POST["field-type"]
         lookup_values = request.POST["lookup-values"]
@@ -819,15 +787,15 @@ def save_data_extraction_field(request):
         for i in range(0, len(lookup_values)):
             lookup_values[i] = lookup_values[i].strip()
 
-        review = Review.objects.get(pk=review_id)
+        review = request.review
 
-        if field_id == "None":
+        if field_id in NEW:
             field = DataExtractionField(review=review)
         else:
-            field = DataExtractionField.objects.get(pk=field_id)
+            field = child(review.dataextractionfield_set, field_id)
             if field.field_type != field_type:
                 try:
-                    data_extractions = DataExtraction.objects.filter(field__id=field_id)
+                    data_extractions = DataExtraction.objects.filter(field=field)
                     for data_extraction in data_extractions:
                         data_extraction.value = ""
                         data_extraction.select_values.clear()
@@ -856,16 +824,10 @@ def save_data_extraction_field(request):
 
 @author_required
 @login_required
+@require_POST
 def save_data_extraction_field_order(request):
     try:
-        orders = request.POST.get("orders")
-        field_orders = orders.split(",")
-        for field_order in field_orders:
-            if field_order:
-                field_id, order = field_order.split(":")
-                field = DataExtractionField.objects.get(pk=field_id)
-                field.order = order
-                field.save()
+        save_order(request.review.dataextractionfield_set, request.POST["orders"])
         return HttpResponse()
     except Exception:
         return HttpResponseBadRequest()
@@ -873,10 +835,10 @@ def save_data_extraction_field_order(request):
 
 @author_required
 @login_required
+@require_POST
 def remove_data_extraction_field(request):
     try:
-        field_id = request.GET["field-id"]
-        field = DataExtractionField.objects.get(pk=field_id)
+        field = child(request.review.dataextractionfield_set, request.POST["field-id"])
         select_values = field.get_select_values()
         for select_value in select_values:
             select_value.delete()

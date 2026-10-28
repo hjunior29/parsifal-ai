@@ -3,9 +3,9 @@ $(function () {
   $("#import-pico-keywords").click(function () {
     $.ajax({
       url: '/reviews/planning/import_pico_keywords/',
-      data: { 'review-id': $('#review-id').val() },
+      data: { 'review-id': $('#review-id').val(), "csrfmiddlewaretoken": $("input[name=csrfmiddlewaretoken]").first().val() },
       cache: false,
-      type: 'get',
+      type: 'post',
       success: function (data) {
         $("#table-keywords tbody").append(data);
       }
@@ -31,10 +31,11 @@ $(function () {
     $.ajax({
       url: '/reviews/planning/remove_keyword/',
       data: {
-        'review-id': $('#review-id').val(), 
-        'keyword-id': keyword_id 
+        'review-id': $('#review-id').val(),
+        'keyword-id': keyword_id,
+        "csrfmiddlewaretoken": $("input[name=csrfmiddlewaretoken]").first().val()
       },
-      type: 'get',
+      type: 'post',
       cache: false,
       success: function (data) {
         $(row).remove();

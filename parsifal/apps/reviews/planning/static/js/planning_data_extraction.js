@@ -96,8 +96,8 @@ $(function () {
     
     $.ajax({
       url: '/reviews/planning/remove_data_extraction_field/',
-      data: {'review-id': review_id, 'field-id': field_id},
-      type: 'get',
+      data: {'review-id': review_id, 'field-id': field_id, "csrfmiddlewaretoken": $("input[name=csrfmiddlewaretoken]").first().val()},
+      type: 'post',
       cache: false,
       beforeSend: function () {
         $(btn).ajaxDisable();

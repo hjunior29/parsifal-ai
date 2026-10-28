@@ -27,7 +27,7 @@ class CriteriaViewsTest(TestCase):
         self.assertContains(response, 'class="form-control criteria-listbox" id="exclusion-criteria"')
 
     def test_add_returns_an_escaped_list_row(self):
-        response = self.client.get(
+        response = self.client.post(
             reverse("reviews:planning:add_criteria"),
             {"review-id": self.review.pk, "criteria": "<b>CI9</b>", "criteria-type": "I"},
         )

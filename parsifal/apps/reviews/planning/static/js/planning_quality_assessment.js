@@ -104,8 +104,8 @@ $(function () {
     
     $.ajax({
       url: '/reviews/planning/remove_quality_assessment_question/',
-      data: {'review-id': review_id, 'quality-question-id': quality_question_id},
-      type: 'get',
+      data: {'review-id': review_id, 'quality-question-id': quality_question_id, "csrfmiddlewaretoken": $("input[name=csrfmiddlewaretoken]").first().val()},
+      type: 'post',
       cache: false,
       success: function (data) {
         $(row).remove();
@@ -251,8 +251,8 @@ $(function () {
     
     $.ajax({
       url: '/reviews/planning/remove_quality_assessment_answer/',
-      data: {'review-id': review_id, 'quality-answer-id': quality_answer_id},
-      type: 'get',
+      data: {'review-id': review_id, 'quality-answer-id': quality_answer_id, "csrfmiddlewaretoken": $("input[name=csrfmiddlewaretoken]").first().val()},
+      type: 'post',
       cache: false,
       success: function (data) {
         $(row).remove();
@@ -267,8 +267,8 @@ $(function () {
   $("#add-suggested-answers").click(function () {
     $.ajax({
       url: '/reviews/planning/add_suggested_answer/',
-      data: {'review-id': $("#review-id").val()},
-      type: 'get',
+      data: {'review-id': $("#review-id").val(), "csrfmiddlewaretoken": $("input[name=csrfmiddlewaretoken]").first().val()},
+      type: 'post',
       cache: false,
       success: function (data) {
         $("#tbl-quality-answers tbody").replaceWith("<tbody>" + data + "</tbody>");
@@ -285,8 +285,8 @@ $(function () {
 
     $.ajax({
       url: '/reviews/planning/save_cutoff_score/',
-      data: {'review-id': review_id, 'cutoff-score': cutoff_score},
-      type: 'get',
+      data: {'review-id': review_id, 'cutoff-score': cutoff_score, "csrfmiddlewaretoken": $("input[name=csrfmiddlewaretoken]").first().val()},
+      type: 'post',
       cache: false,
       beforeSend: function () {
         $(btn).ajaxDisable();

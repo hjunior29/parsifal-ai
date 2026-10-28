@@ -6,9 +6,10 @@ $(function () {
       data: { 
         'criteria': criteria, 
         'review-id': review_id,
-        'criteria-type': type
+        'criteria-type': type,
+        "csrfmiddlewaretoken": $("input[name=csrfmiddlewaretoken]").first().val()
       },
-      type: 'get',
+      type: 'post',
       cache: false,
       success: function (data) {
         // Keep the list in the server's order (by description).
@@ -70,8 +71,8 @@ $(function () {
     var ids = selected.map(function () { return $(this).data("id"); }).get();
     $.ajax({
       url: '/reviews/planning/remove_criteria/',
-      data: { 'review-id': $('#review-id').val(), 'criteria-ids': ids.join(",") },
-      type: 'get',
+      data: { 'review-id': $('#review-id').val(), 'criteria-ids': ids.join(","), "csrfmiddlewaretoken": $("input[name=csrfmiddlewaretoken]").first().val() },
+      type: 'post',
       cache: false,
       success: function () {
         selected.remove();

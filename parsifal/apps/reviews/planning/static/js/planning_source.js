@@ -14,9 +14,10 @@ $(function () {
         'name': name, 
         'url': url, 
         'review-id': review_id,
-        'source-id': source_editing_id
+        'source-id': source_editing_id,
+        "csrfmiddlewaretoken": $("input[name=csrfmiddlewaretoken]").first().val()
       },
-      type: 'get',
+      type: 'post',
       cache: false,
       beforeSend: function () {
 
@@ -62,8 +63,8 @@ $(function () {
     var row = $("#tbl-sources tr[source-id='" + source_id + "']");;
     $.ajax({
       url: '/reviews/planning/remove_source/',
-      data: { 'review-id': review_id, 'source-id': source_id },
-      type: 'get',
+      data: { 'review-id': review_id, 'source-id': source_id, "csrfmiddlewaretoken": $("input[name=csrfmiddlewaretoken]").first().val() },
+      type: 'post',
       cache: false,
       success: function(data) {
         $(row).remove();
