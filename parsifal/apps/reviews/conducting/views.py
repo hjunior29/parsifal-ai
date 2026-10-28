@@ -23,15 +23,7 @@ from parsifal.apps.core import library_proxy
 from parsifal.apps.core.exceptions import DomainError
 from parsifal.apps.core.models import files_are_local, files_storage
 from parsifal.apps.reviews.decorators import author_required
-from parsifal.apps.reviews.models import (
-    Article,
-    DataExtractionField,
-    Review,
-    SearchSession,
-    SelectionCriteria,
-    Source,
-    StudyDecision,
-)
+from parsifal.apps.reviews.models import Article, DataExtractionField, Review, SearchSession, Source, StudyDecision
 from parsifal.apps.reviews.services import (
     ai_runs,
     ai_screening as ai_screening_service,
@@ -73,10 +65,8 @@ def search_studies(request, username, review_name):
 @require_POST
 def save_source_string(request):
     try:
-        review_id = request.POST.get("review-id")
-        source_id = request.POST.get("source-id")
-        review = Review.objects.get(pk=review_id)
-        source = Source.objects.get(pk=source_id)
+        review = request.review
+        source = review.sources.get(pk=request.POST.get("source-id"))
         search_string = request.POST.get("search_string")
         try:
             search_session = review.get_latest_source_search_strings().get(source=source)
@@ -93,10 +83,8 @@ def save_source_string(request):
 @login_required
 @require_POST
 def remove_source_string(request):
-    review_id = request.POST.get("review-id")
-    source_id = request.POST.get("source-id")
-    review = get_object_or_404(Review, pk=review_id)
-    source = get_object_or_404(Source, pk=source_id)
+    review = request.review
+    source = get_object_or_404(review.sources, pk=request.POST.get("source-id"))
     try:
         search_session = review.get_latest_source_search_strings().get(source=source)
         search_session.delete()
@@ -111,10 +99,8 @@ def remove_source_string(request):
 @require_POST
 def import_base_string(request):
     try:
-        review_id = request.POST.get("review-id")
-        source_id = request.POST.get("source-id")
-        review = Review.objects.get(pk=review_id)
-        source = Source.objects.get(pk=source_id)
+        review = request.review
+        source = review.sources.get(pk=request.POST.get("source-id"))
         base_search_string = review.get_generic_search_string().search_string
         try:
             search_session = review.get_latest_source_search_strings().get(source=source)
@@ -581,11 +567,8 @@ def _import_articles(request, review, source, content):
 @login_required
 @require_POST
 def import_bibtex(request):
-    review_id = request.POST["review-id"]
-    source_id = request.POST["source-id"]
-
-    review = Review.objects.get(pk=review_id)
-    source = Source.objects.get(pk=source_id)
+    review = request.review
+    source = get_object_or_404(review.sources, pk=request.POST.get("source-id"))
 
     bibtex_file = request.FILES["bibtex"]
 
@@ -604,12 +587,10 @@ def import_bibtex(request):
 @login_required
 @require_POST
 def import_bibtex_raw_content(request):
-    review_id = request.POST.get("review-id")
-    source_id = request.POST.get("source-id")
     bibtex_file = request.POST.get("bibtex_file")
 
-    review = Review.objects.get(pk=review_id)
-    source = Source.objects.get(pk=source_id)
+    review = request.review
+    source = get_object_or_404(review.sources, pk=request.POST.get("source-id"))
 
     _import_articles(request, review, source, bibtex_file or "")
 
@@ -1359,14 +1340,12 @@ def save_article_details(request):
     if request.method == "POST":
         try:
             article_id = request.POST["article-id"]
-            review_id = request.POST["review-id"]
+            review = request.review
 
             if article_id != "None":
-                article = get_object_or_404(Article, pk=article_id, review_id=review_id)
+                article = get_object_or_404(review.article_set, pk=article_id)
             else:
-                source_id = request.POST["source-id"]
-                review = get_object_or_404(Review, pk=review_id)
-                source = get_object_or_404(Source, pk=source_id)
+                source = get_object_or_404(review.sources, pk=request.POST["source-id"])
                 article = Article(review=review, source=source)
 
             article.bibtex_key = request.POST["bibtex-key"][:100]
@@ -1396,7 +1375,7 @@ def save_article_details(request):
 
             selection_criteria_id = request.POST.get("selection_criteria")
             try:
-                selection_criteria = SelectionCriteria.objects.get(pk=selection_criteria_id)
+                selection_criteria = review.selectioncriteria_set.get(pk=selection_criteria_id)
                 article.selection_criteria = selection_criteria
             except Exception:
                 article.selection_criteria = None
@@ -1580,10 +1559,8 @@ def resolve_all(request):
 @author_required
 @login_required
 def new_article(request):
-    review_id = request.GET["review-id"]
-    source_id = request.GET["source-id"]
-    review = Review.objects.get(pk=review_id)
-    source = Source.objects.get(pk=source_id)
+    review = request.review
+    source = get_object_or_404(review.sources, pk=request.GET.get("source-id"))
     article = Article(review=review, source=source)
     return render(request, "conducting/partial_conducting_article_details.html", {"article": article})
 
@@ -1733,7 +1710,7 @@ def add_source_string(request):
     source_ids = request.POST.getlist("source")
     for source_id in source_ids:
         try:
-            source = Source.objects.get(pk=source_id)
+            source = review.sources.get(pk=source_id)
             exists = SearchSession.objects.filter(review=review, source=source).exists()
             if not exists:
                 search_session = SearchSession(review=review, source=source)
