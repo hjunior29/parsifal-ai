@@ -19,19 +19,27 @@ documentation; the roadmap schedules them.
 
 ## B. Authorization gaps (must not be replicated by the API)
 
-`author_required` validates only the **review**. These views then load other
-objects by primary key with no review filter, so a co-author of review X can
-act on review Y's objects by guessing ids:
+**Fixed.** Upstream, `author_required` validated only the **review**, and the
+views then loaded other objects by primary key with no review filter, so a
+member of review X could act on review Y's objects by guessing ids. Since then:
 
-| View | Unscoped lookup |
-|------|-----------------|
-| `planning.save_question_order`, `save_quality_assessment_question_order`, `save_data_extraction_field_order` | `Question/QualityQuestion/DataExtractionField.objects.get(pk=…)` for any id in `orders` |
-| `planning.edit_quality_assessment_question`, `remove_quality_assessment_question`, `edit_quality_assessment_answer`, `remove_quality_assessment_answer`, `edit_data_extraction_field`, `remove_data_extraction_field` | the JS sends `review-id` (so the guard passes for a member), but the view then fetches the object by `*-id` alone — any review's object can be read or deleted |
-| `planning.save_quality_assessment_question` / `..._answer` / `save_data_extraction_field` | when editing, the object is fetched by pk and reassigned without checking `review` |
-| `planning.save_source` | edits any `Source` by id (including shared defaults' name/url — the UI only disables the button) |
-| ~~`conducting.save_quality_assessment`~~ | fixed in phase 2 (delegates to `services.quality.assess`, scoped) |
-| ~~`conducting.save_data_extraction_status`~~, ~~`save_data_extraction`~~, ~~`multiple_articles_action_*`~~, ~~`resolve_*`~~ | fixed in phase 2 (delegate to scoped services) |
-| `library.folder`, `library.document`, `library.move/copy/remove_from_folder` | folders/documents not filtered by `user` |
+- `author_required` / `main_author_required` resolve the review once and set
+  `request.review`; the views use it. `review-id` comes from the body for a
+  POST and from the query string otherwise; a request naming two different
+  reviews is refused (400), an unknown review is 404.
+- Every child object in the Planning views is looked up through the review
+  (`review.research_questions`, `review.keywords`, `review.sources`,
+  `review.selectioncriteria_set`, `review.qualityquestion_set`,
+  `review.qualityanswer_set`, `review.dataextractionfield_set`); an id of
+  another review is a 404/400 and nothing changes. Saving and removing sources
+  go through `services.protocol` (default libraries cannot be edited; adding a
+  suggested library accepts default libraries only).
+- Conducting uses only the review's own sources (search strings, BibTeX
+  import, new study) and selection criteria (study details).
+- The library views filter folders and documents by `user`.
+
+Covered by `planning/tests/test_views_security.py` and
+`conducting/tests/test_views_scoping.py`.
 
 Rule for the fork: every service function receives the `review` (already
 authorised) and filters children with `review=review`; lookups across reviews
@@ -39,22 +47,22 @@ are impossible by construction.
 
 ## C. State-changing GET requests
 
-`save_source`, `remove_source`, `add_criteria`, `remove_criteria`,
-`import_pico_keywords`, `remove_keyword`, `remove_quality_assessment_question`,
-`remove_quality_assessment_answer`, `add_suggested_answer`,
-`save_cutoff_score`, `remove_data_extraction_field`, `follow`, `unfollow`.
-They bypass CSRF and are cacheable/prefetchable. The API uses proper verbs; the
-UI endpoints can be converted to POST when the JS is touched.
+**Fixed.** Every Planning view that changes something requires POST and the
+JS sends the CSRF token (`save_source`, `remove_source`, `add_criteria`,
+`remove_criteria`, `import_pico_keywords`, `remove_keyword`,
+`remove_quality_assessment_question`, `remove_quality_assessment_answer`,
+`add_suggested_answer`, `save_cutoff_score`, `remove_data_extraction_field`
+were GETs). `follow`/`unfollow` no longer exist.
 
 ## D. Design debt that affects the API/service layer
 
 | # | Issue | Consequence |
 |---|-------|-------------|
-| D1 | HTML built with string formatting inside views (`build_*_table`, `html_source`, `suggested_sources`, `add_suggested_answer`). | Business logic and presentation are fused; the service layer must re-derive the data these functions compute (scores, lookups, selected answers). |
+| D1 | HTML built with string formatting inside views (`build_*_table`, `html_source`, `suggested_sources`, `add_suggested_answer`; names and urls are escaped). | Business logic and presentation are fused; the service layer must re-derive the data these functions compute (scores, lookups, selected answers). |
 | D2 | `try: … except Exception: return HttpResponseBadRequest()` in ~50 views (planning views still; conducting action views now catch `DomainError` and return its message). | Services raise typed exceptions (`core/exceptions.py`); the API maps them to 4xx with messages. |
 | D3 | Silent truncation (`[:1000]` etc.) on import and save. | API should validate lengths and report, or truncate explicitly with a warning field. |
 | D4 | ~~No DB uniqueness for `QualityAssessment`, `DataExtraction`, `SearchSession`~~ | Fixed in phase 2 (`reviews.0038`, de-duplicates first). |
-| D5 | `Source` is a global table; custom sources are deleted when detached; default sources are editable through `save_source`. | Model per-review sources explicitly or protect defaults (`is_default` immutable). |
+| D5 | `Source` is a global table; custom sources are deleted when detached. Default sources can no longer be edited (`services.protocol.update_source`). | Model per-review sources explicitly. |
 | D6 | ~~`QualityAssessment.user` / `DataExtraction.user` never set; `StudySelection`/`Study`/`SearchResult` unused~~ | Fixed: services record the acting user (phase 2), unused models dropped and `StudyDecision` + agreement added (phase 8). |
 | D7 | `Review.status`, `SearchSession.version`, `Question.parent_question`, `Document.review`, `Document.shared_folder`, `DocumentFile` exist without behaviour. | Still open for these; `SearchResult/StudySelection/Study` were removed in phase 8. |
 | D8 | Keyword `related_to` covers P/I/C/O but PICOC has Context; `generate_search_string` ignores Context. | Add `X` (Context) choice or document the omission. |
@@ -67,7 +75,8 @@ UI endpoints can be converted to POST when the JS is touched.
 
 ## E. Test and CI debt
 
-- Planning, conducting, library, activities, help: no tests (see
+- Planning views: authorization and the main actions are tested
+  (`planning/tests/`); the library has service tests only (see
   [09-testing.md](09-testing.md)).
 - ~~CI installs PostgreSQL only because of the default `DATABASE_URL`~~ — fixed in phase 0.
 - ~~`codecov.yml` targets `master` only~~ — fixed in phase 0 (`master` and `dev`).

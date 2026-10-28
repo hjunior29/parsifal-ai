@@ -54,7 +54,8 @@
 | `reviews.reporting` | `test_views_export.py` | 27 | Export page renders. |
 | `blog` | `test_views.py`, `factories.py` | 67 | List/detail pages. |
 | `core` | `test_views_home.py` | 26 | Home page for anonymous/authenticated users. |
-| `library`, `activities`, `help`, `reviews.planning` | — | 0 | **No tests.** |
+| `reviews.planning` | `test_criteria_views.py`, `test_views_security.py` | — | Criteria list; authorization (another review's ids, two reviews in one request, GET refused) and the main actions of every endpoint. |
+| `library`, `activities`, `help` | — | 0 | **No view tests** (the library has service tests). |
 
 ### Conventions used by the existing tests
 
@@ -70,16 +71,16 @@
 
 ## Gaps that matter for the fork
 
-1. The **planning** AJAX views (~36 endpoints) still have no view tests; the
-   rules behind them are now covered through `services/protocol`,
-   `services/quality` and `services/extraction` tests, and the API will call
-   those services directly.
+1. ~~The **planning** AJAX views have no view tests~~ — authorization and the
+   main actions are covered by `planning/tests/test_views_security.py`; the
+   rules behind them are covered through `services/protocol`,
+   `services/quality` and `services/extraction` tests.
 2. ~~Business rules untested~~ — covered in phase 2 (final selection,
    duplicates, search string, scores, coercions, import mapping).
 3. ~~Import/export untested~~ — covered in phase 2 (service and view level);
    DOCX content assertions are still shallow.
-4. **Authorization** of the remaining legacy planning endpoints that take
-   child ids is untested (see [13-known-issues.md](13-known-issues.md) §B).
+4. ~~**Authorization** of the legacy planning endpoints that take child ids is
+   untested~~ — covered (see [13-known-issues.md](13-known-issues.md) §B).
 
 ## Testing policy for new work
 

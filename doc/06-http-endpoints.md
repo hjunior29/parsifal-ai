@@ -12,9 +12,12 @@ Conventions used below:
 - **Guard** — `L` = `login_required`; `A` = `author_required` (author or
   co-author of the review); `M` = `main_author_required` (author only);
   `–` = none. Guards resolve the review from URL kwargs or from the
-  `review-id` parameter (see [02-architecture.md](02-architecture.md)).
-- **Method** — the method the view actually reads; "GET*" marks a
-  **state-changing GET** (no CSRF protection, inherited design flaw).
+  `review-id` parameter — the body's for a POST, the query string's
+  otherwise; a request naming two different reviews is refused (400) — and
+  set `request.review` (see [02-architecture.md](02-architecture.md)).
+- **Method** — the method the view accepts; "GET*" marked a
+  **state-changing GET** upstream (no CSRF protection); every Planning one is
+  POST now.
 - Parameter names are the literal form field names used by the JavaScript.
 - "frag" = HTML fragment; "text" = plain-text body; 400 = `HttpResponseBadRequest`
   (usually empty) on any exception.
@@ -88,7 +91,9 @@ Conventions used below:
 Pages (guard A, GET): `/<u>/<r>/planning/` → redirect, `/planning/protocol/`,
 `/planning/quality/`, `/planning/extraction/`.
 
-Action endpoints, all under `/reviews/planning/`, guard **A** unless noted:
+Action endpoints, all under `/reviews/planning/`, guard **A** unless noted.
+Every object id must belong to the review named by `review-id`; another
+review's id is a 404 (400 in the views that catch errors) and nothing changes.
 
 | Endpoint | Method | Inputs | Output / side effect |
 |----------|--------|--------|----------------------|
@@ -96,38 +101,38 @@ Action endpoints, all under `/reviews/planning/`, guard **A** unless noted:
 | `save_picoc/` | POST | `review-id`, `population`, `intervention`, `comparison`, `outcome`, `context` (each truncated to 200) | empty |
 | `save_question/` | POST | `review-id`, `question-id` (`None` to create), `description` (≤500) | frag `partial_planning_question.html` |
 | `add_or_edit_question/` | POST | `review-id`, `question-id` | frag form |
-| `save_question_order/` | POST | `orders` = `"id:order,id:order,…"` | empty (no review scoping) |
+| `save_question_order/` | POST | `review-id`, `orders` = `"id:order,id:order,…"` | empty; ids of another review → 400, nothing saved |
 | `remove_question/` | POST | `review-id`, `question-id` | empty |
-| `import_pico_keywords/` | GET* | `review-id` | Splits each PICO field on `,`, creates `Keyword(related_to=P/I/C/O)` for new terms; frag of new keywords |
+| `import_pico_keywords/` | POST | `review-id` | Splits each PICO field on `,`, creates `Keyword(related_to=P/I/C/O)` for new terms; frag of new keywords |
 | `add_keyword/` | GET (form) / POST (save) | `review-id`; `KeywordForm` (`description`, `related_to`) + synonym formset `synonym-N-description` | JSON `{status: new|ok|validation_error, html}` |
 | `edit_keyword/` | GET/POST | `review-id`, `keyword-id` + same forms (inline formset of synonyms) | JSON |
-| `remove_keyword/` | GET* | `review-id`, `keyword-id` | empty; deletes synonyms |
+| `remove_keyword/` | POST | `review-id`, `keyword-id` | empty; deletes synonyms |
 | `generate_search_string/` | GET | `review-id` | text `("k" OR "s") AND ("k2" OR …)` grouped by PICO category |
 | `save_generic_search_string/` | POST | `review-id`, `search-string` | empty; upserts `SearchSession(source=None)` |
 | `suggested_sources/` | GET | `review-id` | frag rows of default sources not yet attached |
-| `add_suggested_sources/` | POST | `review-id`, `source-id` (multi) | frag rows |
-| `save_source/` | GET* | `review-id`, `source-id` (optional), `name` (≤100), `url` (≤200) | Creates or edits a `Source` and attaches it; frag `<tr>` |
-| `remove_source/` | GET* | `review-id`, `source-id` | Detaches; default source → deletes review articles + search string from it; custom → deletes `Source` row |
-| `add_criteria/` | GET* | `review-id`, `criteria`, `criteria-type` (`I`/`E`) | frag `<option>` |
-| `remove_criteria/` | GET* | `review-id`, `criteria-ids` (csv) | empty |
+| `add_suggested_sources/` | POST | `review-id`, `source-id` (multi, default libraries only) | frag rows |
+| `save_source/` | POST | `review-id`, `source-id` (optional, one of the review's custom sources), `name` (≤100), `url` (≤200) | Creates or edits a `Source` and attaches it (`services.protocol`; default libraries cannot be edited → 400); frag `<tr>` |
+| `remove_source/` | POST | `review-id`, `source-id` (one of the review's sources) | Detaches; default source → deletes review articles + search string from it; custom → deletes `Source` row |
+| `add_criteria/` | POST | `review-id`, `criteria`, `criteria-type` (`I`/`E`) | frag `<option>` |
+| `remove_criteria/` | POST | `review-id`, `criteria-ids` (csv) | empty |
 | `save_inclusion_rule/` | POST | `review-id`, `inclusion-rule` (`all`/`any`) | the rule's label, or 400 with the reason; whether a study must meet all the inclusion criteria or one (Include and Screen with AI follow it) |
 | `add_quality_assessment_question/` | GET | | frag empty form |
-| `edit_quality_assessment_question/` | GET | `review-id` (sent by JS, used only by the guard), `quality-question-id` | frag form (child lookup not scoped to the review) |
+| `edit_quality_assessment_question/` | GET | `review-id`, `quality-question-id` | frag form |
 | `save_quality_assessment_question/` | POST | `review-id`, `quality-question-id` (`None`/id), `description` | frag |
-| `save_quality_assessment_question_order/` | POST | `orders` | empty |
-| `remove_quality_assessment_question/` | GET* | `review-id`, `quality-question-id` | empty (child lookup not scoped) |
+| `save_quality_assessment_question_order/` | POST | `review-id`, `orders` | empty |
+| `remove_quality_assessment_question/` | POST | `review-id`, `quality-question-id` | empty |
 | `add_quality_assessment_answer/` | GET | | frag empty form |
-| `edit_quality_assessment_answer/` | GET | `review-id`, `quality-answer-id` | frag (child lookup not scoped) |
+| `edit_quality_assessment_answer/` | GET | `review-id`, `quality-answer-id` | frag |
 | `save_quality_assessment_answer/` | POST | `review-id`, `quality-answer-id`, `description`, `weight` (float; `,`→`.`; invalid → 0.0) | frag |
-| `remove_quality_assessment_answer/` | GET* | `review-id`, `quality-answer-id` | empty (child lookup not scoped) |
-| `add_suggested_answer/` | GET* | `review-id` | Creates Yes/Partially/No (1/0.5/0) if none exist; frag rows; else 400 |
+| `remove_quality_assessment_answer/` | POST | `review-id`, `quality-answer-id` | empty |
+| `add_suggested_answer/` | POST | `review-id` | Creates Yes/Partially/No (1/0.5/0) if none exist; frag rows; else 400 |
 | `calculate_max_score/` | GET | `review-id` | text number |
-| `save_cutoff_score/` | GET* | `review-id`, `cutoff-score` (float) | text |
+| `save_cutoff_score/` | POST | `review-id`, `cutoff-score` (float) | text |
 | `add_new_data_extraction_field/` | GET | | frag empty form |
-| `edit_data_extraction_field/` | GET | `review-id`, `field-id` | frag (child lookup not scoped) |
+| `edit_data_extraction_field/` | GET | `review-id`, `field-id` | frag |
 | `save_data_extraction_field/` | POST | `review-id`, `field-id` (`None`/id), `description`, `field-type` (`B/S/F/I/D/O/M`), `lookup-values` (newline-separated) | frag; type change clears values; lookups synced |
-| `save_data_extraction_field_order/` | POST | `orders` | empty |
-| `remove_data_extraction_field/` | GET* | `review-id`, `field-id` | empty (child lookup not scoped) |
+| `save_data_extraction_field_order/` | POST | `review-id`, `orders` | empty |
+| `remove_data_extraction_field/` | POST | `review-id`, `field-id` | empty |
 
 ## 5. Conducting phase
 
@@ -179,10 +184,10 @@ Action endpoints under `/reviews/conducting/`, guard **A** unless noted:
 | `quality_assessment_detailed/` | GET | `review-id`, `q` (title), `show` (all, done, pending, above, below the cutoff), `order` (title/year, `-` reverses; kept in the session), `page`, `per-page` (kept in the session), `part` (`list`: only the studies and the pager) | frag Detailed tab: a closed panel per study with its progress, score and a link to its window |
 | `quality_assessment_summary/` | GET | `review-id` | frag |
 | `save_data_extraction/` | POST | `article-id`, `field-id`, `value` | Upsert + `set_value`; empty; 400 with error text on coercion failure (checks `article.review`) |
-| `save_data_extraction_status/` | POST | `article-id`, `action` (`mark_as_done` / other) | toggles `finished_data_extraction` (**no review scoping**) |
+| `save_data_extraction_status/` | POST | `review-id`, `article-id`, `action` (`mark_as_done` / other) | toggles `finished_data_extraction` (`services.extraction.mark_done`, scoped) |
 | `export_data_extraction/` | POST | `review-id` | `data_extraction.xls` (final selection) |
-| `articles_selection_chart/` | GET | `review-id` | text `Source:total:accepted,…` (**no auth at all**) |
-| `articles_per_year/` | GET | `review-id` | text `year:count,…` for final selection (**no auth at all**) |
+| `articles_selection_chart/` | GET | `review-id` | text `Source:total:accepted,…` (guard A since phase 0) |
+| `articles_per_year/` | GET | `review-id` | text `year:count,…` for final selection (guard A since phase 0) |
 
 ## 6. Reporting phase
 

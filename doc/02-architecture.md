@@ -86,7 +86,7 @@ contract that the fork's JSON API must cover.
 | Mechanism | Where | Rule |
 |-----------|-------|------|
 | `@login_required` | all page and action views (except a few — see known issues) | Anonymous → redirect to `/login/?next=...`. |
-| `@author_required` (`reviews/decorators.py`) | most page/action views | If URL kwargs `username`+`review_name` exist: load review, allow if `review.is_author_or_coauthor(user)`, else **404**. Otherwise read `review-id` from POST then GET; allow if author/co-author, else **403**; missing id → 400. |
+| `@author_required` (`reviews/decorators.py`) | most page/action views | If URL kwargs `username`+`review_name` exist: load review, allow if `review.is_author_or_coauthor(user)`, else **404**. Otherwise read `review-id` from the body for a POST and from the query string otherwise (a request naming two different reviews → 400; unknown review → 404); allow if author/co-author, else **403**; missing id → 400. The review is set as `request.review`, which the views use. |
 | `@main_author_required` | review settings, transfer, remove co-author | Same lookup, but only `review.author`. |
 | `ReviewMixin` + `MainAuthorRequiredMixin` / `AuthorRequiredMixin` (`reviews/mixins.py`) | class-based views (`DeleteReviewView`, invites) | `review` cached property from URL kwargs; `UserPassesTestMixin` → 403. |
 | `login_required` only | library, accounts, activities | Library lookups are scoped to `request.user` in every view since 2026-10-16 (before, only some were). |
