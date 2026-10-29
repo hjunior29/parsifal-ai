@@ -155,8 +155,10 @@
     },
 
     /* Google Charts options for the page's theme: in the dark theme, a transparent background and light text and
-       lines (the colors of the series stay). */
+       lines (the colors of the series stay). The text has one size: left to Google Charts, it grows with the chart's
+       height, and a field with many options got bigger text than the charts around it. */
     chartOptions: function (options) {
+      options = $.extend({fontSize: 14}, options);
       if (!document.documentElement.classList.contains("theme-dark")) {
         return options;
       }
