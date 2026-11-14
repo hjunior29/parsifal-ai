@@ -80,6 +80,8 @@ def Q(name, type=STR, help=""):
     return Param(name, type, QUERY, False, help)
 
 
+SEARCHED_AT_HELP = "The source's date of search, YYYY-MM-DD (saved on the source; see `source imports`)."
+
 # The studies a bulk action applies to: --ids, or --all-matching with the study list's filters.
 ARTICLE_SELECTION = (
     B("ids", LIST_INT, help="Article ids (repeat); or --all-matching."),
@@ -766,6 +768,15 @@ OPERATIONS = (
         destructive=True,
     ),
     Operation(
+        "source_imports_list",
+        "GET",
+        "/reviews/{review_id}/sources/imports",
+        ("source",),
+        "imports",
+        "List the review's sources with the studies imported from each and its date of search (Import Studies).",
+        (REVIEW,),
+    ),
+    Operation(
         "source_search_strings_list",
         "GET",
         "/reviews/{review_id}/sources/search-strings",
@@ -1261,7 +1272,12 @@ OPERATIONS = (
         ("article",),
         "import",
         "Import BibTeX text into a source (use @file.bib or - for stdin).",
-        (REVIEW, B("source_id", INT, True), B("bibtex", TEXT, True, "BibTeX content.")),
+        (
+            REVIEW,
+            B("source_id", INT, True),
+            B("bibtex", TEXT, True, "BibTeX content."),
+            B("searched_at", help=SEARCHED_AT_HELP),
+        ),
     ),
     Operation(
         "articles_import_file",
@@ -1270,7 +1286,12 @@ OPERATIONS = (
         ("article",),
         "import-file",
         "Upload a .bib file into a source.",
-        (REVIEW, Param("source_id", INT, FORM, True), Param("file", STR, FILE, True, "Path to the .bib file.")),
+        (
+            REVIEW,
+            Param("source_id", INT, FORM, True),
+            Param("file", STR, FILE, True, "Path to the .bib file."),
+            Param("searched_at", STR, FORM, False, SEARCHED_AT_HELP),
+        ),
     ),
     Operation(
         "articles_duplicates",
@@ -1301,7 +1322,7 @@ OPERATIONS = (
             REVIEW,
             child_id("source_id", "Source id."),
             B("search_type", help="database, snowballing, manual or other."),
-            B("searched_at", help="YYYY-MM-DD."),
+            B("searched_at", help='Date of search, YYYY-MM-DD ("" clears it).'),
             B("years_from", INT),
             B("years_to", INT),
             B("result_count", INT),

@@ -75,8 +75,9 @@ shows its tool when all are met.
 - For a source named *Scopus* and when `ELSEVIER_API_KEY` is set: run the
   query against the Scopus API (`search_scopus`), browse results and push them
   into the review (JS → `import_bibtex_raw_content`).
-- K 6.1.4 (document the search: date, years covered, unfiltered results) is
-  **not** captured — only the final string per source.
+- K 6.1.4 (document the search): the date of search of each source is set on
+  Import Studies (below); the search type, years covered and number of
+  results only through the API, CLI and MCP (`source_search_update`).
 
 ### 2.2 Import studies — `/<u>/<r>/conducting/import/`
 
@@ -86,6 +87,11 @@ shows its tool when all are met.
   with `status = U` (unclassified) and `created_by` the importer.
 - Count per source shown on the page; `export_results` downloads all articles
   as `.xls`.
+- **Date of Search** per source (`SearchSession.searched_at`, K 6.1.4, PRISMA
+  2020 item 6): a date input in each row, saved as soon as it changes
+  (`save_searched_at`, POST; empty clears it). The API and CLI list the same
+  table (`source_imports_list`, `source imports`) and take the date with an
+  import (`searched_at` on `articles_import` / `articles_import_file`).
 
 ### 2.3 Study selection — `/<u>/<r>/conducting/studies/`
 

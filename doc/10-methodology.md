@@ -29,7 +29,7 @@ mapping studies in software engineering: An update*, IST 64 (2015) 1–18 (P).
 | 6.1.1 | Search strategy: trial searches, Boolean strings, per-library adaptation | per-source `SearchSession` | Implemented |
 | 6.1.2 | Publication bias / grey literature | — | Missing |
 | 6.1.3 | Bibliography management, retrieval | BibTeX import, `library` app | Partial |
-| 6.1.4 | **Documenting the search** (Table 2: database, strategy, **date of search**, **years covered**; keep unfiltered results) | only the string | Missing — add `searched_at`, `years`, `result_count`, raw file |
+| 6.1.4 | **Documenting the search** (Table 2: database, strategy, **date of search**, **years covered**; keep unfiltered results) | `SearchSession.search_type`, `searched_at` (on Import Studies too), `years_from/to`, `result_count` | Implemented (no raw file) |
 | 6.2.1 | Selection criteria piloted | `SelectionCriteria` | Implemented (no pilot concept) |
 | 6.2.2 | Multi-stage selection (title/abstract → full text) | single `status` | Partial (one stage) |
 | 6.2.3 | Reliability: ≥2 assessors, **Cohen's Kappa**, test–retest | — (`StudySelection`/`Study` models unused) | Missing |

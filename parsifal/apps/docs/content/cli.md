@@ -40,10 +40,10 @@ parameters in kebab-case; `--review` accepts a numeric id or `author/slug`.
 | `agent` | `list`, `create`, `new-token`, `delete` (permanent: account, tokens, decisions, quality assessments and extracted data; imported studies and classifications stay) |
 | `question`, `keyword`, `criteria` | `list`, `create`, `update`, `delete` (+ `reorder`, `import-picoc`) |
 | `search-string` | `get`, `set`, `generate` |
-| `source` | `defaults`, `list`, `add`, `update`, `remove`, `document-search`; `source search-string list|set|copy-generic|delete` |
+| `source` | `defaults`, `list`, `imports` (the studies imported from each source and its date of search), `add`, `update`, `remove`, `document-search` (`--searched-at ""` clears the date); `source search-string list|set|copy-generic|delete` |
 | `quality` | `question …`, `answer …`, `max-score`, `set-cutoff`, `summary`, `studies`, `get`, `assess` |
 | `extraction` | `field …`, `get`, `set`, `done`, `studies` |
-| `article` | `list`, `create`, `get`, `update`, `delete`, `set-status`, `import`, `import-file`, `duplicates`, `resolve-duplicates`, `delete-batch`, `clear`, `star`/`unstar` (`--article`; `list --starred` shows the starred ones); `article pdf upload|download|delete` (the study's PDF: `--article`, `--file` / `-o FILE`) |
+| `article` | `list`, `create`, `get`, `update`, `delete`, `set-status`, `import`, `import-file` (both take `--searched-at`, the source's date of search), `duplicates`, `resolve-duplicates`, `delete-batch`, `clear`, `star`/`unstar` (`--article`; `list --starred` shows the starred ones); `article pdf upload|download|delete` (the study's PDF: `--article`, `--file` / `-o FILE`) |
 | `facet`, `classification`, `test-set`, `checklist` | optional classification steps — see [Classification and search evaluation](/docs/classification/) |
 | `decision` | `list`, `record`, `remove-mine`, `article`, `summary`, `agreement`, `disagreements`, `consolidate` |
 | `analytics` | `selection-by-source`, `final-by-year`, `selection-summary` (per status, duplicates vs imported, accepted vs not duplicated, per source), `criteria-usage` (criteria by the studies rejected or accepted with them), `studies-by-year` (per year and status), `quality` (studies assessed, scores, answers per question), `extraction` (studies per option of each choice field), `prisma` (the PRISMA 2020 flow diagram in numbers), `prisma-settings --not-retrieved-criteria-id` (0: none), `facet-frequencies`, `facet-matrix` |

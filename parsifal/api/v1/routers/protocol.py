@@ -15,6 +15,7 @@ from parsifal.api.v1.schemas.protocol import (
     SearchStringIn,
     SearchStringOut,
     SourceAddIn,
+    SourceImportOut,
     SourceOut,
     SourceSearchStringOut,
     SourceSearchUpdateIn,
@@ -160,6 +161,14 @@ def review_sources_remove(request, review_id: int, source_id: int):
     """Detach a source. For default libraries this also deletes the review's articles imported from it."""
     protocol.detach_source(review=get_review(request, review_id), source_id=source_id)
     return 204, None
+
+
+@router.get(
+    "/reviews/{int:review_id}/sources/imports", response=list[SourceImportOut], operation_id="source_imports_list"
+)
+def source_imports_list(request, review_id: int):
+    """Import Studies: each source of the review, the studies imported from it and its date of search."""
+    return search.list_source_imports(get_review(request, review_id))
 
 
 @router.get(

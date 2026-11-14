@@ -3,7 +3,7 @@
 {% load static %}
 
 {% block javascript %}
-  <script type="text/javascript" src="{% static 'js/conducting_import_studies.js' %}?_=3"></script>
+  <script type="text/javascript" src="{% static 'js/conducting_import_studies.js' %}?_=4"></script>
 {% endblock javascript %}
 
 {% block tab_content %}
@@ -11,7 +11,7 @@
   {% include "conducting/conducting_header.html" with active_tab="import" %}
 
   <div class="row">
-    <div class="col-sm-6">
+    <div class="col-md-8">
       <div class="panel panel-default">
         <div class="panel-heading">
           <h3 class="panel-title">Import Studies</h3>
@@ -22,6 +22,7 @@
               <tr>
                 <th>Source</th>
                 <th>Imported Studies</th>
+                <th>Date of Search</th>
                 <th></th>
               </tr>
             </thead>
@@ -29,7 +30,11 @@
               {% for source in sources %}
                 <tr>
                   <td>{{ source.source.name }}</td>
-                  <td>{{ source.count }}</td>
+                  <td>{{ source.imported }}</td>
+                  <td>
+                    <input type="date" class="form-control input-sm js-searched-at" style="width: 150px;" data-source-id="{{ source.source.id }}" value="{{ source.searched_at|date:'Y-m-d' }}" aria-label="Date of search of {{ source.source.name }}">
+                    <span class="help-block small js-searched-at-status" style="margin: 2px 0 0;"></span>
+                  </td>
                   <td class="text-center">
                     <form enctype="multipart/form-data" method="post" action="{% url 'reviews:conducting:import_bibtex' %}">
                       {% csrf_token %}
@@ -48,8 +53,8 @@
                         <li><a href="javascript:void(0);" class="js-import-bibtex-raw-content" data-source-id="{{ source.source.id }}" data-toggle="modal" data-target="#parse-bibtex">Paste BibTeX content</a></li>
                       </ul>
                     </div>
-                    {% if source.count %}
-                      <form method="post" action="{% url 'reviews:conducting:clear_source_articles' %}" class="form-inline-block js-clear-source" data-source="{{ source.source.name }}" data-count="{{ source.count }}" style="display: inline-block;">
+                    {% if source.imported %}
+                      <form method="post" action="{% url 'reviews:conducting:clear_source_articles' %}" class="form-inline-block js-clear-source" data-source="{{ source.source.name }}" data-count="{{ source.imported }}" style="display: inline-block;">
                         {% csrf_token %}
                         <input type="hidden" name="review-id" value="{{ review.id }}">
                         <input type="hidden" name="source-id" value="{{ source.source.id }}">
@@ -61,6 +66,12 @@
               {% endfor %}
             </tbody>
           </table>
+          <div class="panel-footer">
+            <small class="text-muted">
+              Date of search: the day each source was searched (when its results were exported). A review reports it
+              for every source (PRISMA 2020 item 6); it is saved as soon as it changes.
+            </small>
+          </div>
         {% else %}
           <div class="panel-body">
             <p>There are a few steps you have to finish before you import the studies:</p>

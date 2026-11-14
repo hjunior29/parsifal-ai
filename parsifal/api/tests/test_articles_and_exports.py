@@ -27,7 +27,7 @@ class TestArticlesApi(ApiTestCase):
             response = self.client.post(
                 f"{API}{self.review_path('/articles/import/file')}", {"source_id": self.source.pk, "file": handle}
             )
-        self.assertEqual(201, response.status_code)
+        self.assertEqual(201, response.status_code, response.content)
         self.assertEqual(2, response.json()["imported"])
         self.assertEqual(4, self.review.article_set.count())
 

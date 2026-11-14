@@ -31,6 +31,7 @@ from parsifal.apps.reviews.services import (
     quality,
     reports,
     screening_requests,
+    search,
     studies,
     study_columns,
 )
@@ -112,13 +113,10 @@ def import_base_string(request):
 @login_required
 def import_studies(request, username, review_name):
     review = Review.objects.get(name=review_name, author__username__iexact=username)
-    sources = []
-    for source in review.sources.all():
-        sources.append({"source": source, "count": Article.objects.filter(source=source, review=review).count()})
     return render(
         request,
         "conducting/conducting_import_studies.html",
-        {"review": review, "sources": sources},
+        {"review": review, "sources": search.list_source_imports(review)},
     )
 
 
@@ -465,6 +463,22 @@ def import_bibtex_raw_content(request):
     _import_articles(request, review, source, bibtex_file or "")
 
     return redirect(r("import_studies", args=(review.author.username, review.name)))
+
+
+@author_required
+@login_required
+@require_POST
+def save_searched_at(request):
+    """The date of search of a source (Import Studies), saved as soon as it changes; empty clears it."""
+    try:
+        session = search.update_source_search(
+            review=request.review,
+            source_id=request.POST.get("source-id"),
+            searched_at=request.POST.get("searched-at", ""),
+        )
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
+    return HttpResponse(session.searched_at.isoformat() if session.searched_at else "")
 
 
 @author_required

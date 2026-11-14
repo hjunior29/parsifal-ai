@@ -1,4 +1,6 @@
-from parsifal.api.tests.base import ApiTestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+
+from parsifal.api.tests.base import API, ApiTestCase
 from parsifal.apps.reviews.tests.factories import ArticleFactory
 
 
@@ -49,6 +51,43 @@ class TestMappingStudyApi(ApiTestCase):
         ).json()
         article = self.api("get", self.review_path(f"/articles/{imported['article_ids'][0]}")).json()
         self.assertIsNotNone(article["found_via_id"])
+
+    def test_date_of_search(self):
+        path = self.review_path(f"/sources/{self.source.pk}/search")
+        imported = self.api(
+            "post",
+            self.review_path("/articles/import"),
+            {"source_id": self.source.pk, "bibtex": "@article{k, title={T}}", "searched_at": "2026-09-30"},
+        )
+        self.assertEqual(201, imported.status_code, imported.content)
+        self.assertEqual(
+            [{"source_id": self.source.pk, "source": self.source.name, "imported": 1, "searched_at": "2026-09-30"}],
+            self.api("get", self.review_path("/sources/imports")).json(),
+        )
+        article = self.api("get", self.review_path(f"/articles/{imported.json()['article_ids'][0]}")).json()
+        self.assertIsNotNone(article["found_via_id"])
+
+        self.assertEqual(200, self.api("patch", path, {"result_count": 3}).status_code)
+        self.assertEqual("2026-09-30", self.api("get", self.review_path("/sources/imports")).json()[0]["searched_at"])
+        for empty in ("", None):
+            self.api("patch", path, {"searched_at": "2026-09-30"})
+            body = self.api("patch", path, {"searched_at": empty}).json()
+            self.assertEqual((None, 3), (body["searched_at"], body["result_count"]))
+        self.assertEqual(422, self.api("patch", path, {"searched_at": "30/09/2026"}).status_code)
+
+        with self.subTest(msg="the file import takes the date too"):
+            response = self.client.post(
+                f"{API}{self.review_path('/articles/import/file')}",
+                {
+                    "source_id": self.source.pk,
+                    "searched_at": "2026-10-02",
+                    "file": SimpleUploadedFile("x.bib", b"@article{k2, title={U}}"),
+                },
+            )
+            self.assertEqual(201, response.status_code, response.content)
+            self.assertEqual(
+                "2026-10-02", self.api("get", self.review_path("/sources/imports")).json()[0]["searched_at"]
+            )
 
     def test_facets_classification_and_analytics(self):
         templates = self.api("get", "/facets/templates").json()

@@ -55,6 +55,43 @@ def test_body_lists_and_text_from_file(runner, fake_api, tmp_path):
     assert fake_api.last_json() == {"ids": [1, 2], "status": "A"}
 
 
+def test_date_of_search(runner, fake_api):
+    fake_api.route(
+        "POST",
+        "/api/v1/reviews/7/articles/import",
+        201,
+        {"imported": 1, "failed": 0, "warnings": [], "article_ids": [1]},
+    )
+    result = invoke(
+        runner,
+        [
+            "article",
+            "import",
+            "--review",
+            "7",
+            "--source-id",
+            "3",
+            "--bibtex",
+            "@article{k}",
+            "--searched-at",
+            "2026-09-30",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert fake_api.last_json() == {"source_id": 3, "bibtex": "@article{k}", "searched_at": "2026-09-30"}
+
+    fake_api.route("PATCH", "/api/v1/reviews/7/sources/3/search", 200, {"source_id": 3, "searched_at": None})
+    result = invoke(runner, ["source", "document-search", "--review", "7", "--id", "3", "--searched-at", ""])
+    assert result.exit_code == 0, result.output
+    assert fake_api.last_json() == {"searched_at": ""}
+
+    rows = [{"source_id": 3, "source": "Scopus", "imported": 1, "searched_at": "2026-09-30"}]
+    fake_api.route("GET", "/api/v1/reviews/7/sources/imports", 200, rows)
+    result = invoke(runner, ["source", "imports", "--review", "7"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output) == rows
+
+
 def test_inline_bibtex_is_not_read_as_a_file(runner, fake_api, tmp_path):
     fake_api.route(
         "POST",

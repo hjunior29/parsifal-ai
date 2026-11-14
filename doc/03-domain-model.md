@@ -108,7 +108,9 @@ note: no Context), `synonym_of` self-FK. Top-level keywords have
 `review`, `source` (nullable), `search_string` (text), `version` (int, always
 1 — never incremented). One row with `source=None` holds the **generic**
 search string built in planning; one row per source holds the **adapted**
-string used in conducting. `search_string_as_html()` bolds AND/OR.
+string used in conducting. `search_string_as_html()` bolds AND/OR. The search
+documentation (K 6.1.4): `search_type`, `searched_at` (the date of search, set
+on Import Studies), `years_from`, `years_to`, `result_count`.
 
 ## Studies
 

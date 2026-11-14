@@ -2,6 +2,7 @@ from datetime import datetime
 
 from ninja import Schema
 
+from parsifal.api.v1.schemas.common import OptionalDate
 from parsifal.apps.accounts import services as integrations
 
 
@@ -147,6 +148,7 @@ class StatusIn(ArticlesIn):
 class ImportIn(Schema):
     source_id: int
     bibtex: str
+    searched_at: OptionalDate = None  # the source's date of search, saved with the import
 
 
 class ImportOut(Schema):

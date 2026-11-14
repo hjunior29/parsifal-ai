@@ -17,7 +17,7 @@ from bibtexparser.bparser import BibTexParser
 
 from parsifal.apps.core.exceptions import ValidationError
 from parsifal.apps.reviews.models import Article
-from parsifal.apps.reviews.services import ai_screening
+from parsifal.apps.reviews.services import ai_screening, search
 from parsifal.apps.reviews.services._common import check_length, get_child, get_children
 
 # Maximum length of every editable Article text field (mirrors the model).
@@ -179,8 +179,14 @@ def article_from_entry(entry, *, review, source, warnings=None):
 
 
 @transaction.atomic
-def import_bibtex(*, review, source_id, content, actor=None):
+def import_bibtex(*, review, source_id, content, actor=None, searched_at=None):
+    """
+    Import BibTeX entries into a source of the review. With ``searched_at`` (YYYY-MM-DD), it is saved first as the
+    source's date of search.
+    """
     source = get_child(review.sources, source_id, label="Source")
+    if searched_at not in (None, ""):
+        search.update_source_search(review=review, source_id=source.pk, searched_at=searched_at)
     # Provenance: articles imported for a source are linked to that source's documented search, if any.
     found_via = review.searchsession_set.filter(source=source).first()
     parsed = parse_bibtex_detailed(content)

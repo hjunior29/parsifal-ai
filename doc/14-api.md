@@ -77,6 +77,7 @@ An **agent** is an AI co-author with an account of its own, created for one revi
 | `GET/PUT /reviews/{rid}/search-string` · `POST /search-string/generate` | `search_string_*` |
 | `GET/POST /reviews/{rid}/sources` (`{source_id}` default library or `{name,url}` custom) · `PATCH/DELETE /sources/{id}` | `review_sources_*` |
 | `GET /reviews/{rid}/sources/search-strings` · `PUT/DELETE /sources/{id}/search-string` · `POST /sources/{id}/search-string/copy-generic` | `source_search_string*` |
+| `GET /reviews/{rid}/sources/imports` | `source_imports_list` — the Import Studies table: each source, its imported studies and its date of search (`searched_at`) |
 | `GET/POST /reviews/{rid}/criteria` (`criteria_type` I/E) · `PATCH/DELETE /criteria/{id}` | `criteria_*` |
 
 ### Quality assessment
@@ -109,7 +110,7 @@ select-many takes the full list of lookup ids in `values` (set semantics).
 | `POST /reviews/{rid}/articles {source_id, …fields}` | `articles_create` |
 | `GET/PATCH/DELETE /reviews/{rid}/articles/{aid}` | `articles_get` · `articles_update` · `articles_delete` |
 | `POST /reviews/{rid}/articles/status {ids[] \| all_matching + match_source_id?, match_status?, match_q?, match_starred?; status, selection_criteria_id?, comments?}` | `articles_set_status` — on `ids`, or with `all_matching` on every study that matches the study list's filters (every study when none is given); both or neither → 422 |
-| `POST /reviews/{rid}/articles/import {source_id, bibtex}` · `POST /articles/import/file` (multipart `source_id`, `file`) | `articles_import` · `articles_import_file` → `{imported, failed, warnings[], article_ids[]}` |
+| `POST /reviews/{rid}/articles/import {source_id, bibtex, searched_at?}` · `POST /articles/import/file` (multipart `source_id`, `file`, `searched_at?`) | `articles_import` · `articles_import_file` → `{imported, failed, warnings[], article_ids[]}`; `searched_at` (YYYY-MM-DD) is saved as the source's date of search first |
 | `GET /reviews/{rid}/articles/duplicates` · `POST /duplicates/resolve {ids?}` | `articles_duplicates` · `articles_resolve_duplicates` |
 | `POST /reviews/{rid}/articles/delete {ids[] \| all_matching + match_*}` · `POST /articles/clear {source_id, status?}` | `articles_delete_batch` · `articles_clear` (bulk delete; `clear` empties one source, e.g. after importing the wrong export) |
 | `PUT /reviews/{rid}/articles/{aid}/star` · `DELETE …/star` | `articles_star` · `articles_unstar` → the article. One star per study in the review, shared by every member (`starred`, `starred_by`, `starred_at` on every article); starring again keeps who starred it first; the status is untouched. One study at a time: there is no bulk star |
@@ -130,7 +131,7 @@ carries `pdf` (that object, or `null`); 404 when downloading or deleting a PDF t
 | `GET /reviews/{rid}/analytics/facets/{fid}/frequencies` · `GET /analytics/facet-matrix?rows=&columns=` | `analytics_facet_frequencies` · `analytics_facet_matrix` (bubble-plot cells) |
 | `GET/POST /reviews/{rid}/test-set` · `PATCH/DELETE /test-set/{id}` · `POST /test-set/match` | `test_set_*` — known papers, matched by DOI or normalised title; `recall` = found/total |
 | `GET /reviews/{rid}/checklist` · `PUT /checklist/{key} {applied, notes}` | `checklist_*` — Petersen et al. (2015) Table 8 actions |
-| `PATCH /reviews/{rid}/sources/{sid}/search {search_type, searched_at, years_from, years_to, result_count}` | `source_search_update` — search documentation (K 6.1.4) |
+| `PATCH /reviews/{rid}/sources/{sid}/search {search_type, searched_at, years_from, years_to, result_count}` | `source_search_update` — search documentation (K 6.1.4); only the fields sent change, null (or `""` for the date) clears one |
 
 `ReviewOut`/`PATCH` also carry `review_type`, `selection_procedure`,
 `synthesis_strategy`, `validity_threats`; `ArticleOut` carries `found_via_id`.

@@ -23,7 +23,8 @@ through the API/CLI (`review update --selection-procedure … --synthesis-strate
 
 For each source you can record how the search was run — `database`,
 `snowballing` or `manual` — the date, the years covered and the number of
-results (`source document-search …`). Imported articles keep a link to that
+results (`source document-search …`; the date is also on *Import Studies* and
+in `article import --searched-at`). Imported articles keep a link to that
 documented search. Both guidelines ask for this table in the report.
 
 A **test set of known papers** evaluates the search: add the titles (and DOIs)

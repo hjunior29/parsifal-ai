@@ -3,7 +3,8 @@
 ## BibTeX import into a review (`reviews.conducting`)
 
 Two entry points, both `POST`, both redirecting back to the Import Studies
-page with flash messages:
+page with flash messages (the page's third `POST`, `save_searched_at`, saves a
+source's date of search):
 
 | Endpoint | Input | Parser |
 |----------|-------|--------|

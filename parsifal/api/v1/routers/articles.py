@@ -1,3 +1,5 @@
+from datetime import date
+
 from django.http import FileResponse
 
 from ninja import File, Form, Router, UploadedFile
@@ -139,10 +141,14 @@ def _import_out(result):
 
 @router.post("/reviews/{int:review_id}/articles/import", response={201: ImportOut}, operation_id="articles_import")
 def articles_import(request, review_id: int, payload: ImportIn):
-    """Import BibTeX text into a source of the review."""
+    """Import BibTeX text into a source of the review (``searched_at``: the source's date of search, saved too)."""
     review = get_review(request, review_id)
     result = studies.import_bibtex(
-        review=review, source_id=payload.source_id, content=payload.bibtex, actor=request.auth
+        review=review,
+        source_id=payload.source_id,
+        content=payload.bibtex,
+        actor=request.auth,
+        searched_at=payload.searched_at,
     )
     return 201, _import_out(result)
 
@@ -150,10 +156,18 @@ def articles_import(request, review_id: int, payload: ImportIn):
 @router.post(
     "/reviews/{int:review_id}/articles/import/file", response={201: ImportOut}, operation_id="articles_import_file"
 )
-def articles_import_file(request, review_id: int, source_id: Form[int], file: File[UploadedFile]):
-    """Import a .bib file (multipart form: ``source_id`` and ``file``)."""
+def articles_import_file(
+    request,
+    review_id: int,
+    source_id: Form[int],
+    file: File[UploadedFile],
+    searched_at: Form[date | None] = None,
+):
+    """Import a .bib file (multipart form: ``source_id``, ``file`` and, optionally, the ``searched_at`` date)."""
     review = get_review(request, review_id)
-    result = studies.import_bibtex(review=review, source_id=source_id, content=file.read(), actor=request.auth)
+    result = studies.import_bibtex(
+        review=review, source_id=source_id, content=file.read(), actor=request.auth, searched_at=searched_at
+    )
     return 201, _import_out(result)
 
 

@@ -1,3 +1,4 @@
+import datetime
 from pathlib import Path
 
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -5,7 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from parsifal.apps.authentication.tests.factories import UserFactory
-from parsifal.apps.reviews.models import Article
+from parsifal.apps.reviews.models import Article, SearchSession
 from parsifal.apps.reviews.tests.factories import ReviewFactory, SourceFactory
 
 DATA = Path(__file__).resolve().parent.parent.parent / "tests" / "data"
@@ -110,3 +111,47 @@ class ClearSourceViewTest(TestCase):
         )
         self.assertContains(response, "not found in this review")
         self.assertEqual(3, self.review.article_set.count())
+
+
+class SearchDateViewTest(TestCase):
+    """The Date of Search column of Import Studies, saved as soon as it changes."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.source = SourceFactory(name="Scopus")
+        cls.review = ReviewFactory(sources=[cls.source])
+        cls.url = reverse("reviews:conducting:save_searched_at")
+        cls.page = reverse("import_studies", args=(cls.review.author.username, cls.review.name))
+
+    def post(self, value, source=None):
+        return self.client.post(
+            self.url, {"review-id": self.review.pk, "source-id": (source or self.source).pk, "searched-at": value}
+        )
+
+    def test_save_show_and_clear(self):
+        self.client.force_login(self.review.author)
+        response = self.post("2026-10-01")
+        self.assertEqual((200, b"2026-10-01"), (response.status_code, response.content))
+        self.assertEqual(
+            datetime.date(2026, 10, 1), SearchSession.objects.get(review=self.review, source=self.source).searched_at
+        )
+        self.assertContains(self.client.get(self.page), 'value="2026-10-01"')
+
+        response = self.post("")
+        self.assertEqual((200, b""), (response.status_code, response.content))
+        self.assertIsNone(SearchSession.objects.get(review=self.review, source=self.source).searched_at)
+
+    def test_bad_date_and_source_of_another_review(self):
+        self.client.force_login(self.review.author)
+        response = self.post("01/10/2026")
+        self.assertEqual(400, response.status_code)
+        self.assertIn(b"YYYY-MM-DD", response.content)
+        self.assertEqual(400, self.post("2026-10-01", source=SourceFactory()).status_code)
+        self.assertFalse(SearchSession.objects.filter(searched_at__isnull=False).exists())
+
+    def test_requires_post_and_author(self):
+        self.client.force_login(self.review.author)
+        self.assertEqual(405, self.client.get(self.url, {"review-id": self.review.pk}).status_code)
+        self.client.force_login(UserFactory())
+        self.assertEqual(403, self.post("2026-10-01").status_code)
+        self.assertFalse(SearchSession.objects.exists())
