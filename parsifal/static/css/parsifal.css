@@ -461,7 +461,12 @@ ul.review-menu li.active {
   border: 1px solid #ddd;
   border-radius: 3px;
   background-color: #f7f7f7;
+  color: #333;
   font-size: 12px;
+}
+
+.extraction-values a {
+  white-space: nowrap;
 }
 
 /* Bootstrap overrides */

@@ -390,6 +390,7 @@ html.theme-dark {
 .theme-dark .extraction-value {
   background-color: #2d3135;
   border-color: #444a50;
+  color: #d5d8dc;
 }
 
 /* In-app documentation */
