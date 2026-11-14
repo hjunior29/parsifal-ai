@@ -387,6 +387,11 @@ html.theme-dark {
   color: #f0dca8;
 }
 
+.theme-dark .extraction-value {
+  background-color: #2d3135;
+  border-color: #444a50;
+}
+
 /* In-app documentation */
 
 .theme-dark .docs-content article h2 { border-color: #3a3f44; }

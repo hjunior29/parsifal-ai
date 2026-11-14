@@ -17,6 +17,19 @@ $(function () {
     }
   });
 
+  // A select field's options beyond the first 12: shown or hidden again
+  $("table#tbl-data-extraction").on("click", ".js-extraction-values-more", function () {
+    var hidden = $(this).siblings(".extraction-value.hide");
+    if (hidden.length) {
+      hidden.removeClass("hide").addClass("js-extra");
+      $(this).text("show less");
+    }
+    else {
+      $(this).siblings(".js-extra").removeClass("js-extra").addClass("hide");
+      $(this).text($(this).data("more"));
+    }
+  });
+
   // Hide or show the textarea for lookup values (select one field and select many field)
   $("table#tbl-data-extraction").on("change", "#data-extraction-field-type", function () {
     if ($(this).val() == 'O' || $(this).val() == 'M') {

@@ -12,11 +12,19 @@
   <td style="vertical-align: middle;">{{ field.get_field_type_display }}</td>
   <td style="vertical-align: middle;">
     {% if field.is_select_field %}
-      <ul>
-        {% for value in field.get_select_values %}
-          <li>{{ value.value }}</li>
-        {% endfor %}
-      </ul>
+      {% comment %}Up to 15 options are all shown; more than that, the first 12 and "+N more".{% endcomment %}
+      {% with values=field.get_select_values %}
+        {% with count=values|length %}
+          <div class="extraction-values">
+            {% for value in values %}
+              <span class="extraction-value{% if count > 15 and forloop.counter > 12 %} hide{% endif %}">{{ value.value }}</span>
+            {% endfor %}
+            {% if count > 15 %}
+              <a href="javascript:void(0);" class="js-extraction-values-more" data-more="+{{ count|add:"-12" }} more">+{{ count|add:"-12" }} more</a>
+            {% endif %}
+          </div>
+        {% endwith %}
+      {% endwith %}
     {% else %}
       n/a
     {% endif %}

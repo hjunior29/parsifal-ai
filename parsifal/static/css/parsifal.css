@@ -439,6 +439,31 @@ ul.review-menu li.active {
   margin-bottom: 0;
 }
 
+/* The options of a select-many field of Data Extraction, in columns read top to bottom. Bootstrap's inline
+   checkboxes shift every one after the first, so the wrapped lines did not line up. */
+.extraction-options {
+  column-width: 240px;
+  column-gap: 24px;
+}
+
+.extraction-options .checkbox-inline {
+  display: block;
+  margin-left: 0;
+  break-inside: avoid;
+}
+
+/* The options of a select field in the Data Extraction form of Planning: tags that wrap, the first ones only until
+   "more" is clicked. */
+.extraction-value {
+  display: inline-block;
+  margin: 0 4px 4px 0;
+  padding: 1px 7px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  background-color: #f7f7f7;
+  font-size: 12px;
+}
+
 /* Bootstrap overrides */
 
 .navbar-default .navbar-brand {
