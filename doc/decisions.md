@@ -661,3 +661,36 @@ include them, and for a backup and an import in each review's settings.
 
 **Consequences.** Migration `reviews.0052` (`ReviewBackup`). Review backups
 are stored files, so the instance backup holds them too.
+
+
+## History of a review: what changed, by whom, through what
+
+**Context.** Helder asked (2026-11-14) for a place in each review to follow its
+changes, everything about the review, with filters. Only "who changed it last"
+existed (`Article.updated_by`, `StudyDecision.decided_at`) plus the log of the
+AI runs.
+
+**Decision.**
+- One `ReviewEvent` per change, written where the change is made: the services
+  (so the web, the API, the CLI and the MCP server record alike) and the web
+  views that still change models themselves. A row history per table
+  (`django-simple-history` and the like) was left out: it is too technical to
+  follow, and bulk `update()` calls bypass it. A bulk action is one event with
+  its studies.
+- An event says what was done (`summary`, without who), each field before and
+  after (`changes`), the names of what it took with it (`items`), its studies
+  (M2M) and the AI run. Labels are kept as they were, so an event stays
+  readable when what it names is deleted; so is the actor's name.
+- Who and through what come from the request (`HistoryMiddleware`; a bearer
+  token is the API, with the User-Agent `parsifal-cli/…` or `parsifal-mcp/…`
+  the CLI or the MCP server) or from `history.acting(...)` outside one.
+- A Planning change made once the review has studies is an **amendment**
+  (PRISMA 2020 item 24c), with a filter of its own.
+- **History** is the review menu's last item, for every member (Review settings
+  is the main author's only). Nobody edits or deletes an event.
+- Review backups carry the events; importing one brings them; restoring one
+  keeps the review's own History (and links it to the studies again when the
+  backup was taken here).
+
+**Consequences.** Migration `reviews.0053`. The History starts empty: what
+happened before it cannot be rebuilt.

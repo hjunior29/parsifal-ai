@@ -633,3 +633,25 @@ select optgroup {
 /* The selected page: a light tint of the orange marker, with the summary still readable. */
 div.list-group.docs-nav a.list-group-item.active { background-color: #fdf3ea; color: #333; }
 div.list-group.docs-nav a.list-group-item.active .docs-summary { color: #8a6f5c; }
+
+
+/* History of a review */
+.history-filters .form-control,
+.history-filters .checkbox,
+.history-filters .btn { margin: 0 4px 6px 0; }
+.history-filters .control-label { font-weight: normal; margin-right: 4px; }
+.history-study { margin: 10px 0 0; }
+.history-table { margin-bottom: 0; }
+.history-table .history-when { width: 70px; white-space: nowrap; color: #777; }
+.history-table .history-who { width: 18%; }
+.history-table .history-area { width: 14%; }
+.history-table .history-via { width: 60px; color: #777; }
+.history-details-toggle { margin-left: 6px; font-size: 12px; }
+.history-details > td { background-color: #fafafa; color: #333; }
+.history-table .history-changes { width: auto; min-width: 50%; margin-bottom: 8px; background-color: transparent; }
+.history-table > tbody > tr.history-day > td { background-color: #f5f5f5; color: #333; }
+.history-changes .history-value { white-space: pre-wrap; word-break: break-word; max-width: 420px; }
+.history-items { margin-bottom: 8px; padding-left: 20px; }
+.history-studies-heading { margin-bottom: 4px; }
+.history-pager { margin: 0; }
+.history-pager-info { margin: 5px 0 0; }

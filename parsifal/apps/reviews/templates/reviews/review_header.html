@@ -20,5 +20,8 @@
   <li{% if active_menu == "reporting"%} class="active"{% endif %}>
     <a href="{% url 'reporting' review.author.username review.name %}">Reporting</a>
   </li>
+  <li{% if active_menu == "history"%} class="active"{% endif %}>
+    <a href="{% url 'review_history' review.author.username review.name %}">History</a>
+  </li>
 </ul>
 <input type="hidden" id="review-id" value="{{ review.id }}">

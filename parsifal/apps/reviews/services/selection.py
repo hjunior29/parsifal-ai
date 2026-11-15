@@ -9,8 +9,8 @@ from django.db.models import Count, Q
 from django.utils import timezone
 
 from parsifal.apps.core.exceptions import NotFound, PermissionDenied, ValidationError
-from parsifal.apps.reviews.models import Article, ReviewAgent, ScreeningRun
-from parsifal.apps.reviews.services import ai_screening
+from parsifal.apps.reviews.models import Article, ReviewAgent, ReviewEvent, ScreeningRun
+from parsifal.apps.reviews.services import ai_screening, history
 
 DISCARDED = "Discarded: the study selection was reset."
 
@@ -75,11 +75,21 @@ def reset(*, review, actor, reviewer_ids=()):
     if actor.pk != review.author_id:
         raise PermissionDenied("Only the main author can reset the study selection.")
     ids = _clean_reviewer_ids(review, reviewer_ids)
+    changed = list(_classified(review).values_list("pk", flat=True))
     unclassified = _classified(review).update(
         status=Article.UNCLASSIFIED, selection_criteria=None, updated_by=actor, updated_at=timezone.now()
     )
     decisions = review.decisions.filter(user_id__in=ids)
     deleted = decisions.count()
+    reviewers = [
+        user.get_full_name() or user.username for user in User.objects.filter(pk__in=ids).order_by("username")
+    ]
     decisions.delete()
     discarded = ai_screening.discard_unfinished(review, DISCARDED)
+    summary = f"Reset the study selection: {history.studies(unclassified)} unclassified again"
+    if deleted:
+        summary += f", {deleted} decision{'' if deleted == 1 else 's'} deleted ({', '.join(reviewers)})"
+    if discarded:
+        summary += ", the AI screening run in progress discarded"
+    history.record(review, ReviewEvent.SELECTION, history.CHANGED, summary, articles=changed, actor=actor)
     return {"unclassified": unclassified, "decisions_deleted": deleted, "runs_discarded": discarded}

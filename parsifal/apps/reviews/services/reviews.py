@@ -2,7 +2,8 @@ from django.db import transaction
 from django.utils.text import slugify
 
 from parsifal.apps.core.exceptions import NotFound, PermissionDenied, ValidationError
-from parsifal.apps.reviews.models import Review
+from parsifal.apps.reviews.models import Review, ReviewEvent
+from parsifal.apps.reviews.services import history
 from parsifal.apps.reviews.services._common import check_length, require
 
 DEFAULT_NAME = "literature-review"
@@ -23,6 +24,21 @@ UPDATABLE_FIELDS = {
     "selection_procedure": 10000,
     "synthesis_strategy": 10000,
     "validity_threats": 10000,
+}
+
+# Where each field of the review is changed, for the History; the others are the protocol's (Planning).
+REVIEW_FIELD_AREAS = {
+    "name": ReviewEvent.REVIEW,
+    "title": ReviewEvent.REVIEW,
+    "description": ReviewEvent.REVIEW,
+    "review_type": ReviewEvent.REVIEW,
+    "status": ReviewEvent.REVIEW,
+    "prisma_not_retrieved": ReviewEvent.ANALYSIS,
+}
+AREA_SUMMARIES = {
+    ReviewEvent.REVIEW: "Changed the review details",
+    ReviewEvent.PLANNING: "Changed the protocol",
+    ReviewEvent.ANALYSIS: "Changed the PRISMA flow diagram settings",
 }
 
 
@@ -61,19 +77,44 @@ def unique_review_name(author, base, *, exclude_pk=None):
     return candidate
 
 
+def track_review(review, *fields):
+    """The review's fields as they are now (all that people change when none is given), for ``record_changes``."""
+    return history.track(review, *(fields or (*UPDATABLE_FIELDS, "name", "status")))
+
+
+def record_changes(review, tracker):
+    """One event per area for what changed in the review since ``tracker`` (see ``track_review``)."""
+    by_area = {}
+    for change in tracker.changes():
+        area = REVIEW_FIELD_AREAS.get(change["key"], ReviewEvent.PLANNING)
+        by_area.setdefault(area, []).append(change)
+    for area, changes in by_area.items():
+        fields = ", ".join(change["field"] for change in changes)
+        history.record(
+            review, area, history.CHANGED, f"{AREA_SUMMARIES[area]} ({fields})", subject="review", changes=changes
+        )
+
+
+def record_created(review, actor=None, summary="Created the review"):
+    history.record(review, ReviewEvent.REVIEW, history.ADDED, f"{summary} {history.quote(review.title)}", actor=actor)
+
+
 def create_review(*, actor, title, description=""):
     require(title, field="title")
     check_length(title, 255, field="title")
     check_length(description, 500, field="description")
-    return Review.objects.create(
+    review = Review.objects.create(
         author=actor, title=title, description=description or "", name=unique_review_name(actor, title)
     )
+    record_created(review, actor)
+    return review
 
 
 def update_review(*, review, **fields):
     unknown = set(fields) - set(UPDATABLE_FIELDS)
     if unknown:
         raise ValidationError(f"Unknown review fields: {sorted(unknown)}.")
+    tracker = track_review(review, *fields)
     for name, value in fields.items():
         limit = UPDATABLE_FIELDS[name]
         if name == "title":
@@ -100,6 +141,7 @@ def update_review(*, review, **fields):
             value = check_length(value or "", limit, field=name)
         setattr(review, name, value)
     review.save()
+    record_changes(review, tracker)
     return review
 
 
@@ -109,8 +151,10 @@ def rename_review(*, review, name):
     new_name = unique_review_name(review.author, name, exclude_pk=review.pk)
     if slugify(name) != name:
         raise ValidationError("Only letters, numbers, underscores or hyphens are allowed.", field="name")
+    tracker = track_review(review, "name")
     review.name = new_name
     review.save(update_fields=["name", "last_update"])
+    record_changes(review, tracker)
     return review
 
 

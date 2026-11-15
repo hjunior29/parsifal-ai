@@ -22,13 +22,14 @@ from parsifal.apps.reviews.models import (
     Review,
     ReviewAgent,
     ReviewBackup,
+    ReviewEvent,
     ReviewTestSetArticle,
     ScreeningResult,
     ScreeningRun,
     SearchSession,
     StudyDecision,
 )
-from parsifal.apps.reviews.services import agents, extraction, full_texts, quality, review_backups
+from parsifal.apps.reviews.services import agents, extraction, full_texts, history, quality, review_backups
 from parsifal.apps.reviews.tests.factories import (
     DataExtractionFieldFactory,
     DefaultSourceFactory,
@@ -273,6 +274,32 @@ class TestImport(ReviewBackupsTestCase):
         self.assertFalse(person.has_usable_password())
         self.assertEqual(person, copy.decisions.get(stage="full_text").user)
 
+    def test_the_history_comes_with_the_review(self):
+        history.record(
+            self.review,
+            ReviewEvent.SELECTION,
+            history.CHANGED,
+            "Accepted a study",
+            articles=[self.study],
+            actor=self.colleague,
+        )
+        copy = self.import_backup(UserFactory(username="newcomer"))
+        events = list(copy.events.order_by("pk"))
+        self.assertEqual(
+            [
+                "Added the AI agent “Jev” (agent-jev) as co-author",
+                "Accepted a study",
+                f"Created the review from a backup of “{self.review.title}”",
+            ],
+            [event.summary for event in events],
+        )
+        accepted = events[1]
+        self.assertEqual(self.colleague, accepted.actor)
+        self.assertEqual([copy.article_set.get(title="A study")], list(accepted.articles.all()))
+        original = ReviewEvent.objects.get(summary="Accepted a study", review=self.review)
+        self.assertEqual(original.created_at, accepted.created_at)
+        self.assertNotEqual(original.pk, accepted.pk)
+
     def test_not_a_backup(self):
         with self.assertRaisesMessage(ValidationError, "not a backup of a review"):
             review_backups.import_review(actor=self.owner, content=b"nope")
@@ -305,6 +332,37 @@ class TestRestore(ReviewBackupsTestCase):
             with self.review.article_set.get(title="A study").pdf.open() as handle:
                 self.assertEqual(PDF, handle.read())
         self.assertEqual(2, ReviewBackup.objects.filter(review=self.review).count())
+
+    def test_the_history_stays_and_points_to_the_studies_again(self):
+        event = history.record(
+            self.review,
+            ReviewEvent.SELECTION,
+            history.CHANGED,
+            "Accepted a study",
+            articles=[self.study],
+            actor=self.colleague,
+        )
+        backup = review_backups.create_backup(review=self.review, actor=self.owner)
+        history.record(self.review, ReviewEvent.PLANNING, history.ADDED, "Added a criterion", actor=self.owner)
+        review_backups.restore_backup(review=self.review, actor=self.owner, backup_id=backup.pk)
+        summaries = list(self.review.events.order_by("-pk").values_list("summary", flat=True)[:4])
+        self.assertEqual(f"Restored the backup “{backup.file.filename}”", summaries[0])
+        self.assertTrue(summaries[1].startswith("Backed up the review (2 studies): Before restoring"))
+        self.assertEqual("Added a criterion", summaries[2])
+        self.assertEqual([self.review.article_set.get(title="A study")], list(event.articles.all()))
+
+    def test_a_backup_file_from_elsewhere_leaves_the_studies_out(self):
+        event = history.record(
+            self.review, ReviewEvent.SELECTION, history.CHANGED, "Accepted a study", articles=[self.study]
+        )
+        backup = review_backups.create_backup(review=self.review, actor=self.owner)
+        with backup.file.open() as handle:
+            uploaded = review_backups.upload_backup(
+                review=self.review, actor=self.owner, filename="elsewhere.tar.gz", content=handle.read()
+            )
+        review_backups.restore_backup(review=self.review, actor=self.owner, backup_id=uploaded.pk)
+        self.assertTrue(ReviewEvent.objects.filter(pk=event.pk).exists())
+        self.assertFalse(event.articles.exists())
 
     def test_only_the_main_author(self):
         backup = review_backups.create_backup(review=self.review, actor=self.owner)

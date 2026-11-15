@@ -1027,6 +1027,8 @@ class ReviewBackup(models.Model):
     can be downloaded, restored over the review or imported as a new review.
     """
 
+    UPLOADED = "Uploaded"  # the note of a backup file added to the list (taken elsewhere, or downloaded before)
+
     review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="backups")
     file = models.OneToOneField(StoredFile, on_delete=models.CASCADE, related_name="review_backup")
     note = models.CharField(_("note"), max_length=200, blank=True)  # e.g. taken before a restore, or uploaded
@@ -1042,8 +1044,96 @@ class ReviewBackup(models.Model):
     def __str__(self):
         return self.file.filename
 
+    @property
+    def uploaded(self):
+        return self.note == self.UPLOADED
+
 
 @receiver(post_delete, sender=ReviewBackup)
 def delete_review_backup_file(sender, instance, **kwargs):
     """The archive goes with its place in the list."""
     StoredFile.objects.filter(pk=instance.file_id).delete()
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# History of a review (PRISMA 2020 item 24c: amendments to the protocol)
+# ---------------------------------------------------------------------------------------------------------------------
+
+
+class ReviewEvent(models.Model):
+    """
+    One change to a review, for its History: who made it, when, through what and what changed (see
+    services.history). Nobody edits or deletes an event; the events go with the review.
+    """
+
+    REVIEW = "review"
+    PLANNING = "planning"
+    SEARCH = "search"
+    STUDIES = "studies"
+    SELECTION = "selection"
+    QUALITY = "quality"
+    EXTRACTION = "extraction"
+    ANALYSIS = "analysis"
+    AREAS = (
+        (REVIEW, _("Review")),
+        (PLANNING, _("Planning")),
+        (SEARCH, _("Search")),
+        (STUDIES, _("Studies")),
+        (SELECTION, _("Study selection")),
+        (QUALITY, _("Quality assessment")),
+        (EXTRACTION, _("Data extraction")),
+        (ANALYSIS, _("Data analysis")),
+    )
+
+    ADDED = "add"
+    CHANGED = "change"
+    REMOVED = "remove"
+    ACTIONS = (
+        (ADDED, _("Added")),
+        (CHANGED, _("Changed")),
+        (REMOVED, _("Removed")),
+    )
+
+    WEB = "web"
+    API = "api"
+    CLI = "cli"
+    MCP = "mcp"
+    SYSTEM = "system"
+    VIA = (
+        (WEB, _("Web")),
+        (API, _("API")),
+        (CLI, _("CLI")),
+        (MCP, _("MCP")),
+        (SYSTEM, _("Parsifal")),  # no request: a management command, the shell
+    )
+
+    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="events")
+    created_at = models.DateTimeField(_("when"), auto_now_add=True, db_index=True)
+    actor = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    # The actor's name then; it stays when the account goes (a deleted agent).
+    actor_name = models.CharField(_("who"), max_length=150, blank=True)
+    via = models.CharField(_("via"), max_length=6, choices=VIA, default=WEB)
+    area = models.CharField(_("area"), max_length=10, choices=AREAS)
+    action = models.CharField(_("action"), max_length=6, choices=ACTIONS)
+    # What was done, without who: "Changed the exclusion criterion “Not peer reviewed”".
+    summary = models.CharField(_("what"), max_length=500)
+    # What the change was about: "criterion", "study", ... and its id (it may no longer exist).
+    subject = models.CharField(_("subject"), max_length=30, blank=True)
+    subject_id = models.BigIntegerField(null=True, blank=True)
+    # Each field changed: [{"key": "description", "field": "Description", "before": "...", "after": "..."}].
+    changes = models.JSONField(_("changes"), default=list, blank=True)
+    # Names of what the change took with it or applied to, when there is no study to point to (studies deleted).
+    items = models.JSONField(_("items"), default=list, blank=True)
+    articles = models.ManyToManyField(Article, blank=True, related_name="events", verbose_name=_("studies"))
+    run = models.ForeignKey(ScreeningRun, null=True, blank=True, on_delete=models.SET_NULL, related_name="events")
+    # A change to the protocol (Planning) made after the first study was imported: an amendment to report.
+    amendment = models.BooleanField(_("amendment to the protocol"), default=False)
+
+    class Meta:
+        verbose_name = _("review event")
+        verbose_name_plural = _("review events")
+        ordering = ("-created_at", "-pk")
+        indexes = (models.Index(fields=("review", "-created_at"), name="review_event_latest"),)
+
+    def __str__(self):
+        return f"{self.actor_name or '?'}: {self.summary}"

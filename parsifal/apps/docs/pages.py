@@ -58,6 +58,12 @@ PAGES = (
         "Independent decisions, kappa, consolidation.",
     ),
     Page(
+        "history",
+        "History of a review",
+        "Methodology",
+        "Every change to a review: who, when, through what and what changed; the amendments to the protocol.",
+    ),
+    Page(
         "ai-screening",
         "Exclude, include and screen with AI (Jev)",
         "Methodology",

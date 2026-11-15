@@ -46,6 +46,7 @@ from parsifal.apps.reviews.models import (
     Review,
     ReviewAgent,
     ReviewBackup,
+    ReviewEvent,
     ReviewTestSetArticle,
     ScreeningResult,
     ScreeningRun,
@@ -54,9 +55,10 @@ from parsifal.apps.reviews.models import (
     Source,
     StudyDecision,
 )
+from parsifal.apps.reviews.services import history
 from parsifal.apps.reviews.services._common import get_child
 from parsifal.apps.reviews.services.agents import _username_for
-from parsifal.apps.reviews.services.reviews import require_owner
+from parsifal.apps.reviews.services.reviews import record_created, require_owner
 
 FORMAT = 1
 KIND = "parsifal-review"
@@ -148,6 +150,16 @@ def snapshot(review):
                 values[extraction_id] = (*values[extraction_id], lookup_id)
             for row in data[key]:
                 row["select_values"] = list(values[row["id"]])
+    data["history"] = [_row(event) for event in review.events.order_by("pk")]
+    links = {}
+    for event_id, article_id in ReviewEvent.articles.through.objects.filter(reviewevent__review=review).values_list(
+        "reviewevent_id", "article_id"
+    ):
+        links.setdefault(event_id, []).append(article_id)
+    for row in data["history"]:
+        row["articles"] = sorted(links.get(row["id"], ()))
+        if row["actor_id"]:
+            users.add(row["actor_id"])
     agents = {agent["user_id"] for agent in data["agents"]}
     data["users"] = [
         {
@@ -191,7 +203,7 @@ def keep():
     return getattr(settings, "PARSIFAL_REVIEW_BACKUPS_KEEP", 10)
 
 
-def _store(review, content, *, studies, note, actor, filename):
+def _store(review, content, *, studies, note, actor, filename, uploaded=False):
     key = f"backups/reviews/{review.pk}/{uuid.uuid4().hex}.tar.gz"
     stored = StoredFile.objects.create(
         key=files_storage().save(key, ContentFile(content)),
@@ -202,10 +214,23 @@ def _store(review, content, *, studies, note, actor, filename):
         uploaded_by=actor,
     )
     backup = ReviewBackup.objects.create(review=review, file=stored, note=note, studies=studies, created_by=actor)
+    if uploaded:
+        summary = f"Added the backup file {history.quote(filename)} ({history.studies(studies)})"
+        _record(backup, actor, history.ADDED, summary)
+    else:
+        _record(backup, actor, history.ADDED, f"Backed up the review ({history.studies(studies)})", note)
     newest = keep()
     for old in review.backups.all()[newest:]:
         old.delete()
     return backup
+
+
+def _record(backup, actor, action, summary, note=""):
+    if note:
+        summary += f": {note}"
+    history.record(
+        backup.review, ReviewEvent.REVIEW, action, summary, subject="backup", subject_id=backup.pk, actor=actor
+    )
 
 
 def _filename(review):
@@ -231,7 +256,9 @@ def get_backup(review, actor, backup_id):
 
 
 def delete_backup(*, review, actor, backup_id):
-    get_backup(review, actor, backup_id).delete()
+    backup = get_backup(review, actor, backup_id)
+    _record(backup, actor, history.REMOVED, f"Deleted the backup {history.quote(backup.file.filename)}")
+    backup.delete()
 
 
 def _read(content):
@@ -266,7 +293,15 @@ def upload_backup(*, review, actor, filename, content):
         raise ValidationError(f"The file is larger than {MAX_MB} MB.", field="file")
     data, _archive_file = _read(content)
     name = (filename or "").rsplit("/", 1)[-1][:200] or _filename(review)
-    return _store(review, content, studies=len(data["articles"]), note="Uploaded", actor=actor, filename=name)
+    return _store(
+        review,
+        content,
+        studies=len(data["articles"]),
+        note=ReviewBackup.UPLOADED,
+        actor=actor,
+        filename=name,
+        uploaded=True,
+    )
 
 
 # Restore and import --------------------------------------------------------------------------------------------------
@@ -380,6 +415,8 @@ class _Import:
             if model is DataExtraction and row.get("select_values"):
                 lookups = self.map(DataExtractionLookup)
                 obj.select_values.set([lookups[pk] for pk in row["select_values"] if pk in lookups])
+            if model is ReviewEvent and row.get("articles"):
+                self.link(obj.pk, row["articles"])
         for obj, later in pending:
             for attname, old in later.items():
                 setattr(obj, attname, mapping.get(old))
@@ -391,6 +428,12 @@ class _Import:
             model.objects.bulk_update(
                 [obj for obj, _values in created], [field.name for field in automatic], batch_size=100
             )
+
+    def link(self, event_id, article_ids):
+        """The studies of an event of the history, among the backup's."""
+        articles, through = self.map(Article), ReviewEvent.articles.through
+        rows = [through(reviewevent_id=event_id, article_id=articles[pk]) for pk in article_ids if pk in articles]
+        through.objects.bulk_create(rows, batch_size=500)
 
     def file(self, row):
         key = f"reviews/{self.review.pk}/{uuid.uuid4().hex}.pdf"
@@ -452,12 +495,24 @@ def restore_backup(*, review, actor, backup_id):
         content = handle.read()
     data, archive = _read(content)
     create_backup(review=review, actor=actor, note=f"Before restoring {backup.file.filename}")
+    links = ReviewEvent.articles.through.objects.filter(reviewevent__review=review)
+    links = list(links.values_list("reviewevent_id", "article_id"))
     _clear(review)
     for field, value in data["review"].items():
         if field not in REVIEW_KEPT and hasattr(review, field):
             setattr(review, field, value)
     review.save()
-    _Import(review, data, archive, actor).content()
+    importer = _Import(review, data, archive, actor)
+    importer.content()
+    if not backup.uploaded:
+        # Taken here, the backup has the studies with the ids they had: the history points to them again. The history
+        # stays as it is; a backup file from elsewhere could have other studies with the same ids.
+        studies = {}
+        for event_id, article_id in links:
+            studies.setdefault(event_id, []).append(article_id)
+        for event_id, article_ids in studies.items():
+            importer.link(event_id, article_ids)
+    _record(backup, actor, history.CHANGED, f"Restored the backup {history.quote(backup.file.filename)}")
     return review
 
 
@@ -478,5 +533,8 @@ def import_review(*, actor, content):
         index += 1
         unique = f"{name}-{index}"
     review = Review.objects.create(name=unique, author=actor, **fields)
-    _Import(review, data, archive, actor).content()
+    importer = _Import(review, data, archive, actor)
+    importer.content()
+    importer.rows("history", ReviewEvent)
+    record_created(review, actor, "Created the review from a backup of")
     return review

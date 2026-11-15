@@ -14,7 +14,8 @@ from django.utils.text import slugify
 from parsifal.apps.accounts.models import ApiToken
 from parsifal.apps.authentication.validators import validate_forbidden_usernames
 from parsifal.apps.core.exceptions import NotFound
-from parsifal.apps.reviews.models import ReviewAgent
+from parsifal.apps.reviews.models import ReviewAgent, ReviewEvent
+from parsifal.apps.reviews.services import history
 from parsifal.apps.reviews.services._common import check_length, require
 from parsifal.apps.reviews.services.reviews import require_owner
 
@@ -84,7 +85,21 @@ def create_agent(*, review, actor, name):
     review.co_authors.add(user)
     agent = ReviewAgent.objects.create(review=review, user=user, name=name)
     token, raw_key = ApiToken.create_for(user, name)
+    _record(agent, actor, history.ADDED, f"Added the AI agent {history.quote(name)} ({user.username}) as co-author")
     return AgentCreated(agent=agent, token=token, raw_key=raw_key)
+
+
+def _record(agent, actor, action, summary, items=()):
+    history.record(
+        agent.review,
+        ReviewEvent.REVIEW,
+        action,
+        summary,
+        subject="agent",
+        subject_id=agent.user_id,
+        items=items,
+        actor=actor,
+    )
 
 
 @transaction.atomic
@@ -95,6 +110,7 @@ def new_token(*, review, actor, agent_id):
     for token in agent.user.api_tokens.active():
         token.revoke()
     token, raw_key = ApiToken.create_for(agent.user, agent.name)
+    _record(agent, actor, history.CHANGED, f"Gave the AI agent {history.quote(agent.name)} a new API token")
     return AgentCreated(agent=agent, token=token, raw_key=raw_key)
 
 
@@ -104,5 +120,11 @@ def delete_agent(*, review, actor, agent_id):
     require_owner(review, actor)
     agent = get_agent(review, agent_id)
     deleted = stats(agent)
+    items = [
+        f"{count} {what.replace('_', ' ')}" for what, count in deleted.items() if what != "active_tokens" and count
+    ]
+    _record(
+        agent, actor, history.REMOVED, f"Deleted the AI agent {history.quote(agent.name)} and what it recorded", items
+    )
     agent.user.delete()
     return deleted

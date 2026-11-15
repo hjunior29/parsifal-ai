@@ -36,6 +36,7 @@ urlpatterns = [
     path("robots.txt", TemplateView.as_view(template_name="robots.txt", content_type="text/plain")),
     # Review URLs
     path("<str:username>/<str:review_name>/", reviews_views.review, name="review"),
+    path("<str:username>/<str:review_name>/history/", reviews_views.review_history, name="review_history"),
     path("<str:username>/<str:review_name>/settings/", reviews_settings_views.settings, name="settings"),
     path(
         "<str:username>/<str:review_name>/settings/access/",

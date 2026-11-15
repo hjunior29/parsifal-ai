@@ -59,6 +59,7 @@ def test_call_simple_tool(server, fake_api):
     result = run(server.call_tool("parsifal_me", {}))
     assert json.loads(text_of(result))["username"] == "alice"
     assert fake_api.requests[0].headers["Authorization"].startswith("Bearer pfl_test")
+    assert fake_api.requests[0].headers["User-Agent"].startswith("parsifal-mcp/")  # the History says "MCP"
 
 
 def test_call_tool_with_body_and_review_reference(server, fake_api):

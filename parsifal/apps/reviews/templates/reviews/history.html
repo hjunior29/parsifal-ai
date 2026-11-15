@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+
+{% block title %}History · {{ review.title }}{% endblock %}
+
+{% block javascript %}
+  <script>
+    $(function () {
+      /* A filter applies as soon as it is chosen; the words, with Enter or Filter. */
+      $(".js-history-filters").on("change", "select, input[type=date], input[type=checkbox]", function () {
+        this.form.submit();
+      });
+    });
+  </script>
+{% endblock javascript %}
+
+{% block content %}
+
+  {% include "reviews/review_header.html" with active_menu="history" %}
+
+  <div class="panel panel-default">
+    <div class="panel-heading">
+      <h3 class="panel-title">History</h3>
+    </div>
+    <div class="panel-body">
+      <p class="text-muted">
+        Every change to the review: who made it, when, through what and what changed. A change to the protocol made
+        once studies were imported is marked <span class="label label-warning">amendment</span>; PRISMA 2020 asks to
+        report them (item 24c).
+      </p>
+      <form method="get" class="form-inline history-filters js-history-filters">
+        <select name="area" class="form-control input-sm" aria-label="Area">
+          <option value="">Every area</option>
+          {% for key, name in areas %}
+            <option value="{{ key }}"{% if filters.area == key %} selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+        </select>
+        <select name="action" class="form-control input-sm" aria-label="Action">
+          <option value="">Every action</option>
+          {% for key, name in actions %}
+            <option value="{{ key }}"{% if filters.action == key %} selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+        </select>
+        <select name="actor" class="form-control input-sm" aria-label="Who">
+          <option value="">Everyone</option>
+          {% for username, name in actors %}
+            <option value="{{ username }}"{% if filters.actor|lower == username|lower %} selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+        </select>
+        <select name="via" class="form-control input-sm" aria-label="Via">
+          <option value="">Any way</option>
+          {% for key, name in vias %}
+            <option value="{{ key }}"{% if filters.via == key %} selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+        </select>
+        <label class="control-label">
+          From <input type="date" name="since" value="{{ filters.since }}" class="form-control input-sm">
+        </label>
+        <label class="control-label">
+          to <input type="date" name="until" value="{{ filters.until }}" class="form-control input-sm">
+        </label>
+        <input type="search" name="q" value="{{ filters.q }}" class="form-control input-sm" placeholder="Search…" aria-label="Search">
+        <div class="checkbox">
+          <label><input type="checkbox" name="amendments" value="1"{% if filters.amendments %} checked{% endif %}> Amendments only</label>
+        </div>
+        {% if study %}<input type="hidden" name="study" value="{{ study.pk }}">{% endif %}
+        <button type="submit" class="btn btn-default btn-sm">Filter</button>
+        {% if filtered %}
+          <a href="{% url 'review_history' review.author.username review.name %}" class="btn btn-link btn-sm">Clear</a>
+        {% endif %}
+      </form>
+      {% if study %}
+        <p class="history-study">
+          The changes to the study <strong>{{ study.title }}</strong>.
+          <a href="?{{ every_study_query }}">Show every study</a>
+        </p>
+      {% endif %}
+      {% if error %}<p class="text-danger">{{ error }}</p>{% endif %}
+    </div>
+    <div class="table-responsive">
+      <table class="table history-table">
+        <thead>
+          <tr>
+            <th class="history-when">When</th>
+            <th class="history-who">Who</th>
+            <th class="history-area">Area</th>
+            <th>What</th>
+            <th class="history-via">Via</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for event in events %}
+            {% ifchanged event.created_at.date %}
+              <tr class="active history-day"><td colspan="5"><strong>{{ event.created_at|date:"l, j F Y" }}</strong></td></tr>
+            {% endifchanged %}
+            <tr>
+              <td class="history-when" title="{{ event.created_at|date:'Y-m-d H:i:s' }}">{{ event.created_at|date:"H:i" }}</td>
+              <td class="history-who">
+                {{ event.actor_name|default:"Parsifal" }}
+                {% if event.actor_id in agents %}<span class="label label-info">AI agent</span>{% endif %}
+              </td>
+              <td class="history-area">{{ event.get_area_display }}</td>
+              <td>
+                {{ event.summary }}
+                {% if event.amendment %}<span class="label label-warning">amendment</span>{% endif %}
+                {% if event.changes or event.items or event.study_count or event.run_id %}
+                  <a href="#event-{{ event.pk }}" class="history-details-toggle" data-toggle="collapse" aria-expanded="false" aria-controls="event-{{ event.pk }}">details</a>
+                {% endif %}
+              </td>
+              <td class="history-via">{{ event.get_via_display }}</td>
+            </tr>
+            {% if event.changes or event.items or event.study_count or event.run_id %}
+              <tr class="collapse history-details" id="event-{{ event.pk }}">
+                <td colspan="5">
+                  {% if event.changes %}
+                    <table class="table table-condensed history-changes">
+                      <thead><tr><th>Field</th><th>Before</th><th>After</th></tr></thead>
+                      <tbody>
+                        {% for change in event.changes %}
+                          <tr>
+                            <td>{{ change.field }}</td>
+                            <td class="history-value">{{ change.before|default:"—" }}</td>
+                            <td class="history-value">{{ change.after|default:"—" }}</td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  {% endif %}
+                  {% if event.items %}
+                    <ul class="history-items">
+                      {% for item in event.items %}<li>{{ item }}</li>{% endfor %}
+                    </ul>
+                  {% endif %}
+                  {% if event.study_count %}
+                    <p class="history-studies-heading"><strong>{{ event.study_count }} stud{{ event.study_count|pluralize:"y,ies" }}</strong>{% if event.study_count > event.studies|length %} (the first {{ event.studies|length }}, by title){% endif %}:</p>
+                    <ul class="history-items">
+                      {% for article in event.studies %}
+                        <li><a href="?study={{ article.pk }}" title="The changes to this study">{{ article.title|default:"(no title)" }}</a></li>
+                      {% endfor %}
+                    </ul>
+                  {% endif %}
+                  {% if event.run_id %}
+                    <p>AI screening run #{{ event.run_id }}{% if event.run %} ({{ event.run.get_phase_display }}, {{ event.run.model }}){% endif %}: see it in
+                      <a href="{% url 'study_selection' review.author.username review.name %}">Study Selection</a> → AI runs.</p>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endif %}
+          {% empty %}
+            <tr>
+              <td colspan="5" class="text-muted">
+                {% if filtered %}No change matches the filters.{% else %}No change was recorded yet. The History starts with the first change made after it was installed.{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if page.paginator.count %}
+      <div class="panel-footer clearfix">
+        {% if page.paginator.num_pages > 1 %}
+          <ul class="pagination pagination-sm pull-right history-pager">
+            {% if page.has_previous %}
+              <li><a href="?{{ query }}{% if query %}&amp;{% endif %}page={{ page.previous_page_number }}" aria-label="Previous page"><span aria-hidden="true">&laquo;</span></a></li>
+            {% else %}
+              <li class="disabled"><span aria-hidden="true">&laquo;</span></li>
+            {% endif %}
+            {% for number in page_range %}
+              {% if number == page.number %}
+                <li class="active"><span>{{ number }} <span class="sr-only">(current)</span></span></li>
+              {% elif number == page.paginator.ELLIPSIS %}
+                <li class="disabled"><span>&hellip;</span></li>
+              {% else %}
+                <li><a href="?{{ query }}{% if query %}&amp;{% endif %}page={{ number }}">{{ number }}</a></li>
+              {% endif %}
+            {% endfor %}
+            {% if page.has_next %}
+              <li><a href="?{{ query }}{% if query %}&amp;{% endif %}page={{ page.next_page_number }}" aria-label="Next page"><span aria-hidden="true">&raquo;</span></a></li>
+            {% else %}
+              <li class="disabled"><span aria-hidden="true">&raquo;</span></li>
+            {% endif %}
+          </ul>
+        {% endif %}
+        <p class="text-muted history-pager-info">
+          <strong>{{ page.start_index }}</strong>–<strong>{{ page.end_index }}</strong> of <strong>{{ page.paginator.count }}</strong> change{{ page.paginator.count|pluralize }}
+          · Show
+          {% for size in per_page_choices %}
+            {% if size == page.paginator.per_page %}<strong>{{ size }}</strong>{% else %}<a href="?{{ query }}{% if query %}&amp;{% endif %}per-page={{ size }}">{{ size }}</a>{% endif %}
+          {% endfor %}
+          per page
+        </p>
+      </div>
+    {% endif %}
+  </div>
+
+{% endblock content %}

@@ -53,8 +53,9 @@ REVIEW_REF = re.compile(r"^(?P<author>[\w.@+-]+)/(?P<name>[\w-]+)$")
 
 
 class ApiClient:
-    def __init__(self, settings, transport=None, timeout=60.0):
-        headers = {"User-Agent": f"parsifal-cli/{__version__}", "Accept": "application/json"}
+    def __init__(self, settings, transport=None, timeout=60.0, agent="parsifal-cli"):
+        # The History says through what a change was made: the CLI or the MCP server (``agent``).
+        headers = {"User-Agent": f"{agent}/{__version__}", "Accept": "application/json"}
         if settings.token:
             headers["Authorization"] = f"Bearer {settings.token}"
         self.settings = settings

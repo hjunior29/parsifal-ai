@@ -88,3 +88,38 @@ class AgentOut(Schema):
 
 class AgentCreatedOut(AgentOut):
     token: str  # shown once; store it now
+
+
+class ChangeOut(Schema):
+    key: str = ""  # the field's name in the API, when it is one
+    field: str
+    before: str
+    after: str
+
+
+class ReviewEventOut(Schema):
+    """One change to the review (its History)."""
+
+    id: int
+    created_at: datetime
+    actor: str | None  # username; None for Parsifal itself or an account deleted since (see actor_name)
+    actor_name: str
+    via: str  # web, api, cli, mcp or system
+    area: str  # review, planning, search, studies, selection, quality, extraction or analysis
+    action: str  # add, change or remove
+    summary: str
+    subject: str
+    subject_id: int | None
+    changes: list[ChangeOut]
+    items: list[str]
+    article_ids: list[int]
+    run_id: int | None
+    amendment: bool  # a change to the protocol once studies were imported (PRISMA 2020 item 24c)
+
+    @staticmethod
+    def resolve_actor(obj):
+        return obj.actor.username if obj.actor_id else None
+
+    @staticmethod
+    def resolve_article_ids(obj):
+        return sorted(article.pk for article in obj.articles.all())

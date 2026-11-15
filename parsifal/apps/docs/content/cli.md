@@ -37,6 +37,7 @@ parameters in kebab-case; `--review` accepts a numeric id or `author/slug`.
 | `library` | `folder list|create|rename|delete|add|remove|move`, `document list|create|get|update|delete|delete-batch`, `import`, `import-file` |
 | `review` | `list`, `create`, `get`, `overview`, `update`, `delete`, `rename`, `reset-selection`, `import --file` (a new review from a review backup); `review backup list|create|upload|download|restore|delete` |
 | `member` | `list` |
+| `history` | `list` (every change to the review; `--area`, `--action`, `--actor`, `--via`, `--article-id`, `--since`, `--until`, `--q`, `--amendments`) |
 | `agent` | `list`, `create`, `new-token`, `delete` (permanent: account, tokens, decisions, quality assessments and extracted data; imported studies and classifications stay) |
 | `question`, `keyword`, `criteria` | `list`, `create`, `update`, `delete` (+ `reorder`, `import-picoc`) |
 | `search-string` | `get`, `set`, `generate` |

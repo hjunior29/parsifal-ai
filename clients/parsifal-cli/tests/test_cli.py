@@ -92,6 +92,20 @@ def test_date_of_search(runner, fake_api):
     assert json.loads(result.output) == rows
 
 
+def test_history(runner, fake_api):
+    page = {"count": 1, "items": [{"id": 9, "summary": "Changed the protocol (Objective)", "via": "cli"}]}
+    fake_api.route("GET", "/api/v1/reviews/7/history", 200, page)
+    result = invoke(
+        runner,
+        ["history", "list", "--review", "7", "--area", "planning", "--since", "2026-11-01", "--amendments"],
+    )
+    assert result.exit_code == 0, result.output
+    request = fake_api.requests[-1]
+    assert dict(request.url.params) == {"area": "planning", "since": "2026-11-01", "amendments": "true"}
+    assert request.headers["User-Agent"].startswith("parsifal-cli/")  # the History says "CLI"
+    assert json.loads(result.output)["items"][0]["id"] == 9
+
+
 def test_inline_bibtex_is_not_read_as_a_file(runner, fake_api, tmp_path):
     fake_api.route(
         "POST",

@@ -393,6 +393,13 @@ html.theme-dark {
   color: #d5d8dc;
 }
 
+/* History of a review */
+
+.theme-dark .history-table .history-when,
+.theme-dark .history-table .history-via { color: #9aa0a6; }
+.theme-dark .history-details > td { background-color: #23272b; color: #d5d8dc; }
+.theme-dark .history-table > tbody > tr.history-day > td { background-color: #2d3135; color: #d5d8dc; }
+
 /* In-app documentation */
 
 .theme-dark .docs-content article h2 { border-color: #3a3f44; }

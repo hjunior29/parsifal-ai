@@ -46,7 +46,7 @@ class ToolContext:
         self.transport = transport
 
     def client(self):
-        return ApiClient(self.settings or config.resolve(), transport=self.transport)
+        return ApiClient(self.settings or config.resolve(), transport=self.transport, agent="parsifal-mcp")
 
 
 def _description(operation):

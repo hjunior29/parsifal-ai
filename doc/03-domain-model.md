@@ -186,6 +186,14 @@ group and marks the rest `D`.
   full text with it are reports not retrieved.
 - `ReviewBackup(review CASCADE, file → core.StoredFile CASCADE (the .tar.gz; deleted with the row), note, studies,
   created_by SET_NULL, created_at)`: a backup of one review kept on the server (`services/review_backups.py`).
+- `ReviewEvent(review CASCADE, created_at, actor → User SET_NULL, actor_name (kept when the account goes), via
+  web/api/cli/mcp/system, area, action add/change/remove, summary, subject, subject_id, changes JSON [{key, field,
+  before, after}], items JSON, articles M2M, run → ScreeningRun SET_NULL, amendment)`: one change to the review, for its
+  History (`services/history.py`). Recorded by the services and by the web views that do not go through them; never
+  edited or deleted. `amendment`: a Planning change once the review had studies (PRISMA 2020 item 24c). Who acts and
+  through what come from the request (`HistoryMiddleware`; a bearer token with the User-Agent `parsifal-cli/…` or
+  `parsifal-mcp/…` is the CLI or the MCP server) or from `history.acting(...)`. Review backups carry the events;
+  importing a backup brings them, restoring one keeps the review's own.
 - `ScreeningRun(review, reviewer → User CASCADE (the member the decisions are recorded as), started_by SET_NULL, phase
   exclusion/inclusion/screen (the action, in no order; retention for the runs of the removed Retain with AI), model, parameters JSON, status running (also while interrupted)/finished/cancelled (discarded by a newer run)/failed
   (older runs only), total, error (why it waits), last_step_at (a step in the last 30 s means it is being driven),

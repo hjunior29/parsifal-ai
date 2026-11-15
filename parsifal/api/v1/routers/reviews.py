@@ -1,4 +1,6 @@
-from django.db.models import Q
+from datetime import date
+
+from django.db.models import Prefetch, Q
 
 from ninja import Router
 from ninja.pagination import LimitOffsetPagination, paginate
@@ -11,6 +13,7 @@ from parsifal.api.v1.schemas.reviews import (
     AgentIn,
     AgentOut,
     ReviewCreateIn,
+    ReviewEventOut,
     ReviewNameIn,
     ReviewOut,
     ReviewUpdateIn,
@@ -18,8 +21,8 @@ from parsifal.api.v1.schemas.reviews import (
     SelectionResetOut,
 )
 from parsifal.apps.core.exceptions import ValidationError
-from parsifal.apps.reviews.models import Review
-from parsifal.apps.reviews.services import agents, protocol, reviews, selection
+from parsifal.apps.reviews.models import Article, Review
+from parsifal.apps.reviews.services import agents, history, protocol, reviews, selection
 
 router = Router(tags=["reviews"])
 
@@ -98,6 +101,45 @@ def reviews_selection_reset(request, review_id: int, payload: SelectionResetIn):
 @router.put("/reviews/{int:review_id}/name", response=ReviewOut, operation_id="reviews_rename")
 def reviews_rename(request, review_id: int, payload: ReviewNameIn):
     return reviews.rename_review(review=get_owned_review(request, review_id), name=payload.name)
+
+
+@router.get("/reviews/{int:review_id}/history", response=list[ReviewEventOut], operation_id="history_list")
+@paginate(LimitOffsetPagination)
+def history_list(
+    request,
+    review_id: int,
+    area: str | None = None,
+    action: str | None = None,
+    actor: str | None = None,
+    via: str | None = None,
+    article_id: int | None = None,
+    since: date | None = None,
+    until: date | None = None,
+    q: str | None = None,
+    amendments: bool | None = None,
+):
+    """
+    The review's History: every change to it, the newest first — who made it (``actor``, a username), when, through
+    what (``via``: web, api, cli, mcp or system), in which ``area`` (review, planning, search, studies, selection,
+    quality, extraction, analysis), the ``action`` (add, change, remove) and what changed, field by field. Filters:
+    those fields; ``article_id``: the changes to one study; ``since``/``until``: dates, both included; ``q``: words
+    in what was done, who did it or what changed; ``amendments=true``: only the changes to the protocol made once
+    studies were imported (PRISMA 2020 item 24c).
+    """
+    review = get_review(request, review_id)
+    events = history.list_events(
+        review,
+        area=area,
+        action=action,
+        actor=actor,
+        via=via,
+        article_id=article_id,
+        since=since,
+        until=until,
+        query=q,
+        amendments=amendments,
+    )
+    return events.select_related("actor").prefetch_related(Prefetch("articles", Article.objects.only("id")))
 
 
 @router.get("/reviews/{int:review_id}/members", response=list[UserOut], operation_id="members_list")

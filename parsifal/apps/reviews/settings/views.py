@@ -14,7 +14,12 @@ from parsifal.apps.core.models import files_are_local, files_storage
 from parsifal.apps.reviews.decorators import main_author_required
 from parsifal.apps.reviews.mixins import MainAuthorRequiredMixin, ReviewMixin
 from parsifal.apps.reviews.models import Review
-from parsifal.apps.reviews.services import agents as agent_services, review_backups, selection
+from parsifal.apps.reviews.services import (
+    agents as agent_services,
+    review_backups,
+    reviews as review_services,
+    selection,
+)
 from parsifal.apps.reviews.settings.forms import ReviewSettingsForm
 
 
@@ -23,6 +28,7 @@ from parsifal.apps.reviews.settings.forms import ReviewSettingsForm
 def settings(request, username, review_name):
     review = Review.objects.get(name=review_name, author__username__iexact=username)
     if request.method == "POST":
+        tracker = review_services.track_review(review, "name", "review_type")
         form = ReviewSettingsForm(request.POST, instance=review)
         if form.is_valid():
             name = slugify(form.instance.name)
@@ -34,6 +40,7 @@ def settings(request, username, review_name):
                     unique_name = "{0}-{1}".format(name, i)
             form.instance.name = unique_name
             review = form.save()
+            review_services.record_changes(review, tracker)
             messages.success(request, "Review was saved successfully.")
             return redirect(r("settings", args=(review.author.username, unique_name)))
     else:
