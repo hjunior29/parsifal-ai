@@ -32,6 +32,14 @@
         </a>
       </li>
     {% endif %}
+    {% if article.pk %}
+      {# The changes to the study (the History, kept to it), in another tab: the window stays as it is. #}
+      <li class="pull-right">
+        <a href="{% url 'review_history' review.author.username review.name %}?study={{ article.pk }}" target="_blank" rel="noopener" title="The changes to this study (who made them, when)">
+          <small><span class="glyphicon glyphicon-time"></span> History</small>
+        </a>
+      </li>
+    {% endif %}
   </ul>
 
   <div class="tab-content">

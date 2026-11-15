@@ -283,17 +283,14 @@ class TestImport(ReviewBackupsTestCase):
             articles=[self.study],
             actor=self.colleague,
         )
+        before = list(self.review.events.order_by("pk").values_list("summary", flat=True))
         copy = self.import_backup(UserFactory(username="newcomer"))
         events = list(copy.events.order_by("pk"))
         self.assertEqual(
-            [
-                "Added the AI agent “Jev” (agent-jev) as co-author",
-                "Accepted a study",
-                f"Created the review from a backup of “{self.review.title}”",
-            ],
+            [*before, f"Created the review from a backup of “{self.review.title}”"],
             [event.summary for event in events],
         )
-        accepted = events[1]
+        accepted = next(event for event in events if event.summary == "Accepted a study")
         self.assertEqual(self.colleague, accepted.actor)
         self.assertEqual([copy.article_set.get(title="A study")], list(accepted.articles.all()))
         original = ReviewEvent.objects.get(summary="Accepted a study", review=self.review)

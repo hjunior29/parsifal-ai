@@ -270,6 +270,24 @@ def classify(*, review, article_id, facet_id, category_ids, actor=None, notes=""
         raise ValidationError(f"Facet {facet.name!r} accepts a single category.", field="category_ids")
     categories = get_children(facet.categories, category_ids, label="Category")
     check_length(notes or "", 2000, field="notes")
+    current = list(ArticleClassification.objects.filter(article=article, facet=facet).select_related("category"))
+    before = sorted(row.category.name for row in current)
+    notes_before = current[0].notes if current else ""
+    after = sorted(category.name for category in categories)
+    changes = [history.change(facet.name, before, after, "categories")] if before != after else []
+    if after and (notes or "") != notes_before:
+        changes.append(history.change("Notes", notes_before, notes or "", "notes"))
+    if changes:
+        history.record(
+            review,
+            ReviewEvent.EXTRACTION,
+            history.CHANGED,
+            f"Classified the study {history.quote(article.title)} in {history.quote(facet.name)}",
+            subject="classification",
+            changes=changes,
+            articles=[article],
+            actor=actor,
+        )
     ArticleClassification.objects.filter(article=article, facet=facet).exclude(category__in=categories).delete()
     for category in categories:
         ArticleClassification.objects.update_or_create(

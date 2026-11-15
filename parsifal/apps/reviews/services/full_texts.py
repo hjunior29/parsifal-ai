@@ -14,6 +14,8 @@ from django.db import transaction
 
 from parsifal.apps.core.exceptions import NotFound, ValidationError
 from parsifal.apps.core.models import StoredFile, files_storage
+from parsifal.apps.reviews.models import ReviewEvent
+from parsifal.apps.reviews.services import history
 from parsifal.apps.reviews.services._common import get_child
 
 PDF_CONTENT_TYPE = "application/pdf"
@@ -93,9 +95,28 @@ def attach_pdf(*, review, article_id, file, filename=None, actor=None):
     except Exception:
         storage.delete(key)
         raise
+    verb = "Replaced the PDF of" if previous is not None else "Added a PDF to"
+    _record(review, article, history.CHANGED if previous else history.ADDED, verb, actor)
     return article.pdf
+
+
+def _record(review, article, action, verb, actor=None):
+    history.record(
+        review,
+        ReviewEvent.STUDIES,
+        action,
+        f"{verb} the study {history.quote(article.title)}",
+        subject="study",
+        subject_id=article.pk,
+        items=[article.pdf.filename] if article.pdf else (),
+        articles=[article],
+        actor=actor,
+    )
 
 
 def remove_pdf(*, review, article_id):
     """Delete the study's PDF; NotFound when it has none."""
-    get_pdf(review=review, article_id=article_id).delete()
+    pdf = get_pdf(review=review, article_id=article_id)
+    article = _article(review, article_id)
+    _record(review, article, history.REMOVED, "Removed the PDF of")
+    pdf.delete()

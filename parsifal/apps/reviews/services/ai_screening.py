@@ -60,8 +60,16 @@ from django.utils import timezone
 from parsifal.apps.accounts import services as integrations
 from parsifal.apps.core import jev
 from parsifal.apps.core.exceptions import NotFound, PermissionDenied, ValidationError
-from parsifal.apps.reviews.models import Article, Review, ReviewAgent, ScreeningResult, ScreeningRun, StudyDecision
-from parsifal.apps.reviews.services import decisions, screening_requests
+from parsifal.apps.reviews.models import (
+    Article,
+    Review,
+    ReviewAgent,
+    ReviewEvent,
+    ScreeningResult,
+    ScreeningRun,
+    StudyDecision,
+)
+from parsifal.apps.reviews.services import decisions, history, screening_requests
 from parsifal.apps.reviews.services._common import check_length, get_child
 
 DEFAULT_THRESHOLD = 0.9
@@ -687,7 +695,32 @@ def start_run(
     ScreeningResult.objects.bulk_create(
         ScreeningResult(run=run, article_id=pk, previous_status=status) for pk, status in articles
     )
+    reviewer_name = reviewer.get_full_name() or reviewer.username
+    record_run(
+        run,
+        history.ADDED,
+        f"Started {LABELS[phase]} (run #{run.pk}) on {history.studies(len(articles))} as {reviewer_name}, "
+        f"model {model}",
+        items=[f"{option['key']}: {option['description']}" for option in options],
+        actor=actor,
+    )
     return run
+
+
+def record_run(run, action, summary, *, articles=(), items=(), actor=None, linked=True):
+    """An AI screening run in the History: started, finished, discarded or undone; never each of its decisions."""
+    history.record(
+        run.review,
+        ReviewEvent.SELECTION,
+        action,
+        summary,
+        subject="ai_run",
+        subject_id=run.pk,
+        run=run if linked else None,
+        articles=articles,
+        items=items,
+        actor=actor,
+    )
 
 
 def preview(
@@ -750,6 +783,15 @@ def _close(run, status, error=""):
     run.error = error[:500]
     run.finished_at = timezone.now()
     run.save(update_fields=["status", "error", "finished_at"])
+    if status == ScreeningRun.FINISHED:
+        outcomes = dict(ScreeningResult.OUTCOMES)
+        counts = run.results.order_by().values_list("outcome").annotate(n=Count("pk"))
+        what = ", ".join(f"{n} {str(outcomes[outcome]).lower()}" for outcome, n in sorted(counts))
+        changed = run.results.exclude(status_set="").values_list("article_id", flat=True)
+        record_run(run, history.CHANGED, f"Finished {LABELS[run.phase]} (run #{run.pk}): {what}", articles=changed)
+    else:
+        summary = f"Discarded {LABELS[run.phase]} (run #{run.pk})"
+        record_run(run, history.REMOVED, summary + (f": {error}" if error else ""))
 
 
 def discard_unfinished(review, error=""):

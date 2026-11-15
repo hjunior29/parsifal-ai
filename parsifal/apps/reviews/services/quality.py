@@ -129,14 +129,34 @@ def assess(*, review, article_id, question_id, answer_id, actor=None):
     """
     article = get_child(review.article_set, article_id, label="Article")
     question = get_child(review.qualityquestion_set, question_id, label="Quality question")
+    before = QualityAssessment.objects.filter(article=article, question=question).select_related("answer").first()
+    before = before.answer.description if before and before.answer else ""
     if answer_id is None:
         QualityAssessment.objects.filter(article=article, question=question).delete()
+        _record_answer(review, article, question, before, "", actor)
         return None
     answer = get_child(review.qualityanswer_set, answer_id, label="Quality answer")
     assessment, _created = QualityAssessment.objects.update_or_create(
         article=article, question=question, defaults={"answer": answer, "user": actor}
     )
+    _record_answer(review, article, question, before, answer.description, actor)
     return assessment
+
+
+def _record_answer(review, article, question, before, after, actor):
+    if before == after:
+        return
+    verb = "Answered" if after else "Cleared the answer to"
+    history.record(
+        review,
+        ReviewEvent.QUALITY,
+        history.CHANGED,
+        f"{verb} {history.quote(question.description)} for the study {history.quote(article.title)}",
+        subject="quality_assessment",
+        changes=[history.change(question.description, before, after, "answer")],
+        articles=[article],
+        actor=actor,
+    )
 
 
 def article_assessments(*, review, article_id):

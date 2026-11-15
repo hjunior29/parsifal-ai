@@ -5,7 +5,8 @@ process self-assessment checklist (Petersen et al. 2015, Table 8).
 
 from django.utils.text import slugify
 
-from parsifal.apps.reviews.models import ProcessChecklistItem, ReviewTestSetArticle
+from parsifal.apps.reviews.models import ProcessChecklistItem, ReviewEvent, ReviewTestSetArticle
+from parsifal.apps.reviews.services import history
 from parsifal.apps.reviews.services._common import check_length, get_child, require
 
 # (key, phase, label) — the 26 actions of Petersen et al. (2015) Table 8.
@@ -43,6 +44,11 @@ PETERSEN_CHECKLIST = (
 )
 
 CHECKLIST_KEYS = {key for key, _phase, _label in PETERSEN_CHECKLIST}
+CHECKLIST_LABELS = {key: label for key, _phase, label in PETERSEN_CHECKLIST}
+
+# What the History records of the test set (the search's evaluation) and of the process checklist.
+TEST_SET = history.Kind("known study of the test set", ReviewEvent.SEARCH, ("title", "doi", "notes"))
+CHECKLIST_ITEM = history.Kind("checklist action", ReviewEvent.REVIEW, ("applied", "notes"))
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -56,12 +62,14 @@ def add_test_set_article(*, review, title, doi="", notes=""):
     check_length(doi or "", 100, field="doi")
     check_length(notes or "", 500, field="notes")
     item = ReviewTestSetArticle.objects.create(review=review, title=title, doi=(doi or "").strip(), notes=notes or "")
+    TEST_SET.added(review, item)
     match_test_set(review=review)
     return item
 
 
 def update_test_set_article(*, review, item_id, title=None, doi=None, notes=None):
     item = get_child(review.test_set, item_id, label="Test-set article")
+    tracker = TEST_SET.track(item)
     if title is not None:
         require(title, field="title")
         item.title = check_length(title, 1000, field="title")
@@ -70,12 +78,15 @@ def update_test_set_article(*, review, item_id, title=None, doi=None, notes=None
     if notes is not None:
         item.notes = check_length(notes, 500, field="notes")
     item.save()
+    TEST_SET.changed(review, tracker)
     match_test_set(review=review)
     return item
 
 
 def remove_test_set_article(*, review, item_id):
-    get_child(review.test_set, item_id, label="Test-set article").delete()
+    item = get_child(review.test_set, item_id, label="Test-set article")
+    TEST_SET.removed(review, item)
+    item.delete()
 
 
 def match_test_set(*, review):
@@ -138,7 +149,12 @@ def set_checklist_item(*, review, key, applied, notes=None):
     defaults = {"applied": bool(applied)}
     if notes is not None:
         defaults["notes"] = check_length(notes, 500, field="notes")
-    ProcessChecklistItem.objects.update_or_create(review=review, key=key, defaults=defaults)
+    item = review.checklist_items.filter(key=key).first() or ProcessChecklistItem(review=review, key=key)
+    tracker = CHECKLIST_ITEM.track(item)
+    for name, value in defaults.items():
+        setattr(item, name, value)
+    item.save()
+    CHECKLIST_ITEM.changed(review, tracker, name=CHECKLIST_LABELS[key])
     return checklist(review)
 
 

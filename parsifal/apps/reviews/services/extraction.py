@@ -136,6 +136,7 @@ def set_value(*, review, article_id, field_id, value=None, values=None, actor=No
     """
     article, field = _get_article_and_field(review, article_id, field_id)
     extraction, _created = DataExtraction.objects.get_or_create(article=article, field=field)
+    before = serialize_value(field, extraction)
     extraction.user = actor
     if field.is_select_field():
         if field.field_type == DataExtractionField.SELECT_ONE_FIELD:
@@ -152,7 +153,25 @@ def set_value(*, review, article_id, field_id, value=None, values=None, actor=No
         except Exception as error:  # the model raises bare Exception/ValueError with a user-facing message
             raise ValidationError(str(error), field="value")
         extraction.save()
+    record_value(review, article, field, before, extraction, actor)
     return extraction
+
+
+def record_value(review, article, field, before, extraction, actor=None):
+    """The value extracted for ``field`` went from ``before`` (``serialize_value``) to the extraction's."""
+    after = serialize_value(field, extraction)
+    if history.show(before) == history.show(after):
+        return
+    history.record(
+        review,
+        ReviewEvent.EXTRACTION,
+        history.CHANGED,
+        f"Extracted {history.quote(field.description)} for the study {history.quote(article.title)}",
+        subject="data_extraction",
+        changes=[history.change(field.description, before, after, "value")],
+        articles=[article],
+        actor=actor,
+    )
 
 
 @transaction.atomic
@@ -163,6 +182,7 @@ def toggle_select_value(*, review, article_id, field_id, lookup_id, actor=None):
         raise ValidationError("toggle is only valid for select-many fields.", field="field_id")
     lookup = get_child(field.dataextractionlookup_set, lookup_id, label="Lookup value")
     extraction, _created = DataExtraction.objects.get_or_create(article=article, field=field)
+    before = serialize_value(field, extraction)
     extraction.user = actor
     extraction.value = ""
     extraction.save()
@@ -170,13 +190,25 @@ def toggle_select_value(*, review, article_id, field_id, lookup_id, actor=None):
         extraction.select_values.remove(lookup)
     else:
         extraction.select_values.add(lookup)
+    record_value(review, article, field, before, extraction, actor)
     return extraction
 
 
 def mark_done(*, review, article_id, done=True):
     article = get_child(review.article_set, article_id, label="Article")
+    changed = article.finished_data_extraction != bool(done)
     article.finished_data_extraction = bool(done)
     article.save(update_fields=["finished_data_extraction", "updated_at"])
+    if changed:
+        history.record(
+            review,
+            ReviewEvent.EXTRACTION,
+            history.CHANGED,
+            f"Marked the data extraction of the study {history.quote(article.title)} as "
+            + ("done" if done else "not done"),
+            subject="data_extraction",
+            articles=[article],
+        )
     return article
 
 

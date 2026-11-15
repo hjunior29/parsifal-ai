@@ -11,7 +11,8 @@ from django.contrib.auth.models import User
 from django.db import transaction
 
 from parsifal.apps.core.exceptions import NotFound, ValidationError
-from parsifal.apps.reviews.models import Article, StudyDecision
+from parsifal.apps.reviews.models import Article, ReviewEvent, StudyDecision
+from parsifal.apps.reviews.services import history
 from parsifal.apps.reviews.services._common import check_length, get_child, get_children
 
 STAGES = dict(StudyDecision.STAGES)
@@ -21,6 +22,32 @@ RULE_UNANIMOUS = "unanimous"  # all reviewers agree
 RULE_ANY_INCLUDE = "any_include"  # Petersen 5.1.2: passes to the next step if at least one reviewer includes
 RULE_MAJORITY = "majority"  # strict majority among reviewers
 RULES = (RULE_UNANIMOUS, RULE_ANY_INCLUDE, RULE_MAJORITY)
+RULE_NAMES = {RULE_UNANIMOUS: "unanimous", RULE_ANY_INCLUDE: "any include", RULE_MAJORITY: "majority"}
+DECISION_FIELDS = ("status", "selection_criteria", "comments")
+DECISION_LABELS = {"status": "Decision", "selection_criteria": "Criterion"}
+
+
+def _record_decision(review, decision, tracker, article, actor):
+    """A reviewer's decision on a study: new (``tracker`` None) or changed since ``tracker``."""
+    if tracker is None:
+        changes = history.filled(decision, DECISION_FIELDS, DECISION_LABELS)
+    else:
+        tracker.obj = decision
+        changes = tracker.changes()
+    if not changes:
+        return
+    what = f"the study {history.quote(article.title)}"
+    summary = f"Recorded the decision {STATUSES[decision.status]} for {what} ({STAGES[decision.stage]})"
+    history.record(
+        review,
+        ReviewEvent.SELECTION,
+        history.CHANGED,
+        summary,
+        subject="decision",
+        changes=changes,
+        articles=[article],
+        actor=actor,
+    )
 
 
 def _validate_stage(stage):
@@ -38,12 +65,21 @@ def _validate_status(status):
 def record_decision(
     *, review, article_id, actor, status, stage=StudyDecision.TITLE_ABSTRACT, criteria_id=None, comments="", run=None
 ):
-    """The reviewer's decision, new or replacing theirs; ``run``: the AI screening run that made it, if any."""
+    """
+    The reviewer's decision, new or replacing theirs; ``run``: the AI screening run that made it, if any (the History
+    records the run, not each of its decisions).
+    """
+    return _decide(review, article_id, actor, status, stage, criteria_id, comments, run, record=run is None)
+
+
+def _decide(review, article_id, actor, status, stage, criteria_id, comments, run, record):
     article = get_child(review.article_set, article_id, label="Article")
     criteria = None
     if criteria_id not in (None, ""):
         criteria = get_child(review.selectioncriteria_set, criteria_id, label="Selection criteria")
     check_length(comments or "", 2000, field="comments")
+    previous = StudyDecision.objects.filter(article=article, user=actor, stage=_validate_stage(stage)).first()
+    tracker = history.Tracker(previous, DECISION_FIELDS, DECISION_LABELS) if previous else None
     decision, _created = StudyDecision.objects.update_or_create(
         article=article,
         user=actor,
@@ -56,6 +92,8 @@ def record_decision(
             "run": run,
         },
     )
+    if record:
+        _record_decision(review, decision, tracker, article, actor)
     return decision
 
 
@@ -63,25 +101,36 @@ def record_decisions(
     *, review, article_ids, actor, status, stage=StudyDecision.TITLE_ABSTRACT, criteria_id=None, comments=""
 ):
     articles = get_children(review.article_set, article_ids, label="Article")
-    return [
-        record_decision(
-            review=review,
-            article_id=a.pk,
-            actor=actor,
-            status=status,
-            stage=stage,
-            criteria_id=criteria_id,
-            comments=comments,
-        )
-        for a in articles
+    decided = [
+        _decide(review, a.pk, actor, status, stage, criteria_id, comments, None, record=False) for a in articles
     ]
+    if decided:
+        what = (
+            f"the study {history.quote(articles[0].title)}" if len(articles) == 1 else history.studies(len(articles))
+        )
+        summary = f"Recorded the decision {STATUSES[status]} for {what} ({STAGES[stage]})"
+        history.record(
+            review, ReviewEvent.SELECTION, history.CHANGED, summary, subject="decision", articles=articles, actor=actor
+        )
+    return decided
 
 
 def remove_decision(*, review, article_id, actor, stage=StudyDecision.TITLE_ABSTRACT):
     article = get_child(review.article_set, article_id, label="Article")
-    deleted, _ = StudyDecision.objects.filter(article=article, user=actor, stage=_validate_stage(stage)).delete()
-    if not deleted:
+    decision = StudyDecision.objects.filter(article=article, user=actor, stage=_validate_stage(stage)).first()
+    if decision is None:
         raise NotFound("No decision of yours to remove for this article and stage.")
+    what = f"the study {history.quote(article.title)}"
+    history.record(
+        review,
+        ReviewEvent.SELECTION,
+        history.REMOVED,
+        f"Removed the decision {STATUSES[decision.status]} on {what} ({STAGES[stage]})",
+        subject="decision",
+        articles=[article],
+        actor=actor,
+    )
+    decision.delete()
 
 
 def list_decisions(review, *, stage=None, user_id=None, article_id=None, status=None):
@@ -290,6 +339,22 @@ def consolidate(
     for status in set(resolved.values()):
         ids = [a for a, s in resolved.items() if s == status]
         review.article_set.filter(pk__in=ids).update(status=status, updated_by=actor)
+    if resolved or unresolved:
+        summary = f"Consolidated the decisions ({STAGES[stage]}, rule {RULE_NAMES[rule]}): "
+        summary += f"{history.studies(len(changed))} changed"
+        counts = Counter(resolved[article_id] for article_id in changed)
+        items = [f"{count} now {STATUSES[status]}" for status, count in sorted(counts.items())]
+        items += [f"{len(resolved)} resolved", f"{len(unresolved)} left undecided"]
+        history.record(
+            review,
+            ReviewEvent.SELECTION,
+            history.CHANGED,
+            summary,
+            subject="decision",
+            items=items,
+            articles=changed,
+            actor=actor,
+        )
     return {
         "stage": stage,
         "rule": rule,

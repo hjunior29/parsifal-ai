@@ -27,7 +27,7 @@ from django.utils.dateparse import parse_datetime
 
 from parsifal.apps.core.exceptions import Conflict, PermissionDenied, ValidationError
 from parsifal.apps.reviews.models import Article, ScreeningResult, ScreeningRun, StudyDecision
-from parsifal.apps.reviews.services import ai_screening
+from parsifal.apps.reviews.services import ai_screening, history
 
 STATUS_NAMES = dict(Article.ARTICLE_STATUS)
 # Results that did nothing: not screened yet, or Jev's answer could not be used.
@@ -253,6 +253,15 @@ def undo_run(*, review, actor, run_id):
         )
     for ids in _chunks(removed):
         StudyDecision.objects.filter(pk__in=ids).delete()
+    ai_screening.record_run(
+        run,
+        history.REMOVED,
+        f"Undid {ai_screening.LABELS[run.phase]} (run #{run.pk})",
+        articles=[result.article_id for result in statuses],
+        items=[summary["message"]],
+        actor=actor,
+        linked=False,  # it is deleted now
+    )
     run.delete()
     return summary
 

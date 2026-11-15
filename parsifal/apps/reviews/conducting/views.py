@@ -68,8 +68,10 @@ def save_source_string(request):
             search_session = review.get_latest_source_search_strings().get(source=source)
         except SearchSession.DoesNotExist:
             search_session = SearchSession(review=review, source=source)
+        before = search_session.search_string
         search_session.search_string = search_string
         search_session.save()
+        search.record_source_string(review, source, before, search_string)
         return HttpResponse()
     except Exception:
         return HttpResponseBadRequest()
@@ -84,6 +86,7 @@ def remove_source_string(request):
     try:
         search_session = review.get_latest_source_search_strings().get(source=source)
         search_session.delete()
+        search.record_source_string(review, source, search_session.search_string, "")
     except SearchSession.DoesNotExist:
         pass
     messages.success(request, "{0} search string removed successfully!".format(source.name))
@@ -102,8 +105,10 @@ def import_base_string(request):
             search_session = review.get_latest_source_search_strings().get(source=source)
         except SearchSession.DoesNotExist:
             search_session = SearchSession(review=review, source=source)
+        before = search_session.search_string
         search_session.search_string = base_search_string
         search_session.save()
+        search.record_source_string(review, source, before, base_search_string)
         return HttpResponse(base_search_string)
     except Exception:
         return HttpResponseBadRequest()
@@ -1232,9 +1237,10 @@ def save_article_details(request):
 
             if article_id != "None":
                 article = get_object_or_404(review.article_set, pk=article_id)
+                tracker = studies.track_study(article)
             else:
                 source = get_object_or_404(review.sources, pk=request.POST["source-id"])
-                article = Article(review=review, source=source)
+                article, tracker = Article(review=review, source=source), None
 
             article.bibtex_key = request.POST["bibtex-key"][:100]
             article.title = request.POST["title"][:1000]
@@ -1270,6 +1276,10 @@ def save_article_details(request):
 
             article.updated_by = request.user
             article.save()
+            if tracker is None:
+                studies.record_study_added(review, article)
+            else:
+                studies.record_study_changes(review, article, tracker)
 
             return HttpResponse(build_article_table_row(article, study_columns.for_user(request.user)))
         except Exception:

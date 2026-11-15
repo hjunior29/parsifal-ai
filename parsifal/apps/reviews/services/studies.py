@@ -16,8 +16,8 @@ import bibtexparser
 from bibtexparser.bparser import BibTexParser
 
 from parsifal.apps.core.exceptions import ValidationError
-from parsifal.apps.reviews.models import Article
-from parsifal.apps.reviews.services import ai_screening, search
+from parsifal.apps.reviews.models import Article, ReviewEvent
+from parsifal.apps.reviews.services import ai_screening, history, search
 from parsifal.apps.reviews.services._common import check_length, get_child, get_children
 
 # Maximum length of every editable Article text field (mirrors the model).
@@ -42,6 +42,72 @@ ARTICLE_FIELD_LIMITS = {
     "note": 500,
     "comments": 2000,
 }
+
+# The History: what it shows of a study added or deleted, and the names of its fields where the model's do not do.
+STUDY_LABELS = {
+    "bibtex_key": "BibTeX key",
+    "doi": "DOI",
+    "url": "URL",
+    "issn": "ISSN",
+    "selection_criteria": "Criterion",
+}
+SELECTION_FIELDS = ("status", "selection_criteria")
+
+
+def track_study(article):
+    """The study's fields as they are now, for ``record_study_changes`` (the web views record the same)."""
+    return history.Tracker(article, (*ARTICLE_FIELD_LIMITS, *SELECTION_FIELDS), STUDY_LABELS)
+
+
+def selection_summary(status, what, many=False):
+    """What giving ``status`` to ``what`` ("the study “X”", "40 studies") is called in the History."""
+    return {
+        Article.ACCEPTED: f"Accepted {what}",
+        Article.REJECTED: f"Rejected {what}",
+        Article.UNCLASSIFIED: f"Marked {what} as unclassified",
+        Article.DUPLICATED: f"Marked {what} as duplicate{'s' if many else ''}",
+    }[status]
+
+
+def record_study_changes(review, article, tracker):
+    """What changed in a study since ``tracker``: its details (Studies) and its status or criterion (Selection)."""
+    changes = tracker.changes()
+    details = [change for change in changes if change["key"] not in SELECTION_FIELDS]
+    selection = [change for change in changes if change["key"] in SELECTION_FIELDS]
+    what = f"the study {history.quote(article.title)}"
+    if details:
+        history.record(
+            review,
+            ReviewEvent.STUDIES,
+            history.CHANGED,
+            f"Changed the details of {what}",
+            subject="study",
+            subject_id=article.pk,
+            changes=details,
+            articles=[article],
+        )
+    if selection:
+        if any(change["key"] == "status" for change in selection):
+            summary = selection_summary(article.status, what)
+        else:
+            summary = f"Changed the criterion of {what}"
+        history.record(
+            review,
+            ReviewEvent.SELECTION,
+            history.CHANGED,
+            summary,
+            subject="study",
+            subject_id=article.pk,
+            changes=selection,
+            articles=[article],
+        )
+
+
+def record_studies_deleted(review, articles, summary):
+    """Before deleting ``articles``: their titles stay in the History."""
+    titles = sorted(article.title or "(no title)" for article in articles)
+    history.record(review, ReviewEvent.STUDIES, history.REMOVED, summary, subject="study", items=titles)
+
 
 # BibTeX keys mapped onto Article fields; the first key present wins. bibtexparser lower-cases field names
 # and exposes the entry key as "ID" and the entry type as "ENTRYTYPE".
@@ -203,6 +269,20 @@ def import_bibtex(*, review, source_id, content, actor=None, searched_at=None):
             continue
         result.imported += 1
         result.articles.append(article)
+    if result.imported or result.failed:
+        summary = f"Imported {history.studies(result.imported)} into {history.quote(source.name)}"
+        if result.failed:
+            summary += f" ({result.failed} could not be read)"
+        history.record(
+            review,
+            ReviewEvent.STUDIES,
+            history.ADDED,
+            summary,
+            subject="source",
+            subject_id=source.pk,
+            articles=result.articles,
+            actor=actor,
+        )
     return result
 
 
@@ -244,11 +324,26 @@ def create_article(*, review, source_id, actor=None, status=None, selection_crit
         article.status = _validate_status(status)
     article.selection_criteria = _get_criteria(review, selection_criteria_id)
     article.save()
+    record_study_added(review, article, actor)
     return article
+
+
+def record_study_added(review, article, actor=None):
+    history.record(
+        review,
+        ReviewEvent.STUDIES,
+        history.ADDED,
+        f"Added the study {history.quote(article.title)} to {history.quote(article.source.name)}",
+        subject="study",
+        subject_id=article.pk,
+        articles=[article],
+        actor=actor,
+    )
 
 
 def update_article(*, review, article_id, actor=None, status=None, selection_criteria_id=..., **fields):
     article = get_child(review.article_set, article_id, label="Article")
+    tracker = track_study(article)
     _apply_fields(article, fields)
     if status is not None:
         article.status = _validate_status(status)
@@ -256,11 +351,17 @@ def update_article(*, review, article_id, actor=None, status=None, selection_cri
         article.selection_criteria = _get_criteria(review, selection_criteria_id)
     article.updated_by = actor
     article.save()
+    record_study_changes(review, article, tracker)
     return article
 
 
 def delete_articles(*, review, article_ids):
     articles = get_children(review.article_set, article_ids, label="Article")
+    if len(articles) == 1:
+        summary = f"Deleted the study {history.quote(articles[0].title)}"
+    else:
+        summary = f"Deleted {history.studies(len(articles))}"
+    record_studies_deleted(review, articles, summary)
     review.article_set.filter(pk__in=[a.pk for a in articles]).delete()
     return len(articles)
 
@@ -275,6 +376,12 @@ def clear_articles(*, review, source_id, status=None):
     if status is not None:
         queryset = queryset.filter(status=_validate_status(status))
     count = queryset.count()
+    if count:
+        summary = f"Deleted the {history.studies(count)} imported into {history.quote(source.name)}"
+        if status is not None:
+            summary = f"Deleted the {history.studies(count)} of {history.quote(source.name)} with the status"
+            summary += f" {dict(Article.ARTICLE_STATUS)[status]}"
+        record_studies_deleted(review, list(queryset.only("title")), summary)
     queryset.delete()
     return count
 
@@ -292,7 +399,33 @@ def set_status(*, review, article_ids, status, selection_criteria_id=None, comme
     if comments is not None:
         updates["comments"] = comments
     review.article_set.filter(pk__in=[a.pk for a in articles]).update(**updates)
+    record_status_set(review, articles, status, criteria if selection_criteria_id is not None else None, actor)
     return len(articles)
+
+
+def record_status_set(review, articles, status, criteria=None, actor=None):
+    """``articles`` (as they were) were given ``status``: one event, with how many had each status before."""
+    if not articles:
+        return
+    labels = dict(Article.ARTICLE_STATUS)
+    if len(articles) == 1:
+        summary = selection_summary(status, f"the study {history.quote(articles[0].title)}")
+    else:
+        summary = selection_summary(status, history.studies(len(articles)), many=True)
+    if criteria is not None:
+        summary += f" ({criteria.description})"
+    before = Counter(labels[article.status] for article in articles)
+    items = [f"{count} {'was' if count == 1 else 'were'} {name}" for name, count in sorted(before.items())]
+    history.record(
+        review,
+        ReviewEvent.SELECTION,
+        history.CHANGED,
+        summary,
+        subject="study",
+        items=items,
+        articles=articles,
+        actor=actor,
+    )
 
 
 def set_starred(*, review, article_id, starred, actor=None):
@@ -301,11 +434,24 @@ def set_starred(*, review, article_id, starred, actor=None):
     a starred study keeps who starred it first. The status and updated_by are left alone.
     """
     article = get_child(review.article_set, article_id, label="Article")
+    was_starred = article.starred_at is not None
     if starred and article.starred_at is None:
         article.starred_at, article.starred_by = timezone.now(), actor
     elif not starred:
         article.starred_at, article.starred_by = None, None
     article.save(update_fields=["starred_at", "starred_by"])
+    if was_starred != bool(starred):
+        verb = "Starred" if starred else "Removed the star of"
+        history.record(
+            review,
+            ReviewEvent.STUDIES,
+            history.CHANGED,
+            f"{verb} the study {history.quote(article.title)}",
+            subject="study",
+            subject_id=article.pk,
+            articles=[article],
+            actor=actor,
+        )
     return get_article(review=review, article_id=article.pk)
 
 
@@ -546,6 +692,7 @@ def resolve_duplicates(*, review, article_ids=None, actor=None):
         articles = get_children(review.article_set, article_ids, label="Article")
     else:
         articles = [a for g in duplicate_report(review)[0] if not g.needs_review for a in g.articles[1:]]
+    record_status_set(review, articles, Article.DUPLICATED, actor=actor)
     for article in articles:
         article.status = Article.DUPLICATED
         article.updated_by = actor

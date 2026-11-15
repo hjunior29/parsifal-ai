@@ -11,11 +11,12 @@ from parsifal.apps.reviews.models import (
     DataExtractionField,
     QualityAssessment,
     ReviewAgent,
+    ReviewEvent,
     SearchSession,
     SelectionCriteria,
     StudyDecision,
 )
-from parsifal.apps.reviews.services import quality
+from parsifal.apps.reviews.services import history, quality
 from parsifal.apps.reviews.services._common import get_child
 
 
@@ -414,6 +415,23 @@ def set_prisma_not_retrieved(*, review, criteria_id):
         criteria = get_child(review.selectioncriteria_set, criteria_id, label="Selection criteria")
         if criteria.criteria_type != SelectionCriteria.EXCLUSION:
             raise ValidationError("Choose an exclusion criterion.", field="criteria_id")
+    before = review.prisma_not_retrieved
     review.prisma_not_retrieved = criteria
     review.save(update_fields=["prisma_not_retrieved"])
+    if before != criteria:
+        history.record(
+            review,
+            ReviewEvent.ANALYSIS,
+            history.CHANGED,
+            "Changed the criterion of the reports not retrieved (PRISMA flow diagram)",
+            subject="prisma",
+            changes=[
+                history.change(
+                    "Reports not retrieved",
+                    before.description if before else "",
+                    criteria.description if criteria else "",
+                    "prisma_not_retrieved",
+                )
+            ],
+        )
     return review

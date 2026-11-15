@@ -6,8 +6,39 @@ from dataclasses import dataclass
 from django.db.models import Count
 
 from parsifal.apps.core.exceptions import NotFound, ValidationError
-from parsifal.apps.reviews.models import SearchSession
+from parsifal.apps.reviews.models import ReviewEvent, SearchSession
+from parsifal.apps.reviews.services import history
 from parsifal.apps.reviews.services._common import check_length, get_child, get_children
+
+
+def record_source_string(review, source, before, after):
+    """
+    The search string of ``source`` went from ``before`` to ``after`` ("" when there was or is none); the web views
+    of Conducting record it too.
+    """
+    before, after = before or "", after or ""
+    if before == after:
+        return None
+    if not before:
+        action, verb = history.ADDED, "Added"
+    elif not after:
+        action, verb = history.REMOVED, "Removed"
+    else:
+        action, verb = history.CHANGED, "Changed"
+    return history.record(
+        review,
+        ReviewEvent.SEARCH,
+        action,
+        f"{verb} the search string of {history.quote(source.name)}",
+        subject="search_string",
+        subject_id=source.pk,
+        changes=[history.change("Search string", before, after, "search_string")],
+    )
+
+
+def _source_string(review, source):
+    session = review.searchsession_set.filter(source=source).first()
+    return session.search_string if session else ""
 
 
 def list_source_search_strings(review):
@@ -28,9 +59,11 @@ def add_source_search_strings(*, review, source_ids):
 def set_source_search_string(*, review, source_id, search_string):
     source = get_child(review.sources, source_id, label="Source")
     check_length(search_string or "", 10000, field="search_string")
+    before = _source_string(review, source)
     session, _created = SearchSession.objects.update_or_create(
         review=review, source=source, defaults={"search_string": search_string or ""}
     )
+    record_source_string(review, source, before, session.search_string)
     return session
 
 
@@ -42,7 +75,9 @@ def copy_generic_search_string(*, review, source_id):
 
 def remove_source_search_string(*, review, source_id):
     source = get_child(review.sources, source_id, label="Source")
+    before = _source_string(review, source)
     deleted, _ = review.searchsession_set.filter(source=source).delete()
+    record_source_string(review, source, before, "")
     if not deleted:
         raise NotFound(f"{source.name} has no search string in this review.")
 
@@ -68,6 +103,7 @@ def _parse_int(value, field):
 
 
 SEARCH_FIELDS = ("search_type", "searched_at", "years_from", "years_to", "result_count")
+SEARCH = history.Kind("search documentation of", ReviewEvent.SEARCH, SEARCH_FIELDS)
 
 
 def update_source_search(*, review, source_id, **changes):
@@ -81,6 +117,7 @@ def update_source_search(*, review, source_id, **changes):
         raise ValidationError(f"Unknown search fields: {sorted(unknown)}.")
     source = get_child(review.sources, source_id, label="Source")
     session, _created = SearchSession.objects.get_or_create(review=review, source=source)
+    tracker = SEARCH.track(session)
     search_type = changes.get("search_type")
     if search_type is not None:
         if search_type not in dict(SearchSession.SEARCH_TYPES):
@@ -94,6 +131,7 @@ def update_source_search(*, review, source_id, **changes):
     if session.years_from and session.years_to and session.years_from > session.years_to:
         raise ValidationError("years_from cannot be after years_to.", field="years_from")
     session.save()
+    SEARCH.changed(review, tracker, name=source.name)
     return session
 
 

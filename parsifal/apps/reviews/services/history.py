@@ -205,14 +205,14 @@ def plural(count, word, words=None):
     return f"{count} {word if count == 1 else (words or word + 's')}"
 
 
-def _filled(obj, fields, labels, removed=False):
+def filled(obj, fields, labels=None, removed=False):
     """The fields that have a value, as changes from nothing (added) or to nothing (removed)."""
     found = []
     for name in fields:
         value = _value(obj, name)
         if value:
             before, after = (value, "") if removed else ("", value)
-            field = labels.get(name) or label(type(obj), name)
+            field = (labels or {}).get(name) or label(type(obj), name)
             found.append({"key": name, "field": field, "before": before, "after": after})
     return found
 
@@ -247,7 +247,7 @@ class Kind:
         )
 
     def added(self, review, obj, *, name=None, suffix="", changes=(), **extra):
-        changes = [*_filled(obj, self.fields, dict(self.labels)), *changes]
+        changes = [*filled(obj, self.fields, dict(self.labels)), *changes]
         return self._record(review, ADDED, "Added", obj, changes, name, suffix, **extra)
 
     def changed(self, review, tracker, *, name=None, suffix="", changes=(), **extra):
@@ -259,7 +259,7 @@ class Kind:
 
     def removed(self, review, obj, *, name=None, suffix="", changes=(), **extra):
         """Before deleting ``obj``."""
-        changes = [*_filled(obj, self.fields, dict(self.labels), True), *changes]
+        changes = [*filled(obj, self.fields, dict(self.labels), True), *changes]
         return self._record(review, REMOVED, "Removed", obj, changes, name, suffix, **extra)
 
     def order(self, queryset):
