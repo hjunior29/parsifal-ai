@@ -603,6 +603,23 @@ th.headerSortUp:after {
   transition: opacity 0.15s;
 }
 
+/* Our own arrow on selects, away from the border: the browser's sits almost on it. */
+select.form-control:not([multiple]):not([size]) {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23555' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 10px 6px;
+}
+
+/* Bootstrap's line-height of 30px, which the browser's own select ignored, would cut the text. */
+select.form-control.input-sm:not([multiple]):not([size]) {
+  line-height: 1.5;
+}
+
 select optgroup {
   font-family: inherit;
   font-size: inherit;
