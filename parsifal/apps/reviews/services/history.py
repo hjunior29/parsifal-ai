@@ -169,10 +169,10 @@ def change(field, before, after, key=""):
 
 
 class Tracker:
-    """The fields of ``obj`` as they are now, to tell later which ones changed."""
+    """The fields of ``obj`` as they are now, to tell later which ones changed (``labels``: names for people)."""
 
-    def __init__(self, obj, fields):
-        self.obj, self.fields = obj, tuple(fields)
+    def __init__(self, obj, fields, labels=None):
+        self.obj, self.fields, self.labels = obj, tuple(fields), labels or {}
         self.before = {name: _value(obj, name) for name in self.fields}
 
     def changes(self):
@@ -180,9 +180,8 @@ class Tracker:
         for name in self.fields:
             after = _value(self.obj, name)
             if after != self.before[name]:
-                found.append(
-                    {"key": name, "field": label(type(self.obj), name), "before": self.before[name], "after": after}
-                )
+                field = self.labels.get(name) or label(type(self.obj), name)
+                found.append({"key": name, "field": field, "before": self.before[name], "after": after})
         return found
 
 
@@ -200,6 +199,81 @@ def quote(text, limit=80):
 
 def studies(count):
     return f"{count} stud{'y' if count == 1 else 'ies'}"
+
+
+def plural(count, word, words=None):
+    return f"{count} {word if count == 1 else (words or word + 's')}"
+
+
+def _filled(obj, fields, labels, removed=False):
+    """The fields that have a value, as changes from nothing (added) or to nothing (removed)."""
+    found = []
+    for name in fields:
+        value = _value(obj, name)
+        if value:
+            before, after = (value, "") if removed else ("", value)
+            field = labels.get(name) or label(type(obj), name)
+            found.append({"key": name, "field": field, "before": before, "after": after})
+    return found
+
+
+@dataclass(frozen=True)
+class Kind:
+    """
+    Something of a review whose changes the History records alike wherever they are made (a service, a web view):
+    its name for people ("research question"), its area and its fields, the first one naming it.
+    """
+
+    name: str
+    area: str
+    fields: tuple
+    plural: str = ""
+    labels: tuple = ()  # (field, its name for people) where the model's verbose name does not do
+
+    @property
+    def subject(self):
+        return self.name.replace(" ", "_")
+
+    def named(self, obj):
+        return _value(obj, self.fields[0])
+
+    def track(self, obj):
+        return Tracker(obj, self.fields, dict(self.labels))
+
+    def _record(self, review, action, verb, obj, changes, name, suffix, **extra):
+        summary = f"{verb} the {self.name} {quote(name if name is not None else self.named(obj))}{suffix}"
+        return record(
+            review, self.area, action, summary, subject=self.subject, subject_id=obj.pk, changes=changes, **extra
+        )
+
+    def added(self, review, obj, *, name=None, suffix="", changes=(), **extra):
+        changes = [*_filled(obj, self.fields, dict(self.labels)), *changes]
+        return self._record(review, ADDED, "Added", obj, changes, name, suffix, **extra)
+
+    def changed(self, review, tracker, *, name=None, suffix="", changes=(), **extra):
+        """Records what changed since ``tracker`` (see ``track``), when something did; returns the event or None."""
+        changes = [*tracker.changes(), *changes]
+        if not changes:
+            return None
+        return self._record(review, CHANGED, "Changed", tracker.obj, changes, name, suffix, **extra)
+
+    def removed(self, review, obj, *, name=None, suffix="", changes=(), **extra):
+        """Before deleting ``obj``."""
+        changes = [*_filled(obj, self.fields, dict(self.labels), True), *changes]
+        return self._record(review, REMOVED, "Removed", obj, changes, name, suffix, **extra)
+
+    def order(self, queryset):
+        """The objects' ids in their order, for ``reordered``."""
+        return list(queryset.order_by("order", "pk").values_list("pk", flat=True))
+
+    def reordered(self, review, queryset, before):
+        """Records the new order of ``queryset`` when it is not ``before`` (see ``order``)."""
+        objects = list(queryset.order_by("order", "pk"))
+        if [obj.pk for obj in objects] == before:
+            return None
+        summary = f"Reordered the {self.plural or self.name + 's'}"
+        items = [self.named(obj) for obj in objects]
+        return record(review, self.area, CHANGED, summary, subject=self.subject, items=items)
 
 
 # Reading -------------------------------------------------------------------------------------------------------------

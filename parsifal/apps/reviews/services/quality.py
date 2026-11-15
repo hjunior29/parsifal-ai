@@ -4,31 +4,56 @@ from django.db.models import Count, F, Q, Sum, Value
 from django.db.models.functions import Coalesce
 
 from parsifal.apps.core.exceptions import Conflict, ValidationError
-from parsifal.apps.reviews.models import QualityAnswer, QualityAssessment, QualityQuestion
+from parsifal.apps.reviews.models import QualityAnswer, QualityAssessment, QualityQuestion, ReviewEvent
+from parsifal.apps.reviews.services import history, reviews
 from parsifal.apps.reviews.services._common import check_length, get_child, reorder, require
+
+# What the History records of the quality assessment checklist (the web views of Planning record the same).
+QUESTION = history.Kind("quality assessment question", ReviewEvent.PLANNING, ("description",))
+ANSWER = history.Kind("quality assessment answer", ReviewEvent.PLANNING, ("description", "weight"))
+
+
+def record_suggested_answers(review, answers):
+    history.record(
+        review,
+        ReviewEvent.PLANNING,
+        history.ADDED,
+        "Added the suggested quality assessment answers",
+        subject=ANSWER.subject,
+        items=[f"{answer.description} ({history.show(answer.weight)})" for answer in answers],
+    )
 
 
 def add_question(*, review, description):
     require(description, field="description")
     check_length(description, 255, field="description")
     order = review.qualityquestion_set.count()
-    return QualityQuestion.objects.create(review=review, description=description, order=order)
+    question = QualityQuestion.objects.create(review=review, description=description, order=order)
+    QUESTION.added(review, question)
+    return question
 
 
 def update_question(*, review, question_id, description):
     question = get_child(review.qualityquestion_set, question_id, label="Quality question")
     require(description, field="description")
+    tracker = QUESTION.track(question)
     question.description = check_length(description, 255, field="description")
     question.save(update_fields=["description"])
+    QUESTION.changed(review, tracker)
     return question
 
 
 def remove_question(*, review, question_id):
-    get_child(review.qualityquestion_set, question_id, label="Quality question").delete()
+    question = get_child(review.qualityquestion_set, question_id, label="Quality question")
+    QUESTION.removed(review, question)
+    question.delete()
 
 
 def reorder_questions(*, review, ordered_ids):
-    return reorder(review.qualityquestion_set, ordered_ids, label="Quality question")
+    before = QUESTION.order(review.qualityquestion_set)
+    questions = reorder(review.qualityquestion_set, ordered_ids, label="Quality question")
+    QUESTION.reordered(review, review.qualityquestion_set, before)
+    return questions
 
 
 def _parse_weight(weight):
@@ -43,32 +68,40 @@ def _parse_weight(weight):
 def add_answer(*, review, description, weight):
     require(description, field="description")
     check_length(description, 255, field="description")
-    return QualityAnswer.objects.create(review=review, description=description, weight=_parse_weight(weight))
+    answer = QualityAnswer.objects.create(review=review, description=description, weight=_parse_weight(weight))
+    ANSWER.added(review, answer)
+    return answer
 
 
 def update_answer(*, review, answer_id, description=None, weight=None):
     answer = get_child(review.qualityanswer_set, answer_id, label="Quality answer")
+    tracker = ANSWER.track(answer)
     if description is not None:
         require(description, field="description")
         answer.description = check_length(description, 255, field="description")
     if weight is not None:
         answer.weight = _parse_weight(weight)
     answer.save()
+    ANSWER.changed(review, tracker)
     return answer
 
 
 def remove_answer(*, review, answer_id):
-    get_child(review.qualityanswer_set, answer_id, label="Quality answer").delete()
+    answer = get_child(review.qualityanswer_set, answer_id, label="Quality answer")
+    ANSWER.removed(review, answer)
+    answer.delete()
 
 
 def add_suggested_answers(*, review):
     """Yes / Partially / No with weights 1.0 / 0.5 / 0.0; only when the review has no answers yet."""
     if review.qualityanswer_set.exists():
         raise Conflict("This review already has quality assessment answers.")
-    return [
+    answers = [
         QualityAnswer.objects.create(review=review, description=description, weight=weight)
         for description, weight in QualityAnswer.SUGGESTED_ANSWERS
     ]
+    record_suggested_answers(review, answers)
+    return answers
 
 
 def max_score(review):
@@ -82,8 +115,10 @@ def set_cutoff(*, review, cutoff):
         raise ValidationError("cutoff must be a number.", field="cutoff")
     if cutoff < 0:
         raise ValidationError("cutoff cannot be negative.", field="cutoff")
+    tracker = reviews.track_review(review, "quality_assessment_cutoff_score")
     review.quality_assessment_cutoff_score = cutoff
     review.save(update_fields=["quality_assessment_cutoff_score", "last_update"])
+    reviews.record_changes(review, tracker)
     return review
 
 

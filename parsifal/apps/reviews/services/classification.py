@@ -9,8 +9,28 @@ from django.db import transaction
 from django.db.models import Count
 
 from parsifal.apps.core.exceptions import Conflict, ValidationError
-from parsifal.apps.reviews.models import ArticleClassification, ClassificationCategory, ClassificationFacet
+from parsifal.apps.reviews.models import (
+    ArticleClassification,
+    ClassificationCategory,
+    ClassificationFacet,
+    ReviewEvent,
+)
+from parsifal.apps.reviews.services import history
 from parsifal.apps.reviews.services._common import check_length, get_child, get_children, reorder, require
+
+# What the History records of the classification scheme (part of the protocol).
+FACET = history.Kind(
+    "classification facet",
+    ReviewEvent.PLANNING,
+    ("name", "description", "kind", "multiple"),
+    labels=(("multiple", "Several categories per study"),),
+)
+CATEGORY = history.Kind("category", ReviewEvent.PLANNING, ("name", "description"), plural="categories")
+
+
+def _category_name(facet, category):
+    return f"{facet.name}: {category.name}"
+
 
 # Topic-independent facets recommended by the guidelines (Wieringa et al. research types; Petersen 2008/2015).
 FACET_TEMPLATES = {
@@ -97,6 +117,14 @@ def _validate_kind(kind):
 
 @transaction.atomic
 def add_facet(*, review, name, kind=ClassificationFacet.EMERGING, description="", multiple=False, categories=()):
+    facet = _create_facet(review, name, kind, description, multiple)
+    for category in categories:
+        _create_category(facet, category)
+    FACET.added(review, facet, items=list(facet.categories.values_list("name", flat=True)))
+    return facet
+
+
+def _create_facet(review, name, kind, description, multiple):
     require(name, field="name")
     check_length(name, 100, field="name")
     check_length(description or "", 500, field="description")
@@ -110,8 +138,6 @@ def add_facet(*, review, name, kind=ClassificationFacet.EMERGING, description=""
         multiple=bool(multiple),
         order=review.facets.count(),
     )
-    for category in categories:
-        add_category(review=review, facet_id=facet.pk, name=category)
     return facet
 
 
@@ -120,22 +146,18 @@ def add_facet_from_template(*, review, template):
     if template not in FACET_TEMPLATES:
         raise ValidationError(f"Unknown template {template!r}; see list_templates().", field="template")
     spec = FACET_TEMPLATES[template]
-    facet = add_facet(
-        review=review,
-        name=spec["name"],
-        kind=ClassificationFacet.FIXED,
-        description=spec["description"],
-        multiple=spec["multiple"],
-    )
+    facet = _create_facet(review, spec["name"], ClassificationFacet.FIXED, spec["description"], spec["multiple"])
     facet.template = template
     facet.save(update_fields=["template"])
     for position, (name, description) in enumerate(spec["categories"]):
         ClassificationCategory.objects.create(facet=facet, name=name, description=description, order=position)
+    FACET.added(review, facet, items=[name for name, _description in spec["categories"]])
     return facet
 
 
 def update_facet(*, review, facet_id, name=None, description=None, kind=None, multiple=None):
     facet = get_child(review.facets, facet_id, label="Facet")
+    tracker = FACET.track(facet)
     if name is not None:
         require(name, field="name")
         check_length(name, 100, field="name")
@@ -159,19 +181,33 @@ def update_facet(*, review, facet_id, name=None, description=None, kind=None, mu
                 raise Conflict("Some articles have several categories in this facet; cannot make it single-choice.")
         facet.multiple = bool(multiple)
     facet.save()
+    FACET.changed(review, tracker)
     return facet
 
 
 def remove_facet(*, review, facet_id):
-    get_child(review.facets, facet_id, label="Facet").delete()
+    facet = get_child(review.facets, facet_id, label="Facet")
+    classified = ArticleClassification.objects.filter(facet=facet).values("article").distinct().count()
+    suffix = f" and its classification of {history.studies(classified)}" if classified else ""
+    FACET.removed(review, facet, suffix=suffix, items=list(facet.categories.values_list("name", flat=True)))
+    facet.delete()
 
 
 def reorder_facets(*, review, ordered_ids):
-    return reorder(review.facets, ordered_ids, label="Facet")
+    before = FACET.order(review.facets)
+    facets = reorder(review.facets, ordered_ids, label="Facet")
+    FACET.reordered(review, review.facets, before)
+    return facets
 
 
 def add_category(*, review, facet_id, name, description=""):
     facet = get_child(review.facets, facet_id, label="Facet")
+    category = _create_category(facet, name, description)
+    CATEGORY.added(review, category, name=_category_name(facet, category))
+    return category
+
+
+def _create_category(facet, name, description=""):
     require(name, field="name")
     check_length(name, 200, field="name")
     check_length(description or "", 500, field="description")
@@ -185,6 +221,7 @@ def add_category(*, review, facet_id, name, description=""):
 def update_category(*, review, facet_id, category_id, name=None, description=None):
     facet = get_child(review.facets, facet_id, label="Facet")
     category = get_child(facet.categories, category_id, label="Category")
+    tracker = CATEGORY.track(category)
     if name is not None:
         require(name, field="name")
         check_length(name, 200, field="name")
@@ -194,17 +231,25 @@ def update_category(*, review, facet_id, category_id, name=None, description=Non
     if description is not None:
         category.description = check_length(description, 500, field="description")
     category.save()
+    CATEGORY.changed(review, tracker, name=_category_name(facet, category))
     return category
 
 
 def remove_category(*, review, facet_id, category_id):
     facet = get_child(review.facets, facet_id, label="Facet")
-    get_child(facet.categories, category_id, label="Category").delete()
+    category = get_child(facet.categories, category_id, label="Category")
+    classified = category.classifications.values("article").distinct().count()
+    suffix = f" and its classification of {history.studies(classified)}" if classified else ""
+    CATEGORY.removed(review, category, name=_category_name(facet, category), suffix=suffix)
+    category.delete()
 
 
 def reorder_categories(*, review, facet_id, ordered_ids):
     facet = get_child(review.facets, facet_id, label="Facet")
-    return reorder(facet.categories, ordered_ids, label="Category")
+    before = CATEGORY.order(facet.categories)
+    categories = reorder(facet.categories, ordered_ids, label="Category")
+    CATEGORY.reordered(review, facet.categories, before)
+    return categories
 
 
 # ---------------------------------------------------------------------------------------------------------------------

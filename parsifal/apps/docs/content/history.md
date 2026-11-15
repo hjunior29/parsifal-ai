@@ -38,7 +38,7 @@ only the changes to that study.
 | Area | Changes |
 |------|---------|
 | Review | Creating the review (also from a backup); its title, description, URL and type; co-authors removed or leaving; AI agents added, given a new token or deleted; backups made, added, restored or deleted |
-| Planning | The protocol fields of the review: objective, PICOC, how the inclusion criteria combine, selection procedure, synthesis strategy, validity threats, quality cutoff score |
+| Planning | The objective, the PICOC and the other protocol fields; research questions, keywords and their synonyms, the search string, sources (removing one lists the studies that went with it), inclusion and exclusion criteria and how they combine; the quality assessment questions, answers and cutoff score; the data extraction fields, their type and options; the classification facets and categories. Reordering a list is a change too. |
 | Study selection | Resetting the study selection |
 
 ## In the API, the CLI and the MCP server

@@ -3,10 +3,37 @@
 from django.db import transaction
 
 from parsifal.apps.core.exceptions import ValidationError
-from parsifal.apps.reviews.models import DataExtraction, DataExtractionField, DataExtractionLookup
+from parsifal.apps.reviews.models import DataExtraction, DataExtractionField, DataExtractionLookup, ReviewEvent
+from parsifal.apps.reviews.services import history
 from parsifal.apps.reviews.services._common import check_length, get_child, get_children, reorder, require
 
 FIELD_TYPES = dict(DataExtractionField.FIELD_TYPES)
+
+# What the History records of the data extraction form (the web views of Planning record the same).
+FIELD = history.Kind(
+    "data extraction field", ReviewEvent.PLANNING, ("description", "field_type"), labels=(("field_type", "Type"),)
+)
+
+
+def options_of(field):
+    return list(field.dataextractionlookup_set.order_by("value").values_list("value", flat=True))
+
+
+def options_change(before, after):
+    """The options of a field, as a change: those added and those removed (a field may have many)."""
+    added = [value for value in after if value not in before]
+    removed = [value for value in before if value not in after]
+    if not added and not removed:
+        return []
+    return [history.change("Options", "\n".join(removed), "\n".join(added), "options")]
+
+
+def record_field_changed(review, field, tracker, options_before, cleared=0):
+    """``cleared``: the studies whose values were cleared, the type having changed."""
+    changes = options_change(options_before, options_of(field))
+    if cleared:
+        changes.append(history.change("Values extracted", f"{history.studies(cleared)}", "cleared", "values"))
+    return FIELD.changed(review, tracker, changes=changes)
 
 
 def _validate_field_type(field_type):
@@ -36,17 +63,20 @@ def add_field(*, review, description, field_type, lookup_values=()):
         order=review.dataextractionfield_set.count(),
     )
     _sync_lookups(field, lookup_values)
+    FIELD.added(review, field, changes=options_change([], options_of(field)))
     return field
 
 
 @transaction.atomic
 def update_field(*, review, field_id, description=None, field_type=None, lookup_values=None):
     field = get_child(review.dataextractionfield_set, field_id, label="Data extraction field")
+    tracker, options, cleared = FIELD.track(field), options_of(field), 0
     if description is not None:
         require(description, field="description")
         field.description = check_length(description, 255, field="description")
     if field_type is not None and field_type != field.field_type:
         _validate_field_type(field_type)
+        cleared = field.dataextraction_set.count()
         # Values recorded under the old type are meaningless for the new one.
         for extraction in field.dataextraction_set.all():
             extraction.value = ""
@@ -56,6 +86,7 @@ def update_field(*, review, field_id, description=None, field_type=None, lookup_
     field.save()
     if lookup_values is not None or not field.is_select_field():
         _sync_lookups(field, lookup_values)
+    record_field_changed(review, field, tracker, options, cleared)
     return field
 
 
@@ -71,12 +102,21 @@ def _sync_lookups(field, lookup_values):
             DataExtractionLookup.objects.create(field=field, value=value)
 
 
+def record_field_removed(review, field):
+    FIELD.removed(review, field, changes=options_change(options_of(field), []))
+
+
 def remove_field(*, review, field_id):
-    get_child(review.dataextractionfield_set, field_id, label="Data extraction field").delete()
+    field = get_child(review.dataextractionfield_set, field_id, label="Data extraction field")
+    record_field_removed(review, field)
+    field.delete()
 
 
 def reorder_fields(*, review, ordered_ids):
-    return reorder(review.dataextractionfield_set, ordered_ids, label="Data extraction field")
+    before = FIELD.order(review.dataextractionfield_set)
+    fields = reorder(review.dataextractionfield_set, ordered_ids, label="Data extraction field")
+    FIELD.reordered(review, review.dataextractionfield_set, before)
+    return fields
 
 
 def _get_article_and_field(review, article_id, field_id):

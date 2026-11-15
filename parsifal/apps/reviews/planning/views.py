@@ -26,7 +26,8 @@ from parsifal.apps.reviews.models import (
     Source,
 )
 from parsifal.apps.reviews.planning.forms import KeywordForm, SynonymForm
-from parsifal.apps.reviews.services import protocol as protocol_services, reviews
+from parsifal.apps.reviews.services import extraction, history, protocol as protocol_services, quality, reviews
+from parsifal.apps.reviews.services.protocol import KEYWORD, QUESTION, SOURCE, criterion_kind
 
 NEW = ("", "None")  # the id a row's form sends for an object not saved yet
 
@@ -89,8 +90,10 @@ def save_objective(request):
                 % len(objective)
             )
         else:
+            tracker = reviews.track_review(review, "objective")
             review.objective = objective
             review.save()
+            reviews.record_changes(review, tracker)
             return HttpResponse("Your review have been saved successfully!")
     except Exception:
         return HttpResponseBadRequest()
@@ -114,18 +117,27 @@ def save_question(request):
         description = request.POST["description"]
         review = request.review
         if question_id in NEW:
-            question = Question(review=review)
+            question, tracker = Question(review=review), None
         else:
             question = child(review.research_questions, question_id)
+            tracker = QUESTION.track(question)
         question.question = description[:500]
         question.save()
+        if tracker is None:
+            QUESTION.added(review, question)
+        else:
+            QUESTION.changed(review, tracker)
         return render(request, "planning/partial_planning_question.html", {"question": question})
     except Exception:
         return HttpResponseBadRequest()
 
 
-def save_order(queryset, orders):
-    """Apply "id:order,id:order" to the review's objects; rows still being added ("None") are skipped."""
+def save_order(queryset, orders, kind=None, review=None):
+    """
+    Apply "id:order,id:order" to the review's objects; rows still being added ("None") are skipped. The History
+    records the new order as a change to ``kind``.
+    """
+    before = kind.order(queryset) if kind else None
     with transaction.atomic():
         for item in orders.split(","):
             if item:
@@ -135,6 +147,8 @@ def save_order(queryset, orders):
                 obj = child(queryset, pk)
                 obj.order = int(order)
                 obj.save(update_fields=["order"])
+    if kind:
+        kind.reordered(review, queryset, before)
 
 
 @author_required
@@ -142,7 +156,7 @@ def save_order(queryset, orders):
 @require_POST
 def save_question_order(request):
     try:
-        save_order(request.review.research_questions, request.POST["orders"])
+        save_order(request.review.research_questions, request.POST["orders"], QUESTION, request.review)
         return HttpResponse()
     except Exception:
         return HttpResponseBadRequest()
@@ -179,7 +193,9 @@ def remove_question(request):
     try:
         question_id = request.POST["question-id"]
         if question_id != "None":
-            child(request.review.research_questions, question_id).delete()
+            question = child(request.review.research_questions, question_id)
+            QUESTION.removed(request.review, question)
+            question.delete()
         return HttpResponse()
     except Exception:
         return HttpResponseBadRequest()
@@ -196,12 +212,14 @@ def remove_question(request):
 def save_picoc(request):
     try:
         review = request.review
+        tracker = reviews.track_review(review, "population", "intervention", "comparison", "outcome", "context")
         review.population = request.POST["population"][:200]
         review.intervention = request.POST["intervention"][:200]
         review.comparison = request.POST["comparison"][:200]
         review.outcome = request.POST["outcome"][:200]
         review.context = request.POST["context"][:200]
         review.save()
+        reviews.record_changes(review, tracker)
         return HttpResponse()
     except Exception:
         return HttpResponseBadRequest()
@@ -246,6 +264,7 @@ def import_pico_keywords(request):
         keywords += extract_keywords(review, Keyword.INTERVENTION)
         keywords += extract_keywords(review, Keyword.COMPARISON)
         keywords += extract_keywords(review, Keyword.OUTCOME)
+        protocol_services.record_picoc_keywords(review, keywords)
 
         html = ""
 
@@ -262,6 +281,7 @@ def import_pico_keywords(request):
 def remove_keyword(request):
     try:
         keyword = child(request.review.keywords, request.POST["keyword-id"])
+        protocol_services.record_keyword_removed(request.review, keyword)
         for synonym in keyword.synonyms.all():
             synonym.delete()
         keyword.delete()
@@ -288,6 +308,9 @@ def add_keyword(request):
                     form.instance.review = review
                     form.instance.synonym_of = keyword
                     form.save()
+            synonyms = protocol_services.synonyms_of(keyword)
+            changes = [history.change("Synonyms", "", synonyms, "synonyms")] if synonyms else ()
+            KEYWORD.added(review, keyword, changes=changes)
             response["status"] = "ok"
             response["html"] = render_to_string("planning/partial_keyword.html", {"keyword": keyword}, request)
             dump = json.dumps(response)
@@ -317,6 +340,7 @@ def edit_keyword(request):
     SynonymFormSet = inlineformset_factory(Keyword, Keyword, SynonymForm, extra=1)
     response = {}
     if request.method == "POST":
+        tracker, synonyms = KEYWORD.track(keyword), protocol_services.synonyms_of(keyword)
         form = KeywordForm(request.POST, instance=keyword)
         formset = SynonymFormSet(request.POST, instance=keyword, prefix="synonym")
         if form.is_valid() and formset.is_valid():
@@ -326,6 +350,7 @@ def edit_keyword(request):
                 form.instance.review = review
                 form.instance.synonym_of = keyword
             formset.save()
+            protocol_services.record_synonyms(review, keyword, tracker, synonyms)
             response["status"] = "ok"
             response["html"] = render_to_string("planning/partial_keyword.html", {"keyword": keyword}, request)
             dump = json.dumps(response)
@@ -380,8 +405,10 @@ def save_generic_search_string(request):
         search_string = request.POST["search-string"]
         review = request.review
         generic_search_string = review.get_generic_search_string()
+        before = generic_search_string.search_string
         generic_search_string.search_string = search_string
         generic_search_string.save()
+        protocol_services.record_search_string(review, before, search_string)
         return HttpResponse()
     except Exception:
         return HttpResponseBadRequest()
@@ -488,7 +515,9 @@ def add_suggested_sources(request):
         return_html = ""
         for source_id in source_ids:
             source = child(Source.objects.filter(is_default=True), source_id)
-            review.sources.add(source)
+            if not review.sources.filter(pk=source.pk).exists():
+                review.sources.add(source)
+                SOURCE.added(review, source)
             return_html += html_source(source)
         review.save()
         return HttpResponse(return_html)
@@ -510,6 +539,7 @@ def add_criteria(request):
         criteria_type = request.POST["criteria-type"]
         criteria = SelectionCriteria(review=request.review, description=description, criteria_type=criteria_type)
         criteria.save()
+        criterion_kind(criteria).added(request.review, criteria)
         return render(request, "planning/partial_criteria.html", {"criteria": criteria})
     except Exception:
         return HttpResponseBadRequest()
@@ -535,6 +565,7 @@ def remove_criteria(request):
     try:
         criteria = [child(request.review.selectioncriteria_set, pk) for pk in request.POST["criteria-ids"].split(",")]
         for item in criteria:
+            criterion_kind(item).removed(request.review, item)
             item.delete()
         return HttpResponse()
     except Exception:
@@ -585,12 +616,17 @@ def save_quality_assessment_question(request):
         review = request.review
 
         if quality_question_id in NEW:
-            quality_question = QualityQuestion(review=review)
+            quality_question, tracker = QualityQuestion(review=review), None
         else:
             quality_question = child(review.qualityquestion_set, quality_question_id)
+            tracker = quality.QUESTION.track(quality_question)
 
         quality_question.description = description
         quality_question.save()
+        if tracker is None:
+            quality.QUESTION.added(review, quality_question)
+        else:
+            quality.QUESTION.changed(review, tracker)
 
         return render(
             request,
@@ -606,7 +642,7 @@ def save_quality_assessment_question(request):
 @require_POST
 def save_quality_assessment_question_order(request):
     try:
-        save_order(request.review.qualityquestion_set, request.POST["orders"])
+        save_order(request.review.qualityquestion_set, request.POST["orders"], quality.QUESTION, request.review)
         return HttpResponse()
     except Exception:
         return HttpResponseBadRequest()
@@ -617,7 +653,9 @@ def save_quality_assessment_question_order(request):
 @require_POST
 def remove_quality_assessment_question(request):
     try:
-        child(request.review.qualityquestion_set, request.POST["quality-question-id"]).delete()
+        quality_question = child(request.review.qualityquestion_set, request.POST["quality-question-id"])
+        quality.QUESTION.removed(request.review, quality_question)
+        quality_question.delete()
         return HttpResponse()
     except Exception:
         return HttpResponseBadRequest()
@@ -669,13 +707,18 @@ def save_quality_assessment_answer(request):
         review = request.review
 
         if quality_answer_id in NEW:
-            quality_answer = QualityAnswer(review=review)
+            quality_answer, tracker = QualityAnswer(review=review), None
         else:
             quality_answer = child(review.qualityanswer_set, quality_answer_id)
+            tracker = quality.ANSWER.track(quality_answer)
 
         quality_answer.description = description
         quality_answer.weight = weight
         quality_answer.save()
+        if tracker is None:
+            quality.ANSWER.added(review, quality_answer)
+        else:
+            quality.ANSWER.changed(review, tracker)
 
         return render(
             request,
@@ -691,7 +734,9 @@ def save_quality_assessment_answer(request):
 @require_POST
 def remove_quality_assessment_answer(request):
     try:
-        child(request.review.qualityanswer_set, request.POST["quality-answer-id"]).delete()
+        quality_answer = child(request.review.qualityanswer_set, request.POST["quality-answer-id"])
+        quality.ANSWER.removed(request.review, quality_answer)
+        quality_answer.delete()
         return HttpResponse()
     except Exception:
         return HttpResponseBadRequest()
@@ -704,10 +749,11 @@ def add_suggested_answer(request):
     try:
         review = request.review
         if not review.get_quality_assessment_answers():
-            html_answers = ""
+            html_answers, answers = "", []
             for answer, value in QualityAnswer.SUGGESTED_ANSWERS:
                 quality_answer = QualityAnswer(review=review, description=answer, weight=value)
                 quality_answer.save()
+                answers.append(quality_answer)
                 html_answers += """<tr oid="{0}">
                   <td>{1}</td>
                   <td>{2}</td>
@@ -718,6 +764,7 @@ def add_suggested_answer(request):
                 </tr>""".format(
                     quality_answer.id, quality_answer.description, quality_answer.weight
                 )
+            quality.record_suggested_answers(review, answers)
             return HttpResponse(html_answers)
         else:
             return HttpResponseBadRequest()
@@ -742,8 +789,10 @@ def save_cutoff_score(request):
     try:
         cutoff_score = request.POST["cutoff-score"]
         review = request.review
+        tracker = reviews.track_review(review, "quality_assessment_cutoff_score")
         review.quality_assessment_cutoff_score = float(cutoff_score)
         review.save()
+        reviews.record_changes(review, tracker)
         return HttpResponse("Cutoff score saved successfully!")
     except Exception:
         return HttpResponseBadRequest("Invalid value.")
@@ -789,11 +838,14 @@ def save_data_extraction_field(request):
 
         review = request.review
 
+        cleared = 0
         if field_id in NEW:
-            field = DataExtractionField(review=review)
+            field, tracker = DataExtractionField(review=review), None
         else:
             field = child(review.dataextractionfield_set, field_id)
+            tracker, options = extraction.FIELD.track(field), extraction.options_of(field)
             if field.field_type != field_type:
+                cleared = DataExtraction.objects.filter(field=field).count()
                 try:
                     data_extractions = DataExtraction.objects.filter(field=field)
                     for data_extraction in data_extractions:
@@ -817,6 +869,10 @@ def save_data_extraction_field(request):
         else:
             for select_value in field.get_select_values():
                 select_value.delete()
+        if tracker is None:
+            extraction.FIELD.added(review, field, changes=extraction.options_change([], extraction.options_of(field)))
+        else:
+            extraction.record_field_changed(review, field, tracker, options, cleared)
         return render(request, "planning/partial_data_extraction_field.html", {"field": field})
     except Exception:
         return HttpResponseBadRequest()
@@ -827,7 +883,7 @@ def save_data_extraction_field(request):
 @require_POST
 def save_data_extraction_field_order(request):
     try:
-        save_order(request.review.dataextractionfield_set, request.POST["orders"])
+        save_order(request.review.dataextractionfield_set, request.POST["orders"], extraction.FIELD, request.review)
         return HttpResponse()
     except Exception:
         return HttpResponseBadRequest()
@@ -839,6 +895,7 @@ def save_data_extraction_field_order(request):
 def remove_data_extraction_field(request):
     try:
         field = child(request.review.dataextractionfield_set, request.POST["field-id"])
+        extraction.record_field_removed(request.review, field)
         select_values = field.get_select_values()
         for select_value in select_values:
             select_value.delete()
