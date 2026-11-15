@@ -22,11 +22,11 @@ links to that study's own history) and the AI screening run that made it.
 Each study's window (*History*, next to *External Link*) opens the changes to
 that study.
 
-## Amendments to the protocol
+## Amendments
 
-A change to the protocol (Planning) made once the first study was imported is
-marked **amendment**. PRISMA 2020 asks a review to report the amendments to
-its protocol (item 24c); *Amendments only* lists them.
+A change to the Planning made after the first study was imported is tagged
+**amendment**: the plan changed along the way. Your paper should say what
+changed and why (PRISMA 2020, item 24c); *Amendments only* lists them.
 
 ## Filters
 

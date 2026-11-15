@@ -23,9 +23,9 @@
     </div>
     <div class="panel-body">
       <p class="text-muted">
-        Every change to the review: who made it, when, through what and what changed. A change to the protocol made
-        once studies were imported is marked <span class="label label-warning">amendment</span>; PRISMA 2020 asks to
-        report them (item 24c).
+        Everything that changed in this review: what, who changed it and when.
+        <span class="label label-warning">amendment</span> marks a change to the Planning made after the studies
+        were imported: the plan changed along the way, so mention it in your paper.
       </p>
       <form method="get" class="form-inline history-filters js-history-filters">
         <select name="area" class="form-control input-sm" aria-label="Area">
@@ -101,7 +101,7 @@
               <td class="history-area">{{ event.get_area_display }}</td>
               <td>
                 {{ event.summary }}
-                {% if event.amendment %}<span class="label label-warning">amendment</span>{% endif %}
+                {% if event.amendment %}<span class="label label-warning" title="A change to the Planning made after the studies were imported">amendment</span>{% endif %}
                 {% if event.changes or event.items or event.study_count or event.run_id %}
                   <a href="#event-{{ event.pk }}" class="history-details-toggle" data-toggle="collapse" aria-expanded="false" aria-controls="event-{{ event.pk }}">details</a>
                 {% endif %}
