@@ -1,0 +1,5 @@
+{% comment %}A review's progress as a small bar and its percentage (percent: 0–100).{% endcomment %}
+<span class="review-progress-inline" title="{{ percent }}% complete">
+  <span class="progress review-progress-bar"><span class="progress-bar{% if percent == 100 %} progress-bar-success{% endif %}" role="progressbar" style="width: {{ percent }}%;" aria-valuenow="{{ percent }}" aria-valuemin="0" aria-valuemax="100"></span></span>
+  <span class="review-progress-value">{{ percent }}%</span>
+</span>

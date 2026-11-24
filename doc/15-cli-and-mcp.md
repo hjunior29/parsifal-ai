@@ -46,7 +46,7 @@ mirror the API parameters in kebab-case; `--review` accepts a numeric id or
 | (root) | `me`, `me-update [--first-name --last-name --email --study-columns … --theme system|light|dark]`, `version`, `docs` (prints the workflow guide), `config show|set` |
 | `token` | `list`, `create --name`, `revoke --id`, `delete --id` (revoked only) |
 | `user` | `list`, `create --username --email [--password …]` (administrators) |
-| `review` | `list [--author --name --q --limit --offset --all]`, `create`, `get`, `overview`, `update`, `delete`, `rename --name`, `reset-selection [--reviewer-ids U …]` (every study but duplicates unclassified, the chosen reviewers' decisions deleted; asks for confirmation), `import --file BACKUP` (a new review from a review backup); `review backup list|create|upload --file|download --id -o FILE|restore --id|delete --id` (backups of one review on the server) |
+| `review` | `list [--author --name --q --limit --offset --all]`, `create`, `get`, `overview`, `progress`, `update`, `delete`, `rename --name`, `reset-selection [--reviewer-ids U …]` (every study but duplicates unclassified, the chosen reviewers' decisions deleted; asks for confirmation), `import --file BACKUP` (a new review from a review backup); `review backup list|create|upload --file|download --id -o FILE|restore --id|delete --id` (backups of one review on the server) |
 | `member` | `list` |
 | `history` | `list [--area --action --actor --via --article-id --since --until --q --amendments --limit --offset --all]` (the review's History, newest first) |
 | `agent` | `list`, `create --name`, `new-token --id`, `delete --id` (permanent: account, tokens, decisions, quality assessments and extracted data; imported studies and classifications stay) |

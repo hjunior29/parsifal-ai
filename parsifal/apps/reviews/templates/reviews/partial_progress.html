@@ -1,0 +1,37 @@
+{% comment %}
+  The review's progress under its title (services.progress): the bar, its percentage and the next step; a click opens
+  each phase with its steps, each linked to the page where it is done.
+{% endcomment %}
+{% load review_progress %}
+{% review_progress review as progress %}
+<div class="review-progress dropdown">
+  <a href="#" class="dropdown-toggle review-progress-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">
+    {% include 'reviews/partial_progress_bar.html' with percent=progress.percent %}
+    <span class="review-progress-label">complete</span>
+    {% if progress.next %}<span class="review-progress-next">· next: {{ progress.next.label }}</span>{% endif %}
+    <span class="caret"></span>
+  </a>
+  <div class="dropdown-menu review-progress-menu">
+    {% for phase in progress.phases %}
+      <div class="review-progress-phase">
+        <strong>{{ phase.label }}</strong> <span class="text-muted">{{ phase.percent }}% · counts {{ phase.weight }}% of the review</span>
+      </div>
+      <ul class="list-unstyled review-progress-steps">
+        {% for step in phase.steps %}
+          <li>
+            <a href="{% url step.page review.author.username review.name %}">
+              {% if step.done == 1 %}<span class="glyphicon glyphicon-ok text-success" aria-label="done"></span>{% elif step.done > 0 %}<span class="glyphicon glyphicon-adjust text-warning" aria-label="in progress"></span>{% else %}<span class="glyphicon glyphicon-unchecked text-muted" aria-label="to do"></span>{% endif %}
+              {{ step.label }}
+              {% if step.detail %}<small class="text-muted">{{ step.detail }}</small>{% endif %}
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endfor %}
+    <div class="review-progress-help text-muted">
+      Planning counts 20%, Conducting 70% and Reporting 10%. A step of the protocol is done once it has something; the
+      steps over the studies count as they are screened, assessed and extracted. Complete once every study left has
+      its data extracted and a manuscript has a version.
+    </div>
+  </div>
+</div>

@@ -757,3 +757,72 @@ div.list-group.docs-nav a.list-group-item.active .docs-summary { color: #8a6f5c;
   font-size: 2.2em;
   color: #aaa;
 }
+
+/* The progress of a review: under its title (a click opens its steps) and in the lists of reviews. */
+.review-progress {
+  margin: -12px 0 14px;
+  font-size: 13px;
+}
+
+.review-progress-toggle,
+.review-progress-toggle:hover,
+.review-progress-toggle:focus {
+  color: inherit;
+  text-decoration: none;
+}
+
+.review-progress-inline {
+  white-space: nowrap;
+}
+
+.review-progress-bar {
+  display: inline-block;
+  width: 160px;
+  height: 8px;
+  margin: 0 6px 0 0;
+  vertical-align: middle;
+}
+
+.review-progress-cell .review-progress-bar {
+  width: 100px;
+}
+
+.review-progress-value {
+  font-weight: bold;
+}
+
+.review-progress-next {
+  color: #777;
+}
+
+.review-progress-menu {
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.review-progress-phase {
+  margin: 6px 0 4px;
+}
+
+.review-progress-steps {
+  margin-bottom: 6px;
+}
+
+.review-progress-steps a {
+  display: block;
+  padding: 2px 0;
+  color: inherit;
+}
+
+.review-progress-steps .glyphicon {
+  margin-right: 4px;
+}
+
+.review-progress-help {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #eee;
+  font-size: 12px;
+}

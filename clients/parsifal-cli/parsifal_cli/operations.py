@@ -439,6 +439,15 @@ OPERATIONS = (
         (REVIEW,),
     ),
     Operation(
+        "reviews_progress",
+        "GET",
+        "/reviews/{review_id}/progress",
+        ("review",),
+        "progress",
+        "How far the review has come (%), phase by phase and step by step, and the next step.",
+        (REVIEW,),
+    ),
+    Operation(
         "reviews_update",
         "PATCH",
         "/reviews/{review_id}",

@@ -77,3 +77,15 @@ class TestReviews(ApiTestCase):
         DefaultSourceFactory(name="Scopus")
         names = [s["name"] for s in self.api("get", "/sources/defaults").json()]
         self.assertIn("Scopus", names)
+
+
+class TestProgressApi(ApiTestCase):
+    def test_progress(self):
+        Review.objects.filter(pk=self.review.pk).update(objective="")
+        body = self.api("get", self.review_path("/progress")).json()
+        self.assertEqual(["planning", "conducting", "reporting"], [phase["key"] for phase in body["phases"]])
+        self.assertEqual([20, 70, 10], [phase["weight"] for phase in body["phases"]])
+        self.assertEqual(("objective", 0.0), (body["next"]["key"], body["next"]["done"]))
+        self.assertEqual({"key", "label", "done", "detail"}, set(body["phases"][0]["steps"][0]))
+        outsider = self.client_for(self.outsider)
+        self.assertEqual(404, self.api("get", self.review_path("/progress"), client=outsider).status_code)

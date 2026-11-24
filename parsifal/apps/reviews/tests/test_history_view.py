@@ -116,3 +116,19 @@ class WebChangesTest(TestCase):
             reverse("reviews:remove_author_from_review"), {"review-id": self.review.pk, "user-id": self.colleague.pk}
         )
         self.assertEqual(f"Removed the co-author “{self.colleague.username}”", self.latest().summary)
+
+
+class ProgressInPagesTest(TestCase):
+    """The progress bar: under the title of every page of the review, and in the lists of reviews."""
+
+    def test_header_and_lists(self):
+        owner = UserFactory(username="owner")
+        review = ReviewFactory(author=owner, title="Agents", objective="")
+        self.client.force_login(owner)
+        page = self.client.get(reverse("review_history", args=(owner.username, review.name)))
+        self.assertContains(page, "review-progress-toggle")
+        self.assertContains(page, "next: Objective")
+        self.assertContains(page, f'href="{reverse("protocol", args=(owner.username, review.name))}"')
+        for url in (reverse("home"), reverse("reviews", args=(owner.username,))):
+            with self.subTest(url=url):
+                self.assertContains(self.client.get(url), 'class="review-progress-cell"', html=False)

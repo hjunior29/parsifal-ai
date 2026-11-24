@@ -123,3 +123,24 @@ class ReviewEventOut(Schema):
     @staticmethod
     def resolve_article_ids(obj):
         return sorted(article.pk for article in obj.articles.all())
+
+
+class ProgressStepOut(Schema):
+    key: str
+    label: str
+    done: float  # 0 to 1
+    detail: str
+
+
+class ProgressPhaseOut(Schema):
+    key: str
+    label: str
+    weight: int  # its share of the whole, in %
+    percent: int
+    steps: list[ProgressStepOut]
+
+
+class ProgressOut(Schema):
+    percent: int
+    phases: list[ProgressPhaseOut]
+    next: ProgressStepOut | None = None  # the first step not done

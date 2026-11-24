@@ -7,6 +7,7 @@
   <a href="{{ review.get_absolute_url }}">{{ review.title }}</a>
   {% if review.is_mapping_study %}<small><span class="label label-info" title="Systematic mapping study (Petersen et al. 2015)">mapping study</span></small>{% endif %}
 </h3>
+{% include 'reviews/partial_progress.html' %}
 <ul class="review-menu">
   <li{% if active_menu == "review"%} class="active"{% endif %}>
     <a href="{{ review.get_absolute_url }}">Review</a>

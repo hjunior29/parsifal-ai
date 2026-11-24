@@ -424,3 +424,11 @@ html.theme-dark {
 .theme-dark .manuscript-frame {
   border-color: #3a3f44;
 }
+
+.theme-dark .review-progress-next {
+  color: #9aa0a6;
+}
+
+.theme-dark .review-progress-help {
+  border-top-color: #3a3f44;
+}

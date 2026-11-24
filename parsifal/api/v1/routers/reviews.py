@@ -12,6 +12,7 @@ from parsifal.api.v1.schemas.reviews import (
     AgentCreatedOut,
     AgentIn,
     AgentOut,
+    ProgressOut,
     ReviewCreateIn,
     ReviewEventOut,
     ReviewNameIn,
@@ -22,7 +23,7 @@ from parsifal.api.v1.schemas.reviews import (
 )
 from parsifal.apps.core.exceptions import ValidationError
 from parsifal.apps.reviews.models import Article, Review
-from parsifal.apps.reviews.services import agents, history, protocol, reviews, selection
+from parsifal.apps.reviews.services import agents, history, progress, protocol, reviews, selection
 
 router = Router(tags=["reviews"])
 
@@ -66,6 +67,17 @@ def reviews_get(request, review_id: int):
 def reviews_overview(request, review_id: int):
     """Counts per protocol section and per article status — what an agent needs to decide the next step."""
     return reviews.review_overview(get_review(request, review_id))
+
+
+@router.get("/reviews/{int:review_id}/progress", response=ProgressOut, operation_id="reviews_progress")
+def reviews_progress(request, review_id: int):
+    """
+    How far the review has come, as the progress bar shows it: a percentage and its steps. Planning weighs 20%,
+    Conducting 70%, Reporting 10%; a protocol step is done with at least one item, a step over the studies counts in
+    proportion (screened, assessed, extracted). 100 once every study left has its data extracted and a manuscript
+    has a version.
+    """
+    return progress.progress(get_review(request, review_id))
 
 
 @router.patch("/reviews/{int:review_id}", response=ReviewOut, operation_id="reviews_update")

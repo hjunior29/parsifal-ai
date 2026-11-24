@@ -775,3 +775,34 @@ full text is. The kinds must not be fixed.
 **Consequences.** Migration `reviews.0056`. The Evidence Briefing of a rapid
 review is uploaded here like any other text.
 
+
+## The progress of a review
+
+**Context.** Helder asked (2026-11-24) for a progress bar of each review, on
+the list of reviews and inside the review, that sums what is required without
+asking for every field (one field of the PICOC is enough; a mapping study does
+not need them all), grows as studies are screened, assessed and extracted, and
+reaches 100% with the manuscript.
+
+**Decision.**
+- `services/progress.py` computes it on the fly: nothing is stored, so it
+  cannot drift from the review.
+- Phases weigh as the work they take: Planning 20%, Conducting 70%,
+  Reporting 10%; inside a phase the steps share its weight equally. Planning:
+  objective, PICOC (any field), research questions, search string, sources,
+  selection criteria, quality checklist, extraction form (fields or facets).
+  Conducting: studies imported, selection (accepted or rejected over the
+  studies not duplicated), quality assessment (accepted studies with every
+  question answered), data extraction (final selection marked done — done
+  needs the evidence of each value). Reporting: a threat to validity, a
+  manuscript with a version.
+- Quality assessment is a step of SLRs; a mapping study or a rapid review
+  counts it only when it has a checklist (both may leave it out).
+- 100 only when every step is done; anything less shows at most 99.
+- It is under the title of every page of the review (a click lists the steps,
+  each linked to its page) and in the lists of reviews; `GET
+  /reviews/{id}/progress` and `review progress` give the same.
+
+**Consequences.** No migration. Each page of a review computes it (some twenty
+small queries).
+
