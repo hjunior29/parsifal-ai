@@ -195,6 +195,24 @@ def test_manuscript_version_upload(runner, fake_api, tmp_path):
     assert b"%PDF-1.4" in request.content
 
 
+def test_rapid_review(runner, fake_api):
+    fake_api.route("PATCH", "/api/v1/reviews/7", 200, {"id": 7})
+    fake_api.route("POST", "/api/v1/reviews/7/threats/draft", 200, [])
+    result = invoke(
+        runner,
+        ["review", "update", "--review", "7", "--demand", "practitioners", "--started-on", "2026-11-02"]
+        + ["--practical-problem", "Flaky tests."],
+    )
+    assert result.exit_code == 0, result.output
+    assert fake_api.last_json() == {
+        "demand": "practitioners",
+        "started_on": "2026-11-02",
+        "practical_problem": "Flaky tests.",
+    }
+    result = invoke(runner, ["threat", "draft", "--review", "7"])
+    assert result.exit_code == 0, result.output
+
+
 def test_pagination_all(runner, fake_api):
     pages = {
         0: {"count": 3, "items": [{"id": 1}, {"id": 2}]},

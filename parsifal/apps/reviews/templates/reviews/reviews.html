@@ -31,7 +31,7 @@
           {% for review in user_reviews %}
             <tr>
               <td><a href="{{ review.get_absolute_url }}">{{ review.title }}</a></td>
-              <td>{% if review.is_mapping_study %}<span class="label label-info">Mapping study</span>{% else %}<span class="label label-default">Literature review</span>{% endif %}</td>
+              <td>{% include 'reviews/partial_review_type.html' %}</td>
                   <td class="review-progress-cell">{% review_progress review as progress %}{% include 'reviews/partial_progress_bar.html' with percent=progress.percent %}</td>
               <td>
                 {{ review.author.profile.get_screen_name }}{% for author in review.co_authors.all %}, {{ author.profile.get_screen_name }}{% endfor %}

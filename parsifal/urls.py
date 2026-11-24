@@ -76,6 +76,11 @@ urlpatterns = [
         reviews_planning_views.data_extraction_form,
         name="data_extraction_form",
     ),
+    path(
+        "<str:username>/<str:review_name>/planning/rapid/",
+        reviews_planning_views.rapid_review_checklist,
+        name="rapid_review_checklist",
+    ),
     # Conducting Phase
     path("<str:username>/<str:review_name>/conducting/", reviews_conducting_views.conducting, name="conducting"),
     path(

@@ -5,7 +5,7 @@
   <span class="review-title-user">{{ review.author.profile.get_screen_name }}</span> 
   <span class="text-muted">/</span>
   <a href="{{ review.get_absolute_url }}">{{ review.title }}</a>
-  {% if review.is_mapping_study %}<small><span class="label label-info" title="Systematic mapping study (Petersen et al. 2015)">mapping study</span></small>{% endif %}
+  {% if review.is_mapping_study %}<small><span class="label label-info" title="Systematic mapping study (Petersen et al. 2015)">mapping study</span></small>{% elif review.is_rapid_review %}<small><span class="label label-warning" title="Rapid review (Cartaxo, Pinto & Soares 2020)">rapid review</span></small>{% endif %}
 </h3>
 {% include 'reviews/partial_progress.html' %}
 <ul class="review-menu">

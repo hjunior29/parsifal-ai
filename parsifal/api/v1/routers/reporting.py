@@ -16,7 +16,7 @@ from parsifal.api.v1.schemas.reporting import (
     ThreatTypesOut,
     ThreatUpdateIn,
 )
-from parsifal.apps.reviews.services import manuscripts, threats
+from parsifal.apps.reviews.services import manuscripts, rapid, threats
 
 router = Router(tags=["reporting"])
 
@@ -48,6 +48,15 @@ def threats_list(request, review_id: int):
 def threats_create(request, review_id: int, payload: ThreatIn):
     """A threat: its name (``title``), type (``category``, free), description and how it was mitigated."""
     return 201, threats.add_threat(review=get_review(request, review_id), **payload.dict())
+
+
+@router.post("/reviews/{int:review_id}/threats/draft", response=list[ThreatOut], operation_id="threats_draft")
+def threats_draft(request, review_id: int):
+    """
+    Rapid reviews: a threat for each concession of the rapid review checklist applied, its justification as the
+    mitigation; appended (a threat of the same name is left alone). Returns the threats added.
+    """
+    return rapid.draft_threats(review=get_review(request, review_id), actor=request.auth)
 
 
 @router.patch("/reviews/{int:review_id}/threats/{int:threat_id}", response=ThreatOut, operation_id="threats_update")

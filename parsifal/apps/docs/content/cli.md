@@ -43,7 +43,7 @@ parameters in kebab-case; `--review` accepts a numeric id or `author/slug`.
 | `search-string` | `get`, `set`, `generate` |
 | `source` | `defaults`, `list`, `imports` (the studies imported from each source and its date of search), `add`, `update`, `remove`, `document-search` (`--searched-at ""` clears the date); `source search-string list|set|copy-generic|delete` |
 | `quality` | `question …`, `answer …`, `max-score`, `set-cutoff`, `summary`, `studies`, `get`, `assess` |
-| `threat` | `types`, `list`, `create`, `update`, `delete` (threats to validity) |
+| `threat` | `types`, `list`, `create`, `update`, `delete`, `draft` (rapid reviews: from the concessions) (threats to validity) |
 | `manuscript` | `list`, `create`, `update`, `delete`; `version upload --file [--notes]`, `version download -o FILE`, `version delete` |
 | `extraction` | `field …`, `get`, `set` (`--evidence`), `evidence`, `done`, `studies` |
 | `article` | `list`, `create`, `get`, `update`, `delete`, `set-status`, `import`, `import-file` (both take `--searched-at`, the source's date of search), `duplicates`, `resolve-duplicates`, `delete-batch`, `clear`, `star`/`unstar` (`--article`; `list --starred` shows the starred ones); `article pdf upload|download|delete` (the study's PDF: `--article`, `--file` / `-o FILE`) |

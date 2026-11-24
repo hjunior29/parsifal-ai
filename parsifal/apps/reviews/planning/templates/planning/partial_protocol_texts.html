@@ -1,0 +1,35 @@
+{% comment %}
+  The procedures of a rapid review's protocol (Cartaxo et al. 2020 §4.2): how the studies are selected and how the
+  evidence is synthesised; its threats to validity are listed in Reporting. Saved with save_protocol_fields.
+{% endcomment %}
+<section id="procedures-section" style="margin-bottom: 20px;">
+  <form method="post" class="js-protocol-fields-form">
+    {% csrf_token %}
+    <input type="hidden" name="review-id" value="{{ review.id }}">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">Procedures</h3>
+      </div>
+      <div class="panel-body">
+        <div class="form-group">
+          <label for="selection-procedure">Selection procedure</label>
+          <textarea id="selection-procedure" name="selection_procedure" rows="3" class="form-control expanding" maxlength="10000" placeholder="The rounds and who screens them: three rounds (title; title and abstract; full text), one researcher…">{{ review.selection_procedure }}</textarea>
+        </div>
+        <div class="form-group">
+          <label for="synthesis-strategy">Synthesis strategy</label>
+          <textarea id="synthesis-strategy" name="synthesis_strategy" rows="3" class="form-control expanding" maxlength="10000" placeholder="How the evidence is synthesised: a narrative synthesis, a thematic analysis…">{{ review.synthesis_strategy }}</textarea>
+        </div>
+        <p class="help-block">
+          The concessions made to be rapid, with their justification, go in the
+          <a href="{% url 'rapid_review_checklist' review.author.username review.name %}">Rapid Review Checklist</a>;
+          the threats to validity they bring, in
+          <a href="{% url 'threats_to_validity' review.author.username review.name %}">Reporting → Threats to Validity</a>.
+        </p>
+      </div>
+      <div class="panel-footer">
+        {% include 'planning/partial_save_button.html' %}
+        <span class="text-danger js-protocol-fields-error" style="margin-left: 8px;"></span>
+      </div>
+    </div>
+  </form>
+</section>

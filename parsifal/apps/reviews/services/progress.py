@@ -5,8 +5,8 @@ The three phases weigh as the work they take: Planning 20%, Conducting 70%, Repo
 share its weight equally. A step of the protocol is done once it has something (at least one field of the PICOC,
 one research question...): no review needs every field. A step over the studies counts in proportion (the studies
 screened, assessed, extracted). Quality assessment is a step of systematic literature reviews; a mapping study or a
-rapid review counts it only when it has a checklist. The review is complete once every study left has its data
-extracted and a manuscript has a version.
+rapid review counts it only when it has a checklist; a rapid review has a step of its own, its practical problem. The
+review is complete once every study left has its data extracted and a manuscript has a version.
 """
 
 from dataclasses import asdict, dataclass
@@ -53,7 +53,19 @@ def _planning(review):
         inclusion=Count("pk", filter=Q(criteria_type="I")), exclusion=Count("pk", filter=Q(criteria_type="E"))
     )
     fields, facets = review.dataextractionfield_set.count(), review.facets.count()
-    steps = [
+    steps = []
+    if review.is_rapid_review:
+        # A rapid review starts from a practical problem defined with the practitioners (Cartaxo et al. 2020 §4.1.2).
+        steps.append(
+            Step(
+                "practical_problem",
+                PLANNING,
+                "Practical problem",
+                float(bool(review.practical_problem.strip())),
+                page="protocol",
+            )
+        )
+    steps += [
         Step("objective", PLANNING, "Objective", float(bool(review.objective.strip())), page="protocol"),
         Step("picoc", PLANNING, "PICOC (at least one)", float(bool(picoc)), ", ".join(picoc).title(), "protocol"),
         Step(

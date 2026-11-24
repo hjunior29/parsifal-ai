@@ -198,6 +198,8 @@ Action endpoints under `/reviews/conducting/`, guard **A** unless noted:
 
 | Path | Method | Guard | Inputs | Output |
 |------|--------|-------|--------|--------|
+| `/<u>/<r>/planning/rapid/` | GET/POST | A | POST `applied-<key>` (on), `notes-<key>` for each item, `action` save / draft | Rapid Review Checklist (rapid reviews; 404 otherwise); draft also adds the threats of the concessions (`services/rapid.py`) |
+| `/reviews/planning/save_protocol_fields/` | POST | A | `review-id`; any of `demand`, `demand_notes`, `practical_problem`, `practical_context`, `stakeholder_roles`, `started_on`, `deadline`, `selection_procedure`, `synthesis_strategy` | `services.reviews.update_review`; empty / 400 with the error text |
 | `/<u>/<r>/reporting/` | GET | A | | redirect to Threats to Validity |
 | `/<u>/<r>/reporting/threats/` | GET/POST | A | GET `edit` (a threat's id: its form in place); POST `action` add / update / remove, `threat-id`, `title`, `category`, `description`, `mitigation` | Threats to Validity (`services/threats.py`), by type; POST redirects back with a message |
 | `/<u>/<r>/reporting/manuscripts/` | GET/POST | A | GET `edit` (a manuscript's id); POST `action` add / update / remove (`manuscript-id`, `name`, `description`), upload (`manuscript-id`, `file`, `notes`), remove-version (`version-id`) | Manuscripts (`services/manuscripts.py`), each with its versions; POST redirects back with a message |

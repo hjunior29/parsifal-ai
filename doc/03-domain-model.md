@@ -188,6 +188,12 @@ group and marks the rest `D`.
   full text with it are reports not retrieved.
 - `ReviewBackup(review CASCADE, file → core.StoredFile CASCADE (the .tar.gz; deleted with the row), note, studies,
   created_by SET_NULL, created_at)`: a backup of one review kept on the server (`services/review_backups.py`).
+- Rapid reviews (`Review.review_type == "rapid"`, `is_rapid_review`; Cartaxo et al. 2020): `Review.demand`
+  (practitioners / agenda / prospected / organisation / other, or empty), `demand_notes`, `practical_problem`,
+  `practical_context`, `stakeholder_roles`, `started_on`, `deadline` — edited on Protocol in rapid reviews only. The
+  rapid review checklist is `ProcessChecklistItem` rows with `rr_*` keys (`services/rapid.py`, `mapping.CATALOGS`):
+  changes recorded as Planning (an amendment once studies exist); `rapid.draft_threats` adds a `ValidityThreat` per
+  concession applied.
 - `ValidityThreat(review CASCADE related "threats", category (its type, free; ≤100), title (its name, ≤255),
   description, mitigation, order, created_at, updated_at)`: a threat to the validity of the review
   (`services/threats.py`; Reporting → Threats to Validity). Types suggested: Petersen et al. 2015 §3.6 and Wohlin et

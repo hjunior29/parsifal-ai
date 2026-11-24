@@ -806,3 +806,32 @@ reaches 100% with the manuscript.
 **Consequences.** No migration. Each page of a review computes it (some twenty
 small queries).
 
+
+## Rapid reviews, phase 1: the type, the practical context, the checklist
+
+**Context.** Plan in `doc/17-rapid-reviews.md` (Cartaxo et al. 2020), with
+Helder's decisions (§6): what is specific to a rapid review exists only in
+rapid reviews.
+
+**Decision.**
+- `Review.RAPID`; `is_rapid_review` switches the rest. The type labels are
+  three-way; the error messages list the types from `REVIEW_TYPES`.
+- The practical context is fields of `Review` (demand, its notes, practical
+  problem, context, stakeholders, start date and deadline), on Protocol above
+  the objectives; the selection procedure and synthesis strategy below the
+  criteria. Both are saved through `update_review`, so the History records
+  them as Planning (amendments once studies exist).
+- The checklist reuses `ProcessChecklistItem` with `rr_*` keys
+  (`services/rapid.py`); `mapping.checklist(review, catalog)` serves both
+  catalogs. A concession carries its threat and a suggested type (Petersen et
+  al. 2015 §3.6).
+- Changed from the plan: the threats are drafted as `ValidityThreat` rows
+  (Reporting → Threats to Validity, added the same day), not appended to the
+  `validity_threats` text, and the Protocol shows no text panel for them. The
+  draft only adds, skipping a threat with the same name. The checklist page
+  saves before drafting.
+- The Evidence Briefing goes to Reporting → Manuscripts.
+
+**Consequences.** Migration `reviews.0057`. The rounds of selection (phase 2)
+come next.
+

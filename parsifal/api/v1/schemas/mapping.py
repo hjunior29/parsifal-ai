@@ -126,13 +126,15 @@ class TestSetReportOut(Schema):
 
 class ChecklistItemOut(Schema):
     key: str
-    phase: str
+    phase: str  # its group
     label: str
     applied: bool
-    notes: str
+    notes: str  # in a rapid review, the justification of the concession
+    threat: str = ""  # the threat to validity a rapid review's concession brings
 
 
 class ChecklistOut(Schema):
+    catalog: str  # petersen or rapid
     applied: int
     total: int
     ratio: float

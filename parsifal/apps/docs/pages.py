@@ -64,6 +64,12 @@ PAGES = (
         "Every change to a review: who, when, through what and what changed; the amendments to the protocol.",
     ),
     Page(
+        "rapid-review",
+        "Rapid reviews",
+        "Methodology",
+        "Cartaxo et al. (2020): practical context, the checklist of concessions and their threats.",
+    ),
+    Page(
         "reporting",
         "Reporting: threats to validity and manuscripts",
         "Methodology",

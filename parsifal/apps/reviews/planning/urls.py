@@ -15,6 +15,7 @@ urlpatterns = [
     path("add_or_edit_question/", views.add_or_edit_question, name="add_or_edit_question"),
     path("remove_question/", views.remove_question, name="remove_question"),
     path("save_objective/", views.save_objective, name="save_objective"),
+    path("save_protocol_fields/", views.save_protocol_fields, name="save_protocol_fields"),
     path("add_criteria/", views.add_criteria, name="add_criteria"),
     path("remove_criteria/", views.remove_criteria, name="remove_criteria"),
     path("save_inclusion_rule/", views.save_inclusion_rule, name="save_inclusion_rule"),

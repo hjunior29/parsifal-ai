@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% comment %}
+  Rapid Review Checklist (rapid reviews only): the collaboration with practitioners and the concessions made to be
+  rapid, each with its justification (Cartaxo et al. 2020); a concession shows the threat to validity it brings, and
+  the button below drafts those threats into Reporting → Threats to Validity.
+{% endcomment %}
+
+{% block title %}Planning · {{ review.title }}{% endblock %}
+
+{% block content %}
+
+  {% include 'reviews/review_header.html' with active_menu='planning' %}
+  {% include 'planning/planning_header.html' with active_tab='rapid' %}
+
+  <div class="modal fade" id="rapid-checklist-help">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+          <h4 class="modal-title">About the rapid review checklist</h4>
+        </div>
+        <div class="modal-body">
+          <p>A rapid review cuts cost and time on purpose, but it is not an ad-hoc review: every concession made to be rapid is documented in its protocol, with why it was made. "Transparency is the golden standard."</p>
+          <p>The concessions are a menu, not a package: one rapid review keeps several sources and skips the quality appraisal, another uses a single source and appraises the quality rigorously. Tick what this review does, and justify it.</p>
+          <p>A concession brings a threat to validity. <em>Draft the threats to validity</em> adds one to Reporting for each concession ticked, with its justification as the mitigation; it only adds, and skips a threat the review has already.</p>
+        </div>
+        <div class="modal-footer" style="text-align: left;">
+          <p><small class="text-muted">B. Cartaxo, G. Pinto and S. Soares, "Rapid Reviews in Software Engineering", Springer, 2020, §2.1, §4.1–4.3. B. Cartaxo, G. Pinto and S. Soares, "The Role of Rapid Reviews in Supporting Decision-Making in Software Engineering Practice", EASE 2018.</small></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <form method="post" class="rapid-checklist">
+    {% csrf_token %}
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">
+          Rapid Review Checklist
+          <a href="javascript:void(0);" class="pull-right" data-toggle="tooltip" title="What's this? Click to get help." data-placement="top" data-container="body">
+            <span class="glyphicon glyphicon-question-sign" data-toggle="modal" data-target="#rapid-checklist-help"></span>
+          </a>
+        </h3>
+      </div>
+      <div class="panel-body">
+        <p class="text-muted">The collaboration with the practitioners and the concessions made to be rapid. Tick what this review does and write why: the justification is part of the protocol.</p>
+        {% for group, items in groups %}
+          <h4 class="rapid-checklist-group">{{ group }}</h4>
+          {% for item in items %}
+            <div class="rapid-checklist-item">
+              <div class="checkbox">
+                <label>
+                  <input type="checkbox" name="applied-{{ item.key }}"{% if item.applied %} checked{% endif %}>
+                  {{ item.label }}
+                  {% if item.threat %}<span class="label label-default" title="A concession: it brings a threat to validity">concession</span>{% endif %}
+                </label>
+              </div>
+              {% if item.threat %}<p class="help-block rapid-checklist-threat">Threat: {{ item.threat }}</p>{% endif %}
+              <input type="text" class="form-control input-sm" name="notes-{{ item.key }}" maxlength="500" value="{{ item.notes }}"
+                     aria-label="Justification of {{ item.label }}" placeholder="{% if item.threat %}Why this concession was made, and what reduces its threat{% else %}How it was done (optional){% endif %}">
+            </div>
+          {% endfor %}
+        {% endfor %}
+      </div>
+      <div class="panel-footer">
+        <button type="submit" name="action" value="save" class="btn btn-success"><span class="glyphicon glyphicon-ok"></span> Save</button>
+        <button type="submit" name="action" value="draft" class="btn btn-default">
+          <span class="glyphicon glyphicon-list-alt"></span> Save and draft the threats to validity from the concessions
+        </button>
+      </div>
+    </div>
+  </form>
+
+{% endblock content %}

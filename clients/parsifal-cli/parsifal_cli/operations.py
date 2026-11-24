@@ -123,12 +123,24 @@ REVIEW_FIELDS = (
     B("comparison"),
     B("outcome"),
     B("context"),
-    B("review_type", help="slr or mapping."),
+    B("review_type", help="slr, mapping or rapid."),
     B("inclusion_rule", help="all (a study must meet every inclusion criterion) or any (at least one)."),
     B("selection_procedure", TEXT, help="How studies are selected (assessors, disagreement resolution)."),
     B("synthesis_strategy", TEXT),
     B("validity_threats", TEXT),
     B("quality_assessment_cutoff_score", FLOAT, help="Minimum quality score for the final selection."),
+    # The practical context of a rapid review (Cartaxo et al. 2020, 4.1)
+    B(
+        "demand",
+        help="How the demand arose: practitioners, agenda (the researcher aligned theirs), prospected (the researcher "
+        "prospected a problem), organisation (policy makers) or other; empty clears it.",
+    ),
+    B("demand_notes", TEXT),
+    B("practical_problem", TEXT, help="The problem as defined with the practitioners, and how."),
+    B("practical_context", TEXT, help="Organisation, project, team, constraints."),
+    B("stakeholder_roles", TEXT, help="Who takes part and how (practitioners usually have no account)."),
+    B("started_on", help="Start date, YYYY-MM-DD (empty clears it)."),
+    B("deadline", help="Deadline, YYYY-MM-DD (empty clears it)."),
 )
 
 FACET = Param("facet_id", INT, PATH, required=True, help="Facet id.", cli="facet")
@@ -426,7 +438,7 @@ OPERATIONS = (
         ("review",),
         "create",
         "Create a review.",
-        (B("title", required=True), B("description", TEXT), B("review_type", help="slr (default) or mapping.")),
+        (B("title", required=True), B("description", TEXT), B("review_type", help="slr (default), mapping or rapid.")),
     ),
     Operation("reviews_get", "GET", "/reviews/{review_id}", ("review",), "get", "Show a review.", (REVIEW,)),
     Operation(
@@ -1576,8 +1588,14 @@ OPERATIONS = (
         "/reviews/{review_id}/checklist",
         ("checklist",),
         "get",
-        "Petersen et al. process checklist with the actions applied.",
-        (REVIEW,),
+        "A process checklist with the items applied: Petersen et al.'s (default) or the rapid review's.",
+        (
+            REVIEW,
+            Q(
+                "catalog",
+                help="petersen (default) or rapid (rapid reviews: collaboration with practitioners and concessions).",
+            ),
+        ),
     ),
     Operation(
         "checklist_set",
@@ -1585,7 +1603,7 @@ OPERATIONS = (
         "/reviews/{review_id}/checklist/{key}",
         ("checklist",),
         "set",
-        "Mark a checklist action as applied or not.",
+        "Mark a checklist item as applied or not (--notes: a rapid review concession's justification).",
         (
             REVIEW,
             Param("key", STR, PATH, True, "Action key (see checklist get).", cli="key"),
@@ -2074,6 +2092,16 @@ OPERATIONS = (
             B("description", TEXT),
             B("mitigation", TEXT, help="What was done to mitigate it."),
         ),
+    ),
+    Operation(
+        "threats_draft",
+        "POST",
+        "/reviews/{review_id}/threats/draft",
+        ("threat",),
+        "draft",
+        "Rapid reviews: a threat for each concession applied in the rapid review checklist (appended, never "
+        "overwritten).",
+        (REVIEW,),
     ),
     Operation(
         "threats_update",

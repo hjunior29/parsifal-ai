@@ -240,12 +240,17 @@ def test_set_match(request, review_id: int):
 
 
 @router.get("/reviews/{int:review_id}/checklist", response=ChecklistOut, operation_id="checklist_get")
-def checklist_get(request, review_id: int):
-    """Petersen et al. (2015) Table 8 actions with the ones applied in this review."""
-    return mapping.checklist(get_review(request, review_id))
+def checklist_get(request, review_id: int, catalog: str = mapping.PETERSEN):
+    """
+    A checklist with the items applied in this review: ``catalog`` petersen (the default; Petersen et al. 2015 Table
+    8) or rapid (rapid reviews only: the collaboration with practitioners and the concessions made to be rapid, each
+    concession with the threat it brings; Cartaxo et al. 2020).
+    """
+    return mapping.checklist(get_review(request, review_id), catalog)
 
 
 @router.put("/reviews/{int:review_id}/checklist/{key}", response=ChecklistOut, operation_id="checklist_set")
 def checklist_set(request, review_id: int, key: str, payload: ChecklistItemIn):
+    """Mark an item of a checklist (its key says which) as applied or not; ``notes``: a concession's justification."""
     review = get_review(request, review_id)
     return mapping.set_checklist_item(review=review, key=key, applied=payload.applied, notes=payload.notes)

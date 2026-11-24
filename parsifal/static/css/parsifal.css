@@ -826,3 +826,26 @@ div.list-group.docs-nav a.list-group-item.active .docs-summary { color: #8a6f5c;
   border-top: 1px solid #eee;
   font-size: 12px;
 }
+
+/* Rapid Review Checklist (Planning): each item with its justification; a concession shows its threat. */
+.rapid-checklist-group {
+  margin-top: 20px;
+}
+
+.rapid-checklist-item {
+  margin-bottom: 12px;
+}
+
+.rapid-checklist-item .checkbox {
+  margin-bottom: 2px;
+}
+
+.rapid-checklist-threat {
+  margin: 0 0 4px 20px;
+  font-size: 12px;
+}
+
+.rapid-checklist-item .form-control {
+  margin-left: 20px;
+  width: calc(100% - 20px);
+}

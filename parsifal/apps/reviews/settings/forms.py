@@ -16,7 +16,8 @@ class ReviewSettingsForm(forms.ModelForm):
         label="Review type",
         choices=Review.REVIEW_TYPES,
         help_text=(
-            "Systematic literature review (Kitchenham & Charters) or systematic mapping study (Petersen et al.)."
+            "Systematic literature review (Kitchenham & Charters), systematic mapping study (Petersen et al.) or "
+            "rapid review (Cartaxo, Pinto & Soares)."
         ),
     )
 

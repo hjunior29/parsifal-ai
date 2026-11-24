@@ -27,6 +27,23 @@ def export_review_to_docx(review, sections):
 
     document.add_heading("Planning", level=2)
 
+    # The practical context of a rapid review (Cartaxo et al. 2020 §4.1)
+    if "practical_context" in sections and review.is_rapid_review:
+        document.add_heading("Practical Context", level=3)
+        rows = (
+            ("Demand", review.get_demand_display() if review.demand else ""),
+            ("How the demand arose", review.demand_notes),
+            ("Practical problem", review.practical_problem),
+            ("Context", review.practical_context),
+            ("Stakeholders and their roles", review.stakeholder_roles),
+            ("Time frame", " to ".join(str(day) for day in (review.started_on, review.deadline) if day)),
+        )
+        for label, value in rows:
+            if value:
+                p = document.add_paragraph()
+                p.add_run(f"{label}: ").bold = True
+                p.add_run(value)
+
     if review.objective:
         document.add_paragraph(review.objective)
 
@@ -279,6 +296,20 @@ def export_review_to_docx(review, sections):
             for row in checklist["items"]:
                 if row["applied"]:
                     text = f"[{row['phase']}] {row['label']}"
+                    if row["notes"]:
+                        text += f" — {row['notes']}"
+                    document.add_paragraph(text, style="List Bullet")
+
+    if "rapid_checklist" in sections and review.is_rapid_review:
+        from parsifal.apps.reviews.services import mapping
+
+        checklist = mapping.checklist(review, mapping.RAPID)
+        if checklist["applied"]:
+            document.add_heading("Rapid Review Checklist (Cartaxo et al. 2020)", level=3)
+            document.add_paragraph("The collaboration with the practitioners and the concessions made to be rapid.")
+            for row in checklist["items"]:
+                if row["applied"]:
+                    text = f"[{row['phase']}] {row['label']}" + (" (concession)" if row["threat"] else "")
                     if row["notes"]:
                         text += f" — {row['notes']}"
                     document.add_paragraph(text, style="List Bullet")

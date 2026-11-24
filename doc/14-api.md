@@ -103,6 +103,7 @@ An **agent** is an AI co-author with an account of its own, created for one revi
 
 | Endpoint | operationId |
 |---|---|
+| `POST /reviews/{rid}/threats/draft` | `threats_draft` — rapid reviews (422 otherwise): a threat per concession of the rapid review checklist applied (its type, the threat, its justification as the mitigation), appended; returns those added |
 | `GET /threats/types` | `threat_types` — the types suggested (Petersen et al. 2015 §3.6; Wohlin et al. 2012) and examples of threats (Petersen et al. 2015 §5.1.5); any other type is accepted |
 | `GET/POST /reviews/{rid}/threats` (`title`, `category`, `description`, `mitigation`) · `PATCH/DELETE /{id}` | `threats_list` · `threats_create` · `threats_update` · `threats_delete` — in the History under `reporting` |
 
@@ -146,14 +147,19 @@ carries `pdf` (that object, or `null`); 404 when downloading or deleting a PDF t
 | `GET /reviews/{rid}/articles/{aid}/classification` · `PUT {facet_id, category_ids[], notes}` | `article_classification_*` (set semantics; single-choice facets accept one id) |
 | `GET /reviews/{rid}/analytics/facets/{fid}/frequencies` · `GET /analytics/facet-matrix?rows=&columns=` | `analytics_facet_frequencies` · `analytics_facet_matrix` (bubble-plot cells) |
 | `GET/POST /reviews/{rid}/test-set` · `PATCH/DELETE /test-set/{id}` · `POST /test-set/match` | `test_set_*` — known papers, matched by DOI or normalised title; `recall` = found/total |
-| `GET /reviews/{rid}/checklist` · `PUT /checklist/{key} {applied, notes}` | `checklist_*` — Petersen et al. (2015) Table 8 actions |
+| `GET /reviews/{rid}/checklist?catalog=petersen|rapid` · `PUT /checklist/{key} {applied, notes}` | `checklist_*` — Petersen et al. (2015) Table 8 actions (`petersen`, the default), or the rapid review checklist (`rapid`, rapid reviews only, 422 otherwise: the collaboration with practitioners and the concessions, `rr_*` keys, each with its `threat`; `notes` is the justification; a change is a Planning event, an amendment once studies exist) |
 | `PATCH /reviews/{rid}/sources/{sid}/search {search_type, searched_at, years_from, years_to, result_count}` | `source_search_update` — search documentation (K 6.1.4); only the fields sent change, null (or `""` for the date) clears one |
 
-`ReviewOut`/`PATCH` also carry `review_type`, `selection_procedure`,
-`synthesis_strategy`, `validity_threats`; `ArticleOut` carries `found_via_id`.
+`ReviewOut`/`PATCH` also carry `review_type` (`slr`, `mapping` or `rapid`),
+`selection_procedure`, `synthesis_strategy`, `validity_threats` and, for rapid
+reviews, the practical context: `demand` (practitioners, agenda, prospected,
+organisation, other), `demand_notes`, `practical_problem`, `practical_context`,
+`stakeholder_roles`, `started_on`, `deadline` (YYYY-MM-DD; `""` clears; the
+deadline cannot come before the start); `ArticleOut` carries `found_via_id`.
 The DOCX report accepts the extra sections `classification_scheme`,
 `selection_procedure`, `synthesis_strategy`, `validity_threats`, `test_set`,
-`search_documentation`, `classification_results`, `process_checklist`, and its
+`search_documentation`, `classification_results`, `process_checklist`,
+`threats`, and for rapid reviews `practical_context` and `rapid_checklist`; its
 `quality_assessment` / `data_extraction` / `data_analysis` sections now have
 content.
 

@@ -54,6 +54,11 @@
           <div class="col-sm-12">
             <h4>Planning <button type="button" class="btn btn-default btn-sm js-toggle-all" data-checked="true">Toggle all</button></h4>
           </div>
+          {% if review.is_rapid_review %}
+            <div class="col-sm-4 col-md-3">
+              <div class="checkbox"><label><input type="checkbox" checked name="export" value="practical_context"> Practical Context</label></div>
+            </div>
+          {% endif %}
           <div class="col-sm-4 col-md-3">
             <div class="checkbox"><label><input type="checkbox" checked name="export" value="objectives"> Objectives</label></div>
           </div>
@@ -85,6 +90,7 @@
             <div class="checkbox"><label><input type="checkbox" checked name="export" value="synthesis_strategy"> Synthesis Strategy</label></div>
             <div class="checkbox"><label><input type="checkbox" checked name="export" value="validity_threats"> Validity Threats</label></div>
             <div class="checkbox"><label><input type="checkbox" checked name="export" value="test_set"> Search Evaluation (known papers)</label></div>
+            {% if review.is_rapid_review %}<div class="checkbox"><label><input type="checkbox" checked name="export" value="rapid_checklist"> Rapid Review Checklist</label></div>{% endif %}
           </div>
         </div>
 

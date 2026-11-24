@@ -1,6 +1,8 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from ninja import Schema
+
+from parsifal.api.v1.schemas.common import OptionalDate
 
 
 class ReviewOut(Schema):
@@ -22,6 +24,14 @@ class ReviewOut(Schema):
     synthesis_strategy: str
     validity_threats: str
     quality_assessment_cutoff_score: float
+    # The practical context of a rapid review (Cartaxo et al. 2020 §4.1)
+    demand: str  # practitioners, agenda, prospected, organisation, other, or empty
+    demand_notes: str
+    practical_problem: str
+    practical_context: str
+    stakeholder_roles: str
+    started_on: date | None = None
+    deadline: date | None = None
     create_date: datetime
     last_update: datetime
 
@@ -37,7 +47,7 @@ class ReviewOut(Schema):
 class ReviewCreateIn(Schema):
     title: str
     description: str = ""
-    review_type: str = "slr"
+    review_type: str = "slr"  # slr, mapping or rapid
 
 
 class ReviewUpdateIn(Schema):
@@ -55,6 +65,13 @@ class ReviewUpdateIn(Schema):
     synthesis_strategy: str | None = None
     validity_threats: str | None = None
     quality_assessment_cutoff_score: float | None = None
+    demand: str | None = None
+    demand_notes: str | None = None
+    practical_problem: str | None = None
+    practical_context: str | None = None
+    stakeholder_roles: str | None = None
+    started_on: OptionalDate = None
+    deadline: OptionalDate = None
 
 
 class ReviewNameIn(Schema):

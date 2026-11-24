@@ -1,5 +1,6 @@
 import json
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.forms.formsets import formset_factory
@@ -26,7 +27,15 @@ from parsifal.apps.reviews.models import (
     Source,
 )
 from parsifal.apps.reviews.planning.forms import KeywordForm, SynonymForm
-from parsifal.apps.reviews.services import extraction, history, protocol as protocol_services, quality, reviews
+from parsifal.apps.reviews.services import (
+    extraction,
+    history,
+    mapping,
+    protocol as protocol_services,
+    quality,
+    rapid,
+    reviews,
+)
 from parsifal.apps.reviews.services.protocol import KEYWORD, QUESTION, SOURCE, criterion_kind
 
 NEW = ("", "None")  # the id a row's form sends for an object not saved yet
@@ -51,6 +60,73 @@ def planning(request, username, review_name):
 def protocol(request, username, review_name):
     review = get_object_or_404(Review, name=review_name, author__username__iexact=username)
     return render(request, "planning/protocol.html", {"review": review})
+
+
+@author_required
+@login_required
+def rapid_review_checklist(request, username, review_name):
+    """
+    Rapid reviews: the checklist of the collaboration with practitioners and of the concessions made to be rapid,
+    each with its justification (Cartaxo et al. 2020); the threats to validity are drafted from the concessions.
+    """
+    review = request.review
+    if not review.is_rapid_review:
+        raise Http404
+    if request.method == "POST":
+        try:
+            for row in mapping.checklist(review, mapping.RAPID)["items"]:
+                key = row["key"]
+                applied = request.POST.get(f"applied-{key}") == "on"
+                notes = request.POST.get(f"notes-{key}", "").strip()
+                if applied != row["applied"] or notes != row["notes"]:
+                    mapping.set_checklist_item(review=review, key=key, applied=applied, notes=notes)
+            if request.POST.get("action") == "draft":
+                added = rapid.draft_threats(review=review, actor=request.user)
+                if added:
+                    messages.success(
+                        request,
+                        "The checklist was saved; {0} added to Reporting → Threats to Validity.".format(
+                            history.plural(len(added), "threat was", "threats were")
+                        ),
+                    )
+                else:
+                    messages.info(request, "The checklist was saved. No new threat: each concession has its threat.")
+            else:
+                messages.success(request, "The checklist was saved.")
+        except DomainError as error:
+            messages.error(request, str(error))
+        return redirect("rapid_review_checklist", review.author.username, review.name)
+    groups = {}
+    for row in mapping.checklist(review, mapping.RAPID)["items"]:
+        groups.setdefault(row["phase"], []).append(row)
+    return render(request, "planning/rapid_review_checklist.html", {"review": review, "groups": groups.items()})
+
+
+@author_required
+@login_required
+@require_POST
+def save_protocol_fields(request):
+    """Fields of the protocol saved together: the practical context and the procedures of a rapid review."""
+    fields = {name: request.POST[name] for name in PROTOCOL_FIELDS if name in request.POST}
+    try:
+        reviews.update_review(review=request.review, **fields)
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
+    return HttpResponse()
+
+
+# The fields save_protocol_fields accepts.
+PROTOCOL_FIELDS = (
+    "demand",
+    "demand_notes",
+    "practical_problem",
+    "practical_context",
+    "stakeholder_roles",
+    "started_on",
+    "deadline",
+    "selection_procedure",
+    "synthesis_strategy",
+)
 
 
 @author_required

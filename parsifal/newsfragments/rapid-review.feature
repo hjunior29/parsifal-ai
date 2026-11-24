@@ -1,0 +1,1 @@
+Rapid reviews (Cartaxo et al. 2020): a review type with its practical context in the protocol, its procedures, and a checklist of the collaboration with practitioners and of the concessions, from which the threats to validity are drafted.

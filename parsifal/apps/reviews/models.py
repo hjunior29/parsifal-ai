@@ -44,13 +44,30 @@ class Review(models.Model):
         (PUBLISHED, "Published"),
     )
 
-    # Kitchenham & Charters (2007) systematic literature review, or Petersen et al. (2015) systematic mapping
-    # study. The type drives which steps are expected (quality assessment is optional for maps) and the report.
+    # Kitchenham & Charters (2007) systematic literature review, Petersen et al. (2015) systematic mapping study, or
+    # Cartaxo, Pinto & Soares (2020) rapid review. The type drives which steps are expected (quality assessment is
+    # optional for maps and rapid reviews) and the report; what is specific to a rapid review exists only in one.
     SLR = "slr"
     MAPPING = "mapping"
+    RAPID = "rapid"
     REVIEW_TYPES = (
         (SLR, _("Systematic literature review")),
         (MAPPING, _("Systematic mapping study")),
+        (RAPID, _("Rapid review")),
+    )
+
+    # How the demand for a rapid review arose (Cartaxo et al. 2020 §4.1.1; Cartaxo et al. 2018 §7.2).
+    DEMAND_PRACTITIONERS = "practitioners"
+    DEMAND_AGENDA = "agenda"
+    DEMAND_PROSPECTED = "prospected"
+    DEMAND_ORGANISATION = "organisation"
+    DEMAND_OTHER = "other"
+    DEMANDS = (
+        (DEMAND_PRACTITIONERS, _("Practitioners asked for it")),
+        (DEMAND_AGENDA, _("The researcher aligned their agenda with practitioners' needs")),
+        (DEMAND_PROSPECTED, _("The researcher prospected a practical problem")),
+        (DEMAND_ORGANISATION, _("Policy makers or the organisation asked for it")),
+        (DEMAND_OTHER, _("Other")),
     )
 
     name = models.SlugField(_("name"), max_length=255)
@@ -90,6 +107,15 @@ class Review(models.Model):
     prisma_not_retrieved = models.ForeignKey(
         "SelectionCriteria", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
+    # The practical context of a rapid review (Cartaxo et al. 2020 §4.1): why it was asked for, the problem as defined
+    # with the practitioners, their context, who takes part and how, and its time frame (days or weeks).
+    demand = models.CharField(_("demand"), max_length=20, choices=DEMANDS, blank=True)
+    demand_notes = models.TextField(_("how the demand arose"), blank=True)
+    practical_problem = models.TextField(_("practical problem"), blank=True)
+    practical_context = models.TextField(_("practical context"), blank=True)
+    stakeholder_roles = models.TextField(_("stakeholders and their roles"), blank=True)
+    started_on = models.DateField(_("start date"), null=True, blank=True)
+    deadline = models.DateField(_("deadline"), null=True, blank=True)
 
     class Meta:
         verbose_name = _("review")
@@ -102,6 +128,11 @@ class Review(models.Model):
     @property
     def is_mapping_study(self):
         return self.review_type == self.MAPPING
+
+    @property
+    def is_rapid_review(self):
+        """The switch for everything specific to a rapid review (Cartaxo et al. 2020)."""
+        return self.review_type == self.RAPID
 
     def get_absolute_url(self):
         return reverse("review", args=(self.author.username, self.name))

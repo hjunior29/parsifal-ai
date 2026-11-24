@@ -1,3 +1,5 @@
+import datetime
+
 from django.db import transaction
 from django.utils.text import slugify
 
@@ -24,7 +26,16 @@ UPDATABLE_FIELDS = {
     "selection_procedure": 10000,
     "synthesis_strategy": 10000,
     "validity_threats": 10000,
+    # The practical context of a rapid review (Cartaxo et al. 2020 §4.1)
+    "demand": None,
+    "demand_notes": 4000,
+    "practical_problem": 4000,
+    "practical_context": 4000,
+    "stakeholder_roles": 4000,
+    "started_on": None,
+    "deadline": None,
 }
+DATE_FIELDS = ("started_on", "deadline")
 
 # Where each field of the review is changed, for the History; the others are the protocol's (Planning).
 REVIEW_FIELD_AREAS = {
@@ -120,8 +131,13 @@ def update_review(*, review, **fields):
         if name == "title":
             require(value, field="title")
         if name == "review_type":
-            if value not in dict(Review.REVIEW_TYPES):
-                raise ValidationError("review_type must be 'slr' or 'mapping'.", field=name)
+            value = _review_type(review, value)
+        elif name == "demand":
+            if value and value not in dict(Review.DEMANDS):
+                raise ValidationError(f"demand must be one of {_keys(Review.DEMANDS)}, or empty.", field=name)
+            value = value or ""
+        elif name in DATE_FIELDS:
+            value = _date(value, name)
         elif name == "inclusion_rule":
             if value not in dict(Review.INCLUSION_RULES):
                 raise ValidationError(
@@ -140,9 +156,32 @@ def update_review(*, review, **fields):
         elif limit is not None:
             value = check_length(value or "", limit, field=name)
         setattr(review, name, value)
+    if review.started_on and review.deadline and review.deadline < review.started_on:
+        raise ValidationError("The deadline cannot come before the start date.", field="deadline")
     review.save()
     record_changes(review, tracker)
     return review
+
+
+def _keys(choices):
+    return ", ".join(f"'{key}'" for key, _label in choices)
+
+
+def _review_type(review, value):
+    if value not in dict(Review.REVIEW_TYPES):
+        raise ValidationError(f"review_type must be one of {_keys(Review.REVIEW_TYPES)}.", field="review_type")
+    return value
+
+
+def _date(value, field):
+    if value in (None, ""):
+        return None
+    if isinstance(value, datetime.date):
+        return value
+    try:
+        return datetime.date.fromisoformat(str(value))
+    except ValueError:
+        raise ValidationError(f"{field} must be a date (YYYY-MM-DD).", field=field)
 
 
 def rename_review(*, review, name):

@@ -36,6 +36,7 @@ DOCX_SECTIONS = (
     "name",
     "authors",
     "description",
+    "practical_context",
     "picoc",
     "research_questions",
     "keywords_synonyms",
@@ -57,6 +58,7 @@ DOCX_SECTIONS = (
     "classification_results",
     "data_analysis",
     "process_checklist",
+    "rapid_checklist",
     "threats",
 )
 

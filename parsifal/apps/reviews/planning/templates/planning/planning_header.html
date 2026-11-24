@@ -8,4 +8,9 @@
   <li role="presentation"{% if active_tab == 'extraction' %} class="active"{% endif %}>
     <a href="{% url 'data_extraction_form' review.author.username review.name %}">Data Extraction Form</a>
   </li>
+  {% if review.is_rapid_review %}
+    <li role="presentation"{% if active_tab == 'rapid' %} class="active"{% endif %}>
+      <a href="{% url 'rapid_review_checklist' review.author.username review.name %}">Rapid Review Checklist</a>
+    </li>
+  {% endif %}
 </ul>

@@ -1,0 +1,2 @@
+{% comment %}The review's type as a label, in the lists of reviews.{% endcomment %}
+{% if review.is_mapping_study %}<span class="label label-info">Mapping study</span>{% elif review.is_rapid_review %}<span class="label label-warning">Rapid review</span>{% else %}<span class="label label-default">Literature review</span>{% endif %}
