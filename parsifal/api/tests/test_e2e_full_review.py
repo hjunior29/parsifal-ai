@@ -123,12 +123,18 @@ class TestFullReviewThroughApi(ApiTestCase):
         self.assertEqual({smith["id"]: True, lee["id"]: False}, passes)
 
         self.ok(
-            self.api("put", p(f"/articles/{smith['id']}/extraction"), {"field_id": tool["id"], "value": "ReviewBot"})
+            self.api(
+                "put",
+                p(f"/articles/{smith['id']}/extraction"),
+                {"field_id": tool["id"], "value": "ReviewBot", "evidence": "Section 3: the tool, ReviewBot"},
+            )
         )
         experiment = next(lk for lk in method["lookup_values"] if lk["value"] == "Experiment")
         self.ok(
             self.api(
-                "put", p(f"/articles/{smith['id']}/extraction"), {"field_id": method["id"], "value": experiment["id"]}
+                "put",
+                p(f"/articles/{smith['id']}/extraction"),
+                {"field_id": method["id"], "value": experiment["id"], "evidence": "Abstract"},
             )
         )
         self.ok(self.api("put", p(f"/articles/{smith['id']}/extraction/done"), {"done": True}))
@@ -153,6 +159,19 @@ class TestFullReviewThroughApi(ApiTestCase):
         self.assertEqual([{"year": 2020, "count": 1}], by_year)
 
         matrix = self.ok(self.api("get", p("/export/extraction.json")))
+        self.assertEqual(
+            [
+                {
+                    "article": smith["title"],
+                    "Tool name": "ReviewBot",
+                    "Tool name (evidence)": "Section 3: the tool, ReviewBot",
+                    "Method": "Experiment",
+                    "Method (evidence)": "Abstract",
+                }
+            ],
+            matrix,
+        )
+        matrix = self.ok(self.api("get", p("/export/extraction.json"), QUERY_STRING="evidence=false"))
         self.assertEqual([{"article": smith["title"], "Tool name": "ReviewBot", "Method": "Experiment"}], matrix)
         report = self.api("get", p("/export/report.docx"))
         self.assertEqual(200, report.status_code)

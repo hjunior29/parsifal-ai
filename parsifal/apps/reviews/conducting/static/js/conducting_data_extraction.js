@@ -1,20 +1,45 @@
-/* The forms of Data Extraction: each value is saved as soon as it changes. The list comes a page at a time
-   (conducting_study_lists.js), so the handlers are bound to its container, which stays. */
+/* The forms of Data Extraction: each value is saved as soon as it changes, and so is its evidence. The list comes a
+   page at a time (conducting_study_lists.js), so the handlers are bound to its container, which stays. */
 $(function () {
 
   var $list = $(".extraction-container");
 
-  /* "3 of 5 fields" in the study's heading: the fields with a value. */
+  function hasValue(row) {
+    var checked = $("input[type=checkbox]", row);
+    if (checked.length) {
+      return checked.filter(":checked").length > 0;
+    }
+    return $.trim($("input[type=text], select, textarea:not(.js-evidence)", row).val() || "") !== "";
+  }
+
+  /* A value without evidence is flagged: the study can be marked as done only when each value has one. */
+  function flagEvidence(row) {
+    var missing = hasValue(row) && $.trim($(".js-evidence", row).val() || "") === "";
+    $(row).toggleClass("has-warning", missing);
+    $(".js-evidence-warning", row).toggle(missing);
+    return missing;
+  }
+
+  /* "3 of 5 fields · 1 without evidence" in the study's heading. */
   function updateProgress(panel) {
     var groups = $(".form-group[data-field-id]", panel);
-    var filled = groups.filter(function () {
-      var checked = $("input[type=checkbox]", this);
-      if (checked.length) {
-        return checked.filter(":checked").length > 0;
-      }
-      return $.trim($("input[type=text], select, textarea", this).val() || "") !== "";
-    }).length;
-    $(".study-progress", panel).text(filled + " of " + groups.length + " fields");
+    var filled = groups.filter(function () { return hasValue(this); }).length;
+    var missing = groups.filter(function () { return flagEvidence(this); }).length;
+    var text = filled + " of " + groups.length + " fields";
+    if (missing) {
+      text += " · " + missing + " without evidence";
+    }
+    $(".study-progress", panel).text(text);
+  }
+
+  function showError(row, jqXHR) {
+    $("span.error", row).text(jqXHR.responseText).show();
+    $(row).addClass("has-error");
+  }
+
+  function clearError(row) {
+    $("span.error", row).text("").hide();
+    $(row).removeClass("has-error");
   }
 
   function save_data_extraction_field(ref) {
@@ -37,21 +62,45 @@ $(function () {
       type: 'post',
       cache: false,
       success: function (data) {
-        $("span.error", row).text('');
-        $("span.error", row).hide();
-        $(row).removeClass("has-error");
+        clearError(row);
         updateProgress(panel);
       },
       error: function (jqXHR, textStatus, errorThrown) {
-        $("span.error", row).text(jqXHR.responseText);
-        $("span.error", row).show();
-        $(row).addClass("has-error");
+        showError(row, jqXHR);
       }
     });
   }
 
-  $list.on("change", ".data-extraction-panel input[type='text'], .data-extraction-panel select, .data-extraction-panel textarea", function () {
+  function saveEvidence(textarea) {
+    var row = $(textarea).closest(".form-group");
+    var panel = $(textarea).closest(".panel");
+    $.ajax({
+      url: '/reviews/conducting/save_data_extraction_evidence/',
+      data: {
+        'review-id': $("#review-id").val(),
+        'article-id': $(textarea).closest(".panel-body").attr("data-article-id"),
+        'field-id': $(row).attr("data-field-id"),
+        'evidence': $(textarea).val(),
+        'csrfmiddlewaretoken': $("input[name=csrfmiddlewaretoken]").val()
+      },
+      type: 'post',
+      cache: false,
+      success: function () {
+        clearError(row);
+        updateProgress(panel);
+      },
+      error: function (jqXHR) {
+        showError(row, jqXHR);
+      }
+    });
+  }
+
+  $list.on("change", ".data-extraction-panel input[type='text'], .data-extraction-panel select, .data-extraction-panel textarea:not(.js-evidence)", function () {
     save_data_extraction_field($(this));
+  });
+
+  $list.on("change", ".data-extraction-panel .js-evidence", function () {
+    saveEvidence(this);
   });
 
   $list.on("click", ".data-extraction-panel input[type='checkbox']", function () {
@@ -60,6 +109,8 @@ $(function () {
 
   function markAs(link, done) {
     var panel = $(link).closest(".panel");
+    var message = $(".js-extraction-message", panel);
+    message.hide();
     $.ajax({
       url: '/reviews/conducting/save_data_extraction_status/',
       type: 'post',
@@ -80,6 +131,11 @@ $(function () {
         else {
           $(panel).fadeOut(200);  // it leaves this tab
         }
+      },
+      error: function (jqXHR) {
+        // A value without evidence: the panel opens on the message, its fields flagged.
+        message.text(jqXHR.responseText || "Could not mark the study as done.").show();
+        panel.children(".collapse").collapse("show");
       }
     });
   }

@@ -694,3 +694,31 @@ AI runs.
 
 **Consequences.** Migration `reviews.0053`. The History starts empty: what
 happened before it cannot be rebuilt.
+
+
+## The evidence of each value extracted
+
+**Context.** Helder asked (2026-11-24) that each value of Data Extraction come
+with its evidence: a text, written by the reviewer or the agent, saying where
+the study supports it (the passage, its page, the figure or table), so that the
+extraction can be checked later. Optional evidence would make little sense.
+
+**Decision.**
+- `DataExtraction.evidence` (text), one per study and field, edited under the
+  value on the web and given with the value through the API, the CLI and the
+  MCP server (`evidence` on `article_extraction_set`), or alone
+  (`article_extraction_evidence`).
+- The value is saved as soon as it changes and so is the evidence, so a value
+  may stand without one for a while: it is flagged, the study's heading counts
+  them, and marking the study as done is refused until each value has its
+  evidence. Done is what the rest relies on (the progress of the review, the
+  analysis), so evidence is required where it counts, without making the
+  reviewer type both at once.
+- An empty value needs no evidence; its evidence may still say, for instance,
+  that the study does not report it.
+- The exports put a "Field (evidence)" column after each field; the .docx
+  report keeps the values only.
+
+**Consequences.** Migration `reviews.0054`. Studies already marked as done stay
+done; marking them again checks the evidence.
+

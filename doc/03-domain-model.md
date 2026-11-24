@@ -176,7 +176,9 @@ group and marks the rest `D`.
   integers via `int(float(v))`; dates parsed as `MM/DD/YYYY` and stored as ISO
   `YYYY-MM-DD`; select-one replaces; **select-many toggles** the given lookup
   id. `get_value()` returns typed Python values (`""` on failure).
-  `user` is never set.
+  `user` is never set. `evidence` (text): where the study supports the value
+  (the passage, its page, the figure or table); `services.extraction.mark_done`
+  refuses a study while one of its values has none.
 
 ## AI screening (Exclude with AI, Include with AI, Screen with AI)
 

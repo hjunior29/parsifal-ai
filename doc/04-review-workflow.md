@@ -147,10 +147,14 @@ Prerequisites: sources, articles, ≥1 accepted article, ≥1 extraction field.
   (`build_data_extraction_table`), closed until its heading is clicked, with
   how many fields have a value and a "Study" link to the study window; a
   page at a time, searched by title; each change posts `save_data_extraction`
-  (typed coercion in `DataExtraction.set_value`); "mark as done" toggles
-  `finished_data_extraction` (`save_data_extraction_status`). Tabs
-  todo/done/all.
-- `export_data_extraction` → `.xls` matrix article × field.
+  (typed coercion in `DataExtraction.set_value`); under each input, the
+  value's **evidence** (where the study supports it: the passage, its page,
+  the figure or table) posts `save_data_extraction_evidence`; a value without
+  evidence is flagged and the heading counts them; "mark as done" toggles
+  `finished_data_extraction` (`save_data_extraction_status`), refused while a
+  value has no evidence. Tabs todo/done/all.
+- `export_data_extraction` → `.xls` matrix article × field, each field
+  followed by its evidence.
 - K 6.4.2 standard items (reviewer name, extraction date, notes) are not
   captured; `DataExtraction.user` is never set.
 

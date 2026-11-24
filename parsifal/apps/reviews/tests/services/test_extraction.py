@@ -155,6 +155,107 @@ class TestValues(TestCase):
         self.assertEqual(datetime.date(2021, 1, 2), rows[0]["extraction"].get_value())
 
 
+class TestEvidence(TestCase):
+    """Each value extracted comes with its evidence: the study is done only when every value has one."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.source = SourceFactory()
+        cls.review = ReviewFactory(sources=[cls.source])
+        cls.article = ArticleFactory(review=cls.review, source=cls.source, status="A", title="A study")
+        cls.country = DataExtractionFieldFactory(review=cls.review, description="Country", order=0)
+        cls.year = DataExtractionFieldFactory(
+            review=cls.review, description="Year", field_type=DataExtractionField.INTEGER_FIELD, order=1
+        )
+        cls.methods = DataExtractionFieldFactory(
+            review=cls.review, description="Methods", field_type=DataExtractionField.SELECT_MANY_FIELD, order=2
+        )
+        cls.survey = DataExtractionLookupFactory(field=cls.methods, value="Survey")
+
+    def set(self, field, **kwargs):
+        return extraction.set_value(review=self.review, article_id=self.article.pk, field_id=field.pk, **kwargs)
+
+    def done(self):
+        return extraction.mark_done(review=self.review, article_id=self.article.pk)
+
+    def test_a_value_with_its_evidence(self):
+        row = self.set(self.country, value="Brazil", evidence="  p. 3, Table 2: participants from Brazil  ")
+        self.assertEqual(("Brazil", "p. 3, Table 2: participants from Brazil"), (row.value, row.evidence))
+        row = self.set(self.country, value="Chile")  # no evidence given: it stays
+        self.assertEqual("p. 3, Table 2: participants from Brazil", row.evidence)
+        row = extraction.set_evidence(
+            review=self.review, article_id=self.article.pk, field_id=self.country.pk, evidence="p. 4"
+        )
+        self.assertEqual(("Chile", "p. 4"), (row.value, row.evidence))
+        with self.assertRaises(ValidationError):
+            self.set(self.country, value="Chile", evidence="x" * 4001)
+
+    def test_done_only_when_each_value_has_its_evidence(self):
+        self.set(self.country, value="Brazil")
+        self.set(self.year, value="")  # no value: it needs no evidence
+        self.set(self.methods, values=[self.survey.pk])
+        with self.assertRaises(ValidationError) as raised:
+            self.done()
+        self.assertIn("“Country”, “Methods”", str(raised.exception))
+        self.article.refresh_from_db()
+        self.assertFalse(self.article.finished_data_extraction)
+        self.assertEqual(
+            ["Country", "Methods"], [field.description for field in extraction.missing_evidence(self.article)]
+        )
+        self.set(self.country, value="Brazil", evidence="Abstract")
+        extraction.set_evidence(
+            review=self.review, article_id=self.article.pk, field_id=self.methods.pk, evidence="Section 3"
+        )
+        self.assertTrue(self.done().finished_data_extraction)
+        # Marking it as not done needs nothing.
+        self.assertFalse(
+            extraction.mark_done(review=self.review, article_id=self.article.pk, done=False).finished_data_extraction
+        )
+
+    def test_counts_and_values(self):
+        self.set(self.country, value="Brazil")
+        self.set(self.year, value="2020", evidence="Front page")
+        studies = {study.pk: study for study in extraction.extraction_list(self.review)}
+        self.assertEqual(
+            (2, 1),
+            (extraction.filled(studies[self.article.pk]), extraction.without_evidence(studies[self.article.pk])),
+        )
+        rows = {
+            row["field"].description: row
+            for row in extraction.article_values(review=self.review, article_id=self.article.pk)
+        }
+        self.assertEqual(("", True), (rows["Country"]["evidence"], rows["Country"]["needs_evidence"]))
+        self.assertEqual(("Front page", False), (rows["Year"]["evidence"], rows["Year"]["needs_evidence"]))
+        self.assertEqual(("", False), (rows["Methods"]["evidence"], rows["Methods"]["needs_evidence"]))
+
+    def test_history(self):
+        self.set(self.country, value="Brazil", evidence="Abstract")
+        extraction.set_evidence(
+            review=self.review, article_id=self.article.pk, field_id=self.country.pk, evidence="Section 2"
+        )
+        extraction.set_evidence(
+            review=self.review, article_id=self.article.pk, field_id=self.country.pk, evidence="Section 2"
+        )  # the same: nothing
+        events = list(self.review.events.order_by("pk"))
+        self.assertEqual(
+            [
+                "Extracted “Country” for the study “A study”",
+                "Changed the evidence of “Country” for the study “A study”",
+            ],
+            [event.summary for event in events],
+        )
+        self.assertEqual(
+            [
+                {"key": "value", "field": "Country", "before": "", "after": "Brazil"},
+                {"key": "evidence", "field": "Evidence", "before": "", "after": "Abstract"},
+            ],
+            events[0].changes,
+        )
+        self.assertEqual(
+            [{"key": "evidence", "field": "Evidence", "before": "Abstract", "after": "Section 2"}], events[1].changes
+        )
+
+
 class TestExtractionList(TestCase):
     """The studies of Data Extraction's list: the final selection, searched, done or not."""
 

@@ -106,6 +106,32 @@ class TestExtractionApi(ApiTestCase):
         body = self.api("put", path, {"field_id": methods["id"], "values": ids[:1]}).json()
         self.assertEqual(["Case study"], next(v["value"] for v in body["values"] if v["field_id"] == methods["id"]))
 
+        with self.subTest(msg="evidence"):
+            response = self.api("put", f"{path}/done", {"done": True})
+            self.assertEqual(422, response.status_code)  # the values have no evidence
+            self.assertIn("“Notes”, “Methods”", response.json()["detail"])
+            body = self.api("get", path).json()
+            self.assertEqual(
+                {notes["id"]: ("", True), methods["id"]: ("", True)},
+                {v["field_id"]: (v["evidence"], v["needs_evidence"]) for v in body["values"]},
+            )
+            body = self.api(
+                "put", path, {"field_id": notes["id"], "value": "important", "evidence": "p. 2, second paragraph"}
+            ).json()
+            self.assertEqual(
+                ("important", "p. 2, second paragraph", False),
+                next(
+                    (v["value"], v["evidence"], v["needs_evidence"])
+                    for v in body["values"]
+                    if v["field_id"] == notes["id"]
+                ),
+            )
+            body = self.api("put", f"{path}/evidence", {"field_id": methods["id"], "evidence": "Section 3.1"}).json()
+            self.assertEqual(
+                (["Case study"], "Section 3.1"),
+                next((v["value"], v["evidence"]) for v in body["values"] if v["field_id"] == methods["id"]),
+            )
+
         with self.subTest(msg="mark done"):
             body = self.api("put", f"{path}/done", {"done": True}).json()
             self.assertTrue(body["finished_data_extraction"])
@@ -182,13 +208,21 @@ class TestStudyListsApi(ApiTestCase):
 
     def test_extraction_studies(self):
         self.api(
-            "put", self.review_path(f"/articles/{self.alpha.pk}/extraction"), {"field_id": self.field.pk, "value": "x"}
+            "put",
+            self.review_path(f"/articles/{self.alpha.pk}/extraction"),
+            {"field_id": self.field.pk, "value": "x", "evidence": "Abstract"},
+        )
+        self.api(
+            "put", self.review_path(f"/articles/{self.beta.pk}/extraction"), {"field_id": self.field.pk, "value": "y"}
         )
         self.api("put", self.review_path(f"/articles/{self.alpha.pk}/extraction/done"), {"done": True})
         body = self.api("get", self.review_path("/extraction/studies")).json()
         self.assertEqual(
-            [("Alpha", 1, True), ("Beta", 0, False)],
-            [(item["title"], item["filled"], item["finished_data_extraction"]) for item in body["items"]],
+            [("Alpha", 1, 0, True), ("Beta", 1, 1, False)],
+            [
+                (item["title"], item["filled"], item["without_evidence"], item["finished_data_extraction"])
+                for item in body["items"]
+            ],
         )
         for query, expected in (("done=true", ["Alpha"]), ("done=false", ["Beta"]), ("q=bet", ["Beta"])):
             with self.subTest(query=query):

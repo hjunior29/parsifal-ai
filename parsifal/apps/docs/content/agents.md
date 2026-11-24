@@ -29,7 +29,7 @@ records **who** did what, so the human author stays accountable for the review.
 | Search | Document each source search (type, date, years, results); import BibTeX exports; detect duplicates | `source_search_update`, `articles_import`, `articles_duplicates`, `articles_resolve_duplicates` |
 | Selection | Screen titles and abstracts against the criteria, in batches, recording a decision and the criterion as reason | `articles_screen_batch`, `decisions_record` (recommended) or `articles_set_status` |
 | Quality assessment | Read the study's PDF when it has one; answer the checklist per accepted study, with notes | `articles_pdf_download`, `article_quality_assess` |
-| Extraction / classification | Fill extraction fields; classify studies into facets | `article_extraction_set`, `article_classification_set` |
+| Extraction / classification | Fill extraction fields, each value with its evidence (the passage, page, figure or table of the study that supports it: a study is done only when every value has one); classify studies into facets | `article_extraction_set` (`evidence`), `article_extraction_evidence`, `article_classification_set` |
 | Reporting | Read analytics and exports, draft the report text around them | `analytics_*`, `export_*`, `reviews_overview` |
 
 ## Screening with independent decisions

@@ -147,6 +147,24 @@ def test_boolean_option(runner, fake_api):
     assert fake_api.last_json() == {"done": False}
 
 
+def test_extraction_with_its_evidence(runner, fake_api):
+    body = {"article_id": 9, "finished_data_extraction": False, "values": []}
+    fake_api.route("PUT", "/api/v1/reviews/7/articles/9/extraction", 200, body)
+    fake_api.route("PUT", "/api/v1/reviews/7/articles/9/extraction/evidence", 200, body)
+    result = invoke(
+        runner,
+        ["extraction", "set", "--review", "7", "--article", "9", "--field-id", "3", "--value", "Brazil"]
+        + ["--evidence", "p. 3, Table 2"],
+    )
+    assert result.exit_code == 0, result.output
+    assert fake_api.last_json() == {"field_id": 3, "value": "Brazil", "evidence": "p. 3, Table 2"}
+    result = invoke(
+        runner, ["extraction", "evidence", "--review", "7", "--article", "9", "--field-id", "3", "--evidence", "p. 4"]
+    )
+    assert result.exit_code == 0, result.output
+    assert fake_api.last_json() == {"field_id": 3, "evidence": "p. 4"}
+
+
 def test_pagination_all(runner, fake_api):
     pages = {
         0: {"count": 3, "items": [{"id": 1}, {"id": 2}]},

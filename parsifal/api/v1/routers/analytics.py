@@ -180,9 +180,12 @@ def export_articles(request, review_id: int, fmt: str):
 
 
 @router.get("/reviews/{int:review_id}/export/extraction.{fmt}", operation_id="export_extraction")
-def export_extraction(request, review_id: int, fmt: str):
-    """Data extraction matrix (final selection × fields) as csv, xlsx or json."""
-    columns, rows = reports.extraction_rows(get_review(request, review_id))
+def export_extraction(request, review_id: int, fmt: str, evidence: bool = True):
+    """
+    Data extraction matrix (final selection × fields) as csv, xlsx or json; each field followed by its evidence unless
+    ``evidence`` is false.
+    """
+    columns, rows = reports.extraction_rows(get_review(request, review_id), evidence=evidence)
     return _tabular_response("data_extraction", fmt, columns, rows)
 
 

@@ -184,6 +184,8 @@ class TestSelectionQualityExtraction(HistoryTestCase):
         year = DataExtractionFieldFactory(review=self.review, description="Year", field_type="I")
         extraction.set_value(review=self.review, article_id=study.pk, field_id=year.pk, value="2020")
         extraction.set_value(review=self.review, article_id=study.pk, field_id=year.pk, value="2020")  # nothing
+        extraction.set_evidence(review=self.review, article_id=study.pk, field_id=country.pk, evidence="Abstract")
+        extraction.set_value(review=self.review, article_id=study.pk, field_id=year.pk, value="2020", evidence="p. 1")
         extraction.mark_done(review=self.review, article_id=study.pk)
         facet = classification.add_facet(
             review=self.review, name="Type", kind=ClassificationFacet.FIXED, categories=["Tool"]
@@ -199,6 +201,8 @@ class TestSelectionQualityExtraction(HistoryTestCase):
                 ("quality", "change", "Cleared the answer to “Clear?” for the study “A study”"),
                 ("extraction", "change", "Extracted “Country” for the study “A study”"),
                 ("extraction", "change", "Extracted “Year” for the study “A study”"),
+                ("extraction", "change", "Changed the evidence of “Country” for the study “A study”"),
+                ("extraction", "change", "Changed the evidence of “Year” for the study “A study”"),
                 ("extraction", "change", "Marked the data extraction of the study “A study” as done"),
                 ("planning", "add", "Added the classification facet “Type”"),
             ],

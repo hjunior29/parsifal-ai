@@ -1105,14 +1105,29 @@ OPERATIONS = (
         "/reviews/{review_id}/articles/{article_id}/extraction",
         ("extraction",),
         "set",
-        "Set one field value (--value) or select-many ids (--values).",
+        "Set one field value (--value) or select-many ids (--values), with its evidence (--evidence).",
         (
             REVIEW,
             ARTICLE,
             B("field_id", INT, True),
             B("value", TEXT),
             B("values", LIST_INT, help="Lookup ids (repeat)."),
+            B(
+                "evidence",
+                TEXT,
+                help="Where the study supports the value: the passage, its page, the figure or table. A study is done "
+                "only when each value has its evidence.",
+            ),
         ),
+    ),
+    Operation(
+        "article_extraction_evidence",
+        "PUT",
+        "/reviews/{review_id}/articles/{article_id}/extraction/evidence",
+        ("extraction",),
+        "evidence",
+        "Set the evidence of one field's value, leaving the value as it is (empty clears it).",
+        (REVIEW, ARTICLE, B("field_id", INT, True), B("evidence", TEXT, True)),
     ),
     Operation(
         "article_extraction_done",
@@ -1120,7 +1135,7 @@ OPERATIONS = (
         "/reviews/{review_id}/articles/{article_id}/extraction/done",
         ("extraction",),
         "done",
-        "Mark extraction as done (or undone with --no-done).",
+        "Mark extraction as done (or undone with --no-done); refused while a value has no evidence.",
         (REVIEW, ARTICLE, B("done", BOOL)),
     ),
     Operation(
@@ -1129,7 +1144,8 @@ OPERATIONS = (
         "/reviews/{review_id}/extraction/studies",
         ("extraction",),
         "studies",
-        "The final-selection studies to extract data from, with their quality score and how many fields have a value.",
+        "The final-selection studies to extract data from, with their quality score, how many fields have a value and "
+        "how many of those have no evidence.",
         (
             REVIEW,
             Q("q", help="Search the title."),
@@ -1999,8 +2015,12 @@ OPERATIONS = (
         "/reviews/{review_id}/export/extraction.{fmt}",
         ("export",),
         "extraction",
-        "Download the data extraction matrix (csv, xlsx or json).",
-        (REVIEW, Param("fmt", STR, PATH, True, "csv, xlsx or json.", cli="format")),
+        "Download the data extraction matrix (csv, xlsx or json), each field followed by its evidence.",
+        (
+            REVIEW,
+            Param("fmt", STR, PATH, True, "csv, xlsx or json.", cli="format"),
+            Q("evidence", BOOL, help="--no-evidence: the values only, without the evidence columns."),
+        ),
         download=True,
     ),
     Operation(

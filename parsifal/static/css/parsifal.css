@@ -452,6 +452,11 @@ ul.review-menu li.active {
   break-inside: avoid;
 }
 
+/* The evidence of a value of Data Extraction, under its input. */
+.extraction-evidence {
+  margin-top: 6px;
+}
+
 /* The options of a select field in the Data Extraction form of Planning: tags that wrap, the first ones only until
    "more" is clicked. */
 .extraction-value {

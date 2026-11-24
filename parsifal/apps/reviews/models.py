@@ -581,6 +581,9 @@ class DataExtraction(models.Model):
     field = models.ForeignKey(DataExtractionField, on_delete=models.CASCADE)
     value = models.TextField(blank=True, null=True)
     select_values = models.ManyToManyField(DataExtractionLookup)
+    # Where the study supports the value: the passage, its page, the figure or table. A study's extraction is done
+    # only when every value it has comes with its evidence, so that anyone can check it later.
+    evidence = models.TextField(_("evidence"), blank=True)
 
     class Meta:
         constraints = (models.UniqueConstraint(fields=("article", "field"), name="unique_data_extraction_per_field"),)

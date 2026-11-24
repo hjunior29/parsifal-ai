@@ -167,11 +167,19 @@ class TestQualityAndExtractionAnalytics(TestCase):
         )
         # The final selection: Good (score 2.0 > 1.0); Weak and Fresh are at most the cutoff.
         for article in (self.good, self.weak):
-            extraction.set_value(review=self.review, article_id=article.pk, field_id=one.pk, value=survey.pk)
             extraction.set_value(
-                review=self.review, article_id=article.pk, field_id=many.pk, values=[code.pk, tests.pk]
+                review=self.review, article_id=article.pk, field_id=one.pk, value=survey.pk, evidence="p. 1"
             )
-            extraction.set_value(review=self.review, article_id=article.pk, field_id=flag.pk, value="False")
+            extraction.set_value(
+                review=self.review,
+                article_id=article.pk,
+                field_id=many.pk,
+                values=[code.pk, tests.pk],
+                evidence="p. 2",
+            )
+            extraction.set_value(
+                review=self.review, article_id=article.pk, field_id=flag.pk, value="False", evidence="p. 3"
+            )
         extraction.mark_done(review=self.review, article_id=self.good.pk)
         choices = analytics.extraction_choices(self.review)
         self.assertEqual((1, 1), (choices["studies"], choices["done"]))

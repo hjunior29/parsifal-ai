@@ -111,10 +111,19 @@ def extraction_cell(extraction):
     return extraction.value or ""
 
 
-def extraction_rows(review):
-    """(columns, rows) — one row per final-selection article, one column per extraction field."""
+def evidence_column(field):
+    return f"{field.description} (evidence)"
+
+
+def extraction_rows(review, evidence=False):
+    """
+    (columns, rows) — one row per final-selection article, one column per extraction field (followed by a column with
+    its evidence when ``evidence``).
+    """
     fields = list(review.get_data_extraction_fields())
-    columns = ["article"] + [field.description for field in fields]
+    columns = ["article"]
+    for field in fields:
+        columns += [field.description, evidence_column(field)] if evidence else [field.description]
     rows = []
     for article in review.get_final_selection_articles().order_by("title", "pk"):
         extractions = {
@@ -125,7 +134,10 @@ def extraction_rows(review):
         }
         row = {"article": article.title}
         for field in fields:
-            row[field.description] = extraction_cell(extractions.get(field.pk))
+            found = extractions.get(field.pk)
+            row[field.description] = extraction_cell(found)
+            if evidence:
+                row[evidence_column(field)] = found.evidence if found else ""
         rows.append(row)
     return columns, rows
 

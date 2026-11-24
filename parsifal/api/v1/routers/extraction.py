@@ -6,6 +6,7 @@ from parsifal.api.v1.schemas.common import OrderIn
 from parsifal.api.v1.schemas.extraction import (
     ArticleExtractionOut,
     DoneIn,
+    EvidenceIn,
     ExtractedValueOut,
     ExtractionStudyOut,
     FieldIn,
@@ -77,8 +78,8 @@ def extraction_fields_reorder(request, review_id: int, payload: OrderIn):
 def extraction_studies(request, review_id: int, q: str | None = None, done: bool | None = None):
     """
     The studies of the final selection, the ones to extract data from, as Data Extraction lists them (by title): each
-    with its quality score and how many fields have a value. ``q`` searches the title; ``done``: only the studies
-    marked as done (true) or the others (false).
+    with its quality score, how many fields have a value and how many of those have no evidence. ``q`` searches the
+    title; ``done``: only the studies marked as done (true) or the others (false).
     """
     return extraction.extraction_list(get_review(request, review_id), query=q, done=done)
 
@@ -95,6 +96,8 @@ def _article_extraction(review, article_id):
                 field=row["field"].description,
                 field_type=row["field"].field_type,
                 value=row["value"],
+                evidence=row["evidence"],
+                needs_evidence=row["needs_evidence"],
             )
             for row in rows
         ],
@@ -116,7 +119,10 @@ def article_extraction_get(request, review_id: int, article_id: int):
     operation_id="article_extraction_set",
 )
 def article_extraction_set(request, review_id: int, article_id: int, payload: ValueIn):
-    """Set one field's value. Select-many fields take ``values`` (the complete list of lookup ids)."""
+    """
+    Set one field's value, and its evidence (where the study supports it). Select-many fields take ``values`` (the
+    complete list of lookup ids). A study is marked as done only when each value has its evidence.
+    """
     review = get_review(request, review_id)
     extraction.set_value(
         review=review,
@@ -124,6 +130,25 @@ def article_extraction_set(request, review_id: int, article_id: int, payload: Va
         field_id=payload.field_id,
         value=payload.value,
         values=payload.values,
+        evidence=payload.evidence,
+        actor=request.auth,
+    )
+    return _article_extraction(review, article_id)
+
+
+@router.put(
+    "/reviews/{int:review_id}/articles/{int:article_id}/extraction/evidence",
+    response=ArticleExtractionOut,
+    operation_id="article_extraction_evidence",
+)
+def article_extraction_evidence(request, review_id: int, article_id: int, payload: EvidenceIn):
+    """Set the evidence of one field's value, leaving the value as it is (empty clears it)."""
+    review = get_review(request, review_id)
+    extraction.set_evidence(
+        review=review,
+        article_id=article_id,
+        field_id=payload.field_id,
+        evidence=payload.evidence,
         actor=request.auth,
     )
     return _article_extraction(review, article_id)
@@ -135,6 +160,7 @@ def article_extraction_set(request, review_id: int, article_id: int, payload: Va
     operation_id="article_extraction_done",
 )
 def article_extraction_done(request, review_id: int, article_id: int, payload: DoneIn):
+    """Mark the study's extraction as done (or not); refused while a value has no evidence."""
     review = get_review(request, review_id)
     extraction.mark_done(review=review, article_id=article_id, done=payload.done)
     return _article_extraction(review, article_id)

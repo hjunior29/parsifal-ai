@@ -163,6 +163,30 @@ class TestDataExtractionViews(ConductingActionsTestCase):
         )
         self.assertEqual(400, response.status_code)
 
+    def test_evidence(self):
+        article = ArticleFactory(review=self.review, source=self.source, status="A")
+        text = DataExtractionFieldFactory(review=self.review, field_type=DataExtractionField.STRING_FIELD)
+        self.post("save_data_extraction", **{"article-id": article.pk, "field-id": text.pk, "value": "hi"})
+        response = self.post("save_data_extraction_status", **{"article-id": article.pk, "action": "mark_as_done"})
+        self.assertEqual(400, response.status_code)  # the value has no evidence
+        self.assertIn("Give the evidence of every value", response.content.decode())
+        response = self.post(
+            "save_data_extraction_evidence", **{"article-id": article.pk, "field-id": text.pk, "evidence": "p. 7"}
+        )
+        self.assertEqual(200, response.status_code)
+        self.assertEqual("p. 7", DataExtraction.objects.get(article=article, field=text).evidence)
+        self.assertEqual(
+            200,
+            self.post(
+                "save_data_extraction_status", **{"article-id": article.pk, "action": "mark_as_done"}
+            ).status_code,
+        )
+        response = self.post(
+            "save_data_extraction_evidence",
+            **{"article-id": self.foreign_article.pk, "field-id": text.pk, "evidence": "p. 7"},
+        )
+        self.assertEqual(400, response.status_code)
+
 
 class TestDuplicatesViews(ConductingActionsTestCase):
     def test_resolve_all_and_one(self):

@@ -1,4 +1,7 @@
-"""Data extraction: form fields with lookup values and the per-article extracted values."""
+"""
+Data extraction: form fields with lookup values and the per-article extracted values, each with its evidence (where
+the study supports it). A study's extraction is done only when every value it has comes with its evidence.
+"""
 
 from django.db import transaction
 
@@ -8,6 +11,7 @@ from parsifal.apps.reviews.services import history
 from parsifal.apps.reviews.services._common import check_length, get_child, get_children, reorder, require
 
 FIELD_TYPES = dict(DataExtractionField.FIELD_TYPES)
+EVIDENCE_MAX_LENGTH = 4000
 
 # What the History records of the data extraction form (the web views of Planning record the same).
 FIELD = history.Kind(
@@ -125,10 +129,15 @@ def _get_article_and_field(review, article_id, field_id):
     return article, field
 
 
+def _clean_evidence(evidence):
+    return check_length((evidence or "").strip(), EVIDENCE_MAX_LENGTH, field="evidence")
+
+
 @transaction.atomic
-def set_value(*, review, article_id, field_id, value=None, values=None, actor=None):
+def set_value(*, review, article_id, field_id, value=None, values=None, evidence=None, actor=None):
     """
-    Set the extracted value of ``field`` for ``article``.
+    Set the extracted value of ``field`` for ``article``, and its evidence when ``evidence`` is given (None leaves it
+    as it is).
 
     ``value`` is a string for boolean/string/float/integer/date fields (coerced by the field type) or a
     lookup id for select-one fields; ``values`` is the full list of lookup ids for select-many fields
@@ -136,8 +145,10 @@ def set_value(*, review, article_id, field_id, value=None, values=None, actor=No
     """
     article, field = _get_article_and_field(review, article_id, field_id)
     extraction, _created = DataExtraction.objects.get_or_create(article=article, field=field)
-    before = serialize_value(field, extraction)
+    before, evidence_before = serialize_value(field, extraction), extraction.evidence
     extraction.user = actor
+    if evidence is not None:
+        extraction.evidence = _clean_evidence(evidence)
     if field.is_select_field():
         if field.field_type == DataExtractionField.SELECT_ONE_FIELD:
             ids = [value] if value not in (None, "") else []
@@ -153,22 +164,43 @@ def set_value(*, review, article_id, field_id, value=None, values=None, actor=No
         except Exception as error:  # the model raises bare Exception/ValueError with a user-facing message
             raise ValidationError(str(error), field="value")
         extraction.save()
-    record_value(review, article, field, before, extraction, actor)
+    record_value(review, article, field, before, extraction, actor, evidence_before)
     return extraction
 
 
-def record_value(review, article, field, before, extraction, actor=None):
-    """The value extracted for ``field`` went from ``before`` (``serialize_value``) to the extraction's."""
+@transaction.atomic
+def set_evidence(*, review, article_id, field_id, evidence, actor=None):
+    """The evidence of the value extracted for ``field`` (``evidence``: the text; empty clears it)."""
+    article, field = _get_article_and_field(review, article_id, field_id)
+    extraction, _created = DataExtraction.objects.get_or_create(article=article, field=field)
+    before, evidence_before = serialize_value(field, extraction), extraction.evidence
+    extraction.evidence = _clean_evidence(evidence)
+    extraction.save(update_fields=["evidence"])
+    record_value(review, article, field, before, extraction, actor, evidence_before)
+    return extraction
+
+
+def record_value(review, article, field, before, extraction, actor=None, evidence_before=None):
+    """
+    The value extracted for ``field`` went from ``before`` (``serialize_value``) to the extraction's, and its evidence
+    from ``evidence_before`` (None: unchanged).
+    """
     after = serialize_value(field, extraction)
-    if history.show(before) == history.show(after):
+    changes = []
+    if history.show(before) != history.show(after):
+        changes.append(history.change(field.description, before, after, "value"))
+    if evidence_before is not None and evidence_before != extraction.evidence:
+        changes.append(history.change("Evidence", evidence_before, extraction.evidence, "evidence"))
+    if not changes:
         return
+    target = f"{history.quote(field.description)} for the study {history.quote(article.title)}"
     history.record(
         review,
         ReviewEvent.EXTRACTION,
         history.CHANGED,
-        f"Extracted {history.quote(field.description)} for the study {history.quote(article.title)}",
+        f"Extracted {target}" if changes[0]["key"] == "value" else f"Changed the evidence of {target}",
         subject="data_extraction",
-        changes=[history.change(field.description, before, after, "value")],
+        changes=changes,
         articles=[article],
         actor=actor,
     )
@@ -194,8 +226,34 @@ def toggle_select_value(*, review, article_id, field_id, lookup_id, actor=None):
     return extraction
 
 
+def has_value(extraction):
+    """Whether the extraction holds a value (a text, a number, a date, an option chosen)."""
+    return extraction.value not in (None, "") or bool(extraction.select_values.all())
+
+
+def missing_evidence(article):
+    """The fields of the study with a value but no evidence, in the order of the form."""
+    extractions = article.dataextraction_set.select_related("field").prefetch_related("select_values")
+    return [
+        extraction.field
+        for extraction in sorted(extractions, key=lambda extraction: (extraction.field.order, extraction.field.pk))
+        if has_value(extraction) and not extraction.evidence.strip()
+    ]
+
+
 def mark_done(*, review, article_id, done=True):
+    """
+    Mark the study's data extraction as done, or not. Done only when every value extracted comes with its evidence.
+    """
     article = get_child(review.article_set, article_id, label="Article")
+    if done and not article.finished_data_extraction:
+        missing = missing_evidence(article)
+        if missing:
+            names = ", ".join(history.quote(field.description) for field in missing)
+            raise ValidationError(
+                f"Give the evidence of every value before marking the study as done. Missing: {names}.",
+                field="evidence",
+            )
     changed = article.finished_data_extraction != bool(done)
     article.finished_data_extraction = bool(done)
     article.save(update_fields=["finished_data_extraction", "updated_at"])
@@ -232,7 +290,16 @@ def extraction_list(review, *, query=None, done=None):
 
 def filled(article):
     """How many fields have a value for ``article`` (of ``extraction_list``: its values come prefetched)."""
-    return sum(1 for value in article.dataextraction_set.all() if value.value != "" or value.select_values.all())
+    return sum(1 for extraction in article.dataextraction_set.all() if has_value(extraction))
+
+
+def without_evidence(article):
+    """How many of those values have no evidence (``article`` of ``extraction_list``)."""
+    return sum(
+        1
+        for extraction in article.dataextraction_set.all()
+        if has_value(extraction) and not extraction.evidence.strip()
+    )
 
 
 def article_values(*, review, article_id):
@@ -242,7 +309,15 @@ def article_values(*, review, article_id):
     rows = []
     for field in review.dataextractionfield_set.all():
         extraction = extractions.get(field.pk)
-        rows.append({"field": field, "extraction": extraction, "value": serialize_value(field, extraction)})
+        rows.append(
+            {
+                "field": field,
+                "extraction": extraction,
+                "value": serialize_value(field, extraction),
+                "evidence": extraction.evidence if extraction else "",
+                "needs_evidence": bool(extraction and has_value(extraction) and not extraction.evidence.strip()),
+            }
+        )
     return rows
 
 

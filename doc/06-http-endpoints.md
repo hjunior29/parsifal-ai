@@ -187,8 +187,9 @@ Action endpoints under `/reviews/conducting/`, guard **A** unless noted:
 | `quality_assessment_detailed/` | GET | `review-id`, `q` (title), `show` (all, done, pending, above, below the cutoff), `order` (title/year, `-` reverses; kept in the session), `page`, `per-page` (kept in the session), `part` (`list`: only the studies and the pager) | frag Detailed tab: a closed panel per study with its progress, score and a link to its window |
 | `quality_assessment_summary/` | GET | `review-id` | frag |
 | `save_data_extraction/` | POST | `article-id`, `field-id`, `value` | Upsert + `set_value`; empty; 400 with error text on coercion failure (checks `article.review`) |
-| `save_data_extraction_status/` | POST | `review-id`, `article-id`, `action` (`mark_as_done` / other) | toggles `finished_data_extraction` (`services.extraction.mark_done`, scoped) |
-| `export_data_extraction/` | POST | `review-id` | `data_extraction.xls` (final selection) |
+| `save_data_extraction_evidence/` | POST | `review-id`, `article-id`, `field-id`, `evidence` | `services.extraction.set_evidence`; empty; 400 with the error text |
+| `save_data_extraction_status/` | POST | `review-id`, `article-id`, `action` (`mark_as_done` / other) | toggles `finished_data_extraction` (`services.extraction.mark_done`, scoped); 400 while a value has no evidence |
+| `export_data_extraction/` | POST | `review-id` | `data_extraction.xls` (final selection, each field followed by its evidence) |
 | `articles_selection_chart/` | GET | `review-id` | text `Source:total:accepted,…` (guard A since phase 0) |
 | `save_prisma_settings/` | POST | `review-id`, `not-retrieved-criteria-id` (empty: none) | JSON: the PRISMA diagram's numbers (`analytics.prisma`) |
 | `articles_per_year/` | GET | `review-id` | text `year:count,…` for final selection (guard A since phase 0) |
@@ -237,7 +238,7 @@ reproduced. Rows in section 2 are dropped. A first grouping of resources:
 | extraction fields | list, create, update (with lookups), delete, reorder |
 | articles | list (filter by source/status/search), create, get, update, delete; bulk status; import BibTeX; find/resolve duplicates; export |
 | quality assessments | get per article; set answer; summary |
-| data extraction | get per article; set value (set semantics for select-many); mark done/undone; export |
+| data extraction | get per article; set value (set semantics for select-many) and its evidence; mark done/undone (done only with the evidence of each value); export |
 | analytics | per-source counts; per-year counts |
 | reports | generate DOCX with sections |
 | library | documents CRUD, folders CRUD, import BibTeX — done 2026-10-16 (`/api/v1/library/…`) |

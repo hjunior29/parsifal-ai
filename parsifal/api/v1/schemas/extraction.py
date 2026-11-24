@@ -35,11 +35,22 @@ class FieldUpdateIn(Schema):
 
 
 class ValueIn(Schema):
-    """``value`` for scalar and select-one fields (lookup id), ``values`` (lookup ids) for select-many fields."""
+    """
+    ``value`` for scalar and select-one fields (lookup id), ``values`` (lookup ids) for select-many fields;
+    ``evidence``: where the study supports the value (left as it is when not given).
+    """
 
     field_id: int
     value: str | int | float | bool | None = None
     values: list[int] | None = None
+    evidence: str | None = None
+
+
+class EvidenceIn(Schema):
+    """Where the study supports the value of the field: the passage, its page, the figure or table."""
+
+    field_id: int
+    evidence: str
 
 
 class ExtractedValueOut(Schema):
@@ -47,6 +58,8 @@ class ExtractedValueOut(Schema):
     field: str
     field_type: str
     value: Any = None
+    evidence: str = ""
+    needs_evidence: bool = False  # it has a value but no evidence
 
 
 class ArticleExtractionOut(Schema):
@@ -68,6 +81,7 @@ class ExtractionStudyOut(Schema):
     score: float  # its quality score
     finished_data_extraction: bool
     filled: int  # fields with a value
+    without_evidence: int  # of those, the ones with no evidence
 
     @staticmethod
     def resolve_article_id(obj):
@@ -76,3 +90,7 @@ class ExtractionStudyOut(Schema):
     @staticmethod
     def resolve_filled(obj):
         return extraction.filled(obj)
+
+    @staticmethod
+    def resolve_without_evidence(obj):
+        return extraction.without_evidence(obj)

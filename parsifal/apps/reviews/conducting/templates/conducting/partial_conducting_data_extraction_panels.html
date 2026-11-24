@@ -1,6 +1,7 @@
 {% comment %}
   The panels of Data Extraction (extraction_panels): one per study, its form closed until its heading is clicked,
-  with how many fields have a value and the link to mark it as done. Each value is saved as soon as it changes.
+  with how many fields have a value and the link to mark it as done. Each value is saved as soon as it changes, and
+  so is its evidence: where the study supports it. A study is done only when each value has its evidence.
 {% endcomment %}
 <div class="panel-group">
   {% for panel in extraction_panels %}
@@ -8,11 +9,16 @@
       {% include "conducting/partial_conducting_study_heading.html" with study=panel.study progress=panel.progress kind="extraction" %}
       <div class="collapse">
         <div class="panel-body form-horizontal" data-article-id="{{ panel.study.id }}">
+          <div class="alert alert-danger js-extraction-message" style="display: none;"></div>
           {% for row in panel.fields %}
-            <div class="form-group" data-field-id="{{ row.field.id }}">
+            <div class="form-group{% if row.needs_evidence %} has-warning{% endif %}" data-field-id="{{ row.field.id }}">
               <label class="control-label col-md-2">{{ row.field.description }}</label>
               <div class="col-md-10">
                 {% include "conducting/partial_conducting_data_extraction_field.html" with study=panel.study field=row.field %}
+                <textarea class="form-control input-sm extraction-evidence js-evidence" name="{{ panel.study.id }}-{{ row.field.id }}-evidence" rows="2" maxlength="4000"
+                          aria-label="Evidence of {{ row.field.description }}"
+                          placeholder="Evidence: where the study supports this value (the passage, its page, the figure or table)">{{ row.evidence }}</textarea>
+                <span class="help-block js-evidence-warning"{% if not row.needs_evidence %} style="display: none;"{% endif %}>Give the evidence of this value: the study is done only when each value has one.</span>
                 <span class="help-block error" style="display: none;"></span>
               </div>
             </div>

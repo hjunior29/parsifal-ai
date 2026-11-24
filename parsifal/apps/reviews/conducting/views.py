@@ -296,12 +296,15 @@ def quality_assessment(request, username, review_name):
 def _extraction_values(study, fields):
     """
     Each field of the form with what ``study`` has in it: ``value``, the text of its input (dates as MM/DD/YYYY;
-    true/false as "True" or "False"), or ``chosen``, the ids of the options chosen.
+    true/false as "True" or "False"), or ``chosen``, the ids of the options chosen; its ``evidence``, and whether it
+    still needs one (``needs_evidence``: a value without evidence).
     """
     extractions = {extraction.field_id: extraction for extraction in study.dataextraction_set.all()}
     rows = []
     for field in fields:
         found, value, chosen = extractions.get(field.pk), "", set()
+        evidence = found.evidence if found is not None else ""
+        needs_evidence = found is not None and extraction.has_value(found) and not evidence.strip()
         if found is not None:
             found.field = field  # loaded already: reading the value needs no query
             if field.is_select_field():
@@ -312,8 +315,18 @@ def _extraction_values(study, fields):
                 value = found.value if found.value in ("True", "False") else ""
             else:
                 value = found.value
-        rows.append({"field": field, "value": value, "chosen": chosen})
+        rows.append(
+            {"field": field, "value": value, "chosen": chosen, "evidence": evidence, "needs_evidence": needs_evidence}
+        )
     return rows
+
+
+def extraction_progress(filled, fields, without_evidence):
+    """What a study's heading says of its extraction: "3 of 5 fields · 1 without evidence"."""
+    text = "{0} of {1} fields".format(filled, fields)
+    if without_evidence:
+        text += " · {0} without evidence".format(without_evidence)
+    return text
 
 
 def extraction_panels(review, studies):
@@ -328,7 +341,7 @@ def extraction_panels(review, studies):
     return [
         {
             "study": study,
-            "progress": "{0} of {1} fields".format(extraction.filled(study), len(fields)),
+            "progress": extraction_progress(extraction.filled(study), len(fields), extraction.without_evidence(study)),
             "fields": _extraction_values(study, fields),
         }
         for study in studies
@@ -1425,6 +1438,27 @@ def save_data_extraction(request):
 
 @author_required
 @login_required
+@require_POST
+def save_data_extraction_evidence(request):
+    """The evidence of a value extracted (``evidence``: where the study supports it)."""
+    try:
+        review = get_object_or_404(Review, pk=request.POST["review-id"])
+        extraction.set_evidence(
+            review=review,
+            article_id=request.POST["article-id"],
+            field_id=request.POST["field-id"],
+            evidence=request.POST["evidence"],
+            actor=request.user,
+        )
+        return HttpResponse()
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
+    except KeyError:
+        return HttpResponseBadRequest()
+
+
+@author_required
+@login_required
 def save_data_extraction_status(request):
     try:
         review = get_object_or_404(Review, pk=request.POST["review-id"])
@@ -1691,5 +1725,5 @@ def export_results(request):
 @require_POST
 def export_data_extraction(request):
     review = get_object_or_404(Review, pk=request.POST.get("review-id"))
-    columns, rows = reports.extraction_rows(review)
+    columns, rows = reports.extraction_rows(review, evidence=True)
     return _xls_response("data_extraction.xls", columns, rows)
