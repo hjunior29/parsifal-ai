@@ -101,6 +101,10 @@ $(function () {
       excluded.push({text: "by people " + n(data.excluded_by_people), indent: true});
       excluded.push({text: "by automation tools " + n(data.excluded_by_automation), indent: true});
     }
+    // A rapid review: the records excluded at each screening round (titles; titles and abstracts).
+    $.each(data.excluded_by_round || [], function (_, row) {
+      excluded.push({text: "at the " + row.label.toLowerCase() + " " + n(row.excluded), indent: true});
+    });
     var showNotRetrieved = data.not_retrieved_criteria_id !== null;
     var result = [
       {

@@ -51,7 +51,7 @@ def decisions_record(request, review_id: int, payload: DecisionIn):
     response={204: None},
     operation_id="decisions_remove_mine",
 )
-def decisions_remove_mine(request, review_id: int, article_id: int, stage: str = "title_abstract"):
+def decisions_remove_mine(request, review_id: int, article_id: int, stage: str | None = None):
     decisions.remove_decision(
         review=get_review(request, review_id), article_id=article_id, actor=request.auth, stage=stage
     )
@@ -76,7 +76,7 @@ def decisions_summary(request, review_id: int):
 
 @router.get("/reviews/{int:review_id}/decisions/agreement", response=AgreementOut, operation_id="decisions_agreement")
 def decisions_agreement(
-    request, review_id: int, stage: str = "title_abstract", user_a_id: int | None = None, user_b_id: int | None = None
+    request, review_id: int, stage: str | None = None, user_a_id: int | None = None, user_b_id: int | None = None
 ):
     """Cohen's kappa and percent agreement between two reviewers (default: the first two with decisions)."""
     review = get_review(request, review_id)
@@ -89,7 +89,7 @@ def decisions_agreement(
     operation_id="decisions_disagreements",
 )
 def decisions_disagreements(
-    request, review_id: int, stage: str = "title_abstract", user_a_id: int | None = None, user_b_id: int | None = None
+    request, review_id: int, stage: str | None = None, user_a_id: int | None = None, user_b_id: int | None = None
 ):
     """
     Articles whose reviewers disagree at the stage, with every decision — between ``user_a_id`` and ``user_b_id``

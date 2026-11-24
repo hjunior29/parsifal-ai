@@ -31,6 +31,7 @@ from parsifal.api.v1.schemas.ai_screening import (
     ScreeningUndoOut,
 )
 from parsifal.apps.accounts import services as integrations
+from parsifal.apps.reviews.models import StudyDecision
 from parsifal.apps.reviews.services import ai_runs, ai_screening, screening_requests
 
 router = Router(tags=["ai screening"])
@@ -105,6 +106,7 @@ def _settings(payload):
         "statuses": payload.statuses,
         "criteria_ids": payload.criteria_ids,
         "defaults": payload.defaults,
+        "stage": payload.stage,
     }
 
 
@@ -170,6 +172,8 @@ def ai_screening_setup(request, review_id: int, phase: str = "exclusion", defaul
             "source_id": start["source_id"],
             "statuses": start["statuses"] or ai_screening.clean_statuses(None, phase),
             "criteria_ids": start["criteria_ids"],
+            "stage": start["stage"],
+            "pending": start["pending"],
         },
         criteria=ai_screening.criteria_options(review, phase),
         inclusion_rule=review.inclusion_rule,
@@ -187,6 +191,7 @@ def ai_screening_setup(request, review_id: int, phase: str = "exclusion", defaul
         scopes=scopes,
         step_size_default=ai_screening.STEP_SIZE,
         step_size_max=ai_screening.MAX_STEP_SIZE,
+        stages=list(ai_screening.AI_STAGES) if review.is_rapid_review else [StudyDecision.TITLE_ABSTRACT],
     )
 
 
@@ -218,6 +223,7 @@ def ai_screening_start(request, review_id: int, payload: ScreeningStartIn):
         reviewer_id=payload.reviewer_id,
         threshold=payload.threshold,
         thresholds=payload.thresholds,
+        pending=payload.pending,
         **_settings(payload),
     )
     return 201, _run_out(request, run, detail=True)

@@ -361,6 +361,8 @@ class TestRunAgain(AiRunsTestCase):
                 "criteria_ids": [self.secondary.pk, self.english.pk],
                 "threshold": 0.7,
                 "thresholds": None,
+                "stage": "title_abstract",  # not a rapid review: always the title and abstract
+                "pending": False,
             },
             {name: value for name, value in settings.items() if name != "context"},
         )

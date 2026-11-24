@@ -550,6 +550,17 @@ def _study_list_filters(review, params):
     return source, params.get("status") or "ALL", params.get("q", "").strip(), params.get("starred") == "1"
 
 
+def _round(review, params):
+    """
+    The screening round of the study list (rapid reviews): (``round``, ``round-state``: pending or decided by the
+    user), or (None, None) — every study, as in other reviews.
+    """
+    stage = params.get("round") or None
+    if not review.is_rapid_review or stage is None:
+        return None, None
+    return stage, params.get("round-state") or None
+
+
 @author_required
 @login_required
 def source_articles(request):
@@ -561,6 +572,7 @@ def source_articles(request):
     """
     review = get_object_or_404(Review, pk=request.GET.get("review-id"))
     source, status, query, starred = _study_list_filters(review, request.GET)
+    stage, stage_state = _round(review, request.GET)
     order = request.GET.get("order") or "title"
     try:
         articles = studies.list_articles(
@@ -570,10 +582,15 @@ def source_articles(request):
             query=query,
             starred=True if starred else None,
             order=order,
+            stage=stage,
+            stage_state=stage_state,
+            user=request.user,
         ).select_related("created_by__profile", "updated_by__profile", "starred_by__profile")
     except DomainError as error:
         return HttpResponseBadRequest(str(error))
     columns = study_columns.for_user(request.user)
+    if stage == StudyDecision.TITLE:
+        columns = [column for column in columns if column != "abstract"]  # the title round reads the titles only
     headings = []
     for heading in study_columns.headings(columns):
         key = COLUMN_ORDERS.get(heading["key"], heading["key"])
@@ -585,7 +602,8 @@ def source_articles(request):
         "columns": columns,
         "headings": headings,
         "order": order,
-        "filtered": status != "ALL" or bool(query) or starred,
+        "filtered": status != "ALL" or bool(query) or starred or bool(stage),
+        "round": stage,
         **_paginate(request, articles, "studies_per_page"),
     }
     if request.GET.get("part") == "list":
@@ -607,6 +625,8 @@ def article_details(request):
     )
 
     context = {"review": review, "article": article, "pdf_max_mb": full_texts.max_size_mb()}
+    # The round the study list is at (rapid reviews): at the title round, the abstract is a click away.
+    context["round"] = _round(review, request.GET)[0]
     # Via CAPES: the study through the user's library proxy (Settings → Library access).
     proxy = integrations.library_proxy_address(request.user)
     context.update(access_url=article.access_url(proxy), access_label=library_proxy.label(proxy) if proxy else "")
@@ -714,7 +734,7 @@ def _decisions_context(request, review, article, message=None):
     return {
         "decisions": rows,
         "my_decision": mine,
-        "decision_stages": StudyDecision.STAGES,
+        "decision_stages": review.stage_choices(),
         "decision_statuses": Article.ARTICLE_STATUS,
         "decision_message": message,
     }
@@ -732,7 +752,7 @@ def record_decision(request):
             article_id=request.POST.get("article-id"),
             actor=request.user,
             status=request.POST.get("decision-status"),
-            stage=request.POST.get("decision-stage") or StudyDecision.TITLE_ABSTRACT,
+            stage=request.POST.get("decision-stage") or None,
             criteria_id=request.POST.get("decision-criteria") or None,
             comments=request.POST.get("decision-comments", ""),
         )
@@ -756,7 +776,7 @@ def _agreement_context(request, review, stage, result=None, user_a_id=None, user
         "review": review,
         "stage": stage,
         "stage_label": dict(StudyDecision.STAGES).get(stage, stage),
-        "stages": StudyDecision.STAGES,
+        "stages": review.stage_choices(),
         "rules": RULE_LABELS,
         "rule_label": dict(RULE_LABELS).get(result["rule"], result["rule"]).split(" — ")[0] if result else None,
         "summary": decisions.summary(review),
@@ -796,8 +816,8 @@ def agreement(request):
     ``user-b``; the first two by default), and the consolidation form.
     """
     review = get_object_or_404(Review, pk=request.GET.get("review-id"))
-    stage = request.GET.get("stage") or StudyDecision.TITLE_ABSTRACT
-    if stage not in dict(StudyDecision.STAGES):
+    stage = request.GET.get("stage") or review.first_stage
+    if stage not in review.stages():
         return HttpResponseBadRequest("Unknown stage.")
     context = _agreement_context(request, review, stage, None, request.GET.get("user-a"), request.GET.get("user-b"))
     return render(request, "conducting/partial_conducting_agreement.html", context)
@@ -812,7 +832,7 @@ def consolidate(request):
     re-renders the agreement panel.
     """
     review = get_object_or_404(Review, pk=request.POST.get("review-id"))
-    stage = request.POST.get("stage") or StudyDecision.TITLE_ABSTRACT
+    stage = request.POST.get("stage") or review.first_stage
     user_a_id, user_b_id = request.POST.get("user-a"), request.POST.get("user-b")
     try:
         user_ids = [user.pk for user in decisions.pair(review, stage, user_a_id, user_b_id)]
@@ -846,6 +866,11 @@ def ai_screening(request):
         else:
             phase = ai_screening_service.clean_phase(request.GET.get("phase"))
             settings = ai_screening_service.starting_settings(review, phase, defaults=restored)
+        if request.GET.get("stage"):
+            # Another round chosen in the window (rapid reviews): its own default request.
+            stage = ai_screening_service.clean_stage(review, request.GET["stage"])
+            if stage != settings["stage"]:
+                settings.update(stage=stage, template=screening_requests.default(settings["phase"], stage))
     except DomainError as error:
         return HttpResponseBadRequest(str(error))
     phase = settings["phase"]
@@ -926,6 +951,14 @@ def ai_screening(request):
         "counts": ai_screening_service.scope_counts(review),
         "template": screening_requests.as_text(settings["template"]),
         "placeholders": screening_requests.PLACEHOLDERS,
+        # Rapid reviews: the round the decisions are recorded at, and only the studies of it not screened yet.
+        "stages": (
+            [(stage, label) for stage, label in review.stage_choices() if stage in ai_screening_service.AI_STAGES]
+            if review.is_rapid_review
+            else []
+        ),
+        "selected_stage": settings["stage"],
+        "pending": settings["pending"],
     }
     try:
         ai_screening_service.clean_criteria(review, phase)
@@ -952,6 +985,7 @@ def _ai_screening_settings(request):
         "statuses": request.POST.getlist("statuses"),
         # The window marks its criteria checkboxes, so that none checked is not mistaken for none sent.
         "criteria_ids": request.POST.getlist("criteria") if request.POST.get("criteria-sent") else None,
+        "stage": request.POST.get("stage") or None,
     }
 
 
@@ -972,6 +1006,7 @@ def ai_screening_start(request):
                 for name, value in request.POST.items()
                 if name.startswith("threshold-")
             },
+            pending=request.POST.get("pending") == "on",
             **_ai_screening_settings(request),
         )
     except DomainError as error:
@@ -1046,6 +1081,8 @@ def ai_screening_impact(request):
             phase=request.POST.get("phase"),
             statuses=request.POST.getlist("statuses"),
             source_id=request.POST.get("source-id", ""),
+            stage=request.POST.get("stage") or None,
+            pending=request.POST.get("pending") == "on",
         )
     except DomainError as error:
         return _ai_screening_error(error)
@@ -1254,6 +1291,7 @@ def save_article_details(request):
             else:
                 source = get_object_or_404(review.sources, pk=request.POST["source-id"])
                 article, tracker = Article(review=review, source=source), None
+            old_status = article.status
 
             article.bibtex_key = request.POST["bibtex-key"][:100]
             article.title = request.POST["title"][:1000]
@@ -1287,12 +1325,25 @@ def save_article_details(request):
             except Exception:
                 article.selection_criteria = None
 
+            stage = _round(review, request.POST)[0] if tracker is not None else None
+            if stage:
+                decisions.check_round(review, stage)
             article.updated_by = request.user
             article.save()
             if tracker is None:
                 studies.record_study_added(review, article)
             else:
-                studies.record_study_changes(review, article, tracker)
+                if stage and article.status != old_status:
+                    # Round mode: the status given is also the reviewer's decision at the round.
+                    decisions.record_round(
+                        review=review,
+                        article_ids=[article.pk],
+                        actor=request.user,
+                        status=article.status,
+                        stage=stage,
+                        criteria_id=article.selection_criteria_id,
+                    )
+                studies.record_study_changes(review, article, tracker, stage=stage)
 
             return HttpResponse(build_article_table_row(article, study_columns.for_user(request.user)))
         except Exception:
@@ -1352,6 +1403,7 @@ def _multiple_articles_action(request, status=None):
     """
     try:
         review = request.review
+        stage, stage_state = _round(review, request.POST)
         if request.POST.get("select-all") == "filter":
             source, list_status, query, starred = _study_list_filters(review, request.POST)
             article_ids = studies.selected_ids(
@@ -1361,6 +1413,9 @@ def _multiple_articles_action(request, status=None):
                 status=None if list_status == "ALL" else list_status,
                 query=query,
                 starred=True if starred else None,
+                stage=stage,
+                stage_state=stage_state,
+                user=request.user,
             )
         else:
             article_ids = [pk for pk in request.POST["article_ids"].split("|") if pk]
@@ -1368,7 +1423,9 @@ def _multiple_articles_action(request, status=None):
             if status is None:
                 studies.delete_articles(review=review, article_ids=article_ids)
             else:
-                studies.set_status(review=review, article_ids=article_ids, status=status, actor=request.user)
+                studies.set_status(
+                    review=review, article_ids=article_ids, status=status, actor=request.user, stage=stage
+                )
         return HttpResponse()
     except DomainError as error:
         return HttpResponseBadRequest(str(error))
@@ -1632,6 +1689,8 @@ def data_analysis(request, username, review_name):
             years=analytics.studies_by_year(review),
             prisma=analytics.prisma(review),
             exclusion_criteria=review.get_exclusion_criterias(),
+            # Rapid reviews: the selection round by round.
+            rounds=analytics.selection_funnel(review) if review.is_rapid_review else None,
         )
     return render(request, "conducting/conducting_data_analysis.html", context)
 

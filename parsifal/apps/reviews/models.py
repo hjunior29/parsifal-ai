@@ -134,6 +134,23 @@ class Review(models.Model):
         """The switch for everything specific to a rapid review (Cartaxo et al. 2020)."""
         return self.review_type == self.RAPID
 
+    def stages(self):
+        """
+        The screening rounds of the review, in order (StudyDecision stages): a rapid review starts with a round on
+        the titles only (Cartaxo et al. 2020 §4.2.2); the others with the titles and abstracts.
+        """
+        if self.is_rapid_review:
+            return [StudyDecision.TITLE, StudyDecision.TITLE_ABSTRACT, StudyDecision.FULL_TEXT]
+        return [StudyDecision.TITLE_ABSTRACT, StudyDecision.FULL_TEXT]
+
+    def stage_choices(self):
+        labels = dict(StudyDecision.STAGES)
+        return [(stage, labels[stage]) for stage in self.stages()]
+
+    @property
+    def first_stage(self):
+        return self.stages()[0]
+
     def get_absolute_url(self):
         return reverse("review", args=(self.author.username, self.name))
 
@@ -972,9 +989,11 @@ class StudyDecision(models.Model):
     remains the consolidated decision; these rows make independent screening and agreement measures possible.
     """
 
+    TITLE = "title"  # rapid reviews only: a first round on the titles (Cartaxo et al. 2020 §4.2.2)
     TITLE_ABSTRACT = "title_abstract"
     FULL_TEXT = "full_text"
     STAGES = (
+        (TITLE, _("Title screening")),
         (TITLE_ABSTRACT, _("Title and abstract screening")),
         (FULL_TEXT, _("Full-text screening")),
     )

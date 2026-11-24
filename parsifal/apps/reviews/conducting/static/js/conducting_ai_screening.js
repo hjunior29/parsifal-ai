@@ -108,6 +108,14 @@ $(function () {
     openWindow(data);
   });
 
+  // Another round (rapid reviews): the window again, with that round's request.
+  $modal.on("change", ".js-ai-stage", function () {
+    $.get("/reviews/conducting/ai_screening/", {"review-id": reviewId(), "phase": $(this).data("phase"), "stage": $(this).val()}, function (html) {
+      $modal.find(".modal-content").html(html);
+      updateCount();
+    });
+  });
+
   // Every setting back to Parsifal's defaults, in place of the last run's.
   $modal.on("click", ".js-ai-restore-defaults", function () {
     $.get("/reviews/conducting/ai_screening/", {"review-id": reviewId(), "phase": $(this).data("phase"), "defaults": 1}, function (html) {

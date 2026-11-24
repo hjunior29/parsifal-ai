@@ -74,6 +74,27 @@
         <input type="radio" name="filter" value="D"> Duplicated
       </label>
     </p>
+    {% if review.is_rapid_review %}
+      {% comment %}
+        Round mode (rapid reviews): the studies of a screening round; a status given here is also your decision at
+        that round. The title round shows the titles only: the abstract is a click away in the study.
+      {% endcomment %}
+      <p class="form-inline study-round">
+        <label for="study-round"><strong>Round:</strong></label>
+        <select id="study-round" class="form-control input-sm js-round">
+          <option value="">Every study</option>
+          {% for value, label in review.stage_choices %}
+            <option value="{{ value }}"{% if value == round %} selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <select class="form-control input-sm js-round-state" aria-label="Which studies of the round"{% if not round %} disabled{% endif %}>
+          <option value="pending">To screen (by me)</option>
+          <option value="decided">Screened (by me)</option>
+          <option value="">Every study of the round</option>
+        </select>
+        <span class="help-block study-round-help">In a round, accepting or rejecting a study is also your decision at that round.</span>
+      </p>
+    {% endif %}
   </div>
   <div class="source-articles">
     {% include "conducting/partial_conducting_articles_list.html" %}

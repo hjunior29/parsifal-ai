@@ -11,8 +11,12 @@ can be a colleague or an AI agent with its own account.
   is the consolidated outcome — what the study selection page shows and what
   the final selection uses.
 - A **decision** is one reviewer's judgement about one article at one
-  **stage** — `title_abstract` or `full_text` — with the selection criterion
-  used as reason and a comment. Recording a decision never changes the status.
+  **stage** — `title_abstract` or `full_text`; a rapid review starts with a
+  `title` round ([Rapid reviews](/docs/rapid-review/)) — with the selection
+  criterion used as reason and a comment. Left out, the stage is the review's
+  first round. Recording a decision never changes the status, except in the
+  round mode of a rapid review, where a status given at a round is also the
+  reviewer's decision there.
 
 Decisions are recorded through the API/CLI/MCP:
 

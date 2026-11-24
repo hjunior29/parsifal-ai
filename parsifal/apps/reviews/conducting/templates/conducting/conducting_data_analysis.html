@@ -15,7 +15,7 @@
   <script src="https://www.gstatic.com/charts/loader.js"></script>
   {% compress js %}
     <script src="{% static 'js/conducting_data_analysis.js' %}?v=3"></script>
-    <script src="{% static 'js/conducting_prisma.js' %}"></script>
+    <script src="{% static 'js/conducting_prisma.js' %}?v=2"></script>
   {% endcompress %}
 {% endblock javascript %}
 
@@ -113,6 +113,33 @@
     {% endif %}
 
   {% else %}
+
+    {% if rounds %}
+      {% comment %}Rapid reviews: the selection round by round, as Cartaxo et al. (2018, Fig. 1) report it.{% endcomment %}
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h3 class="panel-title">Selection Rounds</h3>
+        </div>
+        <table class="table selection-rounds">
+          <thead>
+            <tr><th></th><th class="text-right">Studies</th><th class="text-right">Not decided yet</th></tr>
+          </thead>
+          <tbody>
+            {% for row in rounds %}
+              <tr>
+                <td>{% if not forloop.first %}<span class="text-muted">→</span> {% endif %}{{ row.label }}</td>
+                <td class="text-right"><strong>{{ row.studies }}</strong></td>
+                <td class="text-right">{% if row.pending is not None %}{{ row.pending }}{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div class="panel-footer small text-muted">
+          A study passes a round when it reaches the next one: decided there, or accepted at the round. "Not decided
+          yet": the studies of the round without a decision at it (Study Selection → Round).
+        </div>
+      </div>
+    {% endif %}
 
     <div class="panel panel-default">
       <div class="panel-heading clearfix">

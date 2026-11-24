@@ -50,9 +50,11 @@ def _record_decision(review, decision, tracker, article, actor):
     )
 
 
-def _validate_stage(stage):
-    if stage not in STAGES:
-        raise ValidationError(f"stage must be one of {sorted(STAGES)}.", field="stage")
+def _validate_stage(stage, review):
+    """``stage``, one of the review's rounds (``Review.stages``); none given, its first."""
+    stage = stage or review.first_stage
+    if stage not in review.stages():
+        raise ValidationError(f"stage must be one of {', '.join(review.stages())}.", field="stage")
     return stage
 
 
@@ -62,9 +64,7 @@ def _validate_status(status):
     return status
 
 
-def record_decision(
-    *, review, article_id, actor, status, stage=StudyDecision.TITLE_ABSTRACT, criteria_id=None, comments="", run=None
-):
+def record_decision(*, review, article_id, actor, status, stage=None, criteria_id=None, comments="", run=None):
     """
     The reviewer's decision, new or replacing theirs; ``run``: the AI screening run that made it, if any (the History
     records the run, not each of its decisions).
@@ -74,16 +74,17 @@ def record_decision(
 
 def _decide(review, article_id, actor, status, stage, criteria_id, comments, run, record):
     article = get_child(review.article_set, article_id, label="Article")
+    stage = _validate_stage(stage, review)
     criteria = None
     if criteria_id not in (None, ""):
         criteria = get_child(review.selectioncriteria_set, criteria_id, label="Selection criteria")
     check_length(comments or "", 2000, field="comments")
-    previous = StudyDecision.objects.filter(article=article, user=actor, stage=_validate_stage(stage)).first()
+    previous = StudyDecision.objects.filter(article=article, user=actor, stage=stage).first()
     tracker = history.Tracker(previous, DECISION_FIELDS, DECISION_LABELS) if previous else None
     decision, _created = StudyDecision.objects.update_or_create(
         article=article,
         user=actor,
-        stage=_validate_stage(stage),
+        stage=stage,
         defaults={
             "review": review,
             "status": _validate_status(status),
@@ -97,10 +98,30 @@ def _decide(review, article_id, actor, status, stage, criteria_id, comments, run
     return decision
 
 
-def record_decisions(
-    *, review, article_ids, actor, status, stage=StudyDecision.TITLE_ABSTRACT, criteria_id=None, comments=""
-):
+def check_round(review, stage):
+    """``stage``, a screening round of the rapid review (round mode is for rapid reviews only)."""
+    if not review.is_rapid_review:
+        raise ValidationError("Screening rounds are for rapid reviews.", field="stage")
+    return _validate_stage(stage, review)
+
+
+def record_round(*, review, article_ids, actor, status, stage, criteria_id=None):
+    """
+    Round mode of a rapid review: the status a reviewer gives studies at a screening round is also their decision at
+    it — accepted or rejected, with the same criterion; back to unclassified, their decision at the round goes; a
+    duplicate is no decision. Recorded in the event of the status change, with none of its own.
+    """
+    stage = check_round(review, stage)
+    if status in (Article.ACCEPTED, Article.REJECTED):
+        for article_id in article_ids:
+            _decide(review, article_id, actor, status, stage, criteria_id, "", None, record=False)
+    elif status == Article.UNCLASSIFIED:
+        review.decisions.filter(article_id__in=article_ids, user=actor, stage=stage).delete()
+
+
+def record_decisions(*, review, article_ids, actor, status, stage=None, criteria_id=None, comments=""):
     articles = get_children(review.article_set, article_ids, label="Article")
+    stage = _validate_stage(stage, review)
     decided = [
         _decide(review, a.pk, actor, status, stage, criteria_id, comments, None, record=False) for a in articles
     ]
@@ -115,9 +136,10 @@ def record_decisions(
     return decided
 
 
-def remove_decision(*, review, article_id, actor, stage=StudyDecision.TITLE_ABSTRACT):
+def remove_decision(*, review, article_id, actor, stage=None):
     article = get_child(review.article_set, article_id, label="Article")
-    decision = StudyDecision.objects.filter(article=article, user=actor, stage=_validate_stage(stage)).first()
+    stage = _validate_stage(stage, review)
+    decision = StudyDecision.objects.filter(article=article, user=actor, stage=stage).first()
     if decision is None:
         raise NotFound("No decision of yours to remove for this article and stage.")
     what = f"the study {history.quote(article.title)}"
@@ -136,7 +158,7 @@ def remove_decision(*, review, article_id, actor, stage=StudyDecision.TITLE_ABST
 def list_decisions(review, *, stage=None, user_id=None, article_id=None, status=None):
     queryset = review.decisions.select_related("user", "selection_criteria", "article")
     if stage is not None:
-        queryset = queryset.filter(stage=_validate_stage(stage))
+        queryset = queryset.filter(stage=_validate_stage(stage, review))
     if user_id is not None:
         queryset = queryset.filter(user_id=user_id)
     if article_id is not None:
@@ -155,7 +177,7 @@ def reviewers(review, *, stage=None):
     """Users who recorded at least one decision (optionally at a stage), ordered by username."""
     queryset = review.decisions.all()
     if stage is not None:
-        queryset = queryset.filter(stage=_validate_stage(stage))
+        queryset = queryset.filter(stage=_validate_stage(stage, review))
     ids = queryset.values_list("user_id", flat=True).distinct()
     return User.objects.filter(pk__in=ids).order_by("username")
 
@@ -225,12 +247,12 @@ def interpret_kappa(kappa):
     return "almost perfect"
 
 
-def agreement(*, review, stage=StudyDecision.TITLE_ABSTRACT, user_a_id=None, user_b_id=None):
+def agreement(*, review, stage=None, user_a_id=None, user_b_id=None):
     """
     Agreement between two reviewers at a stage (see ``pair``: the first two reviewers by default). Only articles both
     decided are compared.
     """
-    stage = _validate_stage(stage)
+    stage = _validate_stage(stage, review)
     people = list(reviewers(review, stage=stage))
     user_a, user_b = pair(review, stage, user_a_id, user_b_id)
     table = _decision_table(review, stage)
@@ -254,14 +276,14 @@ def agreement(*, review, stage=StudyDecision.TITLE_ABSTRACT, user_a_id=None, use
     }
 
 
-def disagreements(*, review, stage=StudyDecision.TITLE_ABSTRACT, user_a_id=None, user_b_id=None):
+def disagreements(*, review, stage=None, user_a_id=None, user_b_id=None):
     """
     Articles with at least two decisions that differ at the stage — between ``user_a_id`` and ``user_b_id`` when
     given (see ``pair``), else among every reviewer. They stay here after a consolidation, which sets the article's
     status and leaves the decisions as they were: the article (its status and who last updated it) tells whether it
     was settled.
     """
-    stage = _validate_stage(stage)
+    stage = _validate_stage(stage, review)
     user_ids = None
     if user_a_id not in (None, "") or user_b_id not in (None, ""):
         user_ids = [user.pk for user in pair(review, stage, user_a_id, user_b_id)]
@@ -301,16 +323,14 @@ def _apply_rule(rule, statuses):
 
 
 @transaction.atomic
-def consolidate(
-    *, review, stage=StudyDecision.TITLE_ABSTRACT, rule=RULE_UNANIMOUS, actor=None, article_ids=None, user_ids=None
-):
+def consolidate(*, review, stage=None, rule=RULE_UNANIMOUS, actor=None, article_ids=None, user_ids=None):
     """
     Set ``Article.status`` from the reviewers' decisions using ``rule`` — only those of ``user_ids`` (at least two
     reviewers with decisions at the stage) when given, else every reviewer's. Articles the rule cannot decide are
     left untouched and reported as unresolved. Returns counts and the ids involved; ``changed`` are the resolved
     articles whose status was different (the others already had the status the rule gave).
     """
-    stage = _validate_stage(stage)
+    stage = _validate_stage(stage, review)
     if rule not in RULES:
         raise ValidationError(f"rule must be one of {RULES}.", field="rule")
     if user_ids is not None:
@@ -368,9 +388,9 @@ def consolidate(
 
 
 def summary(review):
-    """Decision counts per stage and reviewer, for the overview."""
+    """Decision counts per stage (the review's rounds) and reviewer, for the overview."""
     rows = []
-    for stage, label in StudyDecision.STAGES:
+    for stage, label in review.stage_choices():
         per_user = Counter(review.decisions.filter(stage=stage).values_list("user__username", flat=True))
         if per_user:
             rows.append(

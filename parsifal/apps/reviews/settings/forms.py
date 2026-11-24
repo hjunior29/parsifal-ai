@@ -1,6 +1,8 @@
 from django import forms
 
+from parsifal.apps.core.exceptions import DomainError
 from parsifal.apps.reviews.models import Review
+from parsifal.apps.reviews.services import reviews
 
 
 class ReviewSettingsForm(forms.ModelForm):
@@ -27,3 +29,11 @@ class ReviewSettingsForm(forms.ModelForm):
             "name",
             "review_type",
         ]
+
+    def clean_review_type(self):
+        review_type = self.cleaned_data["review_type"]
+        try:
+            reviews.check_type_change(Review.objects.get(pk=self.instance.pk), review_type)
+        except DomainError as error:
+            raise forms.ValidationError(str(error))
+        return review_type

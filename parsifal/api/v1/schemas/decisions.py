@@ -24,7 +24,7 @@ class DecisionOut(Schema):
 class DecisionIn(Schema):
     ids: list[int]
     status: str
-    stage: str = "title_abstract"
+    stage: str | None = None  # title (rapid reviews), title_abstract or full_text; default: the review's first round
     selection_criteria_id: int | None = None
     comments: str = ""
 
@@ -47,7 +47,7 @@ class DisagreementOut(Schema):
 
 
 class ConsolidateIn(Schema):
-    stage: str = "title_abstract"
+    stage: str | None = None  # default: the review's first round
     rule: str = "unanimous"
     ids: list[int] | None = None
     user_ids: list[int] | None = None  # only these reviewers' decisions (at least two); default: every reviewer

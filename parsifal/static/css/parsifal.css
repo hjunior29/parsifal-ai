@@ -849,3 +849,13 @@ div.list-group.docs-nav a.list-group-item.active .docs-summary { color: #8a6f5c;
   margin-left: 20px;
   width: calc(100% - 20px);
 }
+
+/* Round mode of the study list (rapid reviews). */
+.study-round .form-control {
+  margin-right: 6px;
+}
+
+.study-round-help {
+  display: inline;
+  margin-left: 4px;
+}

@@ -280,6 +280,7 @@ def _eligibility(studies, full_text, not_retrieved, *, screened):
         "included": 0,
         "awaiting_screening": 0,
         "awaiting_full_text": 0,
+        "by_round": Counter(),
     }
     for study in studies:
         decided = study["id"] in full_text
@@ -288,6 +289,7 @@ def _eligibility(studies, full_text, not_retrieved, *, screened):
         elif study["status"] == Article.REJECTED and not decided and screened:
             boxes["excluded"] += 1
             boxes["excluded_by_automation" if study["by_agent"] else "excluded_by_people"] += 1
+            boxes["by_round"][study["round"]] += 1
         elif study["status"] == Article.REJECTED:
             reason = study["criteria"] or full_text.get(study["id"])
             if not_retrieved is not None and reason == not_retrieved:
@@ -325,16 +327,28 @@ def prisma(review):
     - Studies included: accepted at the full text. Quality is assessed on the included studies (PRISMA item 18), so
       the quality cutoff is no box of the flow.
     - Awaiting: studies still unclassified, and accepted at the screening without a full-text decision yet.
+
+    A rapid review screens in two rounds before the full text, the titles and then the titles and abstracts: both
+    are "the screening", and the records excluded are also split by round (``excluded_by_round``), by the round of
+    the latest rejection; a study rejected without a decision at a round counts at the title and abstract.
     """
+    screening = [stage for stage in review.stages() if stage != StudyDecision.FULL_TEXT]
     agents = set(ReviewAgent.objects.filter(review=review).values_list("user_id", flat=True))
     rejected_by_agents, decided_by_people = set(), set()
-    for article_id, user_id, status in StudyDecision.objects.filter(
-        review=review, stage=StudyDecision.TITLE_ABSTRACT
-    ).values_list("article_id", "user_id", "status"):
+    rejected_at = {}  # study → the latest screening round where it was rejected
+    for article_id, user_id, status, stage in (
+        StudyDecision.objects.filter(review=review, stage__in=screening)
+        .order_by("decided_at")
+        .values_list("article_id", "user_id", "status", "stage")
+    ):
         if user_id not in agents:
             decided_by_people.add(article_id)
         elif status == Article.REJECTED:
             rejected_by_agents.add(article_id)
+        if status == Article.REJECTED and screening.index(stage) >= screening.index(
+            rejected_at.get(article_id, stage)
+        ):
+            rejected_at[article_id] = stage
     full_text = {}  # study with a full-text decision → the criterion of a rejection there (None: none)
     for article_id, status, criteria_id in (
         StudyDecision.objects.filter(review=review, stage=StudyDecision.FULL_TEXT)
@@ -355,7 +369,13 @@ def prisma(review):
         "pk", "source_id", "status", "selection_criteria_id"
     ):
         by_agent = article_id in rejected_by_agents and article_id not in decided_by_people
-        study = {"id": article_id, "status": status, "criteria": criteria_id, "by_agent": by_agent}
+        study = {
+            "id": article_id,
+            "status": status,
+            "criteria": criteria_id,
+            "by_agent": by_agent,
+            "round": rejected_at.get(article_id, StudyDecision.TITLE_ABSTRACT),
+        }
         if source_id in methods:
             other[OTHER_METHODS[methods[source_id]]] += 1
             if status != Article.DUPLICATED:
@@ -386,7 +406,13 @@ def prisma(review):
         "awaiting_screening": main["awaiting_screening"],
         "awaiting_full_text": main["awaiting_full_text"],
         "not_retrieved_criteria_id": not_retrieved,
+        "excluded_by_round": None,
     }
+    if review.is_rapid_review:
+        labels = dict(StudyDecision.STAGES)
+        result["excluded_by_round"] = [
+            {"stage": stage, "label": str(labels[stage]), "excluded": main["by_round"][stage]} for stage in screening
+        ]
     if other:
         extra = _eligibility(other_studies, full_text, not_retrieved, screened=False)
         result["other_methods"] = {
@@ -402,6 +428,41 @@ def prisma(review):
         result["awaiting_screening"] += extra["awaiting_screening"]
         result["awaiting_full_text"] += extra["awaiting_full_text"]
     return result
+
+
+def selection_funnel(review):
+    """
+    The selection of a rapid review round by round ([E] Fig. 1: 1,973 → 84 → 47 → 17): the records after the
+    duplicates were removed, those that passed the title round, the title-and-abstract round, and those included at
+    the full text. A study passes a round when it reaches the next one: decided there, or accepted at the round.
+    Each round also says how many of its studies the reviewers have not decided yet.
+    """
+    if not review.is_rapid_review:
+        raise ValidationError("The selection funnel is for rapid reviews.", field="review")
+    from parsifal.apps.reviews.services import studies  # it imports this module through ai_screening
+
+    articles = review.article_set.all()
+    labels = dict(StudyDecision.STAGES)
+    stages = review.stages()
+    rows = [
+        {
+            "key": "records",
+            "label": "Records after duplicates removed",
+            "studies": articles.exclude(status=Article.DUPLICATED).count(),
+            "pending": None,
+        }
+    ]
+    for index, stage in enumerate(stages):
+        entering = studies.in_round(articles, review, stage)
+        pending = entering.exclude(decisions__stage=stage).distinct().count()
+        if index + 1 < len(stages):
+            passed = studies.in_round(articles, review, stages[index + 1]).count()
+            label = f"Passed the {str(labels[stage]).lower().replace(' screening', '')} round"
+        else:
+            passed = articles.filter(status=Article.ACCEPTED, decisions__stage=stage).distinct().count()
+            label = "Included at the full text"
+        rows.append({"key": stage, "label": label, "studies": passed, "pending": pending})
+    return rows
 
 
 def set_prisma_not_retrieved(*, review, criteria_id):

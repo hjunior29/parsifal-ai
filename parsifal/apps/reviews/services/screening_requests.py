@@ -143,9 +143,36 @@ DEFAULTS[SCREEN] = {
 }
 
 
-def default(phase):
-    """Parsifal's template for ``phase``."""
-    return copy.deepcopy(DEFAULTS[phase])
+# The title round of a rapid review reads the titles only (Cartaxo et al. 2020 §4.2.2): its templates send the title
+# and ask from it alone.
+TITLE_ONLY = (
+    ("the title and abstract of a study", "the title of a study"),
+    ("do they clearly indicate", "does it clearly indicate"),
+    ("the title or abstract", "the title"),
+    ("the title and abstract alone", "the title alone"),
+    ("The title and abstract clearly show", "The title clearly shows"),
+)
+TITLE_STAGE = "title"
+
+
+def _title_only(node):
+    if isinstance(node, dict):
+        return {key: _title_only(value) for key, value in node.items()}
+    if isinstance(node, list):
+        return [_title_only(value) for value in node]
+    if isinstance(node, str):
+        for before, after in TITLE_ONLY:
+            node = node.replace(before, after)
+    return node
+
+
+def default(phase, stage=None):
+    """Parsifal's template for ``phase``; at the title round (``stage`` "title"), the one that sends the title only."""
+    template = copy.deepcopy(DEFAULTS[phase])
+    if stage == TITLE_STAGE:
+        template = _title_only(template)
+        template["state"] = {"review": "{{review}}", "study": {"title": "{{study.title}}"}}
+    return template
 
 
 def as_text(template):

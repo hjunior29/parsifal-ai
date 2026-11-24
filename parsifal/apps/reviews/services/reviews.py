@@ -170,7 +170,27 @@ def _keys(choices):
 def _review_type(review, value):
     if value not in dict(Review.REVIEW_TYPES):
         raise ValidationError(f"review_type must be one of {_keys(Review.REVIEW_TYPES)}.", field="review_type")
+    check_type_change(review, value)
     return value
+
+
+def check_type_change(review, review_type):
+    """
+    A rapid review stays one while it has decisions at the title round, which the other types do not have. Its
+    practical context and checklist are kept when the type changes, only not shown.
+    """
+    from parsifal.apps.reviews.models import StudyDecision
+
+    if (
+        review.is_rapid_review
+        and review_type != Review.RAPID
+        and review.decisions.filter(stage=StudyDecision.TITLE).exists()
+    ):
+        raise ValidationError(
+            "This rapid review has decisions at the title round, which other types of review do not have: remove "
+            "them (or reset the study selection) before changing its type.",
+            field="review_type",
+        )
 
 
 def _date(value, field):

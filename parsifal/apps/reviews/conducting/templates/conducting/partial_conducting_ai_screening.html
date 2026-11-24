@@ -183,6 +183,28 @@
         </p>
       {% endif %}
 
+      {% if stages %}
+        {% comment %}Rapid reviews: the round the run screens at; another round reloads the window with its request.{% endcomment %}
+        <div class="row ai-round">
+          <div class="col-sm-4">
+            <div class="form-group">
+              <label for="ai-stage" class="control-label">Round</label>
+              <select name="stage" id="ai-stage" class="form-control input-sm js-ai-stage" data-phase="{{ phase }}">
+                {% for value, label in stages %}
+                  <option value="{{ value }}"{% if value == selected_stage %} selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="col-sm-8">
+            <div class="checkbox ai-pending">
+              <label><input type="checkbox" name="pending"{% if pending %} checked{% endif %}> Only the studies of the round the reviewer has not screened yet</label>
+            </div>
+            <p class="help-block small">The decisions are recorded at this round. The title round's request sends the titles only; choosing another round restores its request.</p>
+          </div>
+        </div>
+      {% endif %}
+
       <div class="row">
         <div class="col-sm-4">
           <div class="form-group">

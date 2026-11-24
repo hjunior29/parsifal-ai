@@ -36,6 +36,8 @@ def articles_list(
     finished_data_extraction: bool | None = None,
     starred: bool | None = None,
     order: str | None = None,
+    stage: str | None = None,
+    stage_state: str | None = None,
 ):
     """
     Articles of the review; ``status`` is U (unclassified), A (accepted), R (rejected) or D (duplicated); ``q``
@@ -44,7 +46,10 @@ def articles_list(
     (the most likely relevant first by the latest AI run), ``star`` (starred first), ``bibtex_key``, ``author``,
     ``journal``, ``year``, ``source``, ``doi``, ``document_type``, ``language``, ``publisher``, ``criteria``,
     ``created_by``, ``created_at``, ``updated_by``, ``updated_at`` or ``status``; a leading ``-`` reverses it. The
-    studies without the value go last either way, and ties go by title.
+    studies without the value go last either way, and ties go by title. Rapid reviews: ``stage`` (title,
+    title_abstract or full_text) keeps the studies of that screening round — at the title round every study but the
+    duplicates; at a later one those decided at it and the accepted ones decided at the round before —,
+    ``stage_state`` pending (not decided by the caller at the round yet) or decided.
     """
     review = get_review(request, review_id)
     return studies.list_articles(
@@ -55,6 +60,9 @@ def articles_list(
         finished_data_extraction=finished_data_extraction,
         starred=starred,
         order=order,
+        stage=stage,
+        stage_state=stage_state,
+        user=request.auth,
     ).select_related("created_by", "updated_by")
 
 
@@ -100,7 +108,7 @@ def articles_resolve_duplicates(request, review_id: int, payload: ResolveIn):
     return studies.resolve_duplicates(review=review, article_ids=payload.ids, actor=request.auth)
 
 
-def _selected_ids(review, payload):
+def _selected_ids(request, review, payload):
     return studies.selected_ids(
         review,
         ids=payload.ids,
@@ -109,6 +117,9 @@ def _selected_ids(review, payload):
         status=payload.match_status,
         query=payload.match_q,
         starred=payload.match_starred,
+        stage=payload.match_stage,
+        stage_state=payload.match_stage_state,
+        user=request.auth,
     )
 
 
@@ -116,16 +127,19 @@ def _selected_ids(review, payload):
 def articles_set_status(request, review_id: int, payload: StatusIn):
     """
     Bulk selection decision with an optional criteria (reason) and comments, on ``ids`` or, with ``all_matching``,
-    on every study that matches the ``match_*`` filters (source, status, search, star).
+    on every study that matches the ``match_*`` filters (source, status, search, star, round). Rapid reviews:
+    ``stage``, the screening round it is given at — accepted or rejected, it is also the caller's decision there
+    (back to unclassified, that decision goes), in the same History event.
     """
     review = get_review(request, review_id)
     count = studies.set_status(
         review=review,
-        article_ids=_selected_ids(review, payload),
+        article_ids=_selected_ids(request, review, payload),
         status=payload.status,
         selection_criteria_id=payload.selection_criteria_id,
         comments=payload.comments,
         actor=request.auth,
+        stage=payload.stage,
     )
     return CountOut(count=count)
 
@@ -253,7 +267,7 @@ def articles_delete_batch(request, review_id: int, payload: ArticlesIn):
     extractions, classifications and PDFs are deleted with them.
     """
     review = get_review(request, review_id)
-    return CountOut(count=studies.delete_articles(review=review, article_ids=_selected_ids(review, payload)))
+    return CountOut(count=studies.delete_articles(review=review, article_ids=_selected_ids(request, review, payload)))
 
 
 @router.post("/reviews/{int:review_id}/articles/clear", response=CountOut, operation_id="articles_clear")

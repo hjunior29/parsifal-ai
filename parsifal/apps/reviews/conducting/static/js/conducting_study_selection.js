@@ -44,10 +44,18 @@ $(function () {
       'status': content.find("input[name=filter]:checked").val() || "ALL",
       'q': $.trim(content.find(".js-article-search").val() || ""),
       'starred': content.find(".js-starred-filter").hasClass("active") ? "1" : "",
+      'round': currentRound(),
+      'round-state': currentRound() ? (content.find(".js-round-state").val() || "") : "",
       'order': list.attr("data-order") || "",
       'page': list.attr("data-page") || 1,
       'part': 'list'
     }, changes || {});
+  }
+
+  /* The screening round of the list (rapid reviews; "" every study): a status given in it is also the reviewer's
+     decision at that round. */
+  function currentRound() {
+    return $(".source-tab-content .js-round").val() || "";
   }
 
   var listRequest = null;
@@ -140,7 +148,7 @@ $(function () {
 
     $.ajax({
       url: '/reviews/conducting/article_details/',
-      data: {'review-id': review_id, 'article-id': article_id},
+      data: {'review-id': review_id, 'article-id': article_id, 'round': currentRound()},
       type: 'get',
       cache: false,
       beforeSend: function () {
@@ -527,6 +535,11 @@ $(function () {
     loadList({'page': 1});
   });
 
+  $(".source-tab-content").on("change", ".js-round, .js-round-state", function () {
+    $(".source-tab-content .js-round-state").prop("disabled", !currentRound());
+    loadList({'page': 1});
+  });
+
   var searchTimer = null;
   $(".source-tab-content").on("input", ".js-article-search", function () {
     clearTimeout(searchTimer);
@@ -574,6 +587,8 @@ $(function () {
     var data = {
       'review-id': review_id,
       'article_ids': article_ids,
+      'round': currentRound(),
+      'round-state': listState()['round-state'],
       'csrfmiddlewaretoken': csrf_token
     };
     var matching = selectingMatching;
@@ -598,8 +613,8 @@ $(function () {
         $(".go-button").text("Processing...");
       },
       success: function (data) {
-        if (matching) {
-          loadList();  // studies of other pages changed too
+        if (matching || currentRound()) {
+          loadList();  // studies of other pages changed too, or the ones screened left the round's list
           return;
         }
         switch (action) {

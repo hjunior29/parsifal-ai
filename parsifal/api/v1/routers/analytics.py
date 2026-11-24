@@ -12,6 +12,7 @@ from parsifal.api.v1.schemas.analytics import (
     ByYearOut,
     CriteriaUsageOut,
     ExtractionChoicesOut,
+    FunnelRowOut,
     PrismaOut,
     PrismaSettingsIn,
     QualityOverviewOut,
@@ -114,9 +115,21 @@ def analytics_prisma(request, review_id: int):
     go to "other methods"); duplicates removed; records screened and excluded without a full-text decision (by
     automation tools when only AI agents rejected them); reports sought, not retrieved (rejected at the full text with
     the review's "not retrieved" criterion), assessed and excluded by criterion; studies included (accepted at the
-    full text); and the studies still awaiting a decision. The stages come from the reviewers' decisions.
+    full text); and the studies still awaiting a decision. The stages come from the reviewers' decisions. A rapid
+    review's screening has two rounds (titles; titles and abstracts): ``excluded_by_round`` splits the records
+    excluded by the round of their rejection.
     """
     return analytics.prisma(get_review(request, review_id))
+
+
+@router.get("/reviews/{int:review_id}/analytics/funnel", response=list[FunnelRowOut], operation_id="analytics_funnel")
+def analytics_funnel(request, review_id: int):
+    """
+    Rapid reviews (422 otherwise): the selection round by round — the records after duplicates, those that passed
+    the title round, the title-and-abstract round, and those included at the full text; each round with how many
+    of its studies are not decided yet.
+    """
+    return analytics.selection_funnel(get_review(request, review_id))
 
 
 @router.put("/reviews/{int:review_id}/analytics/prisma", response=PrismaOut, operation_id="analytics_prisma_settings")

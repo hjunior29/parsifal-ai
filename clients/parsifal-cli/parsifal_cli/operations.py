@@ -90,6 +90,8 @@ ARTICLE_SELECTION = (
     B("match_status", help="With --all-matching: only studies with this status (U, A, R or D)."),
     B("match_q", help="With --all-matching: only studies whose title, DOI or BibTeX key contains this."),
     B("match_starred", BOOL, help="With --all-matching: only starred studies."),
+    B("match_stage", help="With --all-matching (rapid reviews): only the studies of this round."),
+    B("match_stage_state", help="With --all-matching and --match-stage: pending or decided (by you) at the round."),
 )
 
 ARTICLE_FIELDS = (
@@ -217,7 +219,13 @@ AI_SCREENING_REQUEST = (
     ),
     B("model", help="Jev model for this run."),
     B("defaults", BOOL, help="Take Parsifal's defaults for what is left out, not the last run's settings."),
+    B(
+        "stage",
+        help="Rapid reviews: the round the decisions are recorded at, title or title_abstract (the title round's "
+        "default request sends the title only).",
+    ),
 )
+PENDING = B("pending", BOOL, help="Rapid reviews: only the studies of the round the reviewer has not decided yet.")
 
 OPERATIONS = (
     # Account --------------------------------------------------------------------------------------------------------
@@ -1190,6 +1198,11 @@ OPERATIONS = (
             Q("finished_data_extraction", BOOL),
             Q("starred", BOOL, help="Only the starred studies (--no-starred: the others)."),
             Q(
+                "stage",
+                help="Rapid reviews: only the studies of this screening round (title, title_abstract, full_text).",
+            ),
+            Q("stage_state", help="With --stage: pending (not decided by you at the round yet) or decided."),
+            Q(
                 "order",
                 help="A column: title (default), ai_score (most likely relevant first), star, bibtex_key, author, "
                 "journal, year, source, doi, document_type, language, publisher, criteria, created_by, created_at, "
@@ -1325,6 +1338,11 @@ OPERATIONS = (
             B("status", required=True, help="U, A, R or D."),
             B("selection_criteria_id", INT, help="Reason (criteria id)."),
             B("comments", TEXT),
+            B(
+                "stage",
+                help="Rapid reviews: the screening round (title, title_abstract, full_text) it is given at; accepted "
+                "or rejected, it is also your decision there.",
+            ),
         ),
     ),
     Operation(
@@ -1621,7 +1639,7 @@ OPERATIONS = (
         "List individual screening decisions.",
         (
             REVIEW,
-            Q("stage", help="title_abstract or full_text."),
+            Q("stage", help="title (rapid reviews), title_abstract or full_text."),
             Q("user_id", INT),
             Q("article_id", INT),
             Q("status", help="U, A, R or D."),
@@ -1638,7 +1656,7 @@ OPERATIONS = (
             REVIEW,
             B("ids", LIST_INT, True, "Article ids (repeat)."),
             B("status", required=True, help="U, A, R or D."),
-            B("stage", help="title_abstract (default) or full_text."),
+            B("stage", help="title (rapid reviews), title_abstract or full_text; default: the review's first round."),
             B("selection_criteria_id", INT),
             B("comments", TEXT),
         ),
@@ -1650,7 +1668,11 @@ OPERATIONS = (
         ("decision",),
         "remove-mine",
         "Remove your own decision for an article.",
-        (REVIEW, ARTICLE, Q("stage", help="title_abstract (default) or full_text.")),
+        (
+            REVIEW,
+            ARTICLE,
+            Q("stage", help="title (rapid reviews), title_abstract or full_text; default: the review's first round."),
+        ),
         destructive=True,
     ),
     Operation(
@@ -1812,6 +1834,7 @@ OPERATIONS = (
                 "unclassified.",
             ),
             *AI_SCREENING_REQUEST,
+            PENDING,
             B(
                 "threshold",
                 FLOAT,
@@ -1843,6 +1866,8 @@ OPERATIONS = (
             B("source_id", INT, help="Only this source (0: all sources)."),
             B("run_id", INT, help="A run to do again (see rerun): its settings fill in what is left out."),
             B("defaults", BOOL, help="Parsifal's defaults for what is left out, not the last run's settings."),
+            B("stage", help="Rapid reviews: the round, title or title_abstract."),
+            PENDING,
         ),
     ),
     Operation(
@@ -1917,6 +1942,8 @@ OPERATIONS = (
             B("statuses", LIST_STR, help="Other statuses to send: U, R, A, D (repeat)."),
             B("source_id", INT, help="Another source (0: all sources)."),
             B("criteria_ids", LIST_INT, help="Other criteria to send, by id (repeat)."),
+            B("stage", help="Rapid reviews: another round, title or title_abstract."),
+            PENDING,
         ),
         check="ai_screening_impact",
     ),
@@ -2014,7 +2041,18 @@ OPERATIONS = (
         ("analytics",),
         "prisma",
         "The PRISMA 2020 flow diagram in numbers: identified per source, duplicates, screened, excluded (people and "
-        "automation tools), sought, not retrieved, assessed, excluded by criterion, included, still awaiting.",
+        "automation tools; in rapid reviews, by round), sought, not retrieved, assessed, excluded by criterion, "
+        "included, still awaiting.",
+        (REVIEW,),
+    ),
+    Operation(
+        "analytics_funnel",
+        "GET",
+        "/reviews/{review_id}/analytics/funnel",
+        ("analytics",),
+        "funnel",
+        "Rapid reviews: the selection round by round (after duplicates, passed the title round, the "
+        "title-and-abstract round, included), with the studies each round has not decided yet.",
         (REVIEW,),
     ),
     Operation(

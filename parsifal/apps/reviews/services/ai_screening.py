@@ -278,6 +278,7 @@ def run_settings(review, run):
     if source_id and not review.sources.filter(pk=source_id).exists():
         source_id = None
     skipped = set(parameters.get("skipped_criteria", []))
+    stage = run_stage(run) if review.is_rapid_review else StudyDecision.TITLE_ABSTRACT
     settings = {
         "phase": phase,
         "reviewer_id": run.reviewer_id,
@@ -285,9 +286,11 @@ def run_settings(review, run):
         "context": parameters.get("context") or None,
         "guidance": parameters.get("guidance") or "",
         # Runs from before request templates were editable used the default.
-        "template": parameters.get("template") or screening_requests.default(phase),
+        "template": parameters.get("template") or screening_requests.default(phase, stage),
         "source_id": source_id,
         "statuses": parameters.get("statuses"),
+        "stage": stage,
+        "pending": bool(parameters.get("pending")) and review.is_rapid_review,
         "criteria_ids": [option["id"] for option in criteria_options(review, phase) if option["id"] not in skipped],
         "threshold": None,
         "thresholds": None,
@@ -311,15 +314,18 @@ def starting_settings(review, phase, *, defaults=False):
     if run is not None:
         return {**run_settings(review, run), "run": run}
     inclusion = inclusion_options(review)
+    stage = clean_stage(review, None)
     return {
         "phase": phase,
         "reviewer_id": last_reviewer_id(review),
         "model": None,
         "context": default_context(review),
         "guidance": "",
-        "template": screening_requests.default(phase),
+        "template": screening_requests.default(phase, stage),
         "source_id": None,
         "statuses": clean_statuses(None, phase),
+        "stage": stage,
+        "pending": False,
         "criteria_ids": [option["id"] for option in criteria_options(review, phase)],
         "threshold": DEFAULT_THRESHOLD if phase in (EXCLUSION, SCREEN) else None,
         "thresholds": (
@@ -350,12 +356,49 @@ def clean_statuses(statuses, phase=EXCLUSION):
     return [code for code, _label in STATUSES if code in chosen]
 
 
-def eligible_articles(review, *, statuses=DEFAULT_STATUSES[EXCLUSION], source_id=None):
-    """What a run sends: the studies with ``statuses``, from one source or all of them."""
+def eligible_articles(review, *, statuses=DEFAULT_STATUSES[EXCLUSION], source_id=None, stage=None, reviewer=None):
+    """
+    What a run sends: the studies with ``statuses``, from one source or all of them; with ``stage`` (a rapid review's
+    round), only those of the round that ``reviewer`` has not decided at it yet.
+    """
     articles = review.article_set.filter(status__in=statuses)
     if source_id:
         articles = articles.filter(source_id=source_id)
+    if stage:
+        from parsifal.apps.reviews.services import studies  # it imports this module
+
+        articles = studies.in_round(articles, review, stage, studies.ROUND_PENDING, reviewer)
     return articles.order_by("pk")
+
+
+# The screening rounds an AI run can screen at: it reads titles and abstracts, not the full text.
+AI_STAGES = (StudyDecision.TITLE, StudyDecision.TITLE_ABSTRACT)
+
+
+def run_stage(run):
+    """The screening round a run records its decisions at; runs from before rounds: the title and abstract."""
+    return (run.parameters or {}).get("stage") or StudyDecision.TITLE_ABSTRACT
+
+
+def clean_stage(review, stage):
+    """
+    The round a run screens at: in a rapid review, the title round or the title-and-abstract one; in the others,
+    always the title and abstract.
+    """
+    if not review.is_rapid_review:
+        if stage not in (None, "", StudyDecision.TITLE_ABSTRACT):
+            raise ValidationError("Screening rounds are for rapid reviews.", field="stage")
+        return StudyDecision.TITLE_ABSTRACT
+    stage = stage or review.first_stage
+    if stage not in AI_STAGES:
+        raise ValidationError(f"stage must be one of {', '.join(AI_STAGES)}.", field="stage")
+    return stage
+
+
+def clean_pending(review, pending):
+    if pending and not review.is_rapid_review:
+        raise ValidationError("Screening rounds are for rapid reviews.", field="pending")
+    return bool(pending)
 
 
 def scope_counts(review):
@@ -640,6 +683,8 @@ def start_run(
     statuses=None,
     criteria_ids=None,
     defaults=False,
+    stage=None,
+    pending=None,
 ):
     """
     Check the settings, take the studies in scope and open a run of ``phase`` (exclusion, inclusion or screen);
@@ -649,13 +694,19 @@ def start_run(
     sources. ``template``: the request sent about each study, as an object or its JSON text (see
     ``screening_requests``). ``criteria_ids``: the criteria sent. ``threshold``: the exclusion threshold (see
     ``clean_threshold``); inclusion has one per criterion (``thresholds``, see ``clean_thresholds``). ``statuses``
-    picks the studies sent (codes U, R, A, D; see ``clean_statuses``).
+    picks the studies sent (codes U, R, A, D; see ``clean_statuses``). Rapid reviews: ``stage``, the round the
+    decisions are recorded at (title or title_abstract; the title round's default request sends the title only), and
+    ``pending``, only the studies of that round the reviewer has not decided at it yet.
     """
     phase = clean_phase(phase)
     integrations.jev_api_key(actor)  # a key the actor can use, before anything else
     reviewer = get_reviewer(review, actor, reviewer_id)
     base = starting_settings(review, phase, defaults=defaults)
     model = _clean_model(actor, base["model"] if model is None else model)
+    stage = clean_stage(review, base["stage"] if stage is None else stage)
+    pending = clean_pending(review, base["pending"] if pending is None else pending)
+    if template is None and stage != base["stage"]:
+        template = screening_requests.default(phase, stage)  # another round: its own request, not the last run's
     options, skipped, context, guidance, template = _clean_request(
         review, phase, base, context, guidance, template, criteria_ids
     )
@@ -666,7 +717,10 @@ def start_run(
         base["statuses"] if statuses is None else statuses,
         base["source_id"] if source_id is None else source_id,
     )
-    articles = list(eligible_articles(review, statuses=statuses, source_id=source_id).values_list("pk", "status"))
+    articles = eligible_articles(
+        review, statuses=statuses, source_id=source_id, stage=stage if pending else None, reviewer=reviewer
+    )
+    articles = list(articles.values_list("pk", "status"))
     if not articles:
         raise ValidationError("There are no studies with these statuses in this scope.", field="statuses")
 
@@ -682,6 +736,8 @@ def start_run(
         **decide,
         "source_id": source_id,
         "statuses": statuses,
+        "stage": stage,
+        "pending": pending,
     }
     run = ScreeningRun.objects.create(
         review=review,
@@ -696,11 +752,12 @@ def start_run(
         ScreeningResult(run=run, article_id=pk, previous_status=status) for pk, status in articles
     )
     reviewer_name = reviewer.get_full_name() or reviewer.username
+    at = f" ({decisions.STAGES[stage]})" if review.is_rapid_review else ""
     record_run(
         run,
         history.ADDED,
         f"Started {LABELS[phase]} (run #{run.pk}) on {history.studies(len(articles))} as {reviewer_name}, "
-        f"model {model}",
+        f"model {model}{at}",
         items=[f"{option['key']}: {option['description']}" for option in options],
         actor=actor,
     )
@@ -737,6 +794,7 @@ def preview(
     criteria_ids=None,
     defaults=False,
     article_id=None,
+    stage=None,
 ):
     """
     The request a run with these settings (see ``start_run``) would send to Jev about one study, without sending
@@ -745,6 +803,9 @@ def preview(
     """
     phase = clean_phase(phase)
     base = starting_settings(review, phase, defaults=defaults)
+    stage = clean_stage(review, base["stage"] if stage is None else stage)
+    if template is None and stage != base["stage"]:
+        template = screening_requests.default(phase, stage)
     options, _skipped, context, guidance, template = _clean_request(
         review, phase, base, context, guidance, template, criteria_ids
     )
@@ -1057,16 +1118,17 @@ def decision_snapshot(decision):
 
 def _decide(run, result, status, criteria_id, detail):
     """Record the reviewer's decision, keeping in the result the one it replaces."""
-    before = StudyDecision.objects.filter(
-        article_id=result.article_id, user=run.reviewer, stage=StudyDecision.TITLE_ABSTRACT
-    ).values("status", "selection_criteria_id", "comments", "decided_at", "run_id")
+    stage = run_stage(run)
+    before = StudyDecision.objects.filter(article_id=result.article_id, user=run.reviewer, stage=stage).values(
+        "status", "selection_criteria_id", "comments", "decided_at", "run_id"
+    )
     result.previous_decision = decision_snapshot(before.first())
     decisions.record_decision(
         review=run.review,
         article_id=result.article_id,
         actor=run.reviewer,
         status=status,
-        stage=StudyDecision.TITLE_ABSTRACT,
+        stage=stage,
         criteria_id=criteria_id,
         comments=f"{LABELS[run.phase]} (run {run.pk}, {result.model}): {detail}.",
         run=run,

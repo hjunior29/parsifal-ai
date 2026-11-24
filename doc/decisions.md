@@ -835,3 +835,33 @@ rapid reviews.
 **Consequences.** Migration `reviews.0057`. The rounds of selection (phase 2)
 come next.
 
+
+## Rapid reviews, phase 2: the screening rounds
+
+**Context.** `doc/17-rapid-reviews.md` §3.5 and Helder's decisions: three
+rounds in a rapid review (titles → titles and abstracts, the existing stage →
+full text), no abstract-only and no partial-text round.
+
+**Decision.**
+- `StudyDecision.TITLE`; `Review.stages()` is the switch: every default stage
+  is the review's first round, and a stage outside the review's rounds is
+  refused (the title round in an SLR or a mapping study).
+- Round mode: a study's status stays the consolidated outcome; given at a
+  round, it is also the reviewer's decision there, with the same criterion,
+  in the same History event (`studies.set_status(stage=…)`,
+  `decisions.record_round`). Back to unclassified removes that decision; a
+  duplicate is no decision.
+- The queue rule of the plan, pinned by tests: first round, every study but
+  the duplicates; a later round, the studies decided at it and those accepted
+  and decided at the round before; pending/decided per reviewer.
+- AI runs record at their round (`parameters["stage"]`; title or title and
+  abstract — Jev never reads the full text); undo and the impact count use
+  it. Changing the round in the window restores that round's default request
+  (the title round's sends the title only).
+- PRISMA: both rounds are the screening; the records excluded are split by the
+  round of the latest rejection, a study rejected with no round decision
+  counting at the title and abstract. The selection funnel is rapid only.
+- A rapid review cannot change type while it has title-round decisions.
+
+**Consequences.** Migration `reviews.0058` (the stage choices).
+

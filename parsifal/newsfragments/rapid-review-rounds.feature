@@ -1,0 +1,1 @@
+Rapid reviews (Cartaxo et al. 2020): a rapid review starts with a title-only round before the titles and abstracts and the full text: a round mode on Study Selection, AI runs per round, the selection rounds in Data Analysis and a PRISMA split by round.

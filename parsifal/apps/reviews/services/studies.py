@@ -7,7 +7,7 @@ from dataclasses import dataclass, field as dataclass_field
 from difflib import SequenceMatcher
 
 from django.db import transaction
-from django.db.models import BooleanField, ExpressionWrapper, F, Q, Value
+from django.db.models import BooleanField, Exists, ExpressionWrapper, F, OuterRef, Q, Value
 from django.db.models.functions import NullIf
 from django.utils import timezone
 from django.utils.text import slugify
@@ -16,8 +16,8 @@ import bibtexparser
 from bibtexparser.bparser import BibTexParser
 
 from parsifal.apps.core.exceptions import ValidationError
-from parsifal.apps.reviews.models import Article, ReviewEvent
-from parsifal.apps.reviews.services import ai_screening, history, search
+from parsifal.apps.reviews.models import Article, ReviewEvent, StudyDecision
+from parsifal.apps.reviews.services import ai_screening, decisions, history, search
 from parsifal.apps.reviews.services._common import check_length, get_child, get_children
 
 # Maximum length of every editable Article text field (mirrors the model).
@@ -69,8 +69,11 @@ def selection_summary(status, what, many=False):
     }[status]
 
 
-def record_study_changes(review, article, tracker):
-    """What changed in a study since ``tracker``: its details (Studies) and its status or criterion (Selection)."""
+def record_study_changes(review, article, tracker, stage=None):
+    """
+    What changed in a study since ``tracker``: its details (Studies) and its status or criterion (Selection), at the
+    screening round ``stage`` when given (round mode: also the actor's decision there).
+    """
     changes = tracker.changes()
     details = [change for change in changes if change["key"] not in SELECTION_FIELDS]
     selection = [change for change in changes if change["key"] in SELECTION_FIELDS]
@@ -91,6 +94,8 @@ def record_study_changes(review, article, tracker):
             summary = selection_summary(article.status, what)
         else:
             summary = f"Changed the criterion of {what}"
+        if stage:
+            summary += f" ({decisions.STAGES[stage]})"
         history.record(
             review,
             ReviewEvent.SELECTION,
@@ -386,11 +391,17 @@ def clear_articles(*, review, source_id, status=None):
     return count
 
 
-def set_status(*, review, article_ids, status, selection_criteria_id=None, comments=None, actor=None):
-    """Bulk selection decision; the criteria (reason) and comments are optional and applied to every article."""
+def set_status(*, review, article_ids, status, selection_criteria_id=None, comments=None, actor=None, stage=None):
+    """
+    Bulk selection decision; the criteria (reason) and comments are optional and applied to every article. ``stage``
+    (rapid reviews, round mode): the screening round it is given at — it is also the actor's decision there
+    (``decisions.record_round``), in the same event.
+    """
     _validate_status(status)
     criteria = _get_criteria(review, selection_criteria_id)
     articles = get_children(review.article_set, article_ids, label="Article")
+    if stage:
+        decisions.check_round(review, stage)
     if comments is not None:
         check_length(comments, ARTICLE_FIELD_LIMITS["comments"], field="comments")
     updates = {"status": status, "updated_by": actor}
@@ -399,12 +410,26 @@ def set_status(*, review, article_ids, status, selection_criteria_id=None, comme
     if comments is not None:
         updates["comments"] = comments
     review.article_set.filter(pk__in=[a.pk for a in articles]).update(**updates)
-    record_status_set(review, articles, status, criteria if selection_criteria_id is not None else None, actor)
+    if stage:
+        decisions.record_round(
+            review=review,
+            article_ids=[a.pk for a in articles],
+            actor=actor,
+            status=status,
+            stage=stage,
+            criteria_id=selection_criteria_id,
+        )
+    record_status_set(
+        review, articles, status, criteria if selection_criteria_id is not None else None, actor, stage=stage
+    )
     return len(articles)
 
 
-def record_status_set(review, articles, status, criteria=None, actor=None):
-    """``articles`` (as they were) were given ``status``: one event, with how many had each status before."""
+def record_status_set(review, articles, status, criteria=None, actor=None, stage=None):
+    """
+    ``articles`` (as they were) were given ``status`` (at the screening round ``stage``, if any): one event, with how
+    many had each status before.
+    """
     if not articles:
         return
     labels = dict(Article.ARTICLE_STATUS)
@@ -414,6 +439,8 @@ def record_status_set(review, articles, status, criteria=None, actor=None):
         summary = selection_summary(status, history.studies(len(articles)), many=True)
     if criteria is not None:
         summary += f" ({criteria.description})"
+    if stage:
+        summary += f" ({decisions.STAGES[stage]})"
     before = Counter(labels[article.status] for article in articles)
     items = [f"{count} {'was' if count == 1 else 'were'} {name}" for name, count in sorted(before.items())]
     history.record(
@@ -497,10 +524,23 @@ def ordering(order):
     return value, "title", "pk"
 
 
-def selected_ids(review, *, ids=None, all_matching=False, source_id=None, status=None, query=None, starred=None):
+def selected_ids(
+    review,
+    *,
+    ids=None,
+    all_matching=False,
+    source_id=None,
+    status=None,
+    query=None,
+    starred=None,
+    stage=None,
+    stage_state=None,
+    user=None,
+):
     """
     The studies an action applies to: ``ids``; or, with ``all_matching``, every study of the review that matches the
-    study list's filters (``source_id``, ``status``, ``query``, ``starred``; every study when none is given).
+    study list's filters (``source_id``, ``status``, ``query``, ``starred``, the round ``stage`` and ``stage_state`` of
+    ``user``; every study when none is given).
     """
     if all_matching and ids:
         raise ValidationError("Give the studies' ids or all_matching, not both.", field="ids")
@@ -512,16 +552,64 @@ def selected_ids(review, *, ids=None, all_matching=False, source_id=None, status
         return list(ids)
     if source_id is not None:
         get_child(review.sources, source_id, label="Source")
-    queryset = list_articles(review, source_id=source_id, status=status, query=query, starred=starred)
+    queryset = list_articles(
+        review,
+        source_id=source_id,
+        status=status,
+        query=query,
+        starred=starred,
+        stage=stage,
+        stage_state=stage_state,
+        user=user,
+    )
     return list(queryset.values_list("pk", flat=True))
 
 
+ROUND_PENDING, ROUND_DECIDED = "pending", "decided"
+
+
+def in_round(queryset, review, stage, state=None, user=None):
+    """
+    The studies of a screening round of a rapid review: at the first round (the titles), every study but the
+    duplicates; at a later one, those with a decision at it and the accepted ones decided at the round before (its
+    queue). ``state``: pending, those ``user`` has not decided at the round yet; decided, those they have.
+    """
+    decisions.check_round(review, stage)
+    stages = review.stages()
+    at = StudyDecision.objects.filter(article=OuterRef("pk"), stage=stage)
+    index = stages.index(stage)
+    if index == 0:
+        queryset = queryset.exclude(status=Article.DUPLICATED)
+    else:
+        before = StudyDecision.objects.filter(article=OuterRef("pk"), stage=stages[index - 1])
+        queryset = queryset.filter(Exists(at) | (Q(status=Article.ACCEPTED) & Exists(before)))
+    if state not in (None, "", ROUND_PENDING, ROUND_DECIDED):
+        raise ValidationError("stage_state must be pending or decided.", field="stage_state")
+    if state == ROUND_PENDING:
+        queryset = queryset.exclude(Exists(at.filter(user=user)))
+    elif state == ROUND_DECIDED:
+        queryset = queryset.filter(Exists(at.filter(user=user)))
+    return queryset
+
+
 def list_articles(
-    review, *, source_id=None, status=None, query=None, finished_data_extraction=None, starred=None, order=None
+    review,
+    *,
+    source_id=None,
+    status=None,
+    query=None,
+    finished_data_extraction=None,
+    starred=None,
+    order=None,
+    stage=None,
+    stage_state=None,
+    user=None,
 ):
     """
     The review's studies, filtered, with how likely each is relevant by the latest AI answer (``ai_score``);
-    ``order``: a column of the study list (``ORDERS``, by title when none), a leading "-" reverses it.
+    ``order``: a column of the study list (``ORDERS``, by title when none), a leading "-" reverses it. ``stage``
+    (rapid reviews): only the studies of that screening round, ``stage_state`` pending or decided by ``user``
+    (``in_round``).
     """
     queryset = ai_screening.with_relevance(
         review.article_set.select_related("source", "selection_criteria", "pdf__uploaded_by", "starred_by")
@@ -536,6 +624,8 @@ def list_articles(
         queryset = queryset.filter(starred_at__isnull=not starred)
     if query and query.strip():
         queryset = queryset.filter(search_filter(query))
+    if stage:
+        queryset = in_round(queryset, review, stage, stage_state, user)
     return queryset
 
 

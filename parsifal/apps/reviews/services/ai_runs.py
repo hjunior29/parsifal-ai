@@ -105,7 +105,7 @@ def _plan(run):
     """
     results = list(run.results.exclude(outcome__in=NO_EFFECT).order_by("pk"))
     decisions = dict(
-        StudyDecision.objects.filter(run=run, user_id=run.reviewer_id, stage=StudyDecision.TITLE_ABSTRACT).values_list(
+        StudyDecision.objects.filter(run=run, user_id=run.reviewer_id, stage=ai_screening.run_stage(run)).values_list(
             "article_id", "pk"
         )
     )
@@ -303,7 +303,19 @@ def _classified_name(phase):
     return " or ".join(STATUS_NAMES[code].lower() for code in statuses)
 
 
-def impact(*, review, actor, reviewer_id=None, phase=None, statuses=None, source_id=None, run_id=None, defaults=False):
+def impact(
+    *,
+    review,
+    actor,
+    reviewer_id=None,
+    phase=None,
+    statuses=None,
+    source_id=None,
+    run_id=None,
+    defaults=False,
+    stage=None,
+    pending=None,
+):
     """
     What a new run would rewrite, to confirm before starting it: of the studies it sends, how many have a decision of
     its reviewer (which the run replaces) and how many that reviewer classified with a status the run may change.
@@ -330,8 +342,12 @@ def impact(*, review, actor, reviewer_id=None, phase=None, statuses=None, source
     phase = ai_screening.clean_phase(phase)
     reviewer = ai_screening.get_reviewer(review, actor, reviewer_id)
     statuses, source_id = ai_screening.clean_scope(review, phase, statuses, source_id)
-    articles = ai_screening.eligible_articles(review, statuses=statuses, source_id=source_id)
-    decisions = articles.filter(decisions__user=reviewer, decisions__stage=StudyDecision.TITLE_ABSTRACT).count()
+    stage = ai_screening.clean_stage(review, settings["stage"] if stage is None else stage)
+    pending = ai_screening.clean_pending(review, settings["pending"] if pending is None else pending)
+    articles = ai_screening.eligible_articles(
+        review, statuses=statuses, source_id=source_id, stage=stage if pending else None, reviewer=reviewer
+    )
+    decisions = articles.filter(decisions__user=reviewer, decisions__stage=stage).count()
     classified = articles.filter(
         status__in=ai_screening.CHANGEABLE[phase] - {Article.UNCLASSIFIED}, updated_by=reviewer
     ).count()

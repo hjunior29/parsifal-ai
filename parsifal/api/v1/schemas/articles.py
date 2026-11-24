@@ -137,12 +137,15 @@ class ArticlesIn(Schema):
     match_status: str | None = None  # U, A, R or D
     match_q: str | None = None  # title, DOI or BibTeX key
     match_starred: bool | None = None
+    match_stage: str | None = None  # rapid reviews: the studies of this screening round
+    match_stage_state: str | None = None  # pending or decided (by the caller) at that round
 
 
 class StatusIn(ArticlesIn):
     status: str
     selection_criteria_id: int | None = None
     comments: str | None = None
+    stage: str | None = None  # rapid reviews: the round it is given at; also the caller's decision there
 
 
 class ImportIn(Schema):

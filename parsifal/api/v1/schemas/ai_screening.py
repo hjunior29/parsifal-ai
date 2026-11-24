@@ -113,6 +113,8 @@ class ScreeningStartSettingsOut(Schema):
     source_id: int | None  # null: all sources
     statuses: list[str]
     criteria_ids: list[int]  # the criteria sent; the others are left out
+    stage: str  # the round the decisions are recorded at (title_abstract; rapid reviews: title or title_abstract)
+    pending: bool  # rapid reviews: only the studies of the round the reviewer has not decided at it yet
 
 
 class ScreeningSetupOut(Schema):
@@ -145,6 +147,7 @@ class ScreeningSetupOut(Schema):
     scopes: list[ScreeningScopeOut]
     step_size_default: int
     step_size_max: int
+    stages: list[str]  # the rounds a run may screen at: title_abstract; rapid reviews: title and title_abstract
 
 
 class ScreeningSettingsIn(Schema):
@@ -171,6 +174,10 @@ class ScreeningSettingsIn(Schema):
     # The criteria sent (ids, as the setup's ``criteria``): leave out those Jev cannot judge from a title and abstract.
     criteria_ids: list[int] | None = None
     defaults: bool = False  # what is left out takes Parsifal's defaults instead of the last run's settings
+    # Rapid reviews: the round the decisions are recorded at, title or title_abstract (the title round's default
+    # request sends the title only); ``pending``: only the studies of that round the reviewer has not decided yet.
+    stage: str | None = None
+    pending: bool | None = None
 
 
 class ScreeningStartIn(ScreeningSettingsIn):
@@ -270,6 +277,8 @@ class ScreeningImpactIn(Schema):
     source_id: int | None = None  # 0: all sources
     run_id: int | None = None  # a run to do again (see the rerun operation): its settings fill in what is left out
     defaults: bool = False  # what is left out takes Parsifal's defaults instead of the last run's settings
+    stage: str | None = None  # rapid reviews: the round (title or title_abstract)
+    pending: bool | None = None  # rapid reviews: only the studies of the round not decided by the reviewer yet
 
 
 class ScreeningImpactOut(Schema):
@@ -293,3 +302,5 @@ class ScreeningRerunIn(Schema):
     statuses: list[str] | None = None
     source_id: int | None = None  # 0: all sources
     criteria_ids: list[int] | None = None
+    stage: str | None = None  # rapid reviews: the round (title or title_abstract)
+    pending: bool | None = None  # rapid reviews: only the studies of the round not decided by the reviewer yet

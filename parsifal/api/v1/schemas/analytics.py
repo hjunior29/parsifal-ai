@@ -144,6 +144,19 @@ class PrismaOtherMethodsOut(Schema):
     included: int
 
 
+class PrismaRoundOut(Schema):
+    stage: str  # title or title_abstract
+    label: str
+    excluded: int  # records excluded at that round
+
+
+class FunnelRowOut(Schema):
+    key: str  # records, then each round: title, title_abstract, full_text
+    label: str
+    studies: int  # the records after duplicates; then those that passed the round (included, at the full text)
+    pending: int | None = None  # studies of the round not decided at it yet
+
+
 class PrismaOut(Schema):
     """The boxes of the PRISMA 2020 flow diagram (identification via databases and registers; other methods)."""
 
@@ -163,6 +176,8 @@ class PrismaOut(Schema):
     awaiting_screening: int  # still unclassified
     awaiting_full_text: int  # accepted at the screening, no full-text decision yet
     not_retrieved_criteria_id: int | None = None
+    # Rapid reviews: the records excluded at each screening round (title; title and abstract); null otherwise.
+    excluded_by_round: list[PrismaRoundOut] | None = None
 
 
 class PrismaSettingsIn(Schema):

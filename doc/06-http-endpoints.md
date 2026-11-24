@@ -198,6 +198,7 @@ Action endpoints under `/reviews/conducting/`, guard **A** unless noted:
 
 | Path | Method | Guard | Inputs | Output |
 |------|--------|-------|--------|--------|
+| `source_articles/`, `multiple_articles_action/<action>/`, `article_details/`, `save_article_details/` (rapid reviews) | GET/POST | A | `round` (`title`, `title_abstract`, `full_text`), `round-state` (`pending`, `decided`) | Round mode of Study Selection: the list of the round (`studies.in_round`; the title round leaves the abstract column out and hides the study's abstract behind a click), and a status given (bulk, or in the study's window) is also the user's decision at the round, in the same History event |
 | `/<u>/<r>/planning/rapid/` | GET/POST | A | POST `applied-<key>` (on), `notes-<key>` for each item, `action` save / draft | Rapid Review Checklist (rapid reviews; 404 otherwise); draft also adds the threats of the concessions (`services/rapid.py`) |
 | `/reviews/planning/save_protocol_fields/` | POST | A | `review-id`; any of `demand`, `demand_notes`, `practical_problem`, `practical_context`, `stakeholder_roles`, `started_on`, `deadline`, `selection_procedure`, `synthesis_strategy` | `services.reviews.update_review`; empty / 400 with the error text |
 | `/<u>/<r>/reporting/` | GET | A | | redirect to Threats to Validity |

@@ -194,6 +194,13 @@ group and marks the rest `D`.
   rapid review checklist is `ProcessChecklistItem` rows with `rr_*` keys (`services/rapid.py`, `mapping.CATALOGS`):
   changes recorded as Planning (an amendment once studies exist); `rapid.draft_threats` adds a `ValidityThreat` per
   concession applied.
+- Screening rounds: `StudyDecision.STAGES` has `title` (rapid reviews only), `title_abstract`, `full_text`;
+  `Review.stages()` / `first_stage` / `stage_choices()` give a review's rounds (rapid: title → title_abstract →
+  full_text; others: title_abstract → full_text). `services.studies.in_round` is a round's queue (first round: all but
+  duplicates; later: decided at it, or accepted and decided at the round before); `decisions.record_round` makes a
+  status given at a round the actor's decision there (A/R recorded, U removes it, D none). An AI run's round is
+  `ScreeningRun.parameters["stage"]` (runs without it: title_abstract), and `pending` sends only the round's studies
+  its reviewer has not decided. A rapid review cannot change type while it has title-round decisions.
 - `ValidityThreat(review CASCADE related "threats", category (its type, free; ≤100), title (its name, ≤255),
   description, mitigation, order, created_at, updated_at)`: a threat to the validity of the review
   (`services/threats.py`; Reporting → Threats to Validity). Types suggested: Petersen et al. 2015 §3.6 and Wohlin et

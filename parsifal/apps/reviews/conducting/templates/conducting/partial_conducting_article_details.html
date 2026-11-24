@@ -99,8 +99,17 @@
         </div>
         <div class="form-group">
           <label class="control-label">Abstract</label>
-          <textarea name="abstract" id="abstract" rows="5" class="form-control">{{ article.abstract }}</textarea>
+          {% if round == "title" %}
+            {# The title round reads the titles only (Cartaxo et al. 2020 §4.2.2): the abstract stays a click away. #}
+            <p><a href="#abstract-wrapper" data-toggle="collapse" aria-expanded="false" class="small">Show the abstract (the title round reads the titles only)</a></p>
+            <div class="collapse" id="abstract-wrapper">
+              <textarea name="abstract" id="abstract" rows="5" class="form-control">{{ article.abstract }}</textarea>
+            </div>
+          {% else %}
+            <textarea name="abstract" id="abstract" rows="5" class="form-control">{{ article.abstract }}</textarea>
+          {% endif %}
         </div>
+        {% if round %}<input type="hidden" name="round" value="{{ round }}">{% endif %}
         <div class="form-group">
           <label class="control-label">Year</label>
           <input type="text" class="form-control" name="year" id="year" value="{{ article.year|default_if_none:'' }}">

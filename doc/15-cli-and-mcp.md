@@ -64,6 +64,7 @@ mirror the API parameters in kebab-case; `--review` accepts a numeric id or
 | `facet` | `templates`, `list`, `create --template | --name [--categories …] [--multiple]`, `update --id`, `delete --id`, `reorder --ids …`; `facet category create|update|delete|reorder --facet` |
 | `classification` | `get --article`, `set --article --facet-id --category-ids …` |
 | `test-set` | `get`, `add --title [--doi]`, `update --id`, `delete --id`, `match` |
+| (rapid reviews) | `article list --stage title|title_abstract|full_text [--stage-state pending|decided]`, `article set-status … --stage` (also your decision at the round; `--match-stage`, `--match-stage-state`), `decision … --stage title`, `ai-screening start|run|preview|impact|rerun --stage title|title_abstract [--pending]`, `analytics funnel` |
 | `checklist` | `get [--catalog petersen|rapid]`, `set --key --applied/--no-applied [--notes]` (rapid review keys `rr_*`; `--notes` is the justification) |
 | `decision` | `list [--stage --user-id --article-id --status]`, `record --ids … --status [--stage --selection-criteria-id --comments]`, `remove-mine --article`, `article --article`, `summary`, `agreement [--user-a-id --user-b-id]`, `disagreements`, `consolidate [--rule unanimous|any_include|majority] [--ids …]` |
 | `export` | `articles --format csv|xlsx|json -o FILE`, `extraction --format … [--no-evidence] -o FILE`, `report [--sections …] -o FILE` |
