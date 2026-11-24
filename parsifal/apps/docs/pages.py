@@ -65,9 +65,9 @@ PAGES = (
     ),
     Page(
         "reporting",
-        "Reporting: threats to validity",
+        "Reporting: threats to validity and manuscripts",
         "Methodology",
-        "Each threat to the validity of the review, of a type, with its description and mitigation.",
+        "Each threat to the validity of the review; the texts written from it, each with its versions.",
     ),
     Page(
         "ai-screening",

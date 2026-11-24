@@ -1,8 +1,8 @@
 """
 Backups of one review: everything of it — protocol, sources and search strings, studies and their PDFs, the
-reviewers' decisions, AI screening runs, quality assessment, data extraction, classification, threats to validity —
-in one ``.tar.gz``
-(``review.json``, ``files/`` with the PDFs, ``manifest.json`` with checksums).
+reviewers' decisions, AI screening runs, quality assessment, data extraction, classification, threats to validity,
+manuscripts and their versions — in one ``.tar.gz`` (``review.json``, ``files/`` with the PDFs and the manuscripts'
+files, ``manifest.json`` with checksums).
 
 A backup is kept on the server in the review's list (the newest ``PARSIFAL_REVIEW_BACKUPS_KEEP``), downloaded,
 restored over the review (its current content is backed up first) or imported as a new review, here or in another
@@ -15,6 +15,7 @@ import datetime
 import hashlib
 import io
 import json
+import os
 import tarfile
 import uuid
 from decimal import Decimal
@@ -24,7 +25,7 @@ from django.contrib.auth.models import User
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.migrations.recorder import MigrationRecorder
-from django.db.models import DateField, DateTimeField
+from django.db.models import DateField, DateTimeField, Q
 from django.utils import timezone
 from django.utils.text import slugify
 
@@ -39,6 +40,8 @@ from parsifal.apps.reviews.models import (
     DataExtractionField,
     DataExtractionLookup,
     Keyword,
+    Manuscript,
+    ManuscriptVersion,
     ProcessChecklistItem,
     QualityAnswer,
     QualityAssessment,
@@ -83,7 +86,13 @@ CONTENT = (
     ("categories", ClassificationCategory, lambda review: ClassificationCategory.objects.filter(facet__review=review)),
     ("checklist", ProcessChecklistItem, lambda review: review.checklist_items.all()),
     ("threats", ValidityThreat, lambda review: review.threats.all()),
-    ("files", StoredFile, lambda review: StoredFile.objects.filter(article__review=review)),
+    (
+        "files",
+        StoredFile,
+        lambda review: StoredFile.objects.filter(
+            Q(article__review=review) | Q(manuscript_version__manuscript__review=review)
+        ).distinct(),
+    ),
     ("articles", Article, lambda review: review.article_set.all()),
     ("test_set", ReviewTestSetArticle, lambda review: review.test_set.all()),
     ("assessments", QualityAssessment, lambda review: QualityAssessment.objects.filter(article__review=review)),
@@ -92,6 +101,12 @@ CONTENT = (
         "classifications",
         ArticleClassification,
         lambda review: ArticleClassification.objects.filter(article__review=review),
+    ),
+    ("manuscripts", Manuscript, lambda review: review.manuscripts.all()),
+    (
+        "manuscript_versions",
+        ManuscriptVersion,
+        lambda review: ManuscriptVersion.objects.filter(manuscript__review=review),
     ),
     ("runs", ScreeningRun, lambda review: review.screening_runs.all()),
     ("results", ScreeningResult, lambda review: ScreeningResult.objects.filter(run__review=review)),
@@ -439,7 +454,9 @@ class _Import:
         through.objects.bulk_create(rows, batch_size=500)
 
     def file(self, row):
-        key = f"reviews/{self.review.pk}/{uuid.uuid4().hex}.pdf"
+        folder = "manuscripts/" if "/manuscripts/" in row["key"] else ""
+        extension = os.path.splitext(row["key"])[1] or ".pdf"
+        key = f"reviews/{self.review.pk}/{folder}{uuid.uuid4().hex}{extension}"
         return files_storage().save(key, ContentFile(self.archive.extractfile(FILES + row["key"]).read()))
 
     def parameters(self, parameters):

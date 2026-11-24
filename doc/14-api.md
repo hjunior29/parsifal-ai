@@ -91,6 +91,13 @@ An **agent** is an AI co-author with an account of its own, created for one revi
 | `GET /reviews/{rid}/articles/{aid}/quality` · `PUT {question_id, answer_id}` (no `answer_id`: clear the answer) | `article_quality_get` · `article_quality_assess` (records the acting user) |
 | `GET /reviews/{rid}/quality/studies?q=&state=done|pending|above|below&order=title|-title|year|-year&limit=&offset=` | `quality_studies` — the accepted studies as Quality Assessment lists them, each with `score` and `answered` (questions with an answer); `q` searches the title; `above`/`below`: score above the cutoff, or at most it |
 
+### Manuscripts
+
+| Endpoint | operationId |
+|---|---|
+| `GET/POST /reviews/{rid}/manuscripts` (`name`, `description`) · `PATCH/DELETE /{id}` | `manuscripts_list` (each with its `versions`, the newest first: `number`, `filename`, `content_type`, `size`, `sha256`, `notes`, `created_by`, `created_at`) · `manuscripts_create` · `manuscripts_update` · `manuscripts_delete` (with every version) |
+| `POST /reviews/{rid}/manuscripts/{mid}/versions` (multipart `file`, `notes`) · `GET /versions/{vid}/file` · `DELETE /versions/{vid}` | `manuscripts_versions_upload` (201; the next number; PDF, .docx, .odt, .tex or .zip matching its extension, up to `PARSIFAL_PDF_MAX_MB`) · `manuscripts_versions_download` · `manuscripts_versions_delete` |
+
 ### Threats to validity
 
 | Endpoint | operationId |

@@ -749,3 +749,29 @@ Charters (2007) and Petersen et al. (2015) treat them. Only a protocol text
 **Consequences.** Migration `reviews.0055` (`ValidityThreat`, the `reporting`
 area). Backups carry the threats; the report has a section for them.
 
+
+## Manuscripts: named by the review, each with its versions
+
+**Context.** Helder asked (2026-11-24) for a place to keep the texts written
+from a review — a short, an extended, a standard paper, or one in a given
+template — with their versions: each upload a new version, nothing
+overwritten, and the PDF read, downloaded and opened on the page as a study's
+full text is. The kinds must not be fixed.
+
+**Decision.**
+- `Manuscript` (any name, unique per review; a description of what sets it
+  apart) with `ManuscriptVersion`s (number, file, notes). The name is the
+  kind: there is no type list to outgrow; a few names are suggested.
+- Every upload is the next version; a deleted version's number is never given
+  again (`Manuscript.last_version`), so "v3" always means the same file.
+- A version's file is a PDF, .docx, .odt, .tex or .zip, checked by its first
+  bytes against its extension, up to `PARSIFAL_PDF_MAX_MB`, in the files
+  storage (`reviews/<id>/manuscripts/`). PDFs are read in a viewer on the page
+  (framed from this origin only); the others are downloaded, never shown, so a
+  file cannot run in the site's origin.
+- Manuscripts are in the History (`reporting` area) and in review backups,
+  files included.
+
+**Consequences.** Migration `reviews.0056`. The Evidence Briefing of a rapid
+review is uploaded here like any other text.
+

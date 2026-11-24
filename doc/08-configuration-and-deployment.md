@@ -27,7 +27,7 @@ template). `DATABASE_URL` is parsed by `dj-database-url`.
 | `ADMINS` | `""` (`name,email;name,email`) | Django error mail | |
 | `PARSIFAL_DATA_DIR` | `<repo root>/data` (created on startup) | settings | Holds the SQLite file, `files/` (the studies' PDFs, unless they go to a bucket), `media/` and (by default) collected `static/`. Added in phase 0. |
 | `PARSIFAL_STATIC_ROOT` | `<PARSIFAL_DATA_DIR>/static` | settings | Phase 6. Docker collects into `/app/staticfiles`, outside the data volume. |
-| `PARSIFAL_PDF_MAX_MB` | `50` | `services/full_texts.py` | Largest PDF accepted per study. |
+| `PARSIFAL_PDF_MAX_MB` | `50` | `services/full_texts.py` | Largest PDF accepted per study, and largest file per manuscript version. |
 | `PARSIFAL_FILES_BUCKET` | empty | `STORAGES["files"]` | When set, the studies' PDFs go to this S3-compatible bucket (django-storages `S3Storage`, `requirements/s3.txt`) instead of `<PARSIFAL_DATA_DIR>/files`. Private bucket, SigV4 links that expire. |
 | `AWS_ENDPOINT_URL_S3`, `AWS_REGION` | empty | `STORAGES["files"]` | The bucket's endpoint and region. |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | empty | boto3 | Read by boto3 from the environment; never copied into the settings. |

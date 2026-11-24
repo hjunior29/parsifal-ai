@@ -47,7 +47,7 @@ only the changes to that study.
 | Quality assessment | Each answer given or cleared, per study and question |
 | Data extraction | Each value extracted and its evidence, per study and field (before and after); a study's extraction marked done or not; its classification in each facet |
 | Data analysis | The criterion of the reports not retrieved in the PRISMA flow diagram |
-| Reporting | The threats to validity added, changed or removed (never an amendment: they are not the protocol) |
+| Reporting | The threats to validity added, changed or removed; the manuscripts added, changed or deleted and their versions uploaded or deleted (never an amendment: they are not the protocol) |
 | Review (process) | The actions of the process checklist marked as applied, and their notes |
 
 ## In the API, the CLI and the MCP server

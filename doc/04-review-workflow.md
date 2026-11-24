@@ -187,6 +187,11 @@ its type (free; Petersen et al. 2015 §3.6 and Wohlin et al. 2012 suggested),
 name, description and mitigation, grouped by type (K 7 "strengths and
 weaknesses"; P 5.1.5). The report has a *Threats to Validity* section.
 
+**Manuscripts** (`/<u>/<r>/reporting/manuscripts/`,
+`reporting/manuscripts.html`): the texts written from the review, any name,
+each with its versions (every upload a new one; PDFs read in a viewer on the
+page, other files downloaded).
+
 Page `/<u>/<r>/reporting/export/` lets the user tick sections and
 `download_docx` renders them (`reporting/export.py`). Content exists for
 planning sections and for conducting search strings / import counts; the

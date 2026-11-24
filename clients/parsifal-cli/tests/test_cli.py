@@ -180,6 +180,21 @@ def test_threats(runner, fake_api):
     assert fake_api.last_json() == {"mitigation": "A test set"}
 
 
+def test_manuscript_version_upload(runner, fake_api, tmp_path):
+    paper = tmp_path / "paper.pdf"
+    paper.write_bytes(b"%PDF-1.4")
+    fake_api.route("POST", "/api/v1/reviews/7/manuscripts/2/versions", 201, {"id": 5, "number": 3})
+    result = invoke(
+        runner,
+        ["manuscript", "version", "upload", "--review", "7", "--manuscript", "2", "--file", str(paper)]
+        + ["--notes", "Camera ready"],
+    )
+    assert result.exit_code == 0, result.output
+    request = fake_api.requests[-1]
+    assert b"Camera ready" in request.content
+    assert b"%PDF-1.4" in request.content
+
+
 def test_pagination_all(runner, fake_api):
     pages = {
         0: {"count": 3, "items": [{"id": 1}, {"id": 2}]},

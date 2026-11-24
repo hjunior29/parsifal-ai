@@ -16,6 +16,7 @@ from parsifal.apps.reviews.models import (
     ClassificationFacet,
     DataExtraction,
     Keyword,
+    ManuscriptVersion,
     ProcessChecklistItem,
     QualityAssessment,
     Question,
@@ -30,7 +31,15 @@ from parsifal.apps.reviews.models import (
     StudyDecision,
     ValidityThreat,
 )
-from parsifal.apps.reviews.services import agents, extraction, full_texts, history, quality, review_backups
+from parsifal.apps.reviews.services import (
+    agents,
+    extraction,
+    full_texts,
+    history,
+    manuscripts,
+    quality,
+    review_backups,
+)
 from parsifal.apps.reviews.tests.factories import (
     DataExtractionFieldFactory,
     DefaultSourceFactory,
@@ -144,6 +153,14 @@ class ReviewBackupsTestCase(TemporaryFilesMixin, TestCase):
     def setUp(self):
         super().setUp()  # the files folder is emptied before each test: the PDF is attached here
         full_texts.attach_pdf(review=self.review, article_id=self.study.pk, file=ContentFile(PDF), actor=self.owner)
+        paper = manuscripts.add_manuscript(review=self.review, name="Full paper", actor=self.owner)
+        manuscripts.add_version(
+            review=self.review,
+            manuscript_id=paper.pk,
+            file=ContentFile(b"\\section{Intro}", name="main.tex"),
+            notes="First draft",
+            actor=self.colleague,
+        )
 
     def counts(self, review):
         return {
@@ -159,6 +176,12 @@ class ReviewBackupsTestCase(TemporaryFilesMixin, TestCase):
             "classifications": ArticleClassification.objects.filter(article__review=review).count(),
             "checklist": review.checklist_items.count(),
             "threats": list(review.threats.values_list("title", "category", "mitigation")),
+            "manuscripts": [
+                (version.manuscript.name, version.number, version.file.filename, version.notes, version.created_by_id)
+                for version in ManuscriptVersion.objects.filter(manuscript__review=review).select_related(
+                    "manuscript", "file"
+                )
+            ],
             "test_set": review.test_set.count(),
             "runs": review.screening_runs.count(),
             "results": ScreeningResult.objects.filter(run__review=review).count(),
@@ -168,7 +191,7 @@ class ReviewBackupsTestCase(TemporaryFilesMixin, TestCase):
 
 
 class TestBackups(ReviewBackupsTestCase):
-    def test_a_backup_holds_the_review_and_its_pdfs(self):
+    def test_a_backup_holds_the_review_its_pdfs_and_its_manuscripts(self):
         backup = review_backups.create_backup(review=self.review, actor=self.owner)
         self.assertEqual((2, self.owner), (backup.studies, backup.created_by))
         self.assertTrue(backup.file.filename.startswith(f"{self.review.name}-"))
@@ -176,7 +199,8 @@ class TestBackups(ReviewBackupsTestCase):
             names = archive.getnames()
         self.assertIn("review.json", names)
         self.assertIn("manifest.json", names)
-        self.assertEqual(1, len([name for name in names if name.startswith("files/reviews/")]))
+        files = [name for name in names if name.startswith("files/reviews/")]
+        self.assertEqual((2, 1), (len(files), len([name for name in files if "/manuscripts/" in name])))
 
     def test_only_the_main_author(self):
         with self.assertRaises(PermissionDenied):
@@ -243,6 +267,12 @@ class TestImport(ReviewBackupsTestCase):
             self.assertNotEqual(Article.objects.get(pk=self.study.pk).pdf.key, study.pdf.key)
             with study.pdf.open() as handle:
                 self.assertEqual(PDF, handle.read())
+        with self.subTest(msg="the manuscripts' files are copied under the copy"):
+            version = ManuscriptVersion.objects.get(manuscript__review=copy)
+            self.assertTrue(version.file.key.startswith(f"reviews/{copy.pk}/manuscripts/"))
+            self.assertTrue(version.file.key.endswith(".tex"))
+            with version.file.open() as handle:
+                self.assertEqual(b"\\section{Intro}", handle.read())
         with self.subTest(msg="people by username; the agent as a new agent of the copy, without tokens"):
             self.assertIn(self.colleague, copy.co_authors.all())
             decision = copy.decisions.get(stage="full_text")

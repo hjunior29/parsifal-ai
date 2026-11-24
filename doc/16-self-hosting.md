@@ -83,7 +83,7 @@ still show the nginx + supervisor layout if you prefer a front web server.
 | `CSRF_TRUSTED_ORIGINS` | empty | Needed when the public origin differs from the host Django sees. |
 | `EMAIL_*`, `DEFAULT_FROM_EMAIL` | console backend | SMTP delivery. |
 | `GUNICORN_WORKERS`, `GUNICORN_TIMEOUT`, `PORT` | `2`, `120`, `8000` | Container only. |
-| `PARSIFAL_PDF_MAX_MB` | `50` | Largest PDF accepted per study. |
+| `PARSIFAL_PDF_MAX_MB` | `50` | Largest PDF accepted per study, and largest file per manuscript version. |
 | `PARSIFAL_REVIEW_BACKUPS_KEEP` | `10` | Backups kept per review (Review settings → Backups). |
 | `PARSIFAL_BACKUP_KEEP` | `10` | Docker: instance backups kept when `serve` takes one before migrations. |
 | `PARSIFAL_FILES_BUCKET` | empty | Keep the PDFs in this S3-compatible bucket instead of `<data dir>/files`. |

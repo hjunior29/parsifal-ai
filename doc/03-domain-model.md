@@ -192,6 +192,12 @@ group and marks the rest `D`.
   description, mitigation, order, created_at, updated_at)`: a threat to the validity of the review
   (`services/threats.py`; Reporting → Threats to Validity). Types suggested: Petersen et al. 2015 §3.6 and Wohlin et
   al. 2012. In the History under the `reporting` area, never an amendment.
+- `Manuscript(review CASCADE related "manuscripts", name (any; unique per review, ignoring case; ≤100), description
+  (≤500), order, last_version (the latest number given: never twice), created_by SET_NULL, created_at)` and
+  `ManuscriptVersion(manuscript CASCADE related "versions", number, file → core.StoredFile CASCADE (deleted with the
+  row), notes (what changed; ≤500), created_by SET_NULL, created_at)`: the texts written from the review and their
+  versions (`services/manuscripts.py`; Reporting → Manuscripts). A version's file is a PDF, .docx, .odt, .tex or .zip
+  whose content matches its extension, up to `PARSIFAL_PDF_MAX_MB`, kept under `reviews/<id>/manuscripts/`.
 - `ReviewEvent(review CASCADE, created_at, actor → User SET_NULL, actor_name (kept when the account goes), via
   web/api/cli/mcp/system, area, action add/change/remove, summary, subject, subject_id, changes JSON [{key, field,
   before, after}], items JSON, articles M2M, run → ScreeningRun SET_NULL, amendment)`: one change to the review, for its

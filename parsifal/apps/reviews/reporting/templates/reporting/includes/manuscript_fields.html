@@ -1,0 +1,11 @@
+{% comment %}The fields of a manuscript (manuscript: the one edited, or None for a new one).{% endcomment %}
+<div class="row">
+  <div class="col-sm-5 form-group">
+    <label for="manuscript-name-{{ manuscript.pk|default:'new' }}">Name</label>
+    <input type="text" class="form-control" id="manuscript-name-{{ manuscript.pk|default:'new' }}" name="name" maxlength="100" required list="manuscript-names" value="{{ manuscript.name|default:'' }}" placeholder="Full paper, Extended abstract, or any other">
+  </div>
+  <div class="col-sm-7 form-group">
+    <label for="manuscript-description-{{ manuscript.pk|default:'new' }}">Description</label>
+    <input type="text" class="form-control" id="manuscript-description-{{ manuscript.pk|default:'new' }}" name="description" maxlength="500" value="{{ manuscript.description|default:'' }}" placeholder="What sets it apart: its template, venue, length (optional)">
+  </div>
+</div>

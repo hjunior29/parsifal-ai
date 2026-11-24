@@ -867,6 +867,70 @@ class ValidityThreat(models.Model):
 
 
 # ---------------------------------------------------------------------------------------------------------------------
+# Reporting: the manuscripts written from the review, each with its versions
+# ---------------------------------------------------------------------------------------------------------------------
+
+
+class Manuscript(models.Model):
+    """
+    A text written from the review — the paper, a short or an extended version of it, the same paper in another
+    template, a report for practitioners — named as the review likes. Each file uploaded to it is a new version; none
+    replaces another (services.manuscripts).
+    """
+
+    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="manuscripts")
+    name = models.CharField(_("name"), max_length=100)
+    # What sets it apart: its template, venue, length...
+    description = models.CharField(_("description"), max_length=500, blank=True)
+    order = models.IntegerField(default=0)
+    # The number of the latest version uploaded, deleted or not: a number is never given twice.
+    last_version = models.PositiveIntegerField(default=0)
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("manuscript")
+        verbose_name_plural = _("manuscripts")
+        ordering = ("order", "pk")
+        constraints = (models.UniqueConstraint(fields=("review", "name"), name="unique_manuscript_name_per_review"),)
+
+    def __str__(self):
+        return self.name
+
+
+class ManuscriptVersion(models.Model):
+    """One version of a manuscript: its file (a PDF, a Word or OpenDocument text, LaTeX) and what changed in it."""
+
+    manuscript = models.ForeignKey(Manuscript, on_delete=models.CASCADE, related_name="versions")
+    number = models.PositiveIntegerField(_("version"))
+    file = models.OneToOneField(StoredFile, on_delete=models.CASCADE, related_name="manuscript_version")
+    notes = models.CharField(_("notes"), max_length=500, blank=True)
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("manuscript version")
+        verbose_name_plural = _("manuscript versions")
+        ordering = ("-number",)
+        constraints = (
+            models.UniqueConstraint(fields=("manuscript", "number"), name="unique_version_number_per_manuscript"),
+        )
+
+    def __str__(self):
+        return f"{self.manuscript.name} v{self.number}"
+
+    @property
+    def is_pdf(self):
+        return self.file.content_type == "application/pdf"
+
+
+@receiver(post_delete, sender=ManuscriptVersion)
+def delete_manuscript_version_file(sender, instance, **kwargs):
+    """The file goes with its version (also when the manuscript or the whole review is deleted)."""
+    StoredFile.objects.filter(pk=instance.file_id).delete()
+
+
+# ---------------------------------------------------------------------------------------------------------------------
 # Multi-reviewer study selection (Kitchenham 6.2.3, Petersen 5.1.2)
 # ---------------------------------------------------------------------------------------------------------------------
 

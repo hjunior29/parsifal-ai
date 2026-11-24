@@ -43,7 +43,7 @@ gunicorn parsifal.wsgi:application --bind 0.0.0.0:8000 --workers 2
 | `PARSIFAL_HTTPS` | `False` | Secure cookies, HSTS and HTTPS redirect when behind TLS. |
 | `CSRF_TRUSTED_ORIGINS` | empty | Public origin when it differs from the host Django sees. |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL` | console | Without `EMAIL_HOST`, e-mails (password reset) are written to the log. |
-| `PARSIFAL_PDF_MAX_MB` | `50` | Largest PDF accepted per study. |
+| `PARSIFAL_PDF_MAX_MB` | `50` | Largest PDF accepted per study, and largest file per manuscript version. |
 | `PARSIFAL_REVIEW_BACKUPS_KEEP` | `10` | Backups kept per review (Review settings → Backups). |
 | `PARSIFAL_BACKUP_KEEP` | `10` | Docker: instance backups kept when `serve` takes one before migrations. |
 | `PARSIFAL_FILES_BUCKET` | empty | Keep the PDFs in an S3-compatible bucket (next section). |

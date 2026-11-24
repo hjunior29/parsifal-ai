@@ -120,6 +120,11 @@ urlpatterns = [
         name="threats_to_validity",
     ),
     path(
+        "<str:username>/<str:review_name>/reporting/manuscripts/",
+        reviews_reporting_views.manuscripts_page,
+        name="manuscripts",
+    ),
+    path(
         "<str:username>/<str:review_name>/reporting/export/",
         reviews_reporting_views.export,
         name="export",

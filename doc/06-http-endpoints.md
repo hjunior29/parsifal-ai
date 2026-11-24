@@ -200,6 +200,8 @@ Action endpoints under `/reviews/conducting/`, guard **A** unless noted:
 |------|--------|-------|--------|--------|
 | `/<u>/<r>/reporting/` | GET | A | | redirect to Threats to Validity |
 | `/<u>/<r>/reporting/threats/` | GET/POST | A | GET `edit` (a threat's id: its form in place); POST `action` add / update / remove, `threat-id`, `title`, `category`, `description`, `mitigation` | Threats to Validity (`services/threats.py`), by type; POST redirects back with a message |
+| `/<u>/<r>/reporting/manuscripts/` | GET/POST | A | GET `edit` (a manuscript's id); POST `action` add / update / remove (`manuscript-id`, `name`, `description`), upload (`manuscript-id`, `file`, `notes`), remove-version (`version-id`) | Manuscripts (`services/manuscripts.py`), each with its versions; POST redirects back with a message |
+| `/reviews/reporting/manuscripts/<version_id>/file/` | GET | A | `download` | The version's file: a PDF inline (framed by the page's viewer; `X-Frame-Options: SAMEORIGIN`), anything else or `download` as an attachment; with a bucket, a redirect to a link of it |
 | `/<u>/<r>/reporting/export/` | GET | A | | Section checklist page |
 | `/reviews/reporting/download_docx/` | GET | A | `review-id`, `export` (multi: section keys listed in [07-import-export.md](07-import-export.md)) | `<name>.docx` |
 

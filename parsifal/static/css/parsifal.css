@@ -710,3 +710,50 @@ div.list-group.docs-nav a.list-group-item.active .docs-summary { color: #8a6f5c;
   margin-bottom: 4px;
 }
 
+
+/* Manuscripts (Reporting): each manuscript with its versions; a PDF is read in the viewer. */
+.manuscripts-intro {
+  margin: 0 0 15px;
+}
+
+.manuscript .panel-heading small {
+  display: block;
+  margin-top: 4px;
+}
+
+.manuscript-upload .form-group {
+  margin-right: 8px;
+}
+
+.manuscript-upload .manuscript-notes {
+  width: 340px;
+  max-width: 100%;
+}
+
+.manuscript-form {
+  margin-bottom: 0;
+}
+
+.manuscript-versions {
+  margin-bottom: 0;
+}
+
+.manuscript-version-number {
+  width: 110px;
+  white-space: nowrap;
+}
+
+.manuscript-actions {
+  white-space: nowrap;
+}
+
+.manuscript-frame {
+  width: 100%;
+  height: 75vh;
+  border: 1px solid #ddd;
+}
+
+.manuscripts-empty .glyphicon {
+  font-size: 2.2em;
+  color: #aaa;
+}

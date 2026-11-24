@@ -420,3 +420,7 @@ html.theme-dark {
 .theme-dark .extraction-evidence-label {
   color: #9aa0a6;
 }
+
+.theme-dark .manuscript-frame {
+  border-color: #3a3f44;
+}

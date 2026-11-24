@@ -1,0 +1,167 @@
+{% extends 'reporting/reporting.html' %}
+
+{% comment %}
+  Manuscripts: the texts written from the review, each with its versions (the newest first). Each upload is a new
+  version; none replaces another. A PDF is read here (the viewer frames reporting:manuscript_file); every file can be
+  downloaded.
+{% endcomment %}
+
+{% block javascript %}
+  <script>
+    $(function () {
+      var viewer = $("#manuscript-viewer");
+      $(".js-read-version").click(function () {
+        $(".modal-title", viewer).text($(this).attr("data-title"));
+        $(".js-viewer-tab", viewer).attr("href", $(this).attr("data-src"));
+        $("iframe", viewer).attr("src", $(this).attr("data-src"));
+        viewer.modal("show");
+      });
+      viewer.on("hidden.bs.modal", function () {
+        $("iframe", viewer).attr("src", "about:blank");
+      });
+    });
+  </script>
+{% endblock %}
+
+{% block tab_content %}
+
+  {% include 'reporting/includes/header.html' with active_tab='manuscripts' %}
+
+  <div class="modal fade" id="manuscript-viewer" tabindex="-1" role="dialog" aria-labelledby="manuscript-viewer-title">
+    <div class="modal-dialog modal-lg" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+          <a href="#" target="_blank" rel="noopener" class="btn btn-default btn-xs pull-right js-viewer-tab" style="margin-right: 12px;">
+            <span class="glyphicon glyphicon-new-window"></span> Open in a new tab
+          </a>
+          <h4 class="modal-title" id="manuscript-viewer-title"></h4>
+        </div>
+        <div class="modal-body">
+          <iframe src="about:blank" title="The manuscript" class="manuscript-frame"></iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <datalist id="manuscript-names">
+    {% for name in names %}<option value="{{ name }}">{% endfor %}
+  </datalist>
+
+  <p class="text-muted manuscripts-intro">
+    The texts written from the review: the paper, a short or an extended version of it, the same paper in another
+    template… each named as you like. Each file uploaded is a new version: the earlier ones stay. PDF files are read
+    here; Word, OpenDocument, LaTeX and ZIP files are downloaded. Up to {{ max_mb }} MB each.
+  </p>
+
+  {% for manuscript in manuscripts %}
+    <div class="panel panel-default manuscript" id="manuscript-{{ manuscript.pk }}">
+      <div class="panel-heading">
+        <div class="pull-right">
+          <a href="?edit={{ manuscript.pk }}#manuscript-{{ manuscript.pk }}" class="btn btn-default btn-xs"><span class="glyphicon glyphicon-pencil"></span> Edit</a>
+          <form method="post" style="display: inline;" onsubmit="return confirm('Delete the manuscript “{{ manuscript.name|escapejs }}” and every version of it?');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="remove">
+            <input type="hidden" name="manuscript-id" value="{{ manuscript.pk }}">
+            <button type="submit" class="btn btn-default btn-xs"><span class="glyphicon glyphicon-trash"></span> Delete</button>
+          </form>
+        </div>
+        <h3 class="panel-title">{{ manuscript.name }}</h3>
+        {% if manuscript.description %}<small class="text-muted">{{ manuscript.description }}</small>{% endif %}
+      </div>
+      <div class="panel-body">
+        {% if editing == manuscript.pk|stringformat:"s" %}
+          <form method="post" class="well manuscript-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update">
+            <input type="hidden" name="manuscript-id" value="{{ manuscript.pk }}">
+            {% include 'reporting/includes/manuscript_fields.html' %}
+            <button type="submit" class="btn btn-success btn-sm"><span class="glyphicon glyphicon-ok"></span> Save</button>
+            <a href="{% url 'manuscripts' review.author.username review.name %}" class="btn btn-default btn-sm">Cancel</a>
+          </form>
+        {% endif %}
+        <form method="post" enctype="multipart/form-data" class="form-inline manuscript-upload">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="upload">
+          <input type="hidden" name="manuscript-id" value="{{ manuscript.pk }}">
+          <div class="form-group">
+            <label class="sr-only" for="manuscript-file-{{ manuscript.pk }}">File</label>
+            <input type="file" name="file" id="manuscript-file-{{ manuscript.pk }}" accept="{{ accept }}" required>
+          </div>
+          <div class="form-group">
+            <label class="sr-only" for="manuscript-notes-{{ manuscript.pk }}">What changed</label>
+            <input type="text" class="form-control input-sm manuscript-notes" name="notes" id="manuscript-notes-{{ manuscript.pk }}" maxlength="500" placeholder="What changed in this version (optional)">
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm"><span class="glyphicon glyphicon-upload"></span> Upload a new version</button>
+        </form>
+      </div>
+      {% if manuscript.versions.all %}
+        <div class="table-responsive">
+          <table class="table manuscript-versions">
+            <thead>
+              <tr>
+                <th class="manuscript-version-number">Version</th>
+                <th>File</th>
+                <th>Uploaded</th>
+                <th>What changed</th>
+                <th class="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for version in manuscript.versions.all %}
+                <tr>
+                  <td class="manuscript-version-number">
+                    v{{ version.number }}{% if forloop.first %} <span class="label label-success">latest</span>{% endif %}
+                  </td>
+                  <td>{{ version.file.filename }} <small class="text-muted">· {{ version.file.size|filesizeformat }}</small></td>
+                  <td>
+                    <span title="{{ version.created_at|date:'Y-m-d H:i:s' }}">{{ version.created_at|date:"SHORT_DATETIME_FORMAT" }}</span>
+                    {% if version.created_by %}<small class="text-muted">by {{ version.created_by.profile.get_screen_name }}</small>{% endif %}
+                  </td>
+                  <td>{{ version.notes }}</td>
+                  <td class="text-right manuscript-actions">
+                    {% url 'reviews:reporting:manuscript_file' version.pk as file_url %}
+                    {% if version.is_pdf %}
+                      <button type="button" class="btn btn-default btn-xs js-read-version" data-src="{{ file_url }}" data-title="{{ manuscript.name }} · version {{ version.number }}">
+                        <span class="glyphicon glyphicon-eye-open"></span> Read
+                      </button>
+                    {% endif %}
+                    <a href="{{ file_url }}?download" class="btn btn-default btn-xs"><span class="glyphicon glyphicon-download-alt"></span> Download</a>
+                    <form method="post" style="display: inline;" onsubmit="return confirm('Delete version {{ version.number }} of “{{ manuscript.name|escapejs }}”? Its file is deleted.');">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="remove-version">
+                      <input type="hidden" name="version-id" value="{{ version.pk }}">
+                      <button type="submit" class="btn btn-default btn-xs" title="Delete this version"><span class="glyphicon glyphicon-trash"></span></button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="panel-footer text-muted">No version yet: upload the first one.</div>
+      {% endif %}
+    </div>
+  {% empty %}
+    <div class="well text-center manuscripts-empty">
+      <span class="glyphicon glyphicon-file"></span>
+      <p>No manuscript yet. Add one for each text you write from the review — the paper, its extended version, the same paper in another template — and upload its versions.</p>
+    </div>
+  {% endfor %}
+
+  <div class="panel panel-default">
+    <div class="panel-heading">
+      <h3 class="panel-title">Add a manuscript</h3>
+    </div>
+    <div class="panel-body">
+      <form method="post" class="manuscript-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add">
+        {% include 'reporting/includes/manuscript_fields.html' with manuscript=None %}
+        <button type="submit" class="btn btn-success btn-sm"><span class="glyphicon glyphicon-plus"></span> Add</button>
+      </form>
+    </div>
+  </div>
+
+{% endblock tab_content %}
