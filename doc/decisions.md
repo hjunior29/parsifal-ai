@@ -722,3 +722,30 @@ extraction can be checked later. Optional evidence would make little sense.
 **Consequences.** Migration `reviews.0054`. Studies already marked as done stay
 done; marking them again checks the evidence.
 
+
+## Threats to validity: a list of their own, in Reporting
+
+**Context.** Helder missed a place for the threats to validity (2026-11-24) and
+asked for something generic, not a fixed structure: a threat of some type, with
+a name, a description and its mitigation, after looking at how Kitchenham &
+Charters (2007) and Petersen et al. (2015) treat them. Only a protocol text
+(`Review.validity_threats`, API only) existed.
+
+**Decision.**
+- `ValidityThreat` (type, name, description, mitigation), one row per threat.
+  The type is free text: Petersen et al. (2015) §3.6 (after Petersen & Gencel
+  2013) classify threats as descriptive, theoretical, interpretive validity,
+  generalizability and repeatability; many SE reviews use Wohlin et al.
+  (2012)'s construct, internal, external and conclusion validity. Both are
+  suggested, neither imposed. Petersen et al. (2015) §5.1.5's common threats
+  are offered as examples to start from.
+- The tab is the first of **Reporting**, not of Planning: threats are written
+  and revised until the report (K 7 "strengths and weaknesses"), and a change
+  to them made during the conduct is not an amendment to the protocol. The
+  History records them under a new area, `reporting`.
+- `Review.validity_threats` stays, as the protocol's planned text.
+- No reordering: the list is grouped by type, in the order they were added.
+
+**Consequences.** Migration `reviews.0055` (`ValidityThreat`, the `reporting`
+area). Backups carry the threats; the report has a section for them.
+

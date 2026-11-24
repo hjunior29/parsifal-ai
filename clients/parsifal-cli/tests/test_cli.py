@@ -165,6 +165,21 @@ def test_extraction_with_its_evidence(runner, fake_api):
     assert fake_api.last_json() == {"field_id": 3, "evidence": "p. 4"}
 
 
+def test_threats(runner, fake_api):
+    threat = {"id": 4, "title": "One reviewer", "category": "Theoretical validity"}
+    fake_api.route("POST", "/api/v1/reviews/7/threats", 201, threat)
+    fake_api.route("PATCH", "/api/v1/reviews/7/threats/4", 200, threat)
+    result = invoke(
+        runner,
+        ["threat", "create", "--review", "7", "--title", "One reviewer", "--category", "Theoretical validity"],
+    )
+    assert result.exit_code == 0, result.output
+    assert fake_api.last_json() == {"title": "One reviewer", "category": "Theoretical validity"}
+    result = invoke(runner, ["threat", "update", "--review", "7", "--id", "4", "--mitigation", "A test set"])
+    assert result.exit_code == 0, result.output
+    assert fake_api.last_json() == {"mitigation": "A test set"}
+
+
 def test_pagination_all(runner, fake_api):
     pages = {
         0: {"count": 3, "items": [{"id": 1}, {"id": 2}]},

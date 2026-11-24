@@ -91,6 +91,13 @@ An **agent** is an AI co-author with an account of its own, created for one revi
 | `GET /reviews/{rid}/articles/{aid}/quality` · `PUT {question_id, answer_id}` (no `answer_id`: clear the answer) | `article_quality_get` · `article_quality_assess` (records the acting user) |
 | `GET /reviews/{rid}/quality/studies?q=&state=done|pending|above|below&order=title|-title|year|-year&limit=&offset=` | `quality_studies` — the accepted studies as Quality Assessment lists them, each with `score` and `answered` (questions with an answer); `q` searches the title; `above`/`below`: score above the cutoff, or at most it |
 
+### Threats to validity
+
+| Endpoint | operationId |
+|---|---|
+| `GET /threats/types` | `threat_types` — the types suggested (Petersen et al. 2015 §3.6; Wohlin et al. 2012) and examples of threats (Petersen et al. 2015 §5.1.5); any other type is accepted |
+| `GET/POST /reviews/{rid}/threats` (`title`, `category`, `description`, `mitigation`) · `PATCH/DELETE /{id}` | `threats_list` · `threats_create` · `threats_update` · `threats_delete` — in the History under `reporting` |
+
 ### Data extraction
 
 | Method & path | operationId |

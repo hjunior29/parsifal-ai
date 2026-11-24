@@ -411,3 +411,12 @@ html.theme-dark {
 .theme-dark .docs-content article table td,
 .theme-dark .docs-content article table thead th { border-color: #3a3f44; }
 .theme-dark .docs-content article pre { background: #26292d; border-color: #3a3f44; }
+
+.theme-dark .threat {
+  border-top-color: #3a3f44;
+}
+
+
+.theme-dark .extraction-evidence-label {
+  color: #9aa0a6;
+}

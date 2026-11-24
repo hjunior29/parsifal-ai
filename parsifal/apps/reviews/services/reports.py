@@ -57,6 +57,7 @@ DOCX_SECTIONS = (
     "classification_results",
     "data_analysis",
     "process_checklist",
+    "threats",
 )
 
 

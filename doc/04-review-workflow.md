@@ -181,6 +181,12 @@ synthesis) is otherwise absent.
 
 ## 3. Reporting (K 7)
 
+`/<u>/<r>/reporting/` opens on **Threats to Validity**
+(`/<u>/<r>/reporting/threats/`, `reporting/threats.html`): each threat with
+its type (free; Petersen et al. 2015 §3.6 and Wohlin et al. 2012 suggested),
+name, description and mitigation, grouped by type (K 7 "strengths and
+weaknesses"; P 5.1.5). The report has a *Threats to Validity* section.
+
 Page `/<u>/<r>/reporting/export/` lets the user tick sections and
 `download_docx` renders them (`reporting/export.py`). Content exists for
 planning sections and for conducting search strings / import counts; the

@@ -1,0 +1,118 @@
+{% extends 'reporting/reporting.html' %}
+
+{% comment %}
+  Threats to Validity: each threat of the review, grouped by its type (free; types suggested from the guidelines),
+  with its description and what was done to mitigate it. Added from the form below the list, edited in place
+  (?edit=<id>), removed with a confirmation.
+{% endcomment %}
+
+{% block javascript %}
+  <script>
+    $(function () {
+      /* An example from the guidelines fills the form, to be completed. */
+      $(".js-threat-example").click(function () {
+        var form = $("#threat-add-form");
+        $("[name=title]", form).val($(this).attr("data-title"));
+        $("[name=category]", form).val($(this).attr("data-category"));
+        $("#threat-add").collapse("show");
+        $("[name=description]", form).focus();
+      });
+    });
+  </script>
+{% endblock %}
+
+{% block tab_content %}
+
+  {% include 'reporting/includes/header.html' with active_tab='threats' %}
+
+  <div class="modal fade" id="threats-help">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+          <h4 class="modal-title">About the threats to validity</h4>
+        </div>
+        <div class="modal-body">
+          <p>A review reports what may limit the validity of its results, and what was done to reduce it: the strengths and weaknesses of the review, in the discussion of the report (Kitchenham &amp; Charters, 2007, §7).</p>
+          <p>Petersen et al. (2015, §3.6) discuss them by type, after Petersen and Gencel (2013): <strong>descriptive validity</strong> (are the observations described accurately?), <strong>theoretical validity</strong> (did the review capture what it meant to, given the search, the sample and the biases of the researchers?), <strong>generalizability</strong> (within the population and beyond it), <strong>interpretive validity</strong> (are the conclusions reasonable given the data?) and <strong>repeatability</strong>. Many reviews use the types of Wohlin et al. (2012): construct, internal, external and conclusion validity.</p>
+          <p>None of these is required here: give each threat the type that fits your review, or none.</p>
+        </div>
+        <div class="modal-footer" style="text-align: left;">
+          <p><small class="text-muted">B. Kitchenham and S. Charters, "Guidelines for performing Systematic Literature Reviews in Software Engineering", EBSE Technical Report, 2007. K. Petersen, S. Vakkalanka and L. Kuzniarz, "Guidelines for conducting systematic mapping studies in software engineering: An update", Information and Software Technology, 64, 2015. C. Wohlin et al., "Experimentation in Software Engineering", Springer, 2012.</small></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <datalist id="threat-types">
+    {% for category in types %}<option value="{{ category }}">{% endfor %}
+  </datalist>
+
+  <div class="panel panel-default">
+    <div class="panel-heading">
+      <h3 class="panel-title">
+        Threats to Validity
+        <a href="javascript:void(0);" class="pull-right" data-toggle="tooltip" title="What's this? Click to get help." data-placement="top" data-container="body">
+          <span class="glyphicon glyphicon-question-sign" data-toggle="modal" data-target="#threats-help"></span>
+        </a>
+      </h3>
+    </div>
+    <div class="panel-body">
+      <p class="text-muted">What may limit the validity of the review's results, and what was done about it: each threat with its type, a description and its mitigation.</p>
+
+      {% for category, items in groups %}
+        <h4 class="threat-type">{{ category|default:"No type" }} <small>{{ items|length }}</small></h4>
+        {% for threat in items %}
+          {% if editing == threat.pk|stringformat:"s" %}
+            <form method="post" class="well threat-form">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="update">
+              <input type="hidden" name="threat-id" value="{{ threat.pk }}">
+              {% include 'reporting/includes/threat_fields.html' %}
+              <button type="submit" class="btn btn-success btn-sm"><span class="glyphicon glyphicon-ok"></span> Save</button>
+              <a href="{% url 'threats_to_validity' review.author.username review.name %}" class="btn btn-default btn-sm">Cancel</a>
+            </form>
+          {% else %}
+            <div class="threat" id="threat-{{ threat.pk }}">
+              <div class="pull-right threat-actions">
+                <a href="?edit={{ threat.pk }}#threat-{{ threat.pk }}" class="btn btn-default btn-xs"><span class="glyphicon glyphicon-pencil"></span> Edit</a>
+                <form method="post" style="display: inline;" onsubmit="return confirm('Remove the threat “{{ threat.title|escapejs }}”?');">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="remove">
+                  <input type="hidden" name="threat-id" value="{{ threat.pk }}">
+                  <button type="submit" class="btn btn-default btn-xs"><span class="glyphicon glyphicon-trash"></span> Remove</button>
+                </form>
+              </div>
+              <h5 class="threat-title">{{ threat.title }}</h5>
+              {% if threat.description %}<p class="threat-text">{{ threat.description }}</p>{% endif %}
+              <p class="threat-text"><strong>Mitigation:</strong> {% if threat.mitigation %}{{ threat.mitigation }}{% else %}<span class="text-muted">none written yet.</span>{% endif %}</p>
+            </div>
+          {% endif %}
+        {% endfor %}
+      {% empty %}
+        <p>This review has no threats to validity yet.</p>
+      {% endfor %}
+
+      <p>
+        <button type="button" class="btn btn-primary btn-sm" data-toggle="collapse" data-target="#threat-add" aria-expanded="{% if count %}false{% else %}true{% endif %}" aria-controls="threat-add">
+          <span class="glyphicon glyphicon-plus"></span> Add a threat
+        </button>
+      </p>
+      <div class="collapse{% if not count %} in{% endif %}" id="threat-add">
+        <form method="post" class="well threat-form" id="threat-add-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="add">
+          {% include 'reporting/includes/threat_fields.html' with threat=None %}
+          <button type="submit" class="btn btn-success btn-sm"><span class="glyphicon glyphicon-ok"></span> Add</button>
+        </form>
+        <p class="text-muted"><small>Common threats to a review (Petersen et al., 2015, §5.1.5), to start from:</small></p>
+        <ul class="list-unstyled threat-examples">
+          {% for title, category in examples %}
+            <li><a href="javascript:void(0);" class="js-threat-example" data-title="{{ title }}" data-category="{{ category }}">{{ title }}</a> <small class="text-muted">({{ category }})</small></li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+
+{% endblock tab_content %}

@@ -1,4 +1,7 @@
 <ul class="nav nav-tabs" id="conducting-tab">
+  <li role="presentation"{% if active_tab == 'threats' %} class="active"{% endif %}>
+    <a href="{% url 'threats_to_validity' review.author.username review.name %}">Threats to Validity</a>
+  </li>
   <li role="presentation"{% if active_tab == 'export' %} class="active"{% endif %}>
     <a href="{% url 'export' review.author.username review.name %}">Export</a>
   </li>

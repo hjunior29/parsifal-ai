@@ -1,6 +1,7 @@
 """
 Backups of one review: everything of it — protocol, sources and search strings, studies and their PDFs, the
-reviewers' decisions, AI screening runs, quality assessment, data extraction, classification — in one ``.tar.gz``
+reviewers' decisions, AI screening runs, quality assessment, data extraction, classification, threats to validity —
+in one ``.tar.gz``
 (``review.json``, ``files/`` with the PDFs, ``manifest.json`` with checksums).
 
 A backup is kept on the server in the review's list (the newest ``PARSIFAL_REVIEW_BACKUPS_KEEP``), downloaded,
@@ -54,6 +55,7 @@ from parsifal.apps.reviews.models import (
     SelectionCriteria,
     Source,
     StudyDecision,
+    ValidityThreat,
 )
 from parsifal.apps.reviews.services import history
 from parsifal.apps.reviews.services._common import get_child
@@ -80,6 +82,7 @@ CONTENT = (
     ("facets", ClassificationFacet, lambda review: review.facets.all()),
     ("categories", ClassificationCategory, lambda review: ClassificationCategory.objects.filter(facet__review=review)),
     ("checklist", ProcessChecklistItem, lambda review: review.checklist_items.all()),
+    ("threats", ValidityThreat, lambda review: review.threats.all()),
     ("files", StoredFile, lambda review: StoredFile.objects.filter(article__review=review)),
     ("articles", Article, lambda review: review.article_set.all()),
     ("test_set", ReviewTestSetArticle, lambda review: review.test_set.all()),

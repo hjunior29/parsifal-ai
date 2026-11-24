@@ -837,6 +837,36 @@ class ProcessChecklistItem(models.Model):
 
 
 # ---------------------------------------------------------------------------------------------------------------------
+# Reporting: threats to validity
+# ---------------------------------------------------------------------------------------------------------------------
+
+
+class ValidityThreat(models.Model):
+    """
+    A threat to the validity of the review and what was done about it (Petersen et al. 2015 §3.6 and §5.1.5, after
+    Petersen & Gencel 2013; Kitchenham & Charters 2007 §7, the strengths and weaknesses of the review). Its type is
+    free: the suggestions (services.threats) follow those schemes, and a review may use any other.
+    """
+
+    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="threats")
+    category = models.CharField(_("type"), max_length=100, blank=True)
+    title = models.CharField(_("name"), max_length=255)
+    description = models.TextField(_("description"), blank=True)
+    mitigation = models.TextField(_("mitigation"), blank=True)
+    order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("threat to validity")
+        verbose_name_plural = _("threats to validity")
+        ordering = ("order", "pk")
+
+    def __str__(self):
+        return self.title
+
+
+# ---------------------------------------------------------------------------------------------------------------------
 # Multi-reviewer study selection (Kitchenham 6.2.3, Petersen 5.1.2)
 # ---------------------------------------------------------------------------------------------------------------------
 
@@ -1077,6 +1107,7 @@ class ReviewEvent(models.Model):
     QUALITY = "quality"
     EXTRACTION = "extraction"
     ANALYSIS = "analysis"
+    REPORTING = "reporting"
     AREAS = (
         (REVIEW, _("Review")),
         (PLANNING, _("Planning")),
@@ -1086,6 +1117,7 @@ class ReviewEvent(models.Model):
         (QUALITY, _("Quality assessment")),
         (EXTRACTION, _("Data extraction")),
         (ANALYSIS, _("Data analysis")),
+        (REPORTING, _("Reporting")),
     )
 
     ADDED = "add"

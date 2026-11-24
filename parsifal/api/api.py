@@ -13,6 +13,7 @@ from parsifal.api.v1.routers import (
     mapping,
     protocol,
     quality,
+    reporting,
     review_backups,
     reviews,
 )
@@ -22,7 +23,8 @@ api = NinjaAPI(
     version="1",
     description=(
         "JSON API covering the whole systematic review and mapping study workflow: protocol, sources, study "
-        "import and selection, quality assessment, data extraction, classification, analytics and exports. "
+        "import and selection, quality assessment, data extraction, classification, analytics, threats to validity, "
+        "manuscripts and exports. "
         "Authenticate with `Authorization: Bearer <token>` (tokens are created in Settings → API tokens) or with "
         "the browser session."
     ),
@@ -46,3 +48,4 @@ api.add_router("", mapping.router)
 api.add_router("", decisions.router)
 api.add_router("", ai_screening.router)
 api.add_router("", library.router)
+api.add_router("", reporting.router)

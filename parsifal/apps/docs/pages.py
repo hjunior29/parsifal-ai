@@ -64,6 +64,12 @@ PAGES = (
         "Every change to a review: who, when, through what and what changed; the amendments to the protocol.",
     ),
     Page(
+        "reporting",
+        "Reporting: threats to validity",
+        "Methodology",
+        "Each threat to the validity of the review, of a type, with its description and mitigation.",
+    ),
+    Page(
         "ai-screening",
         "Exclude, include and screen with AI (Jev)",
         "Methodology",

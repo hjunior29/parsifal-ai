@@ -12,7 +12,7 @@ what happened before is not in it.
 |--------|--------------|
 | When | The time of the change, under the day's heading (hover it for the seconds) |
 | Who | The person or AI agent who made it; *Parsifal* when nobody did (a management command). An agent deleted since keeps its name. |
-| Area | Review, Planning, Search, Studies, Study selection, Quality assessment, Data extraction or Data analysis |
+| Area | Review, Planning, Search, Studies, Study selection, Quality assessment, Data extraction, Data analysis or Reporting |
 | What | What was done: *Changed the protocol (Objective)*, *Added the AI agent “Jev”* |
 | Via | Web (the browser), API, CLI, MCP (an agent through the MCP server), or Parsifal |
 
@@ -45,8 +45,9 @@ only the changes to that study.
 | Studies | Imports (the studies imported, from which source); studies added, edited, deleted (one by one, in bulk or a source cleared; their titles stay in the History); PDFs added, replaced or removed; stars |
 | Study selection | The status of a study (one or many at once, with how many had each status before) and its criterion; duplicates marked; each reviewer's decisions and their consolidation; the AI screening runs — started (with the criteria sent), finished (with what they decided and the studies they changed), discarded or undone, one change per run and not per study; resetting the study selection |
 | Quality assessment | Each answer given or cleared, per study and question |
-| Data extraction | Each value extracted, per study and field (before and after); a study's extraction marked done or not; its classification in each facet |
+| Data extraction | Each value extracted and its evidence, per study and field (before and after); a study's extraction marked done or not; its classification in each facet |
 | Data analysis | The criterion of the reports not retrieved in the PRISMA flow diagram |
+| Reporting | The threats to validity added, changed or removed (never an amendment: they are not the protocol) |
 | Review (process) | The actions of the process checklist marked as applied, and their notes |
 
 ## In the API, the CLI and the MCP server

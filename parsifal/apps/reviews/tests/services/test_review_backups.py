@@ -28,6 +28,7 @@ from parsifal.apps.reviews.models import (
     ScreeningRun,
     SearchSession,
     StudyDecision,
+    ValidityThreat,
 )
 from parsifal.apps.reviews.services import agents, extraction, full_texts, history, quality, review_backups
 from parsifal.apps.reviews.tests.factories import (
@@ -73,6 +74,9 @@ class ReviewBackupsTestCase(TemporaryFilesMixin, TestCase):
         facet = ClassificationFacet.objects.create(review=review, name="Type", description="", template="")
         category = ClassificationCategory.objects.create(facet=facet, name="Tool", description="")
         ProcessChecklistItem.objects.create(review=review, key="pilot", applied=True, notes="")
+        ValidityThreat.objects.create(
+            review=review, title="One reviewer", category="Theoretical validity", mitigation="A test set"
+        )
         cls.study = Article.objects.create(
             review=review, source=cls.scopus, title="A study", year="2020", status="A", found_via=session
         )
@@ -154,6 +158,7 @@ class ReviewBackupsTestCase(TemporaryFilesMixin, TestCase):
             "extractions": DataExtraction.objects.filter(article__review=review).count(),
             "classifications": ArticleClassification.objects.filter(article__review=review).count(),
             "checklist": review.checklist_items.count(),
+            "threats": list(review.threats.values_list("title", "category", "mitigation")),
             "test_set": review.test_set.count(),
             "runs": review.screening_runs.count(),
             "results": ScreeningResult.objects.filter(run__review=review).count(),

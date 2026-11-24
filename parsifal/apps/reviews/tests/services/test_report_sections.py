@@ -1,7 +1,16 @@
 from django.test import TestCase
 
 from parsifal.apps.reviews.models import Review
-from parsifal.apps.reviews.services import classification, extraction, mapping, quality, reports, reviews, search
+from parsifal.apps.reviews.services import (
+    classification,
+    extraction,
+    mapping,
+    quality,
+    reports,
+    reviews,
+    search,
+    threats,
+)
 from parsifal.apps.reviews.tests.factories import (
     ArticleFactory,
     DataExtractionFieldFactory,
@@ -56,6 +65,13 @@ class TestExtendedReportSections(TestCase):
         )
         mapping.add_test_set_article(review=cls.review, title="Known Paper")
         mapping.set_checklist_item(review=cls.review, key="search_database", applied=True, notes="Scopus")
+        threats.add_threat(
+            review=cls.review,
+            title="One reviewer",
+            category="Theoretical validity",
+            description="Studies may have been missed",
+            mitigation="A test set of known studies.",
+        )
 
     def test_all_sections_render(self):
         document = reports.build_docx(self.review)  # all sections
@@ -80,6 +96,10 @@ class TestExtendedReportSections(TestCase):
             "2020: 1",
             "1 of 26 recommended actions applied (4%).",
             "[Study identification] Conduct database search — Scopus",
+            "Threats to Validity",
+            "Theoretical validity",
+            "One reviewer. Studies may have been missed",
+            "Mitigation: A test set of known studies.",
         )
         for expected in expectations:
             with self.subTest(expected=expected):

@@ -1,0 +1,19 @@
+{% comment %}The fields of a threat to validity (threat: the one edited, or None for a new one).{% endcomment %}
+<div class="row">
+  <div class="col-sm-7 form-group">
+    <label for="threat-title-{{ threat.pk|default:'new' }}">Name</label>
+    <input type="text" class="form-control" id="threat-title-{{ threat.pk|default:'new' }}" name="title" maxlength="255" required value="{{ threat.title|default:'' }}" placeholder="Selection by a single researcher">
+  </div>
+  <div class="col-sm-5 form-group">
+    <label for="threat-category-{{ threat.pk|default:'new' }}">Type</label>
+    <input type="text" class="form-control" id="threat-category-{{ threat.pk|default:'new' }}" name="category" maxlength="100" list="threat-types" value="{{ threat.category|default:'' }}" placeholder="Theoretical validity, or any other">
+  </div>
+</div>
+<div class="form-group">
+  <label for="threat-description-{{ threat.pk|default:'new' }}">Description</label>
+  <textarea class="form-control" id="threat-description-{{ threat.pk|default:'new' }}" name="description" rows="3" placeholder="What may limit the validity of the results, and why">{{ threat.description|default:'' }}</textarea>
+</div>
+<div class="form-group">
+  <label for="threat-mitigation-{{ threat.pk|default:'new' }}">Mitigation</label>
+  <textarea class="form-control" id="threat-mitigation-{{ threat.pk|default:'new' }}" name="mitigation" rows="3" placeholder="What was done to reduce it">{{ threat.mitigation|default:'' }}</textarea>
+</div>

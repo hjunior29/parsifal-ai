@@ -198,7 +198,8 @@ Action endpoints under `/reviews/conducting/`, guard **A** unless noted:
 
 | Path | Method | Guard | Inputs | Output |
 |------|--------|-------|--------|--------|
-| `/<u>/<r>/reporting/` | GET | A | | redirect to export |
+| `/<u>/<r>/reporting/` | GET | A | | redirect to Threats to Validity |
+| `/<u>/<r>/reporting/threats/` | GET/POST | A | GET `edit` (a threat's id: its form in place); POST `action` add / update / remove, `threat-id`, `title`, `category`, `description`, `mitigation` | Threats to Validity (`services/threats.py`), by type; POST redirects back with a message |
 | `/<u>/<r>/reporting/export/` | GET | A | | Section checklist page |
 | `/reviews/reporting/download_docx/` | GET | A | `review-id`, `export` (multi: section keys listed in [07-import-export.md](07-import-export.md)) | `<name>.docx` |
 

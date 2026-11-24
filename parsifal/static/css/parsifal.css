@@ -453,8 +453,12 @@ ul.review-menu li.active {
 }
 
 /* The evidence of a value of Data Extraction, under its input. */
-.extraction-evidence {
-  margin-top: 6px;
+.extraction-evidence-label {
+  display: block;
+  margin: 6px 0 2px;
+  font-size: 12px;
+  font-weight: normal;
+  color: #777;
 }
 
 /* The options of a select field in the Data Extraction form of Planning: tags that wrap, the first ones only until
@@ -677,3 +681,32 @@ div.list-group.docs-nav a.list-group-item.active .docs-summary { color: #8a6f5c;
 .history-studies-heading { margin-bottom: 4px; }
 .history-pager { margin: 0; }
 .history-pager-info { margin: 5px 0 0; }
+
+/* Threats to Validity (Reporting): each threat under its type, with its description and mitigation. */
+.threat-type {
+  margin-top: 20px;
+}
+
+.threat {
+  padding: 8px 0 4px;
+  border-top: 1px solid #eee;
+}
+
+.threat-title {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.threat-text {
+  white-space: pre-wrap;
+}
+
+.threat-form {
+  margin-top: 10px;
+}
+
+.threat-examples li {
+  margin-bottom: 4px;
+}
+

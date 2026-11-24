@@ -283,4 +283,22 @@ def export_review_to_docx(review, sections):
                         text += f" — {row['notes']}"
                     document.add_paragraph(text, style="List Bullet")
 
+    # Reporting
+    if "threats" in sections and review.threats.exists():
+        from parsifal.apps.reviews.services import threats
+
+        document.add_heading("Reporting", level=2)
+        document.add_heading("Threats to Validity", level=3)
+        for category, items in threats.grouped(review):
+            document.add_heading(category or "Other threats", level=4)
+            for threat in items:
+                p = document.add_paragraph()
+                p.add_run(threat.title).bold = True
+                if threat.description:
+                    p.add_run(f". {threat.description}")
+                if threat.mitigation:
+                    p = document.add_paragraph()
+                    p.add_run("Mitigation: ").italic = True
+                    p.add_run(threat.mitigation)
+
     return document

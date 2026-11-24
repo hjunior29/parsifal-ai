@@ -188,6 +188,10 @@ group and marks the rest `D`.
   full text with it are reports not retrieved.
 - `ReviewBackup(review CASCADE, file → core.StoredFile CASCADE (the .tar.gz; deleted with the row), note, studies,
   created_by SET_NULL, created_at)`: a backup of one review kept on the server (`services/review_backups.py`).
+- `ValidityThreat(review CASCADE related "threats", category (its type, free; ≤100), title (its name, ≤255),
+  description, mitigation, order, created_at, updated_at)`: a threat to the validity of the review
+  (`services/threats.py`; Reporting → Threats to Validity). Types suggested: Petersen et al. 2015 §3.6 and Wohlin et
+  al. 2012. In the History under the `reporting` area, never an amendment.
 - `ReviewEvent(review CASCADE, created_at, actor → User SET_NULL, actor_name (kept when the account goes), via
   web/api/cli/mcp/system, area, action add/change/remove, summary, subject, subject_id, changes JSON [{key, field,
   before, after}], items JSON, articles M2M, run → ScreeningRun SET_NULL, amendment)`: one change to the review, for its
