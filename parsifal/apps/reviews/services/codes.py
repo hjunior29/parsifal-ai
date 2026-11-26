@@ -1,11 +1,11 @@
 """
 The codes a review gives its research questions (RQ1, RQ2, RQ1.1 for a sub-question), its selection criteria (IC1…,
-EC1…), its quality assessment questions (QA1…) and its data extraction fields (EX01…). They come from the order of
+EC1…), its quality assessment questions (QA1…) and its data extraction fields (EX1…). They come from the order of
 each list, so moving one renumbers the others, and nobody writes them in the names: ``written`` finds the codes typed
 by hand at the start of a name, and ``strip_written`` removes them.
 
 The prefixes are the review's (``Review.code_prefixes``): RQ, IC, EC, QA and EX unless it chose others — QP, CI, CE…
-for a review written in Portuguese. A code has as many digits as the longest of its list (EX01…EX25, RQ1…RQ4).
+for a review written in Portuguese. The numbers have no leading zero (EC1…EC11, EX1…EX25).
 """
 
 import re
@@ -70,12 +70,8 @@ def clean_prefixes(value, current=None):
     return cleaned
 
 
-def _number(position, total):
-    return str(position).zfill(len(str(total)))
-
-
 def _numbered(items, prefix):
-    return {item.pk: f"{prefix}{_number(index, len(items))}" for index, item in enumerate(items, start=1)}
+    return {item.pk: f"{prefix}{index}" for index, item in enumerate(items, start=1)}
 
 
 def _tree(items, prefix):
@@ -88,8 +84,7 @@ def _tree(items, prefix):
     def walk(parent_id, base):
         siblings = children.get(parent_id, [])
         for index, item in enumerate(siblings, start=1):
-            number = _number(index, len(siblings))
-            codes[item.pk] = f"{base}{number}" if parent_id is None else f"{base}.{number}"
+            codes[item.pk] = f"{base}{index}" if parent_id is None else f"{base}.{index}"
             walk(item.pk, codes[item.pk])
 
     walk(None, prefix)

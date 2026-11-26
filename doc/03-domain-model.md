@@ -202,9 +202,9 @@ group and marks the rest `D`.
   `ScreeningRun.parameters["stage"]` (runs without it: title_abstract), and `pending` sends only the round's studies
   its reviewer has not decided. A rapid review cannot change type while it has title-round decisions.
 - Codes (`services/codes.py`): research questions RQ1 (RQ1.1 under a parent), criteria IC1/EC1, quality questions
-  QA1, extraction fields EX01 — computed from each list's order (`SelectionCriteria.order`, per type, since
-  `reviews.0059`, which numbered the existing criteria in the order they were created), never stored; as many digits
-  as the longest of the list. `Review.code_prefixes` (JSON) overrides the prefixes. `codes.written` /
+  QA1, extraction fields EX1 — computed from each list's order (`SelectionCriteria.order`, per type, since
+  `reviews.0059`, which numbered the existing criteria in the order they were created), never stored; no leading
+  zero. `Review.code_prefixes` (JSON) overrides the prefixes. `codes.written` /
   `strip_written` find and remove the codes typed at the start of names.
 - `ValidityThreat(review CASCADE related "threats", category (its type, free; ≤100), title (its name, ≤255),
   description, mitigation, order, created_at, updated_at)`: a threat to the validity of the review

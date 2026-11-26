@@ -3,12 +3,12 @@
 The review numbers its **research questions** (RQ1, RQ2… and RQ1.1 for a
 sub-question), its **selection criteria** (IC1… for inclusion, EC1… for
 exclusion), its **quality assessment questions** (QA1…) and its **data
-extraction fields** (EX01…). Write the names without codes: the review gives
+extraction fields** (EX1…). Write the names without codes: the review gives
 them.
 
 - A code comes from the item's place in its list: moving it (the arrows next to
   it) renumbers the list, adding one puts it last, removing one closes the gap.
-- A code has as many digits as the longest code of its list: EX01…EX25, RQ1…RQ4.
+- The numbers have no leading zero: EC1…EC11, EX1…EX25.
 - The criteria have their own lists, inclusion and exclusion, each on the
   Protocol like the research questions: add, edit, move or remove each one.
 - The codes show wherever these items are: the Protocol and the checklists of

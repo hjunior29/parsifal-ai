@@ -13,7 +13,7 @@ class LookupOut(Schema):
 
 class FieldOut(Schema):
     id: int
-    code: str  # the review's: EX01, EX02… (from the order)
+    code: str  # the review's: EX1, EX2… (from the order)
     description: str
     field_type: str
     order: int

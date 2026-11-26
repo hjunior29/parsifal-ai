@@ -76,7 +76,7 @@ def reviews_overview(request, review_id: int):
 def reviews_codes(request, review_id: int):
     """
     The prefixes of the review's codes (research questions RQ1, RQ1.1; criteria IC1, EC1; quality questions QA1;
-    extraction fields EX01 — the review numbers them from their order) and the names that start with a code typed by
+    extraction fields EX1 — the review numbers them from their order) and the names that start with a code typed by
     hand ("RQ1: …", "EX01 | …"), with what they would become without it.
     """
     review = get_review(request, review_id)

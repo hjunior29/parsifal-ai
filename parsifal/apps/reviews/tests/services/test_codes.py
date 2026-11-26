@@ -16,7 +16,7 @@ class TestCodes(TestCase):
     def setUpTestData(cls):
         cls.review = ReviewFactory()
 
-    def test_from_the_order_with_the_digits_of_the_longest(self):
+    def test_from_the_order_without_a_leading_zero(self):
         first = Question.objects.create(review=self.review, question="What exists?", order=1)
         second = Question.objects.create(review=self.review, question="Where?", order=0)
         Question.objects.create(review=self.review, question="Which ones?", order=0, parent_question=first)
@@ -29,7 +29,7 @@ class TestCodes(TestCase):
         self.assertEqual("RQ1", codes.code_of(self.review, Question.objects.get(pk=first.pk)).code)
         for index in range(12):
             DataExtractionFieldFactory(review=self.review, description=f"Field {index}", order=index)
-        self.assertEqual(["EX01", "EX02"], [field.code for field in codes.fields(self.review)][:2])
+        self.assertEqual(["EX1", "EX2"], [field.code for field in codes.fields(self.review)][:2])
         self.assertEqual("EX12", codes.fields(self.review)[-1].code)
 
     def test_criteria_by_type_and_their_order(self):

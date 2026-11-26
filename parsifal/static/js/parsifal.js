@@ -239,10 +239,10 @@ $.fn.stopLoading = function () {
   $(this).removeClass("loading-state");
 };
 
-/* The codes of a list of the protocol (RQ1, RQ1.1, IC2, QA3, EX01…) follow its rows, as the server gives them
+/* The codes of a list of the protocol (RQ1, RQ1.1, IC2, QA3, EX1…) follow its rows, as the server gives them
    (services/codes.py): once a row moves, comes or goes, they are given again from the order. The list (``tbody``)
    says its prefix (data-code-prefix); each row with a code has data-code-id, a sub-question data-parent-id, and its
-   code in .js-code. A code has as many digits as the longest of its list. */
+   code in .js-code. No leading zero: EC1…EC11. */
 function renumberCodes(tbody) {
   var prefix = $(tbody).attr("data-code-prefix");
   var rows = $(tbody).children("tr[data-code-id]");
@@ -251,15 +251,10 @@ function renumberCodes(tbody) {
     var parent = $(this).attr("data-parent-id") || "";
     (children[parent] = children[parent] || []).push(this);
   });
-  function pad(number, total) {
-    var text = String(number);
-    while (text.length < String(total).length) { text = "0" + text; }
-    return text;
-  }
   function walk(parent, base) {
     var siblings = children[parent] || [];
     $.each(siblings, function (index, row) {
-      var number = pad(index + 1, siblings.length);
+      var number = index + 1;
       var code = parent ? base + "." + number : base + number;
       $(row).find(".js-code").first().text(code);
       walk($(row).attr("data-code-id"), code);

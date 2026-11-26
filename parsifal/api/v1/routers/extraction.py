@@ -23,7 +23,7 @@ router = Router(tags=["extraction"])
     "/reviews/{int:review_id}/extraction/fields", response=list[FieldOut], operation_id="extraction_fields_list"
 )
 def extraction_fields_list(request, review_id: int):
-    """The fields in their order, each with its code (EX01…)."""
+    """The fields in their order, each with its code (EX1…)."""
     return codes.fields(get_review(request, review_id))
 
 

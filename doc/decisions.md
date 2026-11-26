@@ -877,8 +877,9 @@ listed by description) and a listbox for a UI.
 **Decision.**
 - Codes are computed from each list's order, never stored: research questions
   (sub-questions under their parent, RQ1.1), inclusion and exclusion criteria
-  (a list each), quality questions, extraction fields. As many digits as the
-  longest of the list (EX01…EX25), as his own numbering had.
+  (a list each), quality questions, extraction fields. No leading zero
+  (EC1…EC11, EX1…EX25): Helder preferred it (2026-11-26), and lists should
+  not differ (IC1 next to EC01).
 - `SelectionCriteria.order`, numbered by the migration in the order the
   criteria were created (his protocol's order, not the alphabetical one they
   were shown in). The criteria get the research questions' UI: a list per
@@ -886,7 +887,7 @@ listed by description) and a listbox for a UI.
 - Prefixes per review (`Review.code_prefixes`): RQ, IC, EC, QA, EX by default,
   QP/CI/CE for a review written in Portuguese.
 - The codes go wherever the items show, into the report, the exports (the
-  extraction columns: "EX01 Country") and the API (`code`). The AI keeps its
+  extraction columns: "EX1 Country") and the API (`code`). The AI keeps its
   own keys (E1, I1) in what it sends and stores; it numbers in the same order,
   so EC2 is E2.
 - Codes typed by hand are found by a pattern at the start of a name and
