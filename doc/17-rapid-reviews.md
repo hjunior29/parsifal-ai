@@ -7,10 +7,8 @@ implementation differs from this plan, §7 says so.
 Sources:
 
 - **[G]** Cartaxo, B., Pinto, G., Soares, S. (2020). *Rapid Reviews in Software
-  Engineering*. In: Felderer, M., Travassos, G.H. (eds) *Contemporary Empirical
-  Methods in Software Engineering*. Springer. doi:10.1007/978-3-030-32489-6_13
-  (preprint arXiv:2003.10006). This is **the guideline**: §4 is the process
-  (planning, performing, reporting).
+  Engineering*. arXiv:2003.10006. This is **the guideline**: §4 is the
+  process (planning, performing, reporting).
 - **[E]** Cartaxo, B., Pinto, G., Soares, S. (2018). *The Role of Rapid Reviews
   in Supporting Decision-Making in Software Engineering Practice*. EASE '18.
   doi:10.1145/3210459.3210462. This is **the worked example** that [G] §4.1.5
