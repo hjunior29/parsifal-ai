@@ -19,7 +19,7 @@
   <script src="{% static 'js/planning_keyword.js' %}?v=3"></script>
   <script src="{% static 'js/planning_source.js' %}?v=3"></script>
   <script src="{% static 'js/planning_search_string.js' %}?v=1"></script>
-  <script src="{% static 'js/planning_criteria.js' %}?v=5"></script>
+  <script src="{% static 'js/planning_criteria.js' %}?v=6"></script>
   {% if review.is_rapid_review %}<script src="{% static 'js/planning_protocol_fields.js' %}?v=1"></script>{% endif %}
   <script>
     $(function () {
@@ -597,7 +597,7 @@
             <p class="text-muted">Each criterion gets its code from its place in its list ({{ code_prefixes.inclusion }}1, {{ code_prefixes.exclusion }}1…): move it to renumber, and write it without a code. Up to 200 characters.</p>
           </div>
           {% for kind, label, criteria_type, items in criteria_lists %}
-            <table class="table protocol-list js-criteria-list" data-criteria-type="{{ criteria_type }}">
+            <table class="table protocol-list criteria-list js-criteria-list" data-criteria-type="{{ criteria_type }}">
               <thead>
                 <tr><th colspan="4">{{ label }}</th></tr>
               </thead>

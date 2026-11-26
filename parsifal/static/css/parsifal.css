@@ -916,3 +916,24 @@ div.list-group.docs-nav a.list-group-item.active .docs-summary { color: #8a6f5c;
 .written-codes .written-kind {
   white-space: nowrap;
 }
+
+/* The criteria are shorter than the research questions: lower rows, the arrows side by side, smaller buttons. */
+.criteria-list > tbody > tr > td {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.criteria-list .protocol-order {
+  width: 48px;
+  white-space: nowrap;
+}
+
+.criteria-list .protocol-order a {
+  display: inline-block;
+  font-size: 11px;
+}
+
+.criteria-list .protocol-actions {
+  width: 130px;
+}
+

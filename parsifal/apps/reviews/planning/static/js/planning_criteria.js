@@ -20,10 +20,10 @@ $(function () {
   function formRow(text) {
     return $(
       '<tr class="criteria-form-row">' +
-        '<td colspan="3"><input type="text" class="form-control" maxlength="200"></td>' +
+        '<td colspan="3"><input type="text" class="form-control input-sm" maxlength="200"></td>' +
         '<td class="protocol-actions">' +
-          '<button type="button" class="btn btn-sm btn-success js-save-criteria"><span class="glyphicon glyphicon-ok"></span> save</button> ' +
-          '<button type="button" class="btn btn-sm btn-default js-cancel-criteria">cancel</button>' +
+          '<button type="button" class="btn btn-xs btn-success js-save-criteria"><span class="glyphicon glyphicon-ok"></span> save</button> ' +
+          '<button type="button" class="btn btn-xs btn-default js-cancel-criteria">cancel</button>' +
           '<span class="help-block text-danger js-criteria-error" style="display: none;"></span>' +
         '</td>' +
       '</tr>'
