@@ -32,13 +32,18 @@ curl -H "Authorization: Bearer $PARSIFAL_TOKEN" $PARSIFAL_URL/api/v1/me
 The [CLI](/docs/cli/) and the [MCP server](/docs/mcp/) read the same two
 environment variables (or a saved profile).
 
-## Revoking
+## Managing & revoking tokens
 
-Revoke a token from the same settings page, `parsifal token revoke --id N` or `POST /api/v1/tokens/{id}/revoke`.
-A revoked token stays listed until you delete it (**Delete**, `parsifal token delete --id N` or
-`DELETE /api/v1/tokens/{id}`); an active token cannot be deleted, revoke it first.
-Revoked tokens stop working immediately; the *last used* column helps you spot
-tokens that are no longer needed.
+| Action | Web UI | CLI | API |
+|--------|--------|-----|-----|
+| List tokens | Settings → API tokens | `parsifal token list` | `GET /api/v1/tokens` |
+| Create a token | Settings → API tokens → **Create token** | `parsifal token create --name "…"` | `POST /api/v1/tokens` |
+| Revoke a token | Settings → API tokens → **Revoke** | `parsifal token revoke --id N` | `POST /api/v1/tokens/{id}/revoke` |
+| Delete a revoked token | Settings → API tokens → **Delete** | `parsifal token delete --id N` | `DELETE /api/v1/tokens/{id}` |
+
+Revoked tokens stop working immediately and remain listed until deleted; an
+active token cannot be deleted until it is revoked first. The *last used*
+column helps you spot tokens that are no longer needed.
 
 ## Recommendations
 

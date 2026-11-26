@@ -168,35 +168,42 @@ screen as itself. As in the window, **whatever a run leaves out takes the
 settings of the review's last run of that action** (`ai-screening setup` shows
 them under `start`); `--defaults` takes Parsifal's.
 
-```bash
-parsifal integration jev set --api-key - --model jev-1.13.0   # Settings → Integrations
-parsifal integration jev test
-parsifal ai-screening setup --review R                        # what the window shows (start: the settings a run starts from)
-parsifal ai-screening preview --review R --template @request.json   # the request a run would send about the first study in scope
-parsifal ai-screening run --review R --reviewer-id U --criteria-ids 3 --criteria-ids 4   # only these criteria
-parsifal ai-screening run --review R --reviewer-id U --model jev-1.13.0 --threshold 0.9 --guidance @notes.txt
-parsifal ai-screening run --review R --reviewer-id U --statuses U --statuses R --statuses A --source-id 0   # all sources
-parsifal ai-screening run --review R --reviewer-id U --phase inclusion --thresholds I1=0.9 --thresholds I2=0.85
-parsifal ai-screening run --review R --reviewer-id U --phase screen --threshold 0.9 --thresholds I1=0.85
-parsifal ai-screening run --review R --reviewer-id U --defaults   # Parsifal's defaults, not the last run's
-parsifal review update --review R --inclusion-rule any        # a study must meet at least one inclusion criterion
-parsifal article list --review R --order ai_score             # the most likely relevant first
-parsifal ai-screening runs --review R
-parsifal ai-screening results --review R --id RUN --outcome excluded
-parsifal ai-screening impact --review R --reviewer-id U --phase screen   # what a run would rewrite (asked by start and run too)
-parsifal ai-screening rerun --review R --id RUN --threshold 0.7   # a new run with RUN's settings; then `run --run NEW`
-parsifal ai-screening undo-preview --review R --id RUN   # what undoing RUN would do
-parsifal ai-screening undo --review R --id RUN           # shows that and asks; --yes skips the question
-```
+### CLI commands
+
+| Task | Command |
+|------|---------|
+| Save Jev API key & default model | `parsifal integration jev set --api-key - --model jev-1.13.0` |
+| Test Jev API key | `parsifal integration jev test` |
+| View screening setup & last-run defaults | `parsifal ai-screening setup --review R` |
+| Preview request for first study in scope | `parsifal ai-screening preview --review R --template @request.json` |
+| Run with selected criteria only | `parsifal ai-screening run --review R --reviewer-id U --criteria-ids 3 --criteria-ids 4` |
+| Run with model, threshold & guidance | `parsifal ai-screening run --review R --reviewer-id U --model jev-1.13.0 --threshold 0.9 --guidance @notes.txt` |
+| Run across specific statuses & all sources | `parsifal ai-screening run --review R --reviewer-id U --statuses U --statuses R --statuses A --source-id 0` |
+| Run Include with AI (per-criterion thresholds) | `parsifal ai-screening run --review R --reviewer-id U --phase inclusion --thresholds I1=0.9 --thresholds I2=0.85` |
+| Run Screen with AI (exclusion + inclusion) | `parsifal ai-screening run --review R --reviewer-id U --phase screen --threshold 0.9 --thresholds I1=0.85` |
+| Run with Parsifal's defaults | `parsifal ai-screening run --review R --reviewer-id U --defaults` |
+| Set inclusion rule (`all` or `any`) | `parsifal review update --review R --inclusion-rule any` |
+| Order studies by AI relevance | `parsifal article list --review R --order ai_score` |
+| List runs or inspect results | `parsifal ai-screening runs --review R` · `parsifal ai-screening results --review R --id RUN --outcome excluded` |
+| Check impact before running | `parsifal ai-screening impact --review R --reviewer-id U --phase screen` |
+| Rerun with adjusted settings | `parsifal ai-screening rerun --review R --id RUN --threshold 0.7` (then `run --run NEW`) |
+| Preview or undo the latest run | `parsifal ai-screening undo-preview --review R --id RUN` · `parsifal ai-screening undo --review R --id RUN` (`--yes` skips prompt) |
+
+### API & MCP
+
+| Interface | Usage |
+|-----------|-------|
+| API (Jev key) | `GET` / `PUT` / `DELETE /api/v1/integrations/jev` · `POST /api/v1/integrations/jev/test` |
+| API (setup & preview) | `GET /api/v1/reviews/{id}/ai-screening?phase=&defaults=` · `POST …/ai-screening/preview` · `POST …/ai-screening/impact` |
+| API (runs) | `GET` / `POST /api/v1/reviews/{id}/ai-screening/runs` · `POST …/runs/{run_id}/step` · `GET …/runs/{run_id}/results` · `POST …/runs/{run_id}/rerun` · `POST …/runs/{run_id}/undo` |
+| MCP | `parsifal_ai_screening_run` (continue with `run_id`), `parsifal_ai_screening_impact`, `parsifal_ai_screening_rerun`, `parsifal_ai_screening_undo_preview`, `parsifal_ai_screening_undo` |
 
 `ai-screening run` starts a run and screens until it ends, printing the
-progress with the time spent and about how long is left. Ctrl-C, or an interruption from Jev, leaves the run waiting:
-`ai-screening run --run RUN` continues it. The step-by-step operations are also
-there: `start`, then `step --id RUN` until the run is no longer running. On a
-terminal, `start`, `run` and `rerun` first ask when the run would rewrite the
-reviewer's decisions, as the window does (`--yes` skips it).
-In MCP, `parsifal_ai_screening_run` does the same in one call and says when to
-call again with `run_id`.
+progress with the time spent and about how long is left. Ctrl-C, or an
+interruption from Jev, leaves the run waiting: `ai-screening run --run RUN`
+continues it. Step-by-step operations (`start`, then `step --id RUN`) are also
+available. On a terminal, `start`, `run` and `rerun` ask for confirmation when
+a run would rewrite the reviewer's decisions (`--yes` skips it).
 
 ## What happens to each study: exclusion
 

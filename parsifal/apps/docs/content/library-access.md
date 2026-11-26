@@ -92,9 +92,8 @@ link is called **Via proxy**.
 
 ## API, CLI and MCP
 
-- API: `GET`, `PUT {address}` and `DELETE /api/v1/integrations/library-access`.
-  Every study the API returns carries `access_url` (null without a proxy).
-- CLI: `parsifal integration library-access set --address "https://…"`, `show`,
-  `remove`; `parsifal article get` shows `access_url`.
-- MCP: `parsifal_library_access_get`, `parsifal_library_access_set`,
-  `parsifal_library_access_delete`.
+| Interface | Usage | Notes |
+|-----------|-------|-------|
+| API | `GET`, `PUT {address}` and `DELETE /api/v1/integrations/library-access` | Every study returned by the API includes `access_url` (`null` without a proxy) |
+| CLI | `parsifal integration library-access show` · `set --address "https://…"` · `remove` | `parsifal article get` shows `access_url` |
+| MCP | `parsifal_library_access_get`, `parsifal_library_access_set`, `parsifal_library_access_delete` | Manages the authenticated user's proxy |

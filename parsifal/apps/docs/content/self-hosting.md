@@ -75,11 +75,11 @@ Put a reverse proxy (Caddy, nginx, Traefik) in front of port 8000, forward
 
 ## Backups
 
-```bash
-python manage.py backup                        # <data dir>/backups/parsifal-<timestamp>.tar.gz
-python manage.py backup --keep 10              # then only the 10 newest of that folder remain
-python manage.py restore --file <backup> --yes # the database and the files; stop other processes first
-```
+| Task | Command | Notes |
+|------|---------|-------|
+| Create a backup | `python manage.py backup` | Writes `<data dir>/backups/parsifal-<timestamp>.tar.gz` |
+| Create & prune old backups | `python manage.py backup --keep 10` | Keeps only the 10 newest archives in that folder |
+| Restore a backup | `python manage.py restore --file <backup> --yes` | Restores database and PDFs; stop other processes first |
 
 A backup is one `.tar.gz`: a copy of the database (SQLite's online backup API,
 safe while the application runs), every study's PDF — from `files/` or from

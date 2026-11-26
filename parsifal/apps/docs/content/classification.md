@@ -85,3 +85,15 @@ Today these steps are available through the API, the CLI and the MCP tools;
 the web pages expose the review type, the report sections and the reviewer
 agreement panel. Screens for facets and classification are planned next to the
 data extraction form.
+
+## In the API, the CLI and the MCP server
+
+| Task | CLI command | API endpoint |
+|------|-------------|--------------|
+| Update protocol texts | `parsifal review update --review R --selection-procedure … --synthesis-strategy … --validity-threats …` | `PATCH /api/v1/reviews/{id}` |
+| Document a source search | `parsifal source document-search --review R --source-id S --searched-at YYYY-MM-DD` | `PUT /api/v1/reviews/{id}/sources/{source_id}/search` |
+| Manage known-paper test set | `parsifal test-set add --review R …` · `parsifal test-set get --review R` | `GET` / `POST /api/v1/reviews/{id}/test-set` |
+| Create a facet (template or custom) | `parsifal facet create --review R --template research_type` · `--name Topic --multiple --categories …` | `POST /api/v1/reviews/{id}/facets` |
+| Classify a study | `parsifal classification set --review R --article A --facet-id F --category-ids …` | `PUT /api/v1/reviews/{id}/articles/{article_id}/classification` |
+| Facet frequencies & bubble-plot matrix | `parsifal analytics facet-frequencies --review R --facet F` · `parsifal analytics facet-matrix --review R --rows F1 --columns F2` | `GET /api/v1/reviews/{id}/analytics/facets/{id}/frequencies` · `GET …/analytics/facet-matrix` |
+| Petersen process checklist | `parsifal checklist get --review R` · `parsifal checklist set --review R --key search_database --applied --notes "Scopus, IEEE"` | `GET /api/v1/reviews/{id}/checklist` · `PUT …/checklist/{key}` |

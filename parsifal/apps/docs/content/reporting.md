@@ -29,17 +29,16 @@ Adding, changing or removing a threat is recorded in the
 the protocol. Review backups carry the threats, and the report has a
 *Threats to Validity* section (Export → Reporting).
 
-```
-parsifal threat types
-parsifal threat create --review alice/my-review --title "Selection by one researcher" \
-  --category "Theoretical validity" --description "Studies may have been missed." \
-  --mitigation "A test set of known studies."
-parsifal threat list --review alice/my-review
-```
+### Threats in the API, CLI and MCP
 
-API: `GET /api/v1/threats/types`, `GET|POST /api/v1/reviews/{id}/threats`,
-`PATCH|DELETE /api/v1/reviews/{id}/threats/{threat_id}`. The MCP server has the
-same as `parsifal_threat_*` tools.
+| Action | CLI command | API endpoint |
+|--------|-------------|--------------|
+| Suggested types | `parsifal threat types` | `GET /api/v1/threats/types` |
+| List threats | `parsifal threat list --review alice/my-review` | `GET /api/v1/reviews/{id}/threats` |
+| Create a threat | `parsifal threat create --review alice/my-review --title "Selection by one researcher" --category "Theoretical validity" --description "Studies may have been missed." --mitigation "A test set of known studies."` | `POST /api/v1/reviews/{id}/threats` |
+| Update or delete | `parsifal threat update` / `parsifal threat delete` | `PATCH` / `DELETE /api/v1/reviews/{id}/threats/{threat_id}` |
+
+The MCP server exposes the same operations as `parsifal_threat_*` tools.
 
 ## Manuscripts
 
@@ -66,16 +65,15 @@ Every manuscript added, renamed or deleted and every version uploaded or
 deleted is recorded in the [History](/docs/history/), in the *Reporting* area.
 Review backups carry the manuscripts and their files.
 
-```
-parsifal manuscript create --review alice/my-review --name "Full paper" --description "SBES template"
-parsifal manuscript version upload --review alice/my-review --manuscript 3 --file paper.pdf --notes "After the reviews"
-parsifal manuscript list --review alice/my-review
-parsifal manuscript version download --review alice/my-review --manuscript 3 --id 7 -o paper.pdf
-```
+### Manuscripts in the API, CLI and MCP
 
-API: `GET|POST /api/v1/reviews/{id}/manuscripts`,
-`PATCH|DELETE /api/v1/reviews/{id}/manuscripts/{manuscript_id}`,
-`POST …/manuscripts/{manuscript_id}/versions` (multipart `file`, `notes`),
-`GET …/versions/{version_id}/file`, `DELETE …/versions/{version_id}`. The MCP
-server has the same as `parsifal_manuscript_*` tools.
+| Action | CLI command | API endpoint |
+|--------|-------------|--------------|
+| List manuscripts | `parsifal manuscript list --review alice/my-review` | `GET /api/v1/reviews/{id}/manuscripts` |
+| Create a manuscript | `parsifal manuscript create --review alice/my-review --name "Full paper" --description "SBES template"` | `POST /api/v1/reviews/{id}/manuscripts` |
+| Rename or delete | `parsifal manuscript update` / `parsifal manuscript delete` | `PATCH` / `DELETE /api/v1/reviews/{id}/manuscripts/{manuscript_id}` |
+| Upload a version | `parsifal manuscript version upload --review alice/my-review --manuscript 3 --file paper.pdf --notes "After the reviews"` | `POST /api/v1/reviews/{id}/manuscripts/{manuscript_id}/versions` (multipart `file`, `notes`) |
+| Download or delete version | `parsifal manuscript version download --review alice/my-review --manuscript 3 --id 7 -o paper.pdf` | `GET …/versions/{version_id}/file` · `DELETE …/versions/{version_id}` |
+
+The MCP server exposes the same operations as `parsifal_manuscript_*` tools.
 

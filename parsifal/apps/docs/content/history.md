@@ -52,15 +52,15 @@ only the changes to that study.
 
 ## In the API, the CLI and the MCP server
 
-```
-GET /api/v1/reviews/{id}/history?area=planning&since=2026-11-01&amendments=true
-parsifal history list --review alice/my-review --area planning --since 2026-11-01 --amendments
-```
+| Interface | Usage |
+|-----------|-------|
+| API | `GET /api/v1/reviews/{id}/history?area=planning&since=2026-11-01&amendments=true` |
+| CLI | `parsifal history list --review alice/my-review --area planning --since 2026-11-01 --amendments` |
+| MCP | `parsifal_history_list` |
 
-Each change comes with `actor` (the username), `actor_name`, `via`, `area`,
-`action`, `summary`, `changes` (`key`, `field`, `before`, `after`), `items`,
-`article_ids`, `run_id` and `amendment`. The MCP server has the same as the tool
-`parsifal_history_list`.
+Each event returns `actor` (username), `actor_name`, `via`, `area`, `action`,
+`summary`, `changes` (`key`, `field`, `before`, `after`), `items`,
+`article_ids`, `run_id` and `amendment`.
 
 The History goes with the review's backups: a review imported from a backup
 keeps it. Restoring a backup keeps the review's History as it is and adds the

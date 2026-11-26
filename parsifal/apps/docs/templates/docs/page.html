@@ -6,8 +6,10 @@
 
 {% block fullwidthheader %}
   <div class="masthead docs-masthead">
-    <h1>{% trans "Documentation" %}</h1>
-    <p>{% trans "What this Parsifal adds: self-hosting, an API, a CLI, an MCP server, mapping studies and multi-reviewer screening." %}</p>
+    <div class="container">
+      <h1>{% trans "Documentation" %}</h1>
+      <p>{% trans "Self-hosting, AI screening, rapid reviews, mapping studies, PRISMA 2020, evidence-backed extraction, audit history, and the API, CLI & MCP server." %}</p>
+    </div>
   </div>
 {% endblock %}
 
@@ -39,6 +41,27 @@
           </article>
         </div>
       </div>
+
+      {% if prev_page or next_page %}
+        <nav aria-label="{% trans 'Documentation pagination' %}">
+          <ul class="pager docs-pager">
+            {% if prev_page %}
+              <li class="previous">
+                <a href="{% if prev_page.slug == 'index' %}{% url 'docs:index' %}{% else %}{% url 'docs:page' prev_page.slug %}{% endif %}">
+                  <span aria-hidden="true">&larr;</span> {{ prev_page.title }}
+                </a>
+              </li>
+            {% endif %}
+            {% if next_page %}
+              <li class="next">
+                <a href="{% if next_page.slug == 'index' %}{% url 'docs:index' %}{% else %}{% url 'docs:page' next_page.slug %}{% endif %}">
+                  {{ next_page.title }} <span aria-hidden="true">&rarr;</span>
+                </a>
+              </li>
+            {% endif %}
+          </ul>
+        </nav>
+      {% endif %}
     </div>
   </div>
 {% endblock content %}

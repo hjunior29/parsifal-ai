@@ -103,25 +103,31 @@ splits the records excluded by round.
 
 ## In the API, the CLI and the MCP server
 
-```
-parsifal review create --title "Flaky tests" --review-type rapid
-parsifal review update --review alice/flaky-tests --demand practitioners \
-  --practical-problem "Flaky tests slow the team down." --started-on 2026-11-23 --deadline 2026-11-30
-parsifal checklist get --review alice/flaky-tests --catalog rapid
-parsifal checklist set --review alice/flaky-tests --key rr_single_source --applied --notes "Scopus indexes the main venues"
-parsifal threat draft --review alice/flaky-tests
-parsifal article list --review alice/flaky-tests --stage title --stage-state pending
-parsifal article set-status --review alice/flaky-tests --ids 12 --ids 13 --status R --selection-criteria-id 4 --stage title
-parsifal ai-screening run --review alice/flaky-tests --stage title --pending --reviewer-id 7
-parsifal analytics funnel --review alice/flaky-tests
-```
+Every rapid-review operation is available through the JSON API, the `parsifal` CLI and the `parsifal-mcp` server.
 
-`PATCH /api/v1/reviews/{id}` takes `demand`, `demand_notes`,
-`practical_problem`, `practical_context`, `stakeholder_roles`, `started_on`,
-`deadline`; `GET /reviews/{id}/checklist?catalog=rapid`,
-`PUT /reviews/{id}/checklist/{key}`, `POST /reviews/{id}/threats/draft`.
-`GET /reviews/{id}/articles?stage=&stage_state=`, `POST /articles/status`
-with `stage` (and `match_stage`, `match_stage_state` for `all_matching`); the
-decisions take `stage` `title` and default to the first round; the AI
-screening start, preview, impact and rerun take `stage` and `pending`;
-`GET /reviews/{id}/analytics/funnel`; the PRISMA has `excluded_by_round`.
+### CLI commands
+
+| Task | Command |
+|------|---------|
+| Create a rapid review | `parsifal review create --title "Flaky tests" --review-type rapid` |
+| Set practical context & dates | `parsifal review update --review alice/flaky-tests --demand practitioners --practical-problem "Flaky tests slow the team down." --started-on 2026-11-23 --deadline 2026-11-30` |
+| View rapid-review checklist | `parsifal checklist get --review alice/flaky-tests --catalog rapid` |
+| Mark a concession | `parsifal checklist set --review alice/flaky-tests --key rr_single_source --applied --notes "Scopus indexes the main venues"` |
+| Draft threats from concessions | `parsifal threat draft --review alice/flaky-tests` |
+| List studies pending in a round | `parsifal article list --review alice/flaky-tests --stage title --stage-state pending` |
+| Set status for a round | `parsifal article set-status --review alice/flaky-tests --ids 12 --ids 13 --status R --selection-criteria-id 4 --stage title` |
+| Run AI screening on a round | `parsifal ai-screening run --review alice/flaky-tests --stage title --pending --reviewer-id 7` |
+| Inspect selection funnel | `parsifal analytics funnel --review alice/flaky-tests` |
+
+### API endpoints
+
+| Endpoint | Parameters & behavior |
+|----------|-----------------------|
+| `PATCH /api/v1/reviews/{id}` | Accepts `demand`, `demand_notes`, `practical_problem`, `practical_context`, `stakeholder_roles`, `started_on`, `deadline` |
+| `GET /api/v1/reviews/{id}/checklist?catalog=rapid` | Returns the rapid-review checklist (collaboration & concessions) |
+| `PUT /api/v1/reviews/{id}/checklist/{key}` | Updates `applied` and `notes` for a checklist item |
+| `POST /api/v1/reviews/{id}/threats/draft` | Drafts threats to validity from applied concessions |
+| `GET /api/v1/reviews/{id}/articles?stage=&stage_state=` | Filters studies by screening round (`stage`) and round state (`stage_state`) |
+| `POST /api/v1/reviews/{id}/articles/status` | Accepts `stage` (plus `match_stage` and `match_stage_state` when using `all_matching`); reviewer decisions accept `stage: "title"` and default to the first round |
+| AI screening (`start`, `preview`, `impact`, `rerun`) | Accept `stage` and `pending` to run on a specific screening round |
+| `GET /api/v1/reviews/{id}/analytics/funnel` | Returns round-by-round selection funnel counts; PRISMA output includes `excluded_by_round` |

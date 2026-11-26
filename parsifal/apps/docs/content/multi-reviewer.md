@@ -18,23 +18,23 @@ can be a colleague or an AI agent with its own account.
   round mode of a rapid review, where a status given at a round is also the
   reviewer's decision there.
 
-Decisions are recorded through the API/CLI/MCP:
+Decisions are recorded through the API, CLI and MCP:
 
-```bash
-parsifal decision record --review R --ids 12 --ids 15 --status A --selection-criteria-id 3 --comments "empirical, in scope"
-parsifal decision record --review R --ids 13 --status R --selection-criteria-id 4 --stage title_abstract
-parsifal decision list --review R --stage title_abstract --user-id 7
-parsifal decision article --review R --article 13          # every reviewer's decision for one study
-```
+| Task | CLI command | API endpoint |
+|------|-------------|--------------|
+| Record acceptance | `parsifal decision record --review R --ids 12 --ids 15 --status A --selection-criteria-id 3 --comments "empirical, in scope"` | `POST /api/v1/reviews/{id}/decisions` |
+| Record rejection at a stage | `parsifal decision record --review R --ids 13 --status R --selection-criteria-id 4 --stage title_abstract` | `POST /api/v1/reviews/{id}/decisions` |
+| List decisions by reviewer | `parsifal decision list --review R --stage title_abstract --user-id 7` | `GET /api/v1/reviews/{id}/decisions` |
+| View all decisions for one study | `parsifal decision article --review R --article 13` | `GET /api/v1/reviews/{id}/articles/{article_id}/decisions` |
 
 ## Measuring agreement
 
-```bash
-parsifal decision agreement --review R                      # first two reviewers at title_abstract
-parsifal decision agreement --review R --user-a-id 2 --user-b-id 7 --stage full_text
-parsifal decision disagreements --review R                  # among every reviewer
-parsifal decision disagreements --review R --user-a-id 2 --user-b-id 7   # where those two differ
-```
+| Task | CLI command | API endpoint |
+|------|-------------|--------------|
+| Kappa (first two reviewers) | `parsifal decision agreement --review R` | `GET /api/v1/reviews/{id}/decisions/agreement` |
+| Kappa for a specific pair & stage | `parsifal decision agreement --review R --user-a-id 2 --user-b-id 7 --stage full_text` | `GET /api/v1/reviews/{id}/decisions/agreement?user_a_id=&user_b_id=&stage=` |
+| Disagreements across all reviewers | `parsifal decision disagreements --review R` | `GET /api/v1/reviews/{id}/decisions/disagreements` |
+| Disagreements between two reviewers | `parsifal decision disagreements --review R --user-a-id 2 --user-b-id 7` | `GET /api/v1/reviews/{id}/decisions/disagreements?user_a_id=&user_b_id=` |
 
 The agreement report gives the number of studies both reviewers decided,
 the percent agreement, **Cohen's kappa** and its usual interpretation (Landis &
@@ -58,12 +58,12 @@ title, DOI or BibTeX key (`article list --q` in the CLI, `q` in the API).
 
 ## Consolidating
 
-```bash
-parsifal decision consolidate --review R --rule unanimous
-parsifal decision consolidate --review R --rule any_include --ids 13 --ids 14
-parsifal decision consolidate --review R --rule majority --stage full_text
-parsifal decision consolidate --review R --rule unanimous --user-ids 2 --user-ids 7   # those two reviewers only
-```
+| Task | CLI command | API endpoint |
+|------|-------------|--------------|
+| Consolidate with unanimous rule | `parsifal decision consolidate --review R --rule unanimous` | `POST /api/v1/reviews/{id}/decisions/consolidate` |
+| Consolidate specific studies (`any_include`) | `parsifal decision consolidate --review R --rule any_include --ids 13 --ids 14` | `POST /api/v1/reviews/{id}/decisions/consolidate` |
+| Consolidate at `full_text` (`majority`) | `parsifal decision consolidate --review R --rule majority --stage full_text` | `POST /api/v1/reviews/{id}/decisions/consolidate` |
+| Consolidate using two reviewers only | `parsifal decision consolidate --review R --rule unanimous --user-ids 2 --user-ids 7` | `POST /api/v1/reviews/{id}/decisions/consolidate` |
 
 | Rule | Outcome |
 |------|---------|
