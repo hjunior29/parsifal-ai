@@ -80,7 +80,8 @@ An **agent** is an AI co-author with an account of its own, created for one revi
 | `GET/POST /reviews/{rid}/sources` (`{source_id}` default library or `{name,url}` custom) · `PATCH/DELETE /sources/{id}` | `review_sources_*` |
 | `GET /reviews/{rid}/sources/search-strings` · `PUT/DELETE /sources/{id}/search-string` · `POST /sources/{id}/search-string/copy-generic` | `source_search_string*` |
 | `GET /reviews/{rid}/sources/imports` | `source_imports_list` — the Import Studies table: each source, its imported studies and its date of search (`searched_at`) |
-| `GET/POST /reviews/{rid}/criteria` (`criteria_type` I/E) · `PATCH/DELETE /criteria/{id}` | `criteria_*` |
+| `GET/POST /reviews/{rid}/criteria` (`criteria_type` I/E) · `PATCH/DELETE /criteria/{id}` · `PUT /criteria/order {ids}` (one type) | `criteria_*` · `criteria_reorder` |
+| `GET /reviews/{rid}/codes` · `POST /codes/strip {keys?}` | `reviews_codes` (the prefixes and `written`: the names starting with a code typed by hand, `key`, `kind`, `code`, `written`, `before`, `after`) · `reviews_codes_strip` (removes them; one History event, review area). Every question, criterion, quality question and extraction field carries its `code` (RQ1, RQ1.1, IC1, EC1, QA1, EX01: from its order, `services/codes.py`); `PATCH /reviews/{rid}` takes `code_prefixes` (`{"question": "QP"}` or `["question=QP"]`; a kind left out keeps its prefix) |
 
 ### Quality assessment
 

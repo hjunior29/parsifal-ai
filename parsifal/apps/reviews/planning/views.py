@@ -28,6 +28,7 @@ from parsifal.apps.reviews.models import (
 )
 from parsifal.apps.reviews.planning.forms import KeywordForm, SynonymForm
 from parsifal.apps.reviews.services import (
+    codes,
     extraction,
     history,
     mapping,
@@ -59,7 +60,17 @@ def planning(request, username, review_name):
 @login_required
 def protocol(request, username, review_name):
     review = get_object_or_404(Review, name=review_name, author__username__iexact=username)
-    return render(request, "planning/protocol.html", {"review": review})
+    context = {
+        "review": review,
+        # Each with its code, from its order (services.codes).
+        "questions": codes.questions(review),
+        "criteria_lists": [
+            ("inclusion", "Inclusion Criteria", "I", codes.criteria(review, SelectionCriteria.INCLUSION)),
+            ("exclusion", "Exclusion Criteria", "E", codes.criteria(review, SelectionCriteria.EXCLUSION)),
+        ],
+        "code_prefixes": codes.prefixes(review),
+    }
+    return render(request, "planning/protocol.html", context)
 
 
 @author_required
@@ -133,7 +144,12 @@ PROTOCOL_FIELDS = (
 @login_required
 def quality_assessment_checklist(request, username, review_name):
     review = get_object_or_404(Review, name=review_name, author__username__iexact=username)
-    return render(request, "planning/quality_assessment_checklist.html", {"review": review})
+    context = {
+        "review": review,
+        "quality_questions": codes.quality_questions(review),
+        "code_prefixes": codes.prefixes(review),
+    }
+    return render(request, "planning/quality_assessment_checklist.html", context)
 
 
 @author_required
@@ -141,11 +157,13 @@ def quality_assessment_checklist(request, username, review_name):
 def data_extraction_form(request, username, review_name):
     review = get_object_or_404(Review, name=review_name, author__username__iexact=username)
     empty_field = DataExtractionField()
-    return render(
-        request,
-        "planning/data_extraction_form.html",
-        {"review": review, "empty_field": empty_field},
-    )
+    context = {
+        "review": review,
+        "empty_field": empty_field,
+        "fields": codes.fields(review),
+        "code_prefixes": codes.prefixes(review),
+    }
+    return render(request, "planning/data_extraction_form.html", context)
 
 
 # ==============================================================================
@@ -193,7 +211,7 @@ def save_question(request):
         description = request.POST["description"]
         review = request.review
         if question_id in NEW:
-            question, tracker = Question(review=review), None
+            question, tracker = Question(review=review, order=review.research_questions.count()), None
         else:
             question = child(review.research_questions, question_id)
             tracker = QUESTION.track(question)
@@ -203,6 +221,7 @@ def save_question(request):
             QUESTION.added(review, question)
         else:
             QUESTION.changed(review, tracker)
+        codes.code_of(review, question)  # the page numbers the rows again once it is in place
         return render(request, "planning/partial_planning_question.html", {"question": question})
     except Exception:
         return HttpResponseBadRequest()
@@ -610,15 +629,47 @@ def add_suggested_sources(request):
 @login_required
 @require_POST
 def add_criteria(request):
+    """A new criterion (``criteria``, of ``criteria-type`` I or E), last of its list; returns its row."""
     try:
-        description = request.POST["criteria"]
-        criteria_type = request.POST["criteria-type"]
-        criteria = SelectionCriteria(review=request.review, description=description, criteria_type=criteria_type)
-        criteria.save()
-        criterion_kind(criteria).added(request.review, criteria)
-        return render(request, "planning/partial_criteria.html", {"criteria": criteria})
-    except Exception:
-        return HttpResponseBadRequest()
+        criteria = protocol_services.add_criteria(
+            review=request.review,
+            description=request.POST.get("criteria", ""),
+            criteria_type=request.POST.get("criteria-type"),
+        )
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
+    codes.code_of(request.review, criteria)
+    return render(request, "planning/partial_criteria.html", {"criteria": criteria})
+
+
+@author_required
+@login_required
+@require_POST
+def save_criteria(request):
+    """A criterion's new description (``criteria-id``, ``criteria``); returns its row."""
+    try:
+        criteria = protocol_services.update_criteria(
+            review=request.review,
+            criteria_id=request.POST.get("criteria-id"),
+            description=request.POST.get("criteria", ""),
+        )
+    except DomainError as error:
+        return HttpResponseBadRequest(str(error))
+    codes.code_of(request.review, criteria)
+    return render(request, "planning/partial_criteria.html", {"criteria": criteria})
+
+
+@author_required
+@login_required
+@require_POST
+def save_criteria_order(request):
+    """The order of a list of criteria (``ids``: "3,1,2", all of one type), which gives them their codes."""
+    try:
+        ids = [int(pk) for pk in request.POST.get("ids", "").split(",") if pk]
+        protocol_services.reorder_criteria(review=request.review, ordered_ids=ids)
+    except (DomainError, ValueError) as error:
+        return HttpResponseBadRequest(str(error))
+    return HttpResponse()
 
 
 @author_required
@@ -692,7 +743,8 @@ def save_quality_assessment_question(request):
         review = request.review
 
         if quality_question_id in NEW:
-            quality_question, tracker = QualityQuestion(review=review), None
+            quality_question = QualityQuestion(review=review, order=review.qualityquestion_set.count())
+            tracker = None
         else:
             quality_question = child(review.qualityquestion_set, quality_question_id)
             tracker = quality.QUESTION.track(quality_question)
@@ -703,6 +755,7 @@ def save_quality_assessment_question(request):
             quality.QUESTION.added(review, quality_question)
         else:
             quality.QUESTION.changed(review, tracker)
+        codes.code_of(review, quality_question)
 
         return render(
             request,
@@ -916,7 +969,7 @@ def save_data_extraction_field(request):
 
         cleared = 0
         if field_id in NEW:
-            field, tracker = DataExtractionField(review=review), None
+            field, tracker = DataExtractionField(review=review, order=review.dataextractionfield_set.count()), None
         else:
             field = child(review.dataextractionfield_set, field_id)
             tracker, options = extraction.FIELD.track(field), extraction.options_of(field)
@@ -949,6 +1002,7 @@ def save_data_extraction_field(request):
             extraction.FIELD.added(review, field, changes=extraction.options_change([], extraction.options_of(field)))
         else:
             extraction.record_field_changed(review, field, tracker, options, cleared)
+        codes.code_of(review, field)
         return render(request, "planning/partial_data_extraction_field.html", {"field": field})
     except Exception:
         return HttpResponseBadRequest()

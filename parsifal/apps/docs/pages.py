@@ -64,6 +64,12 @@ PAGES = (
         "Every change to a review: who, when, through what and what changed; the amendments to the protocol.",
     ),
     Page(
+        "codes",
+        "Codes",
+        "Methodology",
+        "RQ1, IC1, EC1, QA1, EX01: the review numbers what it structures, from its order.",
+    ),
+    Page(
         "rapid-review",
         "Rapid reviews",
         "Methodology",

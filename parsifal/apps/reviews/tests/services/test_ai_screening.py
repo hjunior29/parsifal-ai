@@ -53,7 +53,7 @@ class AiScreeningTestCase(TestCase):
         cls.other_bot = agents.create_agent(review=cls.review, actor=cls.owner, name="Screener B").agent.user
         QuestionFactory(review=cls.review, question="RQ1: Which tools exist?", order=1)
         QuestionFactory(review=cls.review, question="RQ2: How are they evaluated?", order=2)
-        # Listed alphabetically by the review: "Not a primary study" (E1), "Not in English" (E2).
+        # In the order the review lists them: "Not a primary study" (E1), "Not in English" (E2).
         cls.secondary = SelectionCriteria.objects.create(
             review=cls.review, criteria_type="E", description="Not a primary study"
         )
@@ -95,8 +95,8 @@ class TestRequest(AiScreeningTestCase):
         self.assertEqual("Software engineering researchers", context["population"])
         self.assertEqual(
             [
-                {"key": "E1", "id": self.secondary.pk, "description": "Not a primary study"},
-                {"key": "E2", "id": self.english.pk, "description": "Not in English"},
+                {"key": "E1", "id": self.secondary.pk, "description": "Not a primary study", "code": "EC1"},
+                {"key": "E2", "id": self.english.pk, "description": "Not in English", "code": "EC2"},
             ],
             ai_screening.exclusion_options(self.review),
         )
@@ -684,8 +684,8 @@ class TestInclusion(AiScreeningTestCase):
         options = ai_screening.inclusion_options(self.review)
         self.assertEqual(
             [
-                {"key": "I1", "id": self.about.pk, "description": "About screening"},
-                {"key": "I2", "id": self.tool.pk, "description": "Implemented tool"},
+                {"key": "I1", "id": self.about.pk, "description": "About screening", "code": "IC1"},
+                {"key": "I2", "id": self.tool.pk, "description": "Implemented tool", "code": "IC2"},
             ],
             options,
         )

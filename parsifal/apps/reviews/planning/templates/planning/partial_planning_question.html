@@ -1,4 +1,4 @@
-<tr data-question-id="{{ question.id }}">
+<tr data-question-id="{{ question.id }}" data-code-id="{{ question.id }}" data-parent-id="{{ question.parent_question_id|default:'' }}">
   <td style="width: 50px; text-align: center; vertical-align: middle;">
     <input type="hidden" name="question-order" value="{{ question.order }}">
     <a href="javascript:void(0);" style="display: block;" class="js-order-research-question-up">
@@ -8,6 +8,7 @@
       <span class="glyphicon glyphicon-chevron-down"></span>
     </a>
   </td>
+  <td class="protocol-code"><span class="item-code js-code">{{ question.code }}</span></td>
   <td style="vertical-align: middle;">
     {{ question.question }}
   </td>

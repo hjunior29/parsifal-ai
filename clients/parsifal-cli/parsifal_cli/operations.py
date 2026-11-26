@@ -143,6 +143,12 @@ REVIEW_FIELDS = (
     B("stakeholder_roles", TEXT, help="Who takes part and how (practitioners usually have no account)."),
     B("started_on", help="Start date, YYYY-MM-DD (empty clears it)."),
     B("deadline", help="Deadline, YYYY-MM-DD (empty clears it)."),
+    B(
+        "code_prefixes",
+        LIST_STR,
+        help="The prefixes of the review's codes, kind=PREFIX (repeat): question (RQ), inclusion (IC), exclusion "
+        "(EC), quality (QA), extraction (EX); e.g. --code-prefixes question=QP --code-prefixes inclusion=CI.",
+    ),
 )
 
 FACET = Param("facet_id", INT, PATH, required=True, help="Facet id.", cli="facet")
@@ -457,6 +463,24 @@ OPERATIONS = (
         "overview",
         "Counts per protocol section and article status — the best first call for an agent.",
         (REVIEW,),
+    ),
+    Operation(
+        "reviews_codes",
+        "GET",
+        "/reviews/{review_id}/codes",
+        ("review", "codes"),
+        "get",
+        "The prefixes of the review's codes, and the names that start with a code typed by hand.",
+        (REVIEW,),
+    ),
+    Operation(
+        "reviews_codes_strip",
+        "POST",
+        "/reviews/{review_id}/codes/strip",
+        ("review", "codes"),
+        "strip",
+        "Remove the codes typed at the start of the names (the review numbers them now).",
+        (REVIEW, B("keys", LIST_STR, help="Only these (see `review codes get`), e.g. question-12 (repeat).")),
     ),
     Operation(
         "reviews_progress",
@@ -908,6 +932,15 @@ OPERATIONS = (
         "Remove a criterion.",
         (REVIEW, child_id("criteria_id", "Criteria id.")),
         destructive=True,
+    ),
+    Operation(
+        "criteria_reorder",
+        "PUT",
+        "/reviews/{review_id}/criteria/order",
+        ("criteria",),
+        "reorder",
+        "Reorder the inclusion criteria, or the exclusion ones (all of one type); their codes follow the order.",
+        (REVIEW, B("ids", LIST_INT, True)),
     ),
     # Quality assessment ---------------------------------------------------------------------------------------------
     Operation(

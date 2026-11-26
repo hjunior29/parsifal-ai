@@ -91,6 +91,7 @@ $(function () {
       success: function(data) {
         $(tr).replaceWith(data);
         manageQuestionsOrder();
+        renumberCodes($("#question-form table tbody"));
       },
       error: function (jqXHR, textStatus, errorThrown) {
         
@@ -120,7 +121,10 @@ $(function () {
         $(btn).ajaxDisable();
       },
       success: function (data) {
+        // Its sub-questions go with it.
+        $("#question-form table tbody tr[data-parent-id='" + question_id + "']").remove();
         $(tr).remove();
+        renumberCodes($("#question-form table tbody"));
       },
       error: function () {
         
@@ -154,6 +158,8 @@ $(function () {
 
     var review_id = $("#review-id").val();
     var csrf_token = $("#question-form input[name='csrfmiddlewaretoken']").val();
+
+    renumberCodes($("#question-form table tbody"));
 
     $.ajax({
       url: '/reviews/planning/save_question_order/',

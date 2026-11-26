@@ -13,7 +13,7 @@
 {% endblock stylesheet %}
 
 {% block javascript %}
-  <script src="{% static 'js/planning_quality_assessment.js' %}?_=3"></script>
+  <script src="{% static 'js/planning_quality_assessment.js' %}?_=4"></script>
   <script>
     $(function () {
       $("#protocol").affix({
@@ -54,8 +54,8 @@
             <h3 class="panel-title">Questions</h3>
           </div>
           <table class="table" id="tbl-quality-questions">
-            <tbody>
-              {% for quality_question in review.get_quality_assessment_questions %}
+            <tbody data-code-prefix="{{ code_prefixes.quality }}">
+              {% for quality_question in quality_questions %}
                 {% include "planning/partial_quality_assessment_question.html" with quality_question=quality_question %}
               {% empty %}
                 {% include "planning/partial_quality_assessment_question_form.html" %}

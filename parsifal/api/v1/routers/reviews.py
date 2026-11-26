@@ -12,6 +12,8 @@ from parsifal.api.v1.schemas.reviews import (
     AgentCreatedOut,
     AgentIn,
     AgentOut,
+    CodesOut,
+    CodesStripIn,
     ProgressOut,
     ReviewCreateIn,
     ReviewEventOut,
@@ -20,10 +22,11 @@ from parsifal.api.v1.schemas.reviews import (
     ReviewUpdateIn,
     SelectionResetIn,
     SelectionResetOut,
+    WrittenCodeOut,
 )
 from parsifal.apps.core.exceptions import ValidationError
 from parsifal.apps.reviews.models import Article, Review
-from parsifal.apps.reviews.services import agents, history, progress, protocol, reviews, selection
+from parsifal.apps.reviews.services import agents, codes, history, progress, protocol, reviews, selection
 
 router = Router(tags=["reviews"])
 
@@ -67,6 +70,23 @@ def reviews_get(request, review_id: int):
 def reviews_overview(request, review_id: int):
     """Counts per protocol section and per article status — what an agent needs to decide the next step."""
     return reviews.review_overview(get_review(request, review_id))
+
+
+@router.get("/reviews/{int:review_id}/codes", response=CodesOut, operation_id="reviews_codes")
+def reviews_codes(request, review_id: int):
+    """
+    The prefixes of the review's codes (research questions RQ1, RQ1.1; criteria IC1, EC1; quality questions QA1;
+    extraction fields EX01 — the review numbers them from their order) and the names that start with a code typed by
+    hand ("RQ1: …", "EX01 | …"), with what they would become without it.
+    """
+    review = get_review(request, review_id)
+    return {"prefixes": codes.prefixes(review), "written": codes.written(review)}
+
+
+@router.post("/reviews/{int:review_id}/codes/strip", response=list[WrittenCodeOut], operation_id="reviews_codes_strip")
+def reviews_codes_strip(request, review_id: int, payload: CodesStripIn):
+    """Remove the codes typed at the start of the names (only ``keys`` when given); returns the names changed."""
+    return codes.strip_written(review=get_review(request, review_id), keys=payload.keys, actor=request.auth)
 
 
 @router.get("/reviews/{int:review_id}/progress", response=ProgressOut, operation_id="reviews_progress")

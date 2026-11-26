@@ -377,8 +377,10 @@ class TestRunAgain(AiRunsTestCase):
         about = self.review.selectioncriteria_set.get(criteria_type="I")
         tool = SelectionCriteria.objects.create(review=self.review, criteria_type="I", description="Implemented tool")
         run = self.start(phase="inclusion", thresholds={"I1": 0.8, "I2": 0.95})
-        # A new criterion listed first moves the keys: each threshold stays with its criterion.
-        SelectionCriteria.objects.create(review=self.review, criteria_type="I", description="Aa new criterion")
+        # A new criterion moved to the top moves the keys: each threshold stays with its criterion.
+        SelectionCriteria.objects.create(
+            review=self.review, criteria_type="I", description="A new criterion", order=-1
+        )
         settings = ai_runs.rerun_settings(self.review, run)
         self.assertEqual({"I1": 0.9, "I2": 0.8, "I3": 0.95}, settings["thresholds"])
         self.assertEqual([about.pk, tool.pk], [option["id"] for option in run.parameters["criteria"]])

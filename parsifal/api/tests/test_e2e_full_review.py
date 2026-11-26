@@ -161,18 +161,20 @@ class TestFullReviewThroughApi(ApiTestCase):
         matrix = self.ok(self.api("get", p("/export/extraction.json")))
         self.assertEqual(
             [
-                {
+                {  # each field with its code
                     "article": smith["title"],
-                    "Tool name": "ReviewBot",
-                    "Tool name (evidence)": "Section 3: the tool, ReviewBot",
-                    "Method": "Experiment",
-                    "Method (evidence)": "Abstract",
+                    "EX1 Tool name": "ReviewBot",
+                    "EX1 Tool name (evidence)": "Section 3: the tool, ReviewBot",
+                    "EX2 Method": "Experiment",
+                    "EX2 Method (evidence)": "Abstract",
                 }
             ],
             matrix,
         )
         matrix = self.ok(self.api("get", p("/export/extraction.json"), QUERY_STRING="evidence=false"))
-        self.assertEqual([{"article": smith["title"], "Tool name": "ReviewBot", "Method": "Experiment"}], matrix)
+        self.assertEqual(
+            [{"article": smith["title"], "EX1 Tool name": "ReviewBot", "EX2 Method": "Experiment"}], matrix
+        )
         report = self.api("get", p("/export/report.docx"))
         self.assertEqual(200, report.status_code)
         self.assertGreater(len(report.content), 1000)

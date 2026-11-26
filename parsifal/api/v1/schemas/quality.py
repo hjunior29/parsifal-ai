@@ -2,11 +2,16 @@ from typing import Any
 
 from ninja import Schema
 
+from parsifal.api.v1.schemas.common import resolve_code
+
 
 class QualityQuestionOut(Schema):
     id: int
+    code: str  # the review's: QA1, QA2… (from the order)
     description: str
     order: int
+
+    resolve_code = staticmethod(resolve_code)
 
 
 class QualityQuestionIn(Schema):

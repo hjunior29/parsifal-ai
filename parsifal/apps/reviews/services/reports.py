@@ -114,8 +114,13 @@ def extraction_cell(extraction):
     return extraction.value or ""
 
 
+def field_column(field):
+    """A field's column: its code and description ("EX01 Country")."""
+    return f"{field.code} {field.description}" if getattr(field, "code", "") else field.description
+
+
 def evidence_column(field):
-    return f"{field.description} (evidence)"
+    return f"{field_column(field)} (evidence)"
 
 
 def extraction_rows(review, evidence=False):
@@ -123,10 +128,12 @@ def extraction_rows(review, evidence=False):
     (columns, rows) — one row per final-selection article, one column per extraction field (followed by a column with
     its evidence when ``evidence``).
     """
-    fields = list(review.get_data_extraction_fields())
+    from parsifal.apps.reviews.services import codes  # it imports the reporting module this one imports
+
+    fields = codes.fields(review)
     columns = ["article"]
     for field in fields:
-        columns += [field.description, evidence_column(field)] if evidence else [field.description]
+        columns += [field_column(field), evidence_column(field)] if evidence else [field_column(field)]
     rows = []
     for article in review.get_final_selection_articles().order_by("title", "pk"):
         extractions = {
@@ -138,7 +145,7 @@ def extraction_rows(review, evidence=False):
         row = {"article": article.title}
         for field in fields:
             found = extractions.get(field.pk)
-            row[field.description] = extraction_cell(found)
+            row[field_column(field)] = extraction_cell(found)
             if evidence:
                 row[evidence_column(field)] = found.evidence if found else ""
         rows.append(row)

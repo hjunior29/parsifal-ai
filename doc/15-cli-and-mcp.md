@@ -54,7 +54,8 @@ mirror the API parameters in kebab-case; `--review` accepts a numeric id or
 | `keyword` | `list`, `create --description [--related-to P|I|C|O] [--synonyms …]`, `update --id`, `delete --id`, `import-picoc` |
 | `search-string` | `get`, `set --search-string`, `generate` |
 | `source` | `defaults`, `list`, `imports` (each source, its imported studies and date of search), `add --source-id | --name --url`, `update --id`, `remove --id`, `document-search --id --search-type --searched-at --years-from --years-to --result-count` (`--searched-at ""` clears the date); `source search-string list|set|copy-generic|delete --id` |
-| `criteria` | `list`, `create --description --criteria-type I|E`, `update --id`, `delete --id` |
+| `criteria` | `list`, `create --description --criteria-type I|E`, `update --id`, `delete --id`, `reorder --ids …` (one type at a time; the codes follow) |
+| `review codes` | `get`, `strip [--keys question-12 …]`; `review update --code-prefixes kind=PREFIX …` |
 | `quality` | `question list|create|update|delete|reorder`, `answer list|create|suggested|update|delete`, `max-score`, `set-cutoff --cutoff`, `summary`, `studies [--q --state done|pending|above|below --order title|-title|year|-year --all]`, `get --article`, `assess --article --question-id [--answer-id]` (no `--answer-id`: clear the answer) |
 | `threat` | `types`, `list`, `create --title [--category --description --mitigation]`, `update --id`, `delete --id`, `draft` (rapid reviews: from the concessions) (threats to validity) |
 | `manuscript` | `list`, `create --name [--description]`, `update --id`, `delete --id` (with its versions); `version upload --manuscript --file [--notes]`, `version download --manuscript --id -o FILE`, `version delete --manuscript --id` |

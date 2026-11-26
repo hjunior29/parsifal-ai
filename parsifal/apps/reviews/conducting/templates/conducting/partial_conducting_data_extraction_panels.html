@@ -12,7 +12,7 @@
           <div class="alert alert-danger js-extraction-message" style="display: none;"></div>
           {% for row in panel.fields %}
             <div class="form-group{% if row.needs_evidence %} has-warning{% endif %}" data-field-id="{{ row.field.id }}">
-              <label class="control-label col-md-2">{{ row.field.description }}</label>
+              <label class="control-label col-md-2"><span class="item-code">{{ row.field.code }}</span> {{ row.field.description }}</label>
               <div class="col-md-10">
                 {% include "conducting/partial_conducting_data_extraction_field.html" with study=panel.study field=row.field %}
                 <label class="extraction-evidence-label" for="evidence-{{ panel.study.id }}-{{ row.field.id }}">Evidence</label>

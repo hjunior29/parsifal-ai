@@ -116,6 +116,9 @@ class Review(models.Model):
     stakeholder_roles = models.TextField(_("stakeholders and their roles"), blank=True)
     started_on = models.DateField(_("start date"), null=True, blank=True)
     deadline = models.DateField(_("deadline"), null=True, blank=True)
+    # The prefixes of the codes the review numbers its research questions, criteria, quality questions and data
+    # extraction fields with (services.codes): {"question": "QP", …}; what is left out takes the default (RQ, IC…).
+    code_prefixes = models.JSONField(_("code prefixes"), default=dict, blank=True)
 
     class Meta:
         verbose_name = _("review")
@@ -278,11 +281,13 @@ class SelectionCriteria(models.Model):
     review = models.ForeignKey(Review, on_delete=models.CASCADE)
     criteria_type = models.CharField(max_length=1, choices=SELECTION_TYPES)
     description = models.CharField(max_length=200)
+    # Its place among the review's criteria of its type: it gives the criterion its code (IC1, EC2…; services.codes).
+    order = models.IntegerField(default=0)
 
     class Meta:
         verbose_name = "Selection Criteria"
         verbose_name_plural = "Selection Criterias"
-        ordering = ("description",)
+        ordering = ("order", "pk")
 
     def __str__(self):
         return self.description

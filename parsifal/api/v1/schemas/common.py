@@ -27,3 +27,12 @@ class UserOut(Schema):
     first_name: str
     last_name: str
     is_superuser: bool
+
+
+def resolve_code(obj):
+    """The review's code of a research question, criterion, quality question or extraction field (services.codes)."""
+    from parsifal.apps.reviews.services import codes  # the schemas are imported before the services' models
+
+    if getattr(obj, "code", None) is None:
+        codes.code_of(obj.review, obj)
+    return obj.code

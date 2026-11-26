@@ -67,9 +67,10 @@ from parsifal.apps.reviews.models import (
     ReviewEvent,
     ScreeningResult,
     ScreeningRun,
+    SelectionCriteria,
     StudyDecision,
 )
-from parsifal.apps.reviews.services import decisions, history, screening_requests
+from parsifal.apps.reviews.services import codes, decisions, history, screening_requests
 from parsifal.apps.reviews.services._common import check_length, get_child
 
 DEFAULT_THRESHOLD = 0.9
@@ -193,18 +194,21 @@ def clean_phase(phase):
 
 
 def exclusion_options(review):
-    """The review's exclusion criteria as the options of the question: E1, E2… in the order the review lists them."""
+    """
+    The review's exclusion criteria as the options of the question: E1, E2… in the order the review lists them; their
+    ``code`` is the review's (EC1…), which people see.
+    """
     return [
-        {"key": f"E{index}", "id": criteria.pk, "description": criteria.description}
-        for index, criteria in enumerate(review.get_exclusion_criterias(), start=1)
+        {"key": f"E{index}", "id": criteria.pk, "description": criteria.description, "code": criteria.code}
+        for index, criteria in enumerate(codes.criteria(review, SelectionCriteria.EXCLUSION), start=1)
     ]
 
 
 def inclusion_options(review):
-    """The review's inclusion criteria, one question each: I1, I2… in the order the review lists them."""
+    """The review's inclusion criteria, one question each: I1, I2… in the order the review lists them (IC1…)."""
     return [
-        {"key": f"I{index}", "id": criteria.pk, "description": criteria.description}
-        for index, criteria in enumerate(review.get_inclusion_criterias(), start=1)
+        {"key": f"I{index}", "id": criteria.pk, "description": criteria.description, "code": criteria.code}
+        for index, criteria in enumerate(codes.criteria(review, SelectionCriteria.INCLUSION), start=1)
     ]
 
 

@@ -32,12 +32,21 @@ class ReviewOut(Schema):
     stakeholder_roles: str
     started_on: date | None = None
     deadline: date | None = None
+    # The prefixes of the codes the review numbers its research questions, criteria, quality questions and extraction
+    # fields with: {"question": "RQ", "inclusion": "IC", "exclusion": "EC", "quality": "QA", "extraction": "EX"}.
+    code_prefixes: dict[str, str]
     create_date: datetime
     last_update: datetime
 
     @staticmethod
     def resolve_author(obj):
         return obj.author.username
+
+    @staticmethod
+    def resolve_code_prefixes(obj):
+        from parsifal.apps.reviews.services import codes
+
+        return codes.prefixes(obj)
 
     @staticmethod
     def resolve_co_authors(obj):
@@ -72,6 +81,8 @@ class ReviewUpdateIn(Schema):
     stakeholder_roles: str | None = None
     started_on: OptionalDate = None
     deadline: OptionalDate = None
+    # {"question": "QP", …} or ["question=QP", …]; a kind left out takes the default.
+    code_prefixes: dict[str, str] | list[str] | None = None
 
 
 class ReviewNameIn(Schema):
@@ -161,3 +172,22 @@ class ProgressOut(Schema):
     percent: int
     phases: list[ProgressPhaseOut]
     next: ProgressStepOut | None = None  # the first step not done
+
+
+class WrittenCodeOut(Schema):
+    key: str  # "question-12", "criteria-4", "quality-2", "extraction-9": what to give strip
+    kind: str  # question, criteria, quality, extraction
+    id: int
+    code: str  # the code the review gives it now
+    written: str  # the code typed in the name
+    before: str
+    after: str  # the name without it
+
+
+class CodesOut(Schema):
+    prefixes: dict[str, str]
+    written: list[WrittenCodeOut]  # names that start with a code typed by hand
+
+
+class CodesStripIn(Schema):
+    keys: list[str] | None = None  # only these (see ``written``); left out: every one

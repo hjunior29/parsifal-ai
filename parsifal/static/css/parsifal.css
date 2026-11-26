@@ -859,3 +859,60 @@ div.list-group.docs-nav a.list-group-item.active .docs-summary { color: #8a6f5c;
   display: inline;
   margin-left: 4px;
 }
+
+/* The lists of the protocol with their codes (RQ1, IC2, QA3, EX01…: services.codes). */
+.item-code {
+  display: inline-block;
+  min-width: 3.2em;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background-color: #eef3f8;
+  color: #31587a;
+  font-size: 12px;
+  font-weight: bold;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.protocol-code {
+  width: 70px;
+  vertical-align: middle !important;
+}
+
+.protocol-order {
+  width: 40px;
+  text-align: center;
+  vertical-align: middle !important;
+}
+
+.protocol-order a {
+  display: block;
+}
+
+.protocol-actions {
+  width: 180px;
+  text-align: right;
+  vertical-align: middle !important;
+  white-space: nowrap;
+}
+
+.protocol-list {
+  margin-bottom: 0;
+}
+
+.protocol-list > thead > tr > th {
+  border-top: 1px solid #ddd;
+}
+
+.criteria-footer {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.criteria-rule {
+  margin: 10px 0 0;
+}
+
+.written-codes .written-kind {
+  white-space: nowrap;
+}

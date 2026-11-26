@@ -10,7 +10,7 @@
         <tbody>
           {% for row in panel.questions %}
             <tr question-id="{{ row.question.pk }}">
-              <td>{{ row.question.description }}</td>
+              <td><span class="item-code">{{ row.question.code }}</span> {{ row.question.description }}</td>
               {% for answer in quality_answers %}
                 <td class="answer{% if row.chosen == answer.pk %} selected-answer{% endif %}" answer-id="{{ answer.pk }}">{{ answer.description }}</td>
               {% endfor %}

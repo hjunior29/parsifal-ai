@@ -1,8 +1,21 @@
 from docx import Document
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 
+from parsifal.apps.reviews.models import SelectionCriteria
+
+
+def coded(document, code, text):
+    """A list item with its code in bold: "EC2 Not in English" (services.codes)."""
+    p = document.add_paragraph("", style="List Bullet")
+    if code:
+        p.add_run(f"{code} ").bold = True
+    p.add_run(text or "")
+    return p
+
 
 def export_review_to_docx(review, sections):
+    from parsifal.apps.reviews.services import codes  # the services import this module
+
     document = Document()
 
     if "name" in sections:
@@ -75,8 +88,8 @@ def export_review_to_docx(review, sections):
     if "research_questions" in sections:
         document.add_heading("Research Questions", level=3)
 
-        for question in review.research_questions.all():
-            document.add_paragraph(question.question, style="List Number")
+        for question in codes.questions(review):
+            coded(document, question.code, question.question)
 
     # Keywords and Synonym
     if "keywords_synonyms" in sections:
@@ -113,13 +126,13 @@ def export_review_to_docx(review, sections):
 
         p = document.add_paragraph()
         p.add_run("Inclusion Criteria:").bold = True
-        for criteria in review.get_inclusion_criterias():
-            document.add_paragraph(criteria.description, style="List Bullet")
+        for criteria in codes.criteria(review, SelectionCriteria.INCLUSION):
+            coded(document, criteria.code, criteria.description)
 
         p = document.add_paragraph()
         p.add_run("Exclusion Criteria:").bold = True
-        for criteria in review.get_exclusion_criterias():
-            document.add_paragraph(criteria.description, style="List Bullet")
+        for criteria in codes.criteria(review, SelectionCriteria.EXCLUSION):
+            coded(document, criteria.code, criteria.description)
 
     # Quality Assessment Checklist
     if "quality_assessment_checklist" in sections:
@@ -127,8 +140,8 @@ def export_review_to_docx(review, sections):
 
         p = document.add_paragraph()
         p.add_run("Questions:").bold = True
-        for quality_question in review.get_quality_assessment_questions():
-            document.add_paragraph(quality_question.description, style="List Bullet")
+        for quality_question in codes.quality_questions(review):
+            coded(document, quality_question.code, quality_question.description)
 
         p = document.add_paragraph()
         p.add_run("Answers:").bold = True
@@ -138,8 +151,8 @@ def export_review_to_docx(review, sections):
     # Data Extraction Form
     if "data_extraction_form" in sections:
         document.add_heading("Data Extraction Form", level=3)
-        for field in review.get_data_extraction_fields():
-            document.add_paragraph(field.description, style="List Bullet")
+        for field in codes.fields(review):
+            coded(document, field.code, field.description)
 
     # Classification scheme (mapping studies)
     if "classification_scheme" in sections and review.facets.exists():

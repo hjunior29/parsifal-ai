@@ -16,6 +16,7 @@ from parsifal.apps.reviews.mixins import MainAuthorRequiredMixin, ReviewMixin
 from parsifal.apps.reviews.models import Review
 from parsifal.apps.reviews.services import (
     agents as agent_services,
+    codes,
     review_backups,
     reviews as review_services,
     selection,
@@ -192,3 +193,46 @@ class DownloadReviewBackupView(LoginRequiredMixin, MainAuthorRequiredMixin, Revi
         if files_are_local():
             return FileResponse(backup.file.open(), as_attachment=True, filename=backup.file.filename)
         return redirect(files_storage().url(backup.file.key))
+
+
+class ReviewCodesView(LoginRequiredMixin, MainAuthorRequiredMixin, ReviewMixin, View):
+    """
+    The codes of the review: the prefixes it numbers its research questions, criteria, quality questions and data
+    extraction fields with (RQ1, IC1, EC1, QA1, EX01 by default), and the codes typed by hand at the start of their
+    names, which can be removed now that the review numbers them.
+    """
+
+    template_name = "settings/review_codes.html"
+
+    def get(self, request, *args, **kwargs):
+        prefixes = codes.prefixes(self.review)
+        kinds = dict(codes.KINDS)
+        context = {
+            "review": self.review,
+            "kinds": [
+                {"key": key, "label": label, "prefix": prefixes[key], "default": codes.DEFAULT_PREFIXES[key]}
+                for key, label in codes.KINDS
+            ],
+            "written": [
+                dict(row, label={"criteria": "Selection criteria"}.get(row["kind"], kinds.get(row["kind"])))
+                for row in codes.written(self.review)
+            ],
+        }
+        return render(request, self.template_name, context)
+
+    def post(self, request, *args, **kwargs):
+        try:
+            if request.POST.get("action") == "strip":
+                changed = codes.strip_written(
+                    review=self.review, keys=request.POST.getlist("keys"), actor=request.user
+                )
+                messages.success(
+                    request, gettext("The codes were removed from %(count)s names.") % {"count": len(changed)}
+                )
+            else:
+                prefixes = {key: request.POST.get(f"prefix-{key}", "") for key, _label in codes.KINDS}
+                review_services.update_review(review=self.review, code_prefixes=prefixes)
+                messages.success(request, gettext("The prefixes were saved."))
+        except DomainError as error:
+            messages.error(request, str(error))
+        return redirect("review_codes", self.review.author.username, self.review.name)

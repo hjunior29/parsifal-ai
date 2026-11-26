@@ -5,7 +5,7 @@ from parsifal.apps.reviews.models import SelectionCriteria
 from parsifal.apps.reviews.tests.factories import ReviewFactory, SelectionCriteriaFactory
 
 LONG = (
-    "CE6 — Tipo de publicação fora de periódico/conferência com revisão por pares ou ausência de revisão por pares; "
+    "Tipo de publicação fora de periódico/conferência com revisão por pares ou ausência de revisão por pares; "
     "inclui estudos de workshops, preprints, teses e dissertações"
 )
 
@@ -19,22 +19,59 @@ class CriteriaViewsTest(TestCase):
     def setUp(self):
         self.client.force_login(self.review.author)
 
-    def test_long_criteria_are_listed_in_full(self):
+    def test_each_criterion_in_full_with_its_code(self):
         SelectionCriteriaFactory(review=self.review, criteria_type="E", description=LONG)
+        SelectionCriteriaFactory(review=self.review, criteria_type="I", description="Proposes a tool")
         response = self.client.get(self.protocol_url)
-        self.assertContains(response, 'role="option" aria-selected="false" data-id=')
-        self.assertContains(response, f">{LONG}</div>")
-        self.assertContains(response, 'class="form-control criteria-listbox" id="exclusion-criteria"')
+        self.assertContains(response, f'<td class="js-criteria-text">{LONG}</td>', html=True)
+        self.assertContains(response, '<span class="item-code js-code">EC1</span>', html=True)
+        self.assertContains(response, '<span class="item-code js-code">IC1</span>', html=True)
+        self.assertContains(response, 'data-code-prefix="EC"', html=False)
 
-    def test_add_returns_an_escaped_list_row(self):
+    def test_add_edit_reorder_remove(self):
+        add = reverse("reviews:planning:add_criteria")
         response = self.client.post(
-            reverse("reviews:planning:add_criteria"),
-            {"review-id": self.review.pk, "criteria": "<b>CI9</b>", "criteria-type": "I"},
+            add, {"review-id": self.review.pk, "criteria": "<b>A tool</b>", "criteria-type": "I"}
         )
         criteria = SelectionCriteria.objects.get(review=self.review)
-        self.assertContains(response, f'data-id="{criteria.pk}"')
-        self.assertContains(response, "&lt;b&gt;CI9&lt;/b&gt;")
-        self.assertNotContains(response, "<b>CI9</b>")
+        self.assertContains(response, f'data-criteria-id="{criteria.pk}"')
+        self.assertContains(response, "&lt;b&gt;A tool&lt;/b&gt;")
+        self.assertNotContains(response, "<b>A tool</b>")
+        self.assertContains(response, ">IC1<")
+        second = SelectionCriteria.objects.get(
+            pk=self.client.post(add, {"review-id": self.review.pk, "criteria": "An evaluation", "criteria-type": "I"})
+            .content.decode()
+            .split('data-criteria-id="')[1]
+            .split('"')[0]
+        )
+        self.assertEqual(1, second.order)
+        response = self.client.post(
+            reverse("reviews:planning:save_criteria"),
+            {"review-id": self.review.pk, "criteria-id": criteria.pk, "criteria": "Proposes a tool"},
+        )
+        self.assertContains(response, "Proposes a tool")
+        self.assertEqual(
+            400,
+            self.client.post(
+                reverse("reviews:planning:save_criteria"),
+                {"review-id": self.review.pk, "criteria-id": criteria.pk, "criteria": ""},
+            ).status_code,
+        )
+        order = reverse("reviews:planning:save_criteria_order")
+        self.assertEqual(
+            200,
+            self.client.post(order, {"review-id": self.review.pk, "ids": f"{second.pk},{criteria.pk}"}).status_code,
+        )
+        self.assertEqual(
+            ["An evaluation", "Proposes a tool"],
+            list(self.review.selectioncriteria_set.values_list("description", flat=True)),
+        )
+        self.client.post(
+            reverse("reviews:planning:remove_criteria"), {"review-id": self.review.pk, "criteria-ids": str(second.pk)}
+        )
+        self.assertEqual(
+            ["Proposes a tool"], list(self.review.selectioncriteria_set.values_list("description", flat=True))
+        )
 
     def test_whether_a_study_must_meet_all_inclusion_criteria_or_one(self):
         response = self.client.get(self.protocol_url)

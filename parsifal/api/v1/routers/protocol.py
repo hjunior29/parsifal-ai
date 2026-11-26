@@ -22,7 +22,7 @@ from parsifal.api.v1.schemas.protocol import (
     SourceUpdateIn,
 )
 from parsifal.apps.core.exceptions import ValidationError
-from parsifal.apps.reviews.services import protocol, search
+from parsifal.apps.reviews.services import codes, protocol, search
 
 router = Router(tags=["protocol"])
 
@@ -33,7 +33,8 @@ router = Router(tags=["protocol"])
 
 @router.get("/reviews/{int:review_id}/questions", response=list[QuestionOut], operation_id="questions_list")
 def questions_list(request, review_id: int):
-    return get_review(request, review_id).research_questions.all()
+    """The research questions in their order, each with its code (RQ1, RQ1.1…), which their order gives."""
+    return codes.questions(get_review(request, review_id))
 
 
 @router.post("/reviews/{int:review_id}/questions", response={201: QuestionOut}, operation_id="questions_create")
@@ -60,7 +61,10 @@ def questions_delete(request, review_id: int, question_id: int):
 
 @router.put("/reviews/{int:review_id}/questions/order", response=list[QuestionOut], operation_id="questions_reorder")
 def questions_reorder(request, review_id: int, payload: OrderIn):
-    return protocol.reorder_questions(review=get_review(request, review_id), ordered_ids=payload.ids)
+    """A new order of the research questions; their codes follow it."""
+    review = get_review(request, review_id)
+    protocol.reorder_questions(review=review, ordered_ids=payload.ids)
+    return codes.questions(review)
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -227,7 +231,16 @@ def source_search_string_delete(request, review_id: int, source_id: int):
 
 @router.get("/reviews/{int:review_id}/criteria", response=list[CriteriaOut], operation_id="criteria_list")
 def criteria_list(request, review_id: int):
-    return get_review(request, review_id).selectioncriteria_set.all()
+    """The selection criteria in their order, inclusion first, each with its code (IC1…, EC1…)."""
+    return codes.criteria(get_review(request, review_id))
+
+
+@router.put("/reviews/{int:review_id}/criteria/order", response=list[CriteriaOut], operation_id="criteria_reorder")
+def criteria_reorder(request, review_id: int, payload: OrderIn):
+    """A new order of the inclusion criteria, or of the exclusion ones (``ids``, all of one type); codes follow it."""
+    review = get_review(request, review_id)
+    protocol.reorder_criteria(review=review, ordered_ids=payload.ids)
+    return codes.criteria(review)
 
 
 @router.post("/reviews/{int:review_id}/criteria", response={201: CriteriaOut}, operation_id="criteria_create")

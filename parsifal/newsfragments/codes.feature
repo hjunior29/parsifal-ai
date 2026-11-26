@@ -1,0 +1,1 @@
+Codes: the review numbers its research questions (RQ1, RQ1.1), criteria (IC1, EC1), quality questions (QA1) and extraction fields (EX01) from their order, with prefixes of its own; the criteria can be ordered; the codes typed by hand in the names can be removed.

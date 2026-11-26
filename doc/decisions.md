@@ -865,3 +865,35 @@ full text), no abstract-only and no partial-text round.
 
 **Consequences.** Migration `reviews.0058` (the stage choices).
 
+
+## Codes: the review numbers what it structures
+
+**Context.** Helder typed codes into names to number them in his papers
+("RQ1: …", "QL1 | …", "EX01 | …"; 34 names in his mapping study) and asked
+(2026-11-26) for codes that belong to the system, following the order: moving
+a research question up makes it RQ1. The criteria had no order (they were
+listed by description) and a listbox for a UI.
+
+**Decision.**
+- Codes are computed from each list's order, never stored: research questions
+  (sub-questions under their parent, RQ1.1), inclusion and exclusion criteria
+  (a list each), quality questions, extraction fields. As many digits as the
+  longest of the list (EX01…EX25), as his own numbering had.
+- `SelectionCriteria.order`, numbered by the migration in the order the
+  criteria were created (his protocol's order, not the alphabetical one they
+  were shown in). The criteria get the research questions' UI: a list per
+  type with arrows, edit and remove.
+- Prefixes per review (`Review.code_prefixes`): RQ, IC, EC, QA, EX by default,
+  QP/CI/CE for a review written in Portuguese.
+- The codes go wherever the items show, into the report, the exports (the
+  extraction columns: "EX01 Country") and the API (`code`). The AI keeps its
+  own keys (E1, I1) in what it sends and stores; it numbers in the same order,
+  so EC2 is E2.
+- Codes typed by hand are found by a pattern at the start of a name and
+  removed when the main author ticks them (Review settings → Codes); one
+  History event keeps every name as it was. References inside texts are left
+  alone.
+
+**Consequences.** Migration `reviews.0059`. The analytics' `key` of a
+criterion or quality question is now its code (EC1, QA1).
+

@@ -86,7 +86,7 @@
       {% for field in extraction.fields %}
         <div class="panel panel-default">
           <div class="panel-heading">
-            <h3 class="panel-title">{{ field.description }} <small>({% if field.field_type == 'M' %}multiple choice: a study may have several{% elif field.field_type == 'O' %}single choice{% else %}true or false{% endif %})</small></h3>
+            <h3 class="panel-title">{% if field.code %}<span class="item-code">{{ field.code }}</span> {% endif %}{{ field.description }} <small>({% if field.field_type == 'M' %}multiple choice: a study may have several{% elif field.field_type == 'O' %}single choice{% else %}true or false{% endif %})</small></h3>
           </div>
           <div class="panel-body">
             {% if field.answered %}
@@ -158,7 +158,7 @@
           <select id="prisma-not-retrieved" class="form-control input-sm js-prisma-not-retrieved">
             <option value="">no criterion (the box is left out)</option>
             {% for criteria in exclusion_criteria %}
-              <option value="{{ criteria.id }}"{% if prisma.not_retrieved_criteria_id == criteria.id %} selected{% endif %}>{{ criteria.description }}</option>
+              <option value="{{ criteria.id }}"{% if prisma.not_retrieved_criteria_id == criteria.id %} selected{% endif %}>{{ criteria.code }} {{ criteria.description }}</option>
             {% endfor %}
           </select>
           <span class="text-muted">studies rejected at the full text with this exclusion criterion are reports not retrieved.</span>

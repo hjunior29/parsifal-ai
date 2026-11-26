@@ -1,1 +1,16 @@
-<div class="criteria-option" role="option" aria-selected="false" data-id="{{ criteria.id }}" data-description="{{ criteria.description }}">{{ criteria.description }}</div>
+{% comment %}
+  A selection criterion of the Protocol, with its code (IC1, EC2…: from its place in its list, services.codes), the
+  arrows that move it, and its edit and remove buttons (planning_criteria.js).
+{% endcomment %}
+<tr data-code-id="{{ criteria.id }}" data-criteria-id="{{ criteria.id }}">
+  <td class="protocol-order">
+    <a href="javascript:void(0);" class="js-criteria-up" title="Move up"><span class="glyphicon glyphicon-chevron-up"></span></a>
+    <a href="javascript:void(0);" class="js-criteria-down" title="Move down"><span class="glyphicon glyphicon-chevron-down"></span></a>
+  </td>
+  <td class="protocol-code"><span class="item-code js-code">{{ criteria.code }}</span></td>
+  <td class="js-criteria-text">{{ criteria.description }}</td>
+  <td class="protocol-actions">
+    <button type="button" class="btn btn-sm btn-warning js-edit-criteria"><span class="glyphicon glyphicon-pencil"></span> edit</button>
+    <button type="button" class="btn btn-sm btn-danger js-remove-criteria"><span class="glyphicon glyphicon-trash"></span> remove</button>
+  </td>
+</tr>

@@ -44,6 +44,11 @@ urlpatterns = [
         name="manage_access",
     ),
     path(
+        "<str:username>/<str:review_name>/settings/codes/",
+        reviews_settings_views.ReviewCodesView.as_view(),
+        name="review_codes",
+    ),
+    path(
         "<str:username>/<str:review_name>/settings/backups/",
         reviews_settings_views.ReviewBackupsView.as_view(),
         name="review_backups",

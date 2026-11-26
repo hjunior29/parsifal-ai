@@ -16,7 +16,7 @@ from parsifal.api.v1.schemas.quality import (
     QualityStudyOut,
     QualitySummaryOut,
 )
-from parsifal.apps.reviews.services import quality
+from parsifal.apps.reviews.services import codes, quality
 
 router = Router(tags=["quality"])
 
@@ -27,7 +27,8 @@ router = Router(tags=["quality"])
     operation_id="quality_questions_list",
 )
 def quality_questions_list(request, review_id: int):
-    return get_review(request, review_id).qualityquestion_set.all()
+    """The questions in their order, each with its code (QA1…)."""
+    return codes.quality_questions(get_review(request, review_id))
 
 
 @router.post(
@@ -65,7 +66,9 @@ def quality_questions_delete(request, review_id: int, question_id: int):
     operation_id="quality_questions_reorder",
 )
 def quality_questions_reorder(request, review_id: int, payload: OrderIn):
-    return quality.reorder_questions(review=get_review(request, review_id), ordered_ids=payload.ids)
+    review = get_review(request, review_id)
+    quality.reorder_questions(review=review, ordered_ids=payload.ids)
+    return codes.quality_questions(review)
 
 
 @router.get(

@@ -34,6 +34,7 @@ UPDATABLE_FIELDS = {
     "stakeholder_roles": 4000,
     "started_on": None,
     "deadline": None,
+    "code_prefixes": None,
 }
 DATE_FIELDS = ("started_on", "deadline")
 
@@ -43,6 +44,7 @@ REVIEW_FIELD_AREAS = {
     "title": ReviewEvent.REVIEW,
     "description": ReviewEvent.REVIEW,
     "review_type": ReviewEvent.REVIEW,
+    "code_prefixes": ReviewEvent.REVIEW,
     "status": ReviewEvent.REVIEW,
     "prisma_not_retrieved": ReviewEvent.ANALYSIS,
 }
@@ -138,6 +140,10 @@ def update_review(*, review, **fields):
             value = value or ""
         elif name in DATE_FIELDS:
             value = _date(value, name)
+        elif name == "code_prefixes":
+            from parsifal.apps.reviews.services import codes  # it imports the models this module does
+
+            value = codes.clean_prefixes(value, codes.prefixes(review))
         elif name == "inclusion_rule":
             if value not in dict(Review.INCLUSION_RULES):
                 raise ValidationError(

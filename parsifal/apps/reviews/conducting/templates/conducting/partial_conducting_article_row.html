@@ -1,3 +1,4 @@
+{% load review_codes %}
 {% comment %}
   A study's row in the study list: the checkbox, then the ``columns`` the user chose (services/study_columns.py), in
   their order. The search reads the row's attributes, so it finds a study whichever columns are shown.
@@ -16,7 +17,7 @@
     {% elif column == "document_type" %}<td>{{ article.document_type|default_if_none:"" }}</td>
     {% elif column == "language" %}<td>{{ article.language|default_if_none:"" }}</td>
     {% elif column == "publisher" %}<td>{{ article.publisher|default_if_none:"" }}</td>
-    {% elif column == "criteria" %}<td{% if article.selection_criteria %} title="{{ article.selection_criteria.description }}"{% endif %}>{{ article.selection_criteria.description|default_if_none:""|truncatechars:60 }}</td>
+    {% elif column == "criteria" %}<td{% if article.selection_criteria %} title="{{ criteria_codes|code_for:article.selection_criteria_id }} {{ article.selection_criteria.description }}"{% endif %}>{% if article.selection_criteria %}<span class="item-code">{{ criteria_codes|code_for:article.selection_criteria_id }}</span> {{ article.selection_criteria.description|truncatechars:60 }}{% endif %}</td>
     {% elif column == "ai_relevance" %}{% with score=article.ai_score %}<td class="text-right" data-score="{{ score|default_if_none:'' }}"{% if article.ai_score_label %} title="By {{ article.ai_score_label }}"{% endif %}>{% if score is not None %}{% widthratio score 1 100 %}%{% endif %}</td>{% endwith %}
     {% elif column == "created_by" %}<td>{{ article.created_by.profile.get_screen_name }}</td>
     {% elif column == "created_at" %}<td>{{ article.created_at|date:"d M Y H:i:s" }}</td>

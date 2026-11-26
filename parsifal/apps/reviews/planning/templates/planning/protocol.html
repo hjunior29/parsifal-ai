@@ -9,22 +9,17 @@
     body,html,.wrapper{height:auto;}
     section {padding-top:20px;}
     #planning-tab,section>.panel,section form>.panel{margin-bottom:0;}
-    /* Looks like the old multiple <select>, but long criteria wrap instead of being cut off. */
-    .criteria-listbox{height:132px;padding:4px 0;overflow-y:auto;resize:vertical;cursor:default;user-select:none;}
-    .criteria-option{padding:1px 12px 1px 2.1em;text-indent:-1.3em;white-space:normal;overflow-wrap:anywhere;}
-    .criteria-option[aria-selected="true"]{background-color:#d6d6d6;}
-    .criteria-listbox:focus .criteria-option[aria-selected="true"]{background-color:#b3d4fc;}
   </style>
 {% endblock stylesheet %}
 
 {% block javascript %}
   <script src="{% static 'js/planning.js' %}?v=1"></script>
-  <script src="{% static 'js/planning_question.js' %}?v=1"></script>
+  <script src="{% static 'js/planning_question.js' %}?v=2"></script>
   <script src="{% static 'js/planning_picoc.js' %}?v=1"></script>
   <script src="{% static 'js/planning_keyword.js' %}?v=3"></script>
   <script src="{% static 'js/planning_source.js' %}?v=3"></script>
   <script src="{% static 'js/planning_search_string.js' %}?v=1"></script>
-  <script src="{% static 'js/planning_criteria.js' %}?v=4"></script>
+  <script src="{% static 'js/planning_criteria.js' %}?v=5"></script>
   {% if review.is_rapid_review %}<script src="{% static 'js/planning_protocol_fields.js' %}?v=1"></script>{% endif %}
   <script>
     $(function () {
@@ -248,8 +243,8 @@
               </h3>
             </div>
             <table class="table">
-              <tbody>
-                {% for question in review.get_questions %}
+              <tbody data-code-prefix="{{ code_prefixes.question }}">
+                {% for question in questions %}
                   {% include "planning/partial_planning_question.html" with question=question %}
                 {% empty %}
                   {% include "planning/partial_planning_question_form.html" %}
@@ -599,19 +594,25 @@
             <h3 class="panel-title">Selection Criteria</h3>
           </div>
           <div class="panel-body">
-            <p>Inform your inclusion or exclusion criteria and press <strong>Enter</strong> to add (up to 200 characters).</p>
-            <div class="row">
-              <div class="col-sm-6">
-                <div class="form-group">
-                  <label for="input-inclusion" class="control-label">Inclusion Criteria</label>
-                  <input type="text" id="input-inclusion" maxlength="200" class="form-control">
-                </div>
-                <div class="form-group"><div class="form-control criteria-listbox" id="inclusion-criteria" role="listbox" aria-multiselectable="true" tabindex="0">{% for criteria in review.get_inclusion_criterias %}{% include "planning/partial_criteria.html" %}{% endfor %}</div></div>
-                <button type="button" class="btn btn-danger btn-sm btn-remove-criteria" data-target="#inclusion-criteria">
-                  <span class="glyphicon glyphicon-trash"></span>
-                  remove selected
-                </button>
-                <div class="form-group form-inline" style="margin-top: 12px;">
+            <p class="text-muted">Each criterion gets its code from its place in its list ({{ code_prefixes.inclusion }}1, {{ code_prefixes.exclusion }}1…): move it to renumber, and write it without a code. Up to 200 characters.</p>
+          </div>
+          {% for kind, label, criteria_type, items in criteria_lists %}
+            <table class="table protocol-list js-criteria-list" data-criteria-type="{{ criteria_type }}">
+              <thead>
+                <tr><th colspan="4">{{ label }}</th></tr>
+              </thead>
+              <tbody data-code-prefix="{% if criteria_type == 'I' %}{{ code_prefixes.inclusion }}{% else %}{{ code_prefixes.exclusion }}{% endif %}">
+                {% for criteria in items %}
+                  {% include "planning/partial_criteria.html" %}
+                {% endfor %}
+              </tbody>
+            </table>
+            <div class="panel-body criteria-footer">
+              <button type="button" class="btn btn-primary btn-sm js-add-criteria" data-criteria-type="{{ criteria_type }}">
+                <span class="glyphicon glyphicon-plus"></span> Add {{ kind }} criterion
+              </button>
+              {% if criteria_type == 'I' %}
+                <div class="form-group form-inline criteria-rule">
                   <label for="inclusion-rule" class="control-label">A study must meet</label>
                   <select id="inclusion-rule" class="form-control input-sm">
                     {% for value, label in review.INCLUSION_RULES %}
@@ -619,22 +620,11 @@
                     {% endfor %}
                   </select>
                   <span class="help-block small js-inclusion-rule-status" style="display: inline; margin-left: 6px;"></span>
-                  <p class="help-block small">Include and Screen with AI follow this rule.</p>
+                  <span class="help-block small" style="display: inline;">Include and Screen with AI follow this rule.</span>
                 </div>
-              </div>
-              <div class="col-sm-6">
-                <div class="form-group">
-                  <label for="input-exclusion" class="control-label">Exclusion Criteria</label>
-                  <input type="text" id="input-exclusion" maxlength="200" class="form-control">
-                </div>
-                <div class="form-group"><div class="form-control criteria-listbox" id="exclusion-criteria" role="listbox" aria-multiselectable="true" tabindex="0">{% for criteria in review.get_exclusion_criterias %}{% include "planning/partial_criteria.html" %}{% endfor %}</div></div>
-                <button type="button" class="btn btn-danger btn-sm btn-remove-criteria" data-target="#exclusion-criteria">
-                  <span class="glyphicon glyphicon-trash"></span>
-                  remove selected
-                </button>
-              </div>
+              {% endif %}
             </div>
-          </div>
+          {% endfor %}
         </div>
       </section>
 

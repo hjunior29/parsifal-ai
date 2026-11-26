@@ -16,7 +16,7 @@ from parsifal.apps.reviews.models import (
     SelectionCriteria,
     StudyDecision,
 )
-from parsifal.apps.reviews.services import history, quality
+from parsifal.apps.reviews.services import codes, history, quality
 from parsifal.apps.reviews.services._common import get_child
 
 
@@ -100,24 +100,24 @@ def criteria_usage(review):
     studies have no criterion.
     """
 
-    def ranked(criteria, status, prefix):
+    criteria_codes = {criterion.pk: criterion.code for criterion in codes.criteria(review)}
+
+    def ranked(criteria, status):
         rows = [
             {
                 "id": criterion.pk,
-                "key": f"{prefix}{index}",
+                "key": criteria_codes.get(criterion.pk, ""),  # the review's code: EC1, IC2…
                 "description": criterion.description,
                 "studies": criterion.studies,
             }
-            for index, criterion in enumerate(
-                criteria.annotate(studies=Count("article", filter=Q(article__status=status))), start=1
-            )
+            for criterion in criteria.annotate(studies=Count("article", filter=Q(article__status=status)))
         ]
         return sorted(rows, key=lambda row: (-row["studies"], row["key"]))
 
     articles = review.article_set
     return {
-        "exclusion": ranked(review.get_exclusion_criterias(), Article.REJECTED, "E"),
-        "inclusion": ranked(review.get_inclusion_criterias(), Article.ACCEPTED, "I"),
+        "exclusion": ranked(review.get_exclusion_criterias(), Article.REJECTED),
+        "inclusion": ranked(review.get_inclusion_criterias(), Article.ACCEPTED),
         "rejected_without_criterion": articles.filter(status=Article.REJECTED, selection_criteria=None).count(),
         "accepted_without_criterion": articles.filter(status=Article.ACCEPTED, selection_criteria=None).count(),
     }
@@ -171,12 +171,13 @@ def quality_overview(review):
         }
     )
     by_question = []
-    for index, question in enumerate(questions, start=1):
+    question_codes = {question.pk: question.code for question in codes.quality_questions(review)}
+    for question in questions:
         per_answer = [{"answer_id": answer.pk, "studies": chosen[(question.pk, answer.pk)]} for answer in answers]
         by_question.append(
             {
                 "id": question.pk,
-                "key": f"Q{index}",
+                "key": question_codes.get(question.pk, ""),  # the review's code: QA1…
                 "description": question.description,
                 "answers": per_answer,
                 "unanswered": len(rows) - sum(row["studies"] for row in per_answer),
@@ -215,6 +216,7 @@ def extraction_choices(review):
     """
     studies = review.get_final_selection_articles()
     ids = list(studies.values_list("pk", flat=True))
+    field_codes = {field.pk: field.code for field in codes.fields(review)}
     fields = review.dataextractionfield_set.filter(field_type__in=CHOICE_FIELDS).prefetch_related(
         "dataextractionlookup_set"
     )
@@ -241,6 +243,7 @@ def extraction_choices(review):
         rows.append(
             {
                 "id": field.pk,
+                "code": field_codes.get(field.pk, ""),
                 "description": field.description,
                 "field_type": field.field_type,
                 "answered": answered,
@@ -387,7 +390,9 @@ def prisma(review):
         else:
             database_studies.append(study)
     not_retrieved = review.prisma_not_retrieved_id
-    descriptions = dict(review.selectioncriteria_set.values_list("pk", "description"))
+    descriptions = {
+        criterion.pk: codes.label(criterion.code, criterion.description) for criterion in codes.criteria(review)
+    }
     main = _eligibility(database_studies, full_text, not_retrieved, screened=True)
     result = {
         "databases": [{"source": name, "records": count} for name, count in sorted(databases.items())],

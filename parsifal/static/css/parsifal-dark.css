@@ -432,3 +432,12 @@ html.theme-dark {
 .theme-dark .review-progress-help {
   border-top-color: #3a3f44;
 }
+
+.theme-dark .item-code {
+  background-color: #23364a;
+  color: #b9d3ea;
+}
+
+.theme-dark .protocol-list > thead > tr > th {
+  border-top-color: #3a3f44;
+}

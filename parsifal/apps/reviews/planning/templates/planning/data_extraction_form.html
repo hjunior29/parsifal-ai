@@ -5,7 +5,7 @@
 {% block title %}Planning · {{ review.title }}{% endblock %}
 
 {% block javascript %}
-  <script src="{% static 'js/planning_data_extraction.js' %}?_=4"></script>
+  <script src="{% static 'js/planning_data_extraction.js' %}?_=5"></script>
 {% endblock javascript %}
 
 {% block content %}
@@ -24,14 +24,15 @@
         <thead>
           <tr>
             <th></th>
+            <th>Code</th>
             <th>Description</th>
             <th>Type</th>
             <th style="width: 45%;">Values</th>
             <th></th>
           </tr>
         </thead>
-        <tbody>
-          {% for field in review.get_data_extraction_fields %}
+        <tbody data-code-prefix="{{ code_prefixes.extraction }}">
+          {% for field in fields %}
             {% include "planning/partial_data_extraction_field.html" with field=field %}
           {% empty %}
             {% include "planning/partial_data_extraction_field_form.html" with field=empty_field %}

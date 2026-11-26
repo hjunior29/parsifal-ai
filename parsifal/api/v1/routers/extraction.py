@@ -14,7 +14,7 @@ from parsifal.api.v1.schemas.extraction import (
     FieldUpdateIn,
     ValueIn,
 )
-from parsifal.apps.reviews.services import extraction
+from parsifal.apps.reviews.services import codes, extraction
 
 router = Router(tags=["extraction"])
 
@@ -23,7 +23,8 @@ router = Router(tags=["extraction"])
     "/reviews/{int:review_id}/extraction/fields", response=list[FieldOut], operation_id="extraction_fields_list"
 )
 def extraction_fields_list(request, review_id: int):
-    return get_review(request, review_id).dataextractionfield_set.prefetch_related("dataextractionlookup_set")
+    """The fields in their order, each with its code (EX01…)."""
+    return codes.fields(get_review(request, review_id))
 
 
 @router.post(
@@ -66,7 +67,9 @@ def extraction_fields_delete(request, review_id: int, field_id: int):
     operation_id="extraction_fields_reorder",
 )
 def extraction_fields_reorder(request, review_id: int, payload: OrderIn):
-    return extraction.reorder_fields(review=get_review(request, review_id), ordered_ids=payload.ids)
+    review = get_review(request, review_id)
+    extraction.reorder_fields(review=review, ordered_ids=payload.ids)
+    return codes.fields(review)
 
 
 @router.get(
@@ -87,12 +90,14 @@ def extraction_studies(request, review_id: int, q: str | None = None, done: bool
 def _article_extraction(review, article_id):
     rows = extraction.article_values(review=review, article_id=article_id)
     article = review.article_set.get(pk=article_id)
+    field_codes = {field.pk: field.code for field in codes.fields(review)}
     return ArticleExtractionOut(
         article_id=article.pk,
         finished_data_extraction=article.finished_data_extraction,
         values=[
             ExtractedValueOut(
                 field_id=row["field"].pk,
+                code=field_codes.get(row["field"].pk, ""),
                 field=row["field"].description,
                 field_type=row["field"].field_type,
                 value=row["value"],

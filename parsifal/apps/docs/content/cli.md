@@ -39,7 +39,8 @@ parameters in kebab-case; `--review` accepts a numeric id or `author/slug`.
 | `member` | `list` |
 | `history` | `list` (every change to the review; `--area`, `--action`, `--actor`, `--via`, `--article-id`, `--since`, `--until`, `--q`, `--amendments`) |
 | `agent` | `list`, `create`, `new-token`, `delete` (permanent: account, tokens, decisions, quality assessments and extracted data; imported studies and classifications stay) |
-| `question`, `keyword`, `criteria` | `list`, `create`, `update`, `delete` (+ `reorder`, `import-picoc`) |
+| `question`, `keyword`, `criteria` | `list`, `create`, `update`, `delete` (+ `reorder`, `import-picoc`); each with its code (see [Codes](/docs/codes/)) |
+| `review codes` | `get` (the prefixes and the codes typed by hand in the names), `strip [--keys …]` |
 | `search-string` | `get`, `set`, `generate` |
 | `source` | `defaults`, `list`, `imports` (the studies imported from each source and its date of search), `add`, `update`, `remove`, `document-search` (`--searched-at ""` clears the date); `source search-string list|set|copy-generic|delete` |
 | `quality` | `question …`, `answer …`, `max-score`, `set-cutoff`, `summary`, `studies`, `get`, `assess` |

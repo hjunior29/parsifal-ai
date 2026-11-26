@@ -101,7 +101,7 @@ class AiScreeningViewsTest(AiScreeningViewsBase):
         self.assertContains(response, "Our objective &amp; scope")
         self.assertContains(
             response,
-            f'<input type="checkbox" name="criteria" value="{self.criteria.pk}" checked> <code>E1</code> '
+            f'<input type="checkbox" name="criteria" value="{self.criteria.pk}" checked> <code>EC1</code> '
             "Not about &lt;software&gt; engineering",
             html=False,
         )
@@ -340,9 +340,9 @@ class IncludeWithAiViewsTest(AiScreeningViewsBase):
         self.connect()
         response = self.client.get(self.form_url, {"review-id": self.review.pk, "phase": "inclusion"})
         self.assertContains(response, "Include with AI <small>inclusion criteria</small>", html=False)
-        self.assertContains(response, "<code>I1</code> Implemented &lt;tool&gt;", html=False)
+        self.assertContains(response, "<code>IC1</code> Implemented &lt;tool&gt;", html=False)
         self.assertContains(response, "A study must meet <strong>all inclusion criteria</strong>", html=False)
-        self.assertNotContains(response, "<code>E1</code>", html=False)
+        self.assertNotContains(response, "<code>EC1</code>", html=False)
         self.assertContains(response, '<input type="hidden" name="phase" value="inclusion">', html=False)
         # The same window as Exclude with AI: one threshold, which accepts; nothing is rejected.
         # One threshold per inclusion criterion, none for the whole run.
@@ -420,8 +420,8 @@ class ScreenWithAiViewsTest(IncludeWithAiViewsTest):
             "Screen with AI <small>exclusion and inclusion criteria · one request per study</small>",
             html=False,
         )
-        self.assertContains(response, "<code>E1</code> Not about &lt;software&gt; engineering", html=False)
-        self.assertContains(response, "<code>I1</code> Implemented &lt;tool&gt;", html=False)
+        self.assertContains(response, "<code>EC1</code> Not about &lt;software&gt; engineering", html=False)
+        self.assertContains(response, "<code>IC1</code> Implemented &lt;tool&gt;", html=False)
         self.assertContains(response, 'name="threshold" id="ai-threshold"', html=False)
         self.assertContains(response, 'name="threshold-I1"', html=False)
         self.assertContains(response, "Exclusion threshold")

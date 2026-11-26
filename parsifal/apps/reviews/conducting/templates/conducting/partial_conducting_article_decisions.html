@@ -1,3 +1,4 @@
+{% load review_codes %}
 {% comment %}
   Reviewers tab of the article modal: every reviewer's decision for this article plus a form for the current
   user's own decision. Rendered by article_details and re-rendered by record_decision.
@@ -29,7 +30,7 @@
             {% elif decision.status == "D" %}<span class="label label-warning">Duplicated</span>
             {% else %}<span class="label label-default">Unclassified</span>{% endif %}
           </td>
-          <td>{{ decision.selection_criteria.description|default:"—" }}</td>
+          <td>{% if decision.selection_criteria %}{{ criteria_codes|code_for:decision.selection_criteria_id }} {{ decision.selection_criteria.description }}{% else %}—{% endif %}</td>
           <td>{{ decision.comments|default:"—" }}</td>
           <td><small class="text-muted">{{ decision.decided_at|date:"SHORT_DATETIME_FORMAT" }}</small></td>
         </tr>
@@ -68,11 +69,11 @@
       <div class="col-sm-4">
         <select name="decision-criteria" class="form-control input-sm">
           <option value="">Reason (criteria)...</option>
-          {% for criteria in review.get_inclusion_criterias %}
-            <option value="{{ criteria.id }}"{% if my_decision and my_decision.selection_criteria_id == criteria.id %} selected{% endif %}>[I] {{ criteria.description }}</option>
+          {% for criteria in inclusion_criteria %}
+            <option value="{{ criteria.id }}"{% if my_decision and my_decision.selection_criteria_id == criteria.id %} selected{% endif %}>{{ criteria.code }} {{ criteria.description }}</option>
           {% endfor %}
-          {% for criteria in review.get_exclusion_criterias %}
-            <option value="{{ criteria.id }}"{% if my_decision and my_decision.selection_criteria_id == criteria.id %} selected{% endif %}>[E] {{ criteria.description }}</option>
+          {% for criteria in exclusion_criteria %}
+            <option value="{{ criteria.id }}"{% if my_decision and my_decision.selection_criteria_id == criteria.id %} selected{% endif %}>{{ criteria.code }} {{ criteria.description }}</option>
           {% endfor %}
         </select>
       </div>

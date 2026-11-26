@@ -213,6 +213,16 @@ def test_rapid_review(runner, fake_api):
     assert result.exit_code == 0, result.output
 
 
+def test_code_prefixes(runner, fake_api):
+    fake_api.route("PATCH", "/api/v1/reviews/7", 200, {"id": 7})
+    result = invoke(
+        runner,
+        ["review", "update", "--review", "7", "--code-prefixes", "question=QP", "--code-prefixes", "inclusion=CI"],
+    )
+    assert result.exit_code == 0, result.output
+    assert fake_api.last_json() == {"code_prefixes": ["question=QP", "inclusion=CI"]}
+
+
 def test_pagination_all(runner, fake_api):
     pages = {
         0: {"count": 3, "items": [{"id": 1}, {"id": 2}]},

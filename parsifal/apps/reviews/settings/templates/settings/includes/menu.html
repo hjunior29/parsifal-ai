@@ -4,6 +4,7 @@
   <div class="list-group">
     <a href="{% url 'settings' review.author.username review.name %}" class="list-group-item{% if menu == "options" %} active{% endif %}">{% trans "Options" %}</a>
     <a href="{% url "manage_access" review.author.username review.name %}" class="list-group-item{% if menu == "manage_access" %} active{% endif %}">{% trans "Manage access" %}</a>
+    <a href="{% url "review_codes" review.author.username review.name %}" class="list-group-item{% if menu == "codes" %} active{% endif %}">{% trans "Codes" %}</a>
     <a href="{% url "review_backups" review.author.username review.name %}" class="list-group-item{% if menu == "backups" %} active{% endif %}">{% trans "Backups" %}</a>
   </div>
 </div>

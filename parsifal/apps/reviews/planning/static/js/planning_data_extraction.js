@@ -118,6 +118,7 @@ $(function () {
       success: function (data) {
         $(row).fadeOut(200, function () {
           $(row).remove();
+          renumberCodes($("#tbl-data-extraction tbody"));
         });
       },
       error: function (jqXHR, textStatus, errorThrown) {
@@ -160,6 +161,7 @@ $(function () {
   });
 
   var manageFieldOrder = function () {
+    renumberCodes($("#tbl-data-extraction tbody"));
     var orders = "";
     $("#tbl-data-extraction tbody tr").each(function () {
       var fieldId = $(this).attr("oid");

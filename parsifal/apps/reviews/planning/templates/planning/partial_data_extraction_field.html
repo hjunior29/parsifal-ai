@@ -1,4 +1,4 @@
-<tr oid="{{ field.id }}">
+<tr oid="{{ field.id }}" data-code-id="{{ field.id }}">
   <td style="width: 50px; text-align: center; vertical-align: middle;">
     <input type="hidden" name="data-extraction-field-order" value="{{ question.order }}">
     <a href="javascript:void(0);" style="display: block;" class="js-order-field-up">
@@ -8,6 +8,7 @@
       <span class="glyphicon glyphicon-chevron-down"></span>
     </a>
   </td>
+  <td class="protocol-code"><span class="item-code js-code">{{ field.code }}</span></td>
   <td style="vertical-align: middle;">{{ field.description }}</td>
   <td style="vertical-align: middle;">{{ field.get_field_type_display }}</td>
   <td style="vertical-align: middle;">

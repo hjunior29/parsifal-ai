@@ -71,6 +71,7 @@ $(function () {
       success: function (data) {
         $(row).replaceWith(data);
         $(btn).ajaxEnable();
+        renumberCodes($("table#tbl-quality-questions tbody"));
         update_max_score();
       }
     });
@@ -109,6 +110,7 @@ $(function () {
       cache: false,
       success: function (data) {
         $(row).remove();
+        renumberCodes($("table#tbl-quality-questions tbody"));
         update_max_score();
       },
       error: function (jqXHR, textStatus, errorThrown) {
@@ -120,6 +122,7 @@ $(function () {
 
 
   var manageQualityAssementQuestionsOrder = function () {
+    renumberCodes($("table#tbl-quality-questions tbody"));
     var orders = "";
     $("table#tbl-quality-questions tbody tr").each(function () {
       var questionId = $(this).attr("oid");

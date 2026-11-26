@@ -3,7 +3,7 @@ from django.urls import reverse
 
 from parsifal.apps.authentication.tests.factories import UserFactory
 from parsifal.apps.reviews.models import Article, DataExtractionField
-from parsifal.apps.reviews.services import extraction, quality
+from parsifal.apps.reviews.services import codes, extraction, quality
 from parsifal.apps.reviews.tests.factories import (
     DataExtractionFieldFactory,
     DataExtractionLookupFactory,
@@ -95,7 +95,8 @@ class TestDataAnalysisSections(TestCase):
         response = self.client.get(self.url)
         self.assertContains(response, "PRISMA 2020 Flow Diagram")
         self.assertContains(response, 'id="analysis-prisma-data"', html=False)
-        self.assertContains(response, f'<option value="{missing.pk}">Full text missing</option>', html=True)
+        code = codes.code_of(self.review, missing).code  # each criterion with its code
+        self.assertContains(response, f'<option value="{missing.pk}">{code} Full text missing</option>', html=True)
         self.assertNotContains(response, "Proposes a tool</option>", html=False)  # exclusion criteria only
         self.assertEqual(1, response.context["prisma"]["awaiting_full_text"])  # accepted, no full-text decision
         url = reverse("reviews:conducting:save_prisma_settings")
@@ -106,7 +107,9 @@ class TestDataAnalysisSections(TestCase):
         self.review.refresh_from_db()
         self.assertEqual(missing, self.review.prisma_not_retrieved)
         self.assertContains(
-            self.client.get(self.url), f'<option value="{missing.pk}" selected>Full text missing</option>', html=True
+            self.client.get(self.url),
+            f'<option value="{missing.pk}" selected>{code} Full text missing</option>',
+            html=True,
         )
         self.assertIsNone(self.client.post(url, {"review-id": self.review.pk}).json()["not_retrieved_criteria_id"])
         other = SelectionCriteriaFactory(criteria_type="E")

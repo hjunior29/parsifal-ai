@@ -20,11 +20,20 @@ from parsifal.apps.core import library_proxy
 from parsifal.apps.core.exceptions import DomainError
 from parsifal.apps.core.models import files_are_local, files_storage
 from parsifal.apps.reviews.decorators import author_required
-from parsifal.apps.reviews.models import Article, DataExtractionField, Review, SearchSession, Source, StudyDecision
+from parsifal.apps.reviews.models import (
+    Article,
+    DataExtractionField,
+    Review,
+    SearchSession,
+    SelectionCriteria,
+    Source,
+    StudyDecision,
+)
 from parsifal.apps.reviews.services import (
     ai_runs,
     ai_screening as ai_screening_service,
     analytics,
+    codes,
     decisions,
     extraction,
     full_texts,
@@ -187,7 +196,7 @@ def quality_panels(review, studies):
     prefetched), for ``partial_conducting_quality_assessment_panels.html``: each study with how many questions it has
     answered and the answer chosen for each question. Empty without questions and answers.
     """
-    questions = list(review.get_quality_assessment_questions())
+    questions = codes.quality_questions(review)
     answers = list(review.get_quality_assessment_answers())
     if not (questions and answers):
         return [], answers
@@ -338,6 +347,9 @@ def extraction_panels(review, studies):
     fields = list(review.get_data_extraction_fields().prefetch_related("dataextractionlookup_set"))
     if not fields:
         return []
+    field_codes = {field.pk: field.code for field in codes.fields(review)}
+    for field in fields:
+        field.code = field_codes.get(field.pk, "")
     return [
         {
             "study": study,
@@ -604,6 +616,7 @@ def source_articles(request):
         "order": order,
         "filtered": status != "ALL" or bool(query) or starred or bool(stage),
         "round": stage,
+        "criteria_codes": _criteria_codes(review),
         **_paginate(request, articles, "studies_per_page"),
     }
     if request.GET.get("part") == "list":
@@ -654,6 +667,7 @@ def study_window(request):
         "pdf_max_mb": full_texts.max_size_mb(),
         "access_url": article.access_url(proxy),
         "access_label": library_proxy.label(proxy) if proxy else "",
+        "criteria_codes": _criteria_codes(review),
     }
     return render(request, "conducting/partial_conducting_study.html", context)
 
@@ -731,9 +745,13 @@ def remove_article_pdf(request):
 def _decisions_context(request, review, article, message=None):
     rows = list(decisions.article_decisions(review=review, article_id=article.pk))
     mine = next((d for d in rows if d.user_id == request.user.pk), None)
+    criteria = codes.criteria(review)
     return {
         "decisions": rows,
         "my_decision": mine,
+        "inclusion_criteria": [item for item in criteria if item.criteria_type == SelectionCriteria.INCLUSION],
+        "exclusion_criteria": [item for item in criteria if item.criteria_type == SelectionCriteria.EXCLUSION],
+        "criteria_codes": {item.pk: item.code for item in criteria},
         "decision_stages": review.stage_choices(),
         "decision_statuses": Article.ARTICLE_STATUS,
         "decision_message": message,
@@ -1272,9 +1290,14 @@ def articles_upload(request):
 """
 
 
+def _criteria_codes(review):
+    return {criteria.pk: criteria.code for criteria in codes.criteria(review)}
+
+
 def build_article_table_row(article, columns=study_columns.DEFAULT):
     """The study's row in the study list, as the list renders it (after a save, it replaces the old one)."""
-    return render_to_string("conducting/partial_conducting_article_row.html", {"article": article, "columns": columns})
+    context = {"article": article, "columns": columns, "criteria_codes": _criteria_codes(article.review)}
+    return render_to_string("conducting/partial_conducting_article_row.html", context)
 
 
 @author_required
@@ -1688,7 +1711,7 @@ def data_analysis(request, username, review_name):
             criteria=analytics.criteria_usage(review),
             years=analytics.studies_by_year(review),
             prisma=analytics.prisma(review),
-            exclusion_criteria=review.get_exclusion_criterias(),
+            exclusion_criteria=codes.criteria(review, SelectionCriteria.EXCLUSION),
             # Rapid reviews: the selection round by round.
             rounds=analytics.selection_funnel(review) if review.is_rapid_review else None,
         )

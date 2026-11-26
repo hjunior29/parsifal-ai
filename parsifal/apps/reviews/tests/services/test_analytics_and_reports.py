@@ -86,10 +86,10 @@ class TestSelectionAnalytics(TestCase):
     def test_criteria_most_used_first(self):
         usage = analytics.criteria_usage(self.review)
         self.assertEqual(
-            [("E2", "Not in English", 2), ("E1", "Not a primary study", 1)],
+            [("EC2", "Not in English", 2), ("EC1", "Not a primary study", 1)],
             [(r["key"], r["description"], r["studies"]) for r in usage["exclusion"]],
         )
-        self.assertEqual([("I1", 1)], [(r["key"], r["studies"]) for r in usage["inclusion"]])
+        self.assertEqual([("IC1", 1)], [(r["key"], r["studies"]) for r in usage["inclusion"]])
         self.assertEqual((1, 1), (usage["rejected_without_criterion"], usage["accepted_without_criterion"]))
 
     def test_studies_by_year_without_duplicates(self):
@@ -142,8 +142,8 @@ class TestQualityAndExtractionAnalytics(TestCase):
         self.assertEqual([{"score": 2.0, "studies": 1}], overview["scores"])  # only the fully assessed
         self.assertEqual(["Yes", "No"], [answer["description"] for answer in overview["answers"]])
         q1, q2 = overview["by_question"]
-        self.assertEqual(("Q1", [1, 1], 1), (q1["key"], [a["studies"] for a in q1["answers"]], q1["unanswered"]))
-        self.assertEqual(("Q2", [1, 0], 2), (q2["key"], [a["studies"] for a in q2["answers"]], q2["unanswered"]))
+        self.assertEqual(("QA1", [1, 1], 1), (q1["key"], [a["studies"] for a in q1["answers"]], q1["unanswered"]))
+        self.assertEqual(("QA2", [1, 0], 2), (q2["key"], [a["studies"] for a in q2["answers"]], q2["unanswered"]))
         with self.subTest(msg="no cutoff"):
             quality.set_cutoff(review=self.review, cutoff=0)
             self.assertEqual(
@@ -226,8 +226,8 @@ class TestReports(TestCase):
             values=[lk.pk for lk in self.lookups],
         )
         columns, rows = reports.extraction_rows(self.review)
-        self.assertEqual(["article", "Notes", "Methods"], columns)
-        self.assertEqual([{"article": "Accepted one", "Notes": "ok", "Methods": "Case study, Survey"}], rows)
+        self.assertEqual(["article", "EX1 Notes", "EX2 Methods"], columns)  # each field with its code
+        self.assertEqual([{"article": "Accepted one", "EX1 Notes": "ok", "EX2 Methods": "Case study, Survey"}], rows)
 
     def test_build_docx(self):
         document = reports.build_docx(self.review, ["name", "sources", "bogus"])
@@ -293,10 +293,10 @@ class TestPrisma(TestCase):
         )
         self.assertEqual((6, 0, 5), (prisma["sought"], prisma["not_retrieved"], prisma["assessed"]))
         self.assertEqual(
-            [
-                {"reason": "Full text missing", "studies": 1},
-                {"reason": "No evaluation", "studies": 1},
-                {"reason": "Not in English", "studies": 1},
+            [  # each with its code (services.codes), in the order of the criteria
+                {"reason": "EC1 Not in English", "studies": 1},
+                {"reason": "EC2 Full text missing", "studies": 1},
+                {"reason": "EC3 No evaluation", "studies": 1},
             ],
             prisma["excluded_reports"],
         )
@@ -309,8 +309,8 @@ class TestPrisma(TestCase):
                 "not_retrieved": 0,
                 "assessed": 3,
                 "excluded_reports": [
-                    {"reason": "No evaluation", "studies": 1},
-                    {"reason": "Not in English", "studies": 1},
+                    {"reason": "EC1 Not in English", "studies": 1},
+                    {"reason": "EC3 No evaluation", "studies": 1},
                 ],
                 "included": 1,
             },
@@ -323,7 +323,7 @@ class TestPrisma(TestCase):
         analytics.set_prisma_not_retrieved(review=self.review, criteria_id=self.missing.pk)
         prisma = analytics.prisma(self.review)
         self.assertEqual((6, 1, 4), (prisma["sought"], prisma["not_retrieved"], prisma["assessed"]))
-        self.assertNotIn("Full text missing", [row["reason"] for row in prisma["excluded_reports"]])
+        self.assertNotIn("EC2 Full text missing", [row["reason"] for row in prisma["excluded_reports"]])
         self.assertEqual(self.missing.pk, prisma["not_retrieved_criteria_id"])
         analytics.set_prisma_not_retrieved(review=self.review, criteria_id=0)
         self.assertIsNone(analytics.prisma(self.review)["not_retrieved_criteria_id"])

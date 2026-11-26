@@ -40,7 +40,7 @@ class SelectionSummaryOut(Schema):
 
 class CriterionUsageOut(Schema):
     id: int
-    key: str  # E1… / I1…, in the protocol's order
+    key: str  # the criterion's code: EC1… / IC1… (services.codes)
     description: str
     studies: int  # rejected studies with this exclusion criterion, or accepted ones with this inclusion criterion
 
@@ -77,7 +77,7 @@ class AnswerStudiesOut(Schema):
 
 class QuestionAnswersOut(Schema):
     id: int
-    key: str  # Q1…, in the checklist's order
+    key: str  # the question's code: QA1… (services.codes)
     description: str
     answers: list[AnswerStudiesOut]  # in the order of ``answers``: the highest weight first
     unanswered: int
@@ -106,6 +106,7 @@ class ChoiceOptionOut(Schema):
 
 class ChoiceFieldOut(Schema):
     id: int
+    code: str = ""  # the field's: EX04…
     description: str
     field_type: str  # O (single choice), M (multiple choice) or B (true/false)
     answered: int

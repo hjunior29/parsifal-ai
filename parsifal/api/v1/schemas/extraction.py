@@ -2,6 +2,7 @@ from typing import Any
 
 from ninja import Schema
 
+from parsifal.api.v1.schemas.common import resolve_code
 from parsifal.apps.reviews.services import extraction
 
 
@@ -12,10 +13,13 @@ class LookupOut(Schema):
 
 class FieldOut(Schema):
     id: int
+    code: str  # the review's: EX01, EX02… (from the order)
     description: str
     field_type: str
     order: int
     lookup_values: list[LookupOut]
+
+    resolve_code = staticmethod(resolve_code)
 
     @staticmethod
     def resolve_lookup_values(obj):
@@ -55,6 +59,7 @@ class EvidenceIn(Schema):
 
 class ExtractedValueOut(Schema):
     field_id: int
+    code: str = ""  # the field's
     field: str
     field_type: str
     value: Any = None

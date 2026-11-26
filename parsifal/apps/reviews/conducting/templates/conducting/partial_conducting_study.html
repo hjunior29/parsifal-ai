@@ -1,3 +1,4 @@
+{% load review_codes %}
 {% comment %}
   A study to read while its quality is assessed or its data extracted (study_window): its details, abstract and
   comments as they are, and its full text. Its status was decided on Study Selection, so nothing here screens it; only
@@ -51,7 +52,7 @@
         {% if article.doi %}<dt>DOI</dt><dd>{% if article.doi_url %}<a href="{{ article.doi_url }}" target="_blank" rel="noopener">{{ article.doi }}</a>{% else %}{{ article.doi }}{% endif %}</dd>{% endif %}
         {% if article.keywords %}<dt>Keywords</dt><dd>{{ article.keywords }}</dd>{% endif %}
         {% if article.author_keywords %}<dt>Author keywords</dt><dd>{{ article.author_keywords }}</dd>{% endif %}
-        {% if article.selection_criteria %}<dt>Criterion</dt><dd>{{ article.selection_criteria.description }}</dd>{% endif %}
+        {% if article.selection_criteria %}<dt>Criterion</dt><dd>{{ criteria_codes|code_for:article.selection_criteria_id }} {{ article.selection_criteria.description }}</dd>{% endif %}
         <dt>Source</dt><dd>{{ article.source.name }}</dd>
         {% if article.bibtex_key %}<dt>BibTeX key</dt><dd>{{ article.bibtex_key }}</dd>{% endif %}
       </dl>

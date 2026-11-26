@@ -2,14 +2,17 @@ from datetime import date
 
 from ninja import Schema
 
-from parsifal.api.v1.schemas.common import OptionalDate
+from parsifal.api.v1.schemas.common import OptionalDate, resolve_code
 
 
 class QuestionOut(Schema):
     id: int
+    code: str  # the review's: RQ1, RQ2, RQ1.1 for a sub-question (from the order; never written in the question)
     question: str
     order: int
     parent_question_id: int | None = None
+
+    resolve_code = staticmethod(resolve_code)
 
 
 class QuestionIn(Schema):
@@ -119,8 +122,12 @@ class SourceImportOut(Schema):
 
 class CriteriaOut(Schema):
     id: int
+    code: str  # the review's: IC1… for inclusion, EC1… for exclusion (from the order)
     description: str
     criteria_type: str
+    order: int
+
+    resolve_code = staticmethod(resolve_code)
 
 
 class CriteriaIn(Schema):

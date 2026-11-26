@@ -5,7 +5,7 @@ from django.db import transaction
 from parsifal.apps.core.exceptions import Conflict, ValidationError
 from parsifal.apps.reviews.models import Keyword, Question, ReviewEvent, SearchSession, SelectionCriteria, Source
 from parsifal.apps.reviews.services import history
-from parsifal.apps.reviews.services._common import check_length, get_child, reorder, require
+from parsifal.apps.reviews.services._common import check_length, get_child, get_children, reorder, require
 
 PICOC_KEYWORD_SOURCES = (
     (Keyword.POPULATION, "population"),
@@ -303,7 +303,12 @@ def add_criteria(*, review, description, criteria_type):
     check_length(description, 200, field="description")
     if criteria_type not in dict(SelectionCriteria.SELECTION_TYPES):
         raise ValidationError("criteria_type must be 'I' (inclusion) or 'E' (exclusion).", field="criteria_type")
-    criteria = SelectionCriteria.objects.create(review=review, description=description, criteria_type=criteria_type)
+    criteria = SelectionCriteria.objects.create(
+        review=review,
+        description=description,
+        criteria_type=criteria_type,
+        order=review.selectioncriteria_set.filter(criteria_type=criteria_type).count(),
+    )
     criterion_kind(criteria).added(review, criteria)
     return criteria
 
@@ -322,3 +327,20 @@ def remove_criteria(*, review, criteria_id):
     criteria = get_child(review.selectioncriteria_set, criteria_id, label="Selection criteria")
     criterion_kind(criteria).removed(review, criteria)
     criteria.delete()
+
+
+def reorder_criteria(*, review, ordered_ids):
+    """
+    The order of the inclusion criteria, or of the exclusion ones (``ordered_ids``, all of one type): it gives them
+    their codes (IC1, IC2…; EC1…).
+    """
+    found = get_children(review.selectioncriteria_set, ordered_ids, label="Selection criteria")
+    types = {criteria.criteria_type for criteria in found}
+    if len(types) != 1:
+        raise ValidationError("Reorder the inclusion criteria or the exclusion criteria, one type at a time.")
+    queryset = review.selectioncriteria_set.filter(criteria_type=types.pop())
+    kind = criterion_kind(found[0])
+    before = kind.order(queryset)
+    criteria = reorder(queryset, ordered_ids, label="Selection criteria")
+    kind.reordered(review, queryset, before)
+    return criteria
