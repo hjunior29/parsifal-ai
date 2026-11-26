@@ -1,17 +1,26 @@
-<footer>
+{% load i18n %}
+
+<footer class="site-footer">
   <div class="container">
-    <div class="row">
-      <div class="col-xs-4 legal">
-        <span>Parsifal · <a href="https://github.com/vitorfs/parsifal" rel="noopener">upstream</a> © Vitor Freitas</span>
+    <div class="footer-inner">
+      <div class="footer-brand-group">
+        <a href="{% url 'home' %}" class="footer-brand">Parsifal</a>
+        <span class="footer-meta">
+          {% trans "by" %} <a href="https://github.com/hjunior29" target="_blank" rel="noopener noreferrer">Helder Junior</a>
+          <span class="footer-sep" aria-hidden="true">&middot;</span>
+          <span class="text-muted">{% trans "based on" %} <a href="https://github.com/vitorfs/parsifal" target="_blank" rel="noopener noreferrer">upstream</a></span>
+        </span>
       </div>
-      <div class="col-xs-4" style="text-align: center;padding-top: 14px;">
-        <small class="text-muted">
-          <a href="{% url 'docs:index' %}">docs</a> · <a href="/api/v1/docs">api</a> · v{{ parsifal_version }}
-        </small>
-      </div>
-      <div class="col-xs-4 social">
-        <a href="https://github.com/hjunior29/parsifal-ai" target="_blank" rel="noopener" data-toggle="tooltip" title="Source code (parsifal-ai)" data-placement="top"><span class="fa fa-github"></span></a>
-      </div>
+
+      <nav class="footer-nav" aria-label="{% trans 'Footer navigation' %}">
+        <a href="{% url 'about' %}">{% trans "About" %}</a>
+        <a href="{% url 'docs:index' %}">{% trans "Docs" %}</a>
+        <a href="/api/v1/docs">{% trans "API" %}</a>
+        <span class="footer-version" title="Parsifal version">v{{ parsifal_version }}</span>
+        <a href="https://github.com/hjunior29/parsifal-ai" class="footer-github" target="_blank" rel="noopener noreferrer" data-toggle="tooltip" title="Source code (parsifal-ai)" data-placement="top" aria-label="GitHub repository">
+          <span class="fa fa-github" aria-hidden="true"></span>
+        </a>
+      </nav>
     </div>
   </div>
 </footer>

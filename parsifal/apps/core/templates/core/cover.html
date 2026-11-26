@@ -1,85 +1,672 @@
 {% extends "base.html" %}
 
-{% load i18n %}
+{% load compress i18n static %}
+
+{% block stylesheet %}
+  {% compress css %}
+    <link href="{% static 'css/cover.css' %}?v=3" rel="stylesheet">
+  {% endcompress %}
+{% endblock stylesheet %}
 
 {% block javascript %}
-  {% if allow_signup %}
-    <script>
-      $(function() {
-        $("#signUpForm").submit(function () {
-          $("input[name=password2]").val($("input[name=password1]").val());
-        });
-      });
-    </script>
-  {% endif %}
+  {% compress js %}
+    <script src="{% static 'js/cover.js' %}?v=2"></script>
+  {% endcompress %}
 {% endblock javascript %}
 
 {% block content %}
-  <div class="row cover">
-    <div class="col-md-7">
-      <h1>{% trans "Perform Systematic Literature Reviews" %}</h1>
-      <p class="lead">Performing a systematic literature review is a labor-intensive task that requires a huge amount of work from the researcher. <strong>Parsifal</strong> will help you planning, conducting and reporting the review.</p>
-    </div>
-    <div class="col-md-5">
-      {% if allow_signup %}
-        <h2>{% trans "Sign up for Parsifal" %}</h2>
-        <form action="{% url "signup" %}" method="post" id="signUpForm">
-          {% csrf_token %}
-          <input type="hidden" name="password2">
-          <div class="form-group">
-            <input class="form-control input-lg" type="text" placeholder="{% trans "Username" %}" name="username" aria-label="{% trans "Username" %}">
-          </div>
-          <div class="form-group">
-            <input class="form-control input-lg" type="password" placeholder="{% trans "Password" %}" name="password1" aria-label="{% trans "Password" %}">
-          </div>
-          <div class="form-group">
-            <input class="form-control input-lg" type="email" placeholder="{% trans "Email" %}" name="email" aria-label="{% trans "Email" %}">
-          </div>
-          <div class="form-group">
-            <button type="submit" class="btn btn-success btn-lg btn-block">{% trans "Create a new account" %}</button>
-          </div>
-        </form>
-      {% else %}
-        <h2>{% trans "Log in to Parsifal" %}</h2>
-        <form action="{% url "login" %}" method="post">
-          {% csrf_token %}
-          <div class="form-group">
-            <input class="form-control input-lg" type="text" placeholder="{% trans "Username or email" %}" name="username" aria-label="{% trans "Username or email" %}">
-          </div>
-          <div class="form-group">
-            <input class="form-control input-lg" type="password" placeholder="{% trans "Password" %}" name="password" aria-label="{% trans "Password" %}">
-          </div>
-          <div class="form-group">
-            <button type="submit" class="btn btn-primary btn-lg btn-block">{% trans "Log in" %}</button>
-          </div>
-          <p class="text-muted"><small>{% trans "Accounts on this instance are created by the administrator." %}</small></p>
-        </form>
-      {% endif %}
+  <div class="row cover-hero">
+    <div class="col-md-10">
+      <h1 class="cover-hero-anim" style="--stagger: 0;">{% trans "Perform Systematic Literature Reviews" %}</h1>
+      <p class="lead cover-hero-anim" style="--stagger: 1;">
+        <strong>Parsifal</strong> is a self-hosted tool for planning, conducting, and reporting
+        <strong>Systematic Literature Reviews</strong>, <strong>Systematic Mapping Studies</strong>, and
+        <strong>Rapid Reviews</strong> — with AI-assisted screening, multi-reviewer agreement, PRISMA 2020,
+        evidence-backed extraction, audit history, and an API, CLI, and MCP server for AI agents.
+      </p>
+      <div class="cover-hero-types cover-hero-anim" style="--stagger: 2;">
+        <span class="label label-default">Literature review</span>
+        <span class="label label-info">Mapping study</span>
+        <span class="label label-warning">Rapid review</span>
+      </div>
+      <div class="cover-hero-actions cover-hero-anim" style="--stagger: 3;">
+        <a href="#workspace-preview" class="btn btn-primary">{% trans "Explore the workflow" %}</a>
+        <a href="{% url 'docs:index' %}" class="btn btn-default">{% trans "Documentation" %}</a>
+        <a href="/api/v1/docs" class="btn btn-default">{% trans "API Docs" %}</a>
+      </div>
     </div>
   </div>
 {% endblock content %}
 
 {% block fullwidthfooter %}
-  <section class="features">
+  <!-- Interactive preview using Parsifal's actual review header, progress bar, and review menu -->
+  <section id="workspace-preview" class="cover-band">
     <div class="container">
-      <article>
-        <span class="glyphicon glyphicon-home"></span>
-        <h2>Self-hosted and open</h2>
+      <div class="cover-reveal">
+        <h2 class="cover-section-title">{% trans "How a review works in Parsifal" %}</h2>
+        <p class="cover-section-lead">
+          {% trans "Switch between tabs below to inspect each phase of a review — using the same layout and controls you use inside the application." %}
+        </p>
+      </div>
 
-        <p class="lead">Run Parsifal on your own machine or server with a single SQLite database. Your protocols, studies and extracted data never leave your infrastructure.</p>
-      </article>
-      <article>
-        <span class="glyphicon glyphicon-globe"></span>
-        <h2>Collaborative by design</h2>
+      <div class="cover-workspace-box cover-reveal" data-cover-workspace>
+        <h3 class="review-title">
+          <span class="review-title-user">alice</span>
+          <span class="text-muted">/</span>
+          <span>LLM-Based Test Generation</span>
+          <small><span class="label label-warning" title="Rapid review (Cartaxo, Pinto &amp; Soares 2020)">rapid review</span></small>
+        </h3>
 
-        <p class="lead">Add co-authors to work on the same systematic literature review: shared protocol, study selection, quality assessment and data extraction, with no limit of authors per review.</p>
-      </article>
-      <article>
-        <span class="glyphicon glyphicon-cog"></span>
-        <h2>Built for automation</h2>
+        <div class="review-progress">
+          <span class="review-progress-inline">
+            <span class="progress review-progress-bar">
+              <span class="progress-bar" role="progressbar" style="width: 25%;" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100" data-progress-bar></span>
+            </span>
+            <span class="review-progress-value" data-progress-value>25%</span>
+          </span>
+          <span class="review-progress-next"> · <span data-progress-next>Next: import BibTeX studies and set search dates</span></span>
+        </div>
 
-        <p class="lead">Every step of the review is also available to scripts and AI coding agents through a JSON API, a command-line client and an MCP server, so humans and agents can work on the same review.</p>
-      </article>
+        <ul class="review-menu" role="tablist" aria-label="Review workflow phases">
+          <li class="active">
+            <button type="button" role="tab" aria-selected="true" aria-controls="scene-planning" id="tab-planning" data-scene-tab data-progress="25" data-next="Next: import BibTeX studies and set search dates">
+              Planning
+            </button>
+          </li>
+          <li>
+            <button type="button" role="tab" aria-selected="false" aria-controls="scene-selection" id="tab-selection" data-scene-tab data-progress="55" data-next="Next: resolve 1 disagreement and consolidate decisions">
+              Study Selection &amp; AI
+            </button>
+          </li>
+          <li>
+            <button type="button" role="tab" aria-selected="false" aria-controls="scene-extraction" id="tab-extraction" data-scene-tab data-progress="78" data-next="Next: attach evidence to remaining extracted fields">
+              Extraction &amp; PRISMA
+            </button>
+          </li>
+          <li>
+            <button type="button" role="tab" aria-selected="false" aria-controls="scene-reporting" id="tab-reporting" data-scene-tab data-progress="100" data-next="Complete: threats documented and manuscript v3 uploaded">
+              Reporting &amp; History
+            </button>
+          </li>
+          <li>
+            <button type="button" role="tab" aria-selected="false" aria-controls="scene-automation" id="tab-automation" data-scene-tab data-progress="100" data-next="Same review accessible via Web, API, CLI, and MCP">
+              API, CLI &amp; MCP
+            </button>
+          </li>
+        </ul>
+
+        <!-- Tab 1: Planning -->
+        <div class="cover-scene is-active" id="scene-planning" role="tabpanel" aria-labelledby="tab-planning" data-scene-panel>
+          <div class="row">
+            <div class="col-md-7">
+              <div class="panel panel-default motion-row" style="--item: 0;">
+                <div class="panel-heading">
+                  <h4 class="panel-title">Selection Criteria</h4>
+                </div>
+                <div class="table-responsive">
+                  <table class="table table-bordered">
+                    <thead>
+                      <tr>
+                        <th style="width: 110px;">Type</th>
+                        <th>Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr class="motion-row" style="--item: 1;">
+                        <td><span class="label label-success">Inclusion</span></td>
+                        <td>IC1 — Primary study evaluating LLM-assisted software test generation</td>
+                      </tr>
+                      <tr class="motion-row" style="--item: 2;">
+                        <td><span class="label label-success">Inclusion</span></td>
+                        <td>IC2 — Empirical evaluation on real-world or benchmark repositories</td>
+                      </tr>
+                      <tr class="motion-row" style="--item: 3;">
+                        <td><span class="label label-danger">Exclusion</span></td>
+                        <td>EC1 — Secondary study, editorial, or non-peer-reviewed short paper</td>
+                      </tr>
+                      <tr class="motion-row" style="--item: 4;">
+                        <td><span class="label label-danger">Exclusion</span></td>
+                        <td>EC2 — Full text unavailable or not written in English</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-5">
+              <div class="panel panel-default motion-row" style="--item: 1;">
+                <div class="panel-heading">
+                  <h4 class="panel-title">What you configure in Planning</h4>
+                </div>
+                <div class="panel-body">
+                  <ul style="padding-left: 18px; margin-bottom: 0;">
+                    <li>Objectives, PICOC, research questions, keywords &amp; synonyms, and generic search string.</li>
+                    <li>Digital-library sources with search dates and adapted search strings.</li>
+                    <li>Quality assessment checklist with weighted answers and cut-off score.</li>
+                    <li>Data extraction form (text, boolean, numeric, date, select-one, select-many).</li>
+                    <li>
+                      Classification facets &amp; checklists for
+                      <a href="https://doi.org/10.1016/j.infsof.2015.03.007" target="_blank" rel="noopener noreferrer">Petersen et al. (2015)</a>
+                      and
+                      <a href="https://arxiv.org/abs/2003.10006" target="_blank" rel="noopener noreferrer">Cartaxo et al. (2020)</a>.
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Study Selection & AI -->
+        <div class="cover-scene" id="scene-selection" role="tabpanel" aria-labelledby="tab-selection" data-scene-panel hidden>
+          <div class="row">
+            <div class="col-md-8">
+              <div class="panel panel-default motion-row" style="--item: 0;">
+                <div class="panel-heading">
+                  <h4 class="panel-title">Study Selection · Round 2 (Title &amp; Abstract)</h4>
+                </div>
+                <div class="table-responsive">
+                  <table class="table table-hover">
+                    <thead>
+                      <tr>
+                        <th>Title</th>
+                        <th>Year</th>
+                        <th>Source</th>
+                        <th class="text-right">AI relevance</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr class="motion-row" style="--item: 1;">
+                        <td>Mutation-Guided LLM Test Generation</td>
+                        <td>2025</td>
+                        <td>ACM Digital Library</td>
+                        <td class="text-right">94%</td>
+                        <td><span class="label label-success">Accepted</span></td>
+                      </tr>
+                      <tr class="motion-row" style="--item: 2;">
+                        <td>Hardware Accelerators for Image Denoising</td>
+                        <td>2024</td>
+                        <td>Scopus</td>
+                        <td class="text-right">11%</td>
+                        <td><span class="label label-danger">Rejected</span></td>
+                      </tr>
+                      <tr class="motion-row" style="--item: 3;">
+                        <td>Automated Flaky Test Repair with Agents</td>
+                        <td>2025</td>
+                        <td>IEEE Xplore</td>
+                        <td class="text-right">88%</td>
+                        <td><span class="label label-success">Accepted</span></td>
+                      </tr>
+                      <tr class="motion-row" style="--item: 4;">
+                        <td>Benchmarking Prompt Patterns in Code Review</td>
+                        <td>2025</td>
+                        <td>Springer Link</td>
+                        <td class="text-right">64%</td>
+                        <td><span class="label label-default">Unclassified</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="panel panel-default motion-row" style="--item: 2;">
+                <div class="panel-heading">
+                  <h4 class="panel-title">Reviewer Agreement</h4>
+                </div>
+                <table class="table table-condensed">
+                  <tbody>
+                    <tr><th>Reviewers</th><td>alice × bob</td></tr>
+                    <tr><th>Decided by both</th><td>248</td></tr>
+                    <tr><th>Agreed</th><td>236 (0.95)</td></tr>
+                    <tr><th>Cohen&rsquo;s kappa</th><td>0.842 — almost perfect</td></tr>
+                    <tr><th>Consolidation</th><td>Majority / Unanimous / Any include</td></tr>
+                  </tbody>
+                </table>
+                <div class="panel-footer">
+                  <small class="text-muted">Screen with AI supports per-criterion thresholds, resumable runs, and per-round selection.</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Extraction & PRISMA -->
+        <div class="cover-scene" id="scene-extraction" role="tabpanel" aria-labelledby="tab-extraction" data-scene-panel hidden>
+          <div class="row">
+            <div class="col-md-6">
+              <div class="panel panel-default motion-row" style="--item: 0;">
+                <div class="panel-heading">
+                  <span class="label label-success pull-right">Done</span>
+                  <h4 class="panel-title">Data Extraction · Evidence per Value</h4>
+                </div>
+                <div class="panel-body">
+                  <div class="form-group motion-row" style="--item: 1;">
+                    <label>Evaluation Context</label>
+                    <input type="text" class="form-control input-sm" value="Industrial (14 production microservices)" readonly>
+                    <span class="extraction-evidence-label">Evidence (where the study supports this value)</span>
+                    <div class="cover-evidence-box">
+                      Section 4.2, p. 11 — The pipeline was evaluated across 14 production microservices over six weeks.
+                    </div>
+                  </div>
+                  <p class="text-muted" style="margin-bottom: 0; font-size: 12px;">
+                    A study is marked done only when every extracted value has supporting evidence; all exports carry it. Full-text PDFs can be stored locally or in S3.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="panel panel-default motion-row" style="--item: 1;">
+                <div class="panel-heading">
+                  <h4 class="panel-title">Data Analysis · PRISMA 2020 &amp; Screening Rounds</h4>
+                </div>
+                <table class="table table-condensed cover-prisma-table">
+                  <tbody>
+                    <tr class="motion-row" style="--item: 1;">
+                      <td style="width: 175px;">Records identified</td>
+                      <td>
+                        <div class="progress"><div class="progress-bar" style="width: 100%;"></div></div>
+                      </td>
+                      <td class="text-right" style="width: 55px;"><strong>1,240</strong></td>
+                    </tr>
+                    <tr class="motion-row" style="--item: 2;">
+                      <td>Duplicates removed</td>
+                      <td>
+                        <div class="progress"><div class="progress-bar progress-bar-warning" style="width: 25%;"></div></div>
+                      </td>
+                      <td class="text-right"><strong>312</strong></td>
+                    </tr>
+                    <tr class="motion-row" style="--item: 3;">
+                      <td>Round 1 · Titles only</td>
+                      <td>
+                        <div class="progress"><div class="progress-bar progress-bar-info" style="width: 75%;"></div></div>
+                      </td>
+                      <td class="text-right"><strong>928</strong></td>
+                    </tr>
+                    <tr class="motion-row" style="--item: 4;">
+                      <td>Round 2 · Title &amp; Abstract</td>
+                      <td>
+                        <div class="progress"><div class="progress-bar progress-bar-info" style="width: 23%;"></div></div>
+                      </td>
+                      <td class="text-right"><strong>284</strong></td>
+                    </tr>
+                    <tr class="motion-row" style="--item: 5;">
+                      <td>Round 3 · Full text</td>
+                      <td>
+                        <div class="progress"><div class="progress-bar" style="width: 8%;"></div></div>
+                      </td>
+                      <td class="text-right"><strong>68</strong></td>
+                    </tr>
+                    <tr class="motion-row" style="--item: 6;">
+                      <td>Included studies</td>
+                      <td>
+                        <div class="progress"><div class="progress-bar progress-bar-success" style="width: 5%;"></div></div>
+                      </td>
+                      <td class="text-right"><strong>34</strong></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4: Reporting & History -->
+        <div class="cover-scene" id="scene-reporting" role="tabpanel" aria-labelledby="tab-reporting" data-scene-panel hidden>
+          <div class="row">
+            <div class="col-md-5">
+              <div class="panel panel-default motion-row" style="--item: 0;">
+                <div class="panel-heading">
+                  <h4 class="panel-title">Threats to Validity &amp; Manuscripts</h4>
+                </div>
+                <div class="panel-body">
+                  <div class="threat" style="border-top: 0; padding-top: 0;">
+                    <p class="threat-title">Construct validity · Single-round title filter</p>
+                    <p class="text-muted" style="font-size: 13px; margin-bottom: 10px;">
+                      Drafted from the rapid-review concessions checklist; mitigated by checking against the known-paper set.
+                    </p>
+                  </div>
+                  <table class="table table-condensed" style="margin-bottom: 10px;">
+                    <thead>
+                      <tr>
+                        <th>Manuscript</th>
+                        <th>Version</th>
+                        <th>Format</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr class="motion-row" style="--item: 1;">
+                        <td>ICSE Camera-Ready</td>
+                        <td><span class="label label-default">v3</span></td>
+                        <td>PDF (in-page viewer)</td>
+                      </tr>
+                      <tr class="motion-row" style="--item: 2;">
+                        <td>Review Report</td>
+                        <td>Export</td>
+                        <td>DOCX · XLSX · CSV · JSON</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-7">
+              <div class="panel panel-default motion-row" style="--item: 1;">
+                <div class="panel-heading">
+                  <h4 class="panel-title">History</h4>
+                </div>
+                <div class="table-responsive">
+                  <table class="table history-table">
+                    <thead>
+                      <tr>
+                        <th class="history-when">When</th>
+                        <th class="history-who">Who</th>
+                        <th class="history-area">Area</th>
+                        <th>What</th>
+                        <th class="history-via">Via</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr class="active history-day"><td colspan="5"><strong>Today</strong></td></tr>
+                      <tr class="motion-row" style="--item: 2;">
+                        <td class="history-when">14:32</td>
+                        <td class="history-who">alice</td>
+                        <td class="history-area">Extraction</td>
+                        <td>Updated value and evidence on <em>ICSE 2025</em></td>
+                        <td class="history-via">MCP</td>
+                      </tr>
+                      <tr class="motion-row" style="--item: 3;">
+                        <td class="history-when">14:18</td>
+                        <td class="history-who">bot <span class="label label-info">AI agent</span></td>
+                        <td class="history-area">Selection</td>
+                        <td>Screened 284 studies (Round 2)</td>
+                        <td class="history-via">CLI</td>
+                      </tr>
+                      <tr class="motion-row" style="--item: 4;">
+                        <td class="history-when">13:55</td>
+                        <td class="history-who">bob</td>
+                        <td class="history-area">Manuscripts</td>
+                        <td>Uploaded version 3 of <em>ICSE Camera-Ready</em></td>
+                        <td class="history-via">Web</td>
+                      </tr>
+                      <tr class="motion-row" style="--item: 5;">
+                        <td class="history-when">12:40</td>
+                        <td class="history-who">alice</td>
+                        <td class="history-area">Protocol</td>
+                        <td>Edited inclusion criterion IC2 <span class="label label-warning">amendment</span></td>
+                        <td class="history-via">Web</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 5: API, CLI & MCP -->
+        <div class="cover-scene" id="scene-automation" role="tabpanel" aria-labelledby="tab-automation" data-scene-panel hidden>
+          <div class="row">
+            <div class="col-md-7">
+              <div class="panel panel-default cover-terminal-panel motion-row" style="--item: 0;">
+                <div class="panel-heading">
+                  <span class="glyphicon glyphicon-console" aria-hidden="true"></span> CLI &amp; MCP Server
+                </div>
+                <pre class="cover-pre"><code><span class="cmd-comment"># Inspect review status and progress as JSON</span>
+<span class="cmd-prompt">$ </span><span class="cmd-bin">parsifal</span> review overview <span class="cmd-flag">--review</span> alice/llm-testing
+
+<span class="cmd-comment"># Export protocol, PRISMA 2020, evidence, and threats</span>
+<span class="cmd-prompt">$ </span><span class="cmd-bin">parsifal</span> report export <span class="cmd-flag">--review</span> alice/llm-testing <span class="cmd-flag">--format</span> docx
+
+<span class="cmd-comment"># Connect Claude Code, Codex, or another MCP client</span>
+<span class="cmd-prompt">$ </span><span class="cmd-bin">pip</span> install <span class="cmd-flag">-e</span> <span class="cmd-str">"clients/parsifal-cli[mcp]"</span>
+<span class="cmd-prompt">$ </span><span class="cmd-bin">claude</span> mcp add parsifal <span class="cmd-flag">--</span> parsifal-mcp</code></pre>
+              </div>
+            </div>
+            <div class="col-md-5">
+              <div class="panel panel-default motion-row" style="--item: 1;">
+                <div class="panel-heading">
+                  <h4 class="panel-title">Machine Interface</h4>
+                </div>
+                <table class="table table-condensed">
+                  <tbody>
+                    <tr><th>JSON API v1</th><td><a href="/api/v1/docs">/api/v1/docs</a></td></tr>
+                    <tr><th>Auth</th><td><code>Authorization: Bearer pfl_…</code></td></tr>
+                    <tr><th>CLI</th><td><code>parsifal</code> (all operations, JSON output)</td></tr>
+                    <tr><th>MCP Server</th><td><code>parsifal-mcp</code> (stdio or HTTP)</td></tr>
+                    <tr><th>Audit trail</th><td>Every call logged in Review History</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Three Methodologies (standardized equal-height boxes) -->
+  <section class="cover-band cover-band-white">
+    <div class="container">
+      <div class="cover-reveal">
+        <h2 class="cover-section-title">{% trans "Supported review methodologies" %}</h2>
+        <p class="cover-section-lead">
+          {% trans "Pick the review type when creating a review. Parsifal adjusts the protocol sections, checklists, screening rounds, and charts accordingly." %}
+        </p>
+      </div>
+      <div class="row cover-equal-row">
+        <div class="col-md-4 cover-reveal" style="--stagger: 0;">
+          <div class="panel panel-default cover-equal-panel">
+            <div class="panel-heading cover-method-heading">
+              <h3 class="panel-title">Systematic Literature Reviews</h3>
+              <a href="https://www.elsevier.com/__data/promis_misc/525444systematicreviewsguide.pdf" class="label label-default" target="_blank" rel="noopener noreferrer" title="Kitchenham &amp; Charters (2007) — Guidelines for performing Systematic Literature Reviews in Software Engineering">Kitchenham 2007</a>
+            </div>
+            <div class="panel-body">
+              <p>Complete planning, conducting, and reporting process for primary-study synthesis:</p>
+              <ul style="padding-left: 18px; margin-bottom: 0;">
+                <li>PICOC, research questions, keywords &amp; search strings</li>
+                <li>Weighted quality assessment with cut-off score</li>
+                <li>Evidence-backed extraction &amp; DOCX report</li>
+              </ul>
+            </div>
+            <div class="panel-footer">
+              <small class="text-muted">
+                Reference: <a href="https://www.elsevier.com/__data/promis_misc/525444systematicreviewsguide.pdf" target="_blank" rel="noopener noreferrer">Kitchenham &amp; Charters (2007), EBSE-2007-01</a>
+              </small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4 cover-reveal" style="--stagger: 1;">
+          <div class="panel panel-default cover-equal-panel">
+            <div class="panel-heading cover-method-heading">
+              <h3 class="panel-title">Systematic Mapping Studies</h3>
+              <a href="https://doi.org/10.1016/j.infsof.2015.03.007" class="label label-info" target="_blank" rel="noopener noreferrer" title="Petersen, Vakkalanka &amp; Kuzniarz (2015) — Guidelines for conducting systematic mapping studies in software engineering: An update">Petersen 2015</a>
+            </div>
+            <div class="panel-body">
+              <p>Structured classification and visualization of a research area:</p>
+              <ul style="padding-left: 18px; margin-bottom: 0;">
+                <li>Classification facets with reusable templates</li>
+                <li>Known-paper test set &amp; Petersen checklist</li>
+                <li>Facet frequencies, cross-tab matrices &amp; charts</li>
+              </ul>
+            </div>
+            <div class="panel-footer">
+              <small class="text-muted">
+                Reference: <a href="https://doi.org/10.1016/j.infsof.2015.03.007" target="_blank" rel="noopener noreferrer">Petersen, Vakkalanka &amp; Kuzniarz (2015), IST</a>
+              </small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4 cover-reveal" style="--stagger: 2;">
+          <div class="panel panel-default cover-equal-panel">
+            <div class="panel-heading cover-method-heading">
+              <h3 class="panel-title">Rapid Reviews</h3>
+              <a href="https://arxiv.org/abs/2003.10006" class="label label-warning" target="_blank" rel="noopener noreferrer" title="Cartaxo, Pinto &amp; Soares (2020) — Rapid Reviews in Software Engineering (open-access arXiv preprint)">Cartaxo 2020</a>
+            </div>
+            <div class="panel-body">
+              <p>Practice-oriented reviews with explicit documentation of methodological concessions:</p>
+              <ul style="padding-left: 18px; margin-bottom: 0;">
+                <li>Practical context &amp; practitioner collaboration checklist</li>
+                <li>Screening rounds: titles &rarr; title &amp; abstract &rarr; full text</li>
+                <li>Threats to validity drafted from concessions</li>
+              </ul>
+            </div>
+            <div class="panel-footer">
+              <small class="text-muted">
+                Reference: <a href="https://arxiv.org/abs/2003.10006" target="_blank" rel="noopener noreferrer">Cartaxo, Pinto &amp; Soares (2020), arXiv:2003.10006</a>
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Functional Capabilities Summary (Bootstrap panel cards) -->
+  <section class="cover-band">
+    <div class="container">
+      <div class="cover-reveal">
+        <h2 class="cover-section-title">{% trans "What you can do with Parsifal" %}</h2>
+        <p class="cover-section-lead">
+          {% trans "Every feature works together on the same SQLite database, whether operated by researchers in the browser or by scripts and AI agents." %}
+        </p>
+      </div>
+
+      <div class="row cover-equal-row">
+        <div class="col-sm-6 col-md-4 cover-reveal" style="--stagger: 0;">
+          <div class="panel panel-default cover-equal-panel cover-cap-panel">
+            <div class="panel-heading">
+              <h4 class="panel-title"><span class="glyphicon glyphicon-filter" aria-hidden="true"></span> AI-Assisted Screening</h4>
+            </div>
+            <div class="panel-body">
+              <p>Run Exclude with AI and Include with AI per round with per-criterion yes/no evaluation, customizable probability thresholds, AI relevance scores, and resumable run logs.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-md-4 cover-reveal" style="--stagger: 1;">
+          <div class="panel panel-default cover-equal-panel cover-cap-panel">
+            <div class="panel-heading">
+              <h4 class="panel-title"><span class="glyphicon glyphicon-user" aria-hidden="true"></span> Multi-Reviewer Agreement</h4>
+            </div>
+            <div class="panel-body">
+              <p>Record independent per-reviewer decisions, compute Cohen&rsquo;s kappa for any pair of reviewers, inspect disagreements directly on the study window, and consolidate by rule.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-md-4 cover-reveal" style="--stagger: 2;">
+          <div class="panel panel-default cover-equal-panel cover-cap-panel">
+            <div class="panel-heading">
+              <h4 class="panel-title"><span class="glyphicon glyphicon-file" aria-hidden="true"></span> Full-Text PDFs &amp; BibTeX</h4>
+            </div>
+            <div class="panel-body">
+              <p>Import BibTeX with search dates and duplicate detection, attach one PDF per study (local storage or S3-compatible bucket), star key studies, and open papers via DOI or institutional proxy.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-md-4 cover-reveal" style="--stagger: 0;">
+          <div class="panel panel-default cover-equal-panel cover-cap-panel">
+            <div class="panel-heading">
+              <h4 class="panel-title"><span class="glyphicon glyphicon-check" aria-hidden="true"></span> Evidence-Backed Extraction</h4>
+            </div>
+            <div class="panel-body">
+              <p>Record the exact supporting passage for each extracted value. Studies mark done only when every value has evidence, and all exports preserve that traceability.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-md-4 cover-reveal" style="--stagger: 1;">
+          <div class="panel panel-default cover-equal-panel cover-cap-panel">
+            <div class="panel-heading">
+              <h4 class="panel-title"><span class="glyphicon glyphicon-stats" aria-hidden="true"></span> PRISMA 2020 &amp; Data Analysis</h4>
+            </div>
+            <div class="panel-body">
+              <p>Inspect the PRISMA 2020 flow diagram (including round-by-round splits for rapid reviews), selection funnel, publications per year and source, quality scores, and mapping matrices.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-md-4 cover-reveal" style="--stagger: 2;">
+          <div class="panel panel-default cover-equal-panel cover-cap-panel">
+            <div class="panel-heading">
+              <h4 class="panel-title"><span class="glyphicon glyphicon-book" aria-hidden="true"></span> Threats, Manuscripts &amp; Exports</h4>
+            </div>
+            <div class="panel-body">
+              <p>Document threats to validity with mitigations, keep versioned manuscripts with an in-page PDF viewer, and export protocols, studies, and extracted data to DOCX, XLSX, CSV, or JSON.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-md-4 cover-reveal" style="--stagger: 0;">
+          <div class="panel panel-default cover-equal-panel cover-cap-panel">
+            <div class="panel-heading">
+              <h4 class="panel-title"><span class="glyphicon glyphicon-time" aria-hidden="true"></span> Audit History &amp; Progress Bar</h4>
+            </div>
+            <div class="panel-body">
+              <p>Track every change across protocol, search, selection, quality, and extraction — who made it, whether it was an amendment, and via Web, API, CLI, or MCP — with a live progress bar.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-md-4 cover-reveal" style="--stagger: 1;">
+          <div class="panel panel-default cover-equal-panel cover-cap-panel">
+            <div class="panel-heading">
+              <h4 class="panel-title"><span class="glyphicon glyphicon-cog" aria-hidden="true"></span> REST API, CLI &amp; MCP</h4>
+            </div>
+            <div class="panel-body">
+              <p>Automate any review step with personal API tokens at <code>/api/v1/</code>, the <code>parsifal</code> CLI, or the <code>parsifal-mcp</code> server for Claude Code, Codex, and other agents.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-md-4 cover-reveal" style="--stagger: 2;">
+          <div class="panel panel-default cover-equal-panel cover-cap-panel">
+            <div class="panel-heading">
+              <h4 class="panel-title"><span class="glyphicon glyphicon-hdd" aria-hidden="true"></span> Self-Hosted, Backups &amp; Dark Theme</h4>
+            </div>
+            <div class="panel-body">
+              <p>Runs on a single SQLite file with Docker Compose, one-archive instance and per-review backups (database + PDFs), and light, dark, or system theme under Settings &rarr; Profile.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Self-Host Quickstart -->
+  <section class="cover-band cover-band-white">
+    <div class="container">
+      <div class="row cover-reveal">
+        <div class="col-md-5">
+          <h2 class="cover-section-title">{% trans "Self-hosted on your own machine" %}</h2>
+          <p class="text-muted">
+            Run Parsifal locally on your laptop or on a small lab server without external database services.
+            All protocols, studies, full-text PDFs, and manuscripts stay in one directory backed by SQLite.
+          </p>
+          <ul class="cover-specs-list">
+            <li><strong>Lightweight footprint:</strong> 1 vCPU, 512 MB&ndash;1 GB RAM, and disk space for your PDFs.</li>
+            <li><strong>Zero extra services:</strong> Python 3.10+ or Docker Compose, SQLite database, and static files served directly.</li>
+            <li><strong>Portable backups:</strong> export or restore the whole instance or a single review (DB + PDFs) in one archive.</li>
+          </ul>
+          <p>
+            <a href="{% url 'docs:index' %}" class="btn btn-primary">{% trans "Read Documentation" %}</a>
+            <a href="/api/v1/docs" class="btn btn-default">{% trans "API Docs" %}</a>
+            <a href="{% url 'about' %}" class="btn btn-link">{% trans "About" %}</a>
+          </p>
+        </div>
+        <div class="col-md-7">
+          <div class="panel panel-default cover-terminal-panel">
+            <div class="panel-heading">
+              <span class="glyphicon glyphicon-console" aria-hidden="true"></span> bash — self-hosting quickstart
+            </div>
+            <pre class="cover-pre"><code><span class="cmd-comment"># 1. Configure .env and bootstrap admin + API token</span>
+<span class="cmd-prompt">$ </span><span class="cmd-bin">cp</span> .env.example .env
+<span class="cmd-prompt">$ </span><span class="cmd-bin">docker</span> compose run <span class="cmd-flag">--rm</span> parsifal init \
+    <span class="cmd-flag">--username</span> alice <span class="cmd-flag">--email</span> you@example.org <span class="cmd-flag">--token</span> <span class="cmd-str">"laptop"</span>
+
+<span class="cmd-comment"># 2. Start Parsifal (SQLite + files stored in ./data)</span>
+<span class="cmd-prompt">$ </span><span class="cmd-bin">docker</span> compose up <span class="cmd-flag">-d</span>
+
+<span class="cmd-comment"># 3. Back up the database and PDFs in a single archive</span>
+<span class="cmd-prompt">$ </span><span class="cmd-bin">docker</span> compose exec parsifal python manage.py backup</code></pre>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 {% endblock fullwidthfooter %}

@@ -1,31 +1,112 @@
 {% extends 'base.html' %}
 
-{% block title %}About · Parsifal{% endblock %}
+{% load i18n %}
+
+{% block title %}{% trans "About" %} · Parsifal{% endblock %}
 
 {% block fullwidthheader %}
   <div class="masthead">
-    <h1>About Parsifal</h1>
-    <p>Learn more about the project and our goals</p>
+    <div class="container">
+      <h1>{% trans "About Parsifal" %}</h1>
+      <p>{% trans "An open, self-hosted workspace for systematic literature reviews, systematic mapping studies, and rapid reviews." %}</p>
+    </div>
   </div>
 {% endblock %}
 
 {% block content %}
   <div class="row">
     <div class="col-md-8 col-md-offset-2">
-      <article>  
-        <h2>What's Parsifal?</h2>
-        <p><strong>Parsifal</strong> is an online tool designed to support researchers to perform systematic literature reviews within the context of <strong>Software Engineering</strong>. Geographically distributed researchers can work together within a shared workspace, designing the protocol and conducting the research.</p>
-        <p>As well as providing a way to document the whole process, the tool will help you remind what is important during a systematic literature review. During the planning phase, <strong>Parsifal</strong> will help you with the objectives, PICOC, research questions, search string, keywords and synonyms, selecting the sources, the inclusion and exclusion criterias. Will also provide mechanisms to build a quality assessment checklist and data extraction forms.</p>
-        <p>During the conducting phase, you will be able to import <em>bibtex</em> files and select the studies, find duplicates among all the different sources, execute the quality assessment and extract data from the papers.</p>
+      <article>
+        <h2>What is Parsifal?</h2>
+        <p>
+          <strong>Parsifal</strong> (<strong>parsifal-ai</strong>) is an open, self-hosted web application designed to support researchers and AI coding agents conducting secondary studies in <strong>Software Engineering</strong>. Maintained by <a href="https://github.com/hjunior29" target="_blank" rel="noopener noreferrer">Helder Junior</a> and based on the original <a href="https://github.com/vitorfs/parsifal" target="_blank" rel="noopener noreferrer">Parsifal</a> by Vitor Freitas, this fork keeps the structured Planning, Conducting, and Reporting workflow while adding modern methodological, collaborative, and automation capabilities.
+        </p>
+        <p>
+          Everything runs on a single SQLite database on your own machine or server — your protocols, imported BibTeX studies, full-text PDFs, extracted evidence, and manuscripts never leave your infrastructure.
+        </p>
 
-        <h2>What's a Systematic Literature Review?</h2>
-        <p>A systematic literature review is a secondary study with the objective to identify, analyze and interpret all available evidences from primary studies related to a specific research question. As suggested by Kitchenham and Charters, the activity to perform a systematic literature review involves planning, conducting and reporting the review <sup><a href="#kitchenham-2007">[1]</a></sup>.</p>
-        <p>Performing a systematic literature review is a labor-intensive task that requires a huge amount of work from the researcher, designing the protocol, adjusting the search string, filtering the results, sometimes more than a thousand of articles, selecting those articles that attends the include criteria and removing those articles that attends the exclude criteria. After that, the researcher might start to analyze the relevant result one by one.</p>
-        <p><strong>Parsifal</strong> was designed to help you through all those steps.</p>
+        <h2>Supported Methodologies</h2>
+        <p>
+          Secondary studies require rigor and repeatability across hundreds or thousands of candidate papers. Parsifal adapts its protocol, checklists, screening rounds, and data analysis to three established Software Engineering methodologies:
+        </p>
+        <ul>
+          <li>
+            <strong>Systematic Literature Reviews (SLRs)</strong> — following <strong>Kitchenham &amp; Charters (2007)</strong> <sup><a href="#kitchenham-2007">[1]</a></sup>: objectives, PICOC, research questions, keywords and synonyms, search strings, inclusion and exclusion criteria, weighted quality assessment with cut-off scores, evidence-backed data extraction, and full reporting.
+          </li>
+          <li>
+            <strong>Systematic Mapping Studies (SMSs)</strong> — following <strong>Petersen, Vakkalanka &amp; Kuzniarz (2015)</strong> <sup><a href="#petersen-2015">[2]</a></sup>: classification facets with reusable templates, keywording, known-paper test sets, the Petersen process checklist, facet frequencies, and cross-tabulation matrices.
+          </li>
+          <li>
+            <strong>Rapid Reviews (RRs)</strong> — following <strong>Cartaxo, Pinto &amp; Soares (2020)</strong> <sup><a href="#cartaxo-2020">[3]</a></sup>: practical context, practitioner collaboration and methodological concessions checklists, multi-round screening (titles &rarr; titles &amp; abstracts &rarr; full text), and threats to validity drafted directly from concessions.
+          </li>
+        </ul>
+
+        <h2>What this Parsifal adds</h2>
+        <div class="panel panel-default">
+          <table class="table table-bordered">
+            <tbody>
+              <tr>
+                <th style="width: 30%;">AI-Assisted Screening</th>
+                <td>Exclude, include, or screen studies with AI (Jev) per screening round with per-criterion yes/no prompts, customizable probability thresholds, AI relevance scores, and resumable run logs.</td>
+              </tr>
+              <tr>
+                <th>Multi-Reviewer Agreement</th>
+                <td>Independent per-reviewer decisions, Cohen&rsquo;s kappa for any pair of reviewers, side-by-side disagreement inspection, and consolidation rules (unanimous, majority, any include).</td>
+              </tr>
+              <tr>
+                <th>PRISMA 2020 &amp; Analytics</th>
+                <td>Automatic PRISMA 2020 flow diagram <sup><a href="#prisma-2020">[4]</a></sup> (including rapid-review round splits), selection funnel, publications per year and source, quality scores, and extraction/mapping charts.</td>
+              </tr>
+              <tr>
+                <th>Evidence &amp; Traceability</th>
+                <td>Every extracted value stores its supporting passage from the study, and a complete <strong>History</strong> log records every change (including protocol amendments) across Web, API, CLI, and MCP.</td>
+              </tr>
+              <tr>
+                <th>Reporting &amp; Manuscripts</th>
+                <td>Structured threats to validity with mitigations, versioned manuscripts with an in-page PDF viewer, full-text PDF storage (local or S3), and exports to DOCX, XLSX, CSV, and JSON.</td>
+              </tr>
+              <tr>
+                <th>API, CLI &amp; MCP Server</th>
+                <td>Every review operation is available via a JSON REST API (<code>/api/v1/</code>), the <code>parsifal</code> CLI, and the <code>parsifal-mcp</code> server for Claude Code, Codex, and other AI agents.</td>
+              </tr>
+              <tr>
+                <th>Self-Hosting &amp; Backups</th>
+                <td>Lightweight SQLite deployment with Docker Compose or Python, one-archive instance and per-review backups (database + PDFs), institutional library access (Via CAPES), and native light &amp; dark themes.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>
+          <a href="{% url 'docs:index' %}" class="btn btn-primary">{% trans "Read Documentation" %}</a>
+          <a href="/api/v1/docs" class="btn btn-default">{% trans "API Reference" %}</a>
+          <a href="https://github.com/hjunior29/parsifal-ai" class="btn btn-default" target="_blank" rel="noopener noreferrer">
+            <span class="fa fa-github" aria-hidden="true"></span> GitHub
+          </a>
+        </p>
 
         <h2>References</h2>
         <ol class="references">
-          <li id="kitchenham-2007">Kitchenham B (2007) Guidelines for performing Systematic Literature Reviews in Software Engineering, Version 2.3, EBSE Technical Report EBSE-2007-01, Keele University and University of Durham</li>
+          <li id="kitchenham-2007">
+            Kitchenham B, Charters S (2007)
+            <a href="https://www.elsevier.com/__data/promis_misc/525444systematicreviewsguide.pdf" target="_blank" rel="noopener noreferrer">Guidelines for performing Systematic Literature Reviews in Software Engineering</a>,
+            Version 2.3, EBSE Technical Report EBSE-2007-01, Keele University and University of Durham.
+          </li>
+          <li id="petersen-2015">
+            Petersen K, Vakkalanka S, Kuzniarz L (2015)
+            <a href="https://doi.org/10.1016/j.infsof.2015.03.007" target="_blank" rel="noopener noreferrer">Guidelines for conducting systematic mapping studies in software engineering: An update</a>,
+            <em>Information and Software Technology</em>, Vol. 64, pp. 1&ndash;18.
+          </li>
+          <li id="cartaxo-2020">
+            Cartaxo B, Pinto G, Soares S (2020)
+            <a href="https://arxiv.org/abs/2003.10006" target="_blank" rel="noopener noreferrer">Rapid Reviews in Software Engineering</a>,
+            <em>Contemporary Empirical Methods in Software Engineering</em>, Springer (open-access preprint arXiv:2003.10006).
+          </li>
+          <li id="prisma-2020">
+            Page MJ, McKenzie JE, Bossuyt PM, et al. (2021)
+            <a href="https://doi.org/10.1136/bmj.n71" target="_blank" rel="noopener noreferrer">The PRISMA 2020 statement: an updated guideline for reporting systematic reviews</a>,
+            <em>BMJ</em>, 372:n71.
+          </li>
         </ol>
       </article>
     </div>

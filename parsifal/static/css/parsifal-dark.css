@@ -44,6 +44,12 @@ html.theme-dark {
   color: #e5a3c0;
 }
 
+.theme-dark pre code {
+  background-color: transparent;
+  color: inherit;
+  padding: 0;
+}
+
 .theme-dark pre,
 .theme-dark .well {
   background-color: #26292d;
@@ -91,12 +97,40 @@ html.theme-dark {
 }
 
 .theme-dark footer {
-  background-color: #1e2124;
+  background-color: #24272b;
   border-color: #33373c;
+  color: #9aa0a6;
 }
 
-.theme-dark footer .social a:hover {
-  color: #d5d8dc;
+.theme-dark .footer-brand {
+  color: #c2c7cc;
+}
+
+.theme-dark .footer-brand:hover,
+.theme-dark .footer-brand:focus {
+  color: #ffffff;
+}
+
+.theme-dark .footer-meta a,
+.theme-dark .footer-nav a {
+  color: #b0b5ba;
+}
+
+.theme-dark .footer-meta a:hover,
+.theme-dark .footer-meta a:focus,
+.theme-dark .footer-nav a:hover,
+.theme-dark .footer-nav a:focus {
+  color: #ffffff;
+}
+
+.theme-dark .footer-sep {
+  color: #50575d;
+}
+
+.theme-dark .footer-version {
+  color: #a5abb1;
+  background-color: #2d3135;
+  border-color: #3a3f44;
 }
 
 .theme-dark ul.review-menu {
@@ -344,13 +378,17 @@ html.theme-dark {
 }
 
 .theme-dark .pagination > li > a,
-.theme-dark .pagination > li > span {
+.theme-dark .pagination > li > span,
+.theme-dark .pager li > a,
+.theme-dark .pager li > span {
   background-color: #26292d;
   border-color: #3a3f44;
   color: #6ea8de;
 }
 
-.theme-dark .pagination > li > a:hover {
+.theme-dark .pagination > li > a:hover,
+.theme-dark .pager li > a:hover,
+.theme-dark .pager li > a:focus {
   background-color: #2f3337;
 }
 
