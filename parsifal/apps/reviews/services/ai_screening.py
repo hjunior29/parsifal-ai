@@ -12,12 +12,12 @@ affiliations) and answers about the review's criteria, in one of three actions, 
 
 (Retain with AI, one retention question per study, was removed; its runs remain in the history.)
 
-Every run is made in the name of a **reviewer** chosen by whoever starts it (the main author may pick any member of
-the review, anyone else only themselves), so one person can screen as several reviewers and compare them. A run
-sends the studies with the chosen statuses and the criteria chosen (all of them, or some: those Jev cannot judge
-from a title and abstract, such as the year or the full text's availability, can be left out), and rewrites this
-reviewer's decisions: nothing is skipped because it was evaluated before, so two reviewers can screen the same
-studies and be compared (Reviewer agreement).
+Every run is made in the name of a **reviewer** chosen by whoever starts it: any member of the review, themselves or
+another (a person or an AI agent), so one person or agent can screen as several reviewers and compare them; the run
+keeps who started it (``started_by``). A run sends the studies with the chosen statuses and the criteria chosen (all
+of them, or some: those Jev cannot judge from a title and abstract, such as the year or the full text's availability,
+can be left out), and rewrites this reviewer's decisions: nothing is skipped because it was evaluated before, so two
+reviewers can screen the same studies and be compared (Reviewer agreement).
 
 A new run of an action starts from every setting of the review's last run of that action (reviewer, model, context,
 guidance, request, thresholds, criteria, studies), or from Parsifal's defaults when asked (``starting_settings``).
@@ -59,7 +59,7 @@ from django.utils import timezone
 
 from parsifal.apps.accounts import services as integrations
 from parsifal.apps.core import jev
-from parsifal.apps.core.exceptions import NotFound, PermissionDenied, ValidationError
+from parsifal.apps.core.exceptions import NotFound, ValidationError
 from parsifal.apps.reviews.models import (
     Article,
     Review,
@@ -135,30 +135,25 @@ CHANGEABLE = {
 # Setup ---------------------------------------------------------------------------------------------------------------
 
 
-def reviewer_choices(review, actor):
+def reviewer_choices(review):
     """
-    Who ``actor`` may screen as: the main author may choose any member of the review (themselves, people, AI
-    agents); anyone else only themselves, so an agent can never record decisions in someone else's name.
+    Who a run may be made as: any member of the review (the main author, people, AI agents), whoever starts it. An
+    agent can thus screen in another member's name; the run keeps who started it.
     """
-    members = [review.author, *review.co_authors.order_by("first_name", "username")]
-    if actor.pk == review.author_id:
-        return members
-    return [member for member in members if member.pk == actor.pk]
+    return [review.author, *review.co_authors.order_by("first_name", "username")]
 
 
 def agent_ids(review):
     return set(ReviewAgent.objects.filter(review=review).values_list("user_id", flat=True))
 
 
-def get_reviewer(review, actor, reviewer_id):
+def get_reviewer(review, reviewer_id):
     if reviewer_id in (None, ""):
         raise ValidationError("Choose the reviewer the decisions are recorded as.", field="reviewer_id")
     members = {str(member.pk): member for member in (review.author, *review.co_authors.all())}
     reviewer = members.get(str(reviewer_id))
     if reviewer is None:
         raise NotFound(f"Reviewer {reviewer_id!r} is not a member of this review.", field="reviewer_id")
-    if actor.pk != review.author_id and reviewer.pk != actor.pk:
-        raise PermissionDenied("Only the main author can screen in the name of another reviewer.", field="reviewer_id")
     return reviewer
 
 
@@ -704,7 +699,7 @@ def start_run(
     """
     phase = clean_phase(phase)
     integrations.jev_api_key(actor)  # a key the actor can use, before anything else
-    reviewer = get_reviewer(review, actor, reviewer_id)
+    reviewer = get_reviewer(review, reviewer_id)
     base = starting_settings(review, phase, defaults=defaults)
     model = _clean_model(actor, base["model"] if model is None else model)
     stage = clean_stage(review, base["stage"] if stage is None else stage)

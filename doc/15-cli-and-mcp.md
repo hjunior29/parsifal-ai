@@ -142,7 +142,7 @@ Composite tools (fewer round-trips for agents):
 | `parsifal_articles_screen_batch(review_id, limit=20, offset=0, status="U")` | A page of articles with title/abstract/keywords **and** the review's selection criteria — everything needed to decide, then call `parsifal_articles_set_status`. |
 | `parsifal_review_protocol(review_id)` | The whole protocol as Markdown (also exposed as the resource `parsifal://reviews/{review_id}/protocol`). |
 | `parsifal_workflow_guide()` | The planning → conducting → reporting guide (`parsifal docs`). |
-| `parsifal_ai_screening_run(review_id, reviewer_id, run_id=None, step_size=64, max_seconds=240, <start fields>)` | Exclude with AI (or Include with AI, `phase="inclusion"`, or Screen with AI, `phase="screen"`) in one call; what is left out takes the last run's settings (`defaults=true`: Parsifal's): starts a run as `reviewer_id` (or continues `run_id`) and steps until it ends or the time budget passes; then `message` says to call again with `run_id`. Uses the Jev key of the token's user, who can only screen as itself unless it is the main author. |
+| `parsifal_ai_screening_run(review_id, reviewer_id, run_id=None, step_size=64, max_seconds=240, <start fields>)` | Exclude with AI (or Include with AI, `phase="inclusion"`, or Screen with AI, `phase="screen"`) in one call; what is left out takes the last run's settings (`defaults=true`: Parsifal's): starts a run as `reviewer_id` (or continues `run_id`) and steps until it ends or the time budget passes; then `message` says to call again with `run_id`. Uses the Jev key of the token's user, who can screen in the name of any member of the review. |
 
 ### Install and connect
 

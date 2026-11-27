@@ -239,7 +239,7 @@ SCREENING_RUN_DESCRIPTION = (
     "Exclude with AI (phase='exclusion', the default), Include with AI (phase='inclusion') or Screen with AI "
     "(phase='screen', both in one request), in no particular order, in one call: starts a run (or continues run_id) "
     "and screens with Jev until the run ends or max_seconds pass. reviewer_id is the member of the review the "
-    "decisions are recorded as (only the main author may name someone else; see parsifal_ai_screening_setup). "
+    "decisions are recorded as (any member, the caller or another; see parsifal_ai_screening_setup). "
     "Whatever is left out takes the settings of the review's last run of that action (setup's start), or Parsifal's "
     "defaults with defaults=true: statuses (U, R, A, D), criteria_ids (the criteria sent; leave out those Jev cannot "
     "judge from a title and abstract), thresholds, request template, context. The run rewrites the reviewer's "

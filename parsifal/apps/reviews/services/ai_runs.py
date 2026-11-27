@@ -17,15 +17,15 @@ goes back step by step: a restored decision belongs again to the run that made i
 that run left it.
 
 Only runs that kept what was there before them (``ScreeningRun.undoable``: those started since Parsifal does) can be
-undone, never while a run of the review is being screened, and only by the main author or the run's own reviewer
-(the same people who may start it).
+undone, never while a run of the review is being screened, by any member of the review (any member may start a run
+in any member's name).
 """
 
 from django.db import transaction
 from django.db.models import Count
 from django.utils.dateparse import parse_datetime
 
-from parsifal.apps.core.exceptions import Conflict, PermissionDenied, ValidationError
+from parsifal.apps.core.exceptions import Conflict, ValidationError
 from parsifal.apps.reviews.models import Article, ScreeningResult, ScreeningRun, StudyDecision
 from parsifal.apps.reviews.services import ai_screening, history
 
@@ -55,13 +55,11 @@ def standing(review):
     return {row["run_id"]: row["n"] for row in rows}
 
 
-def undo_problem(review, actor, run, busy=None, latest=None):
+def undo_problem(review, run, busy=None, latest=None):
     """
-    Why ``actor`` cannot undo ``run`` now, as the error to raise, or None. ``busy``: see ``busy_run``; ``latest``: see
-    ``latest_run`` (looked up when left out).
+    Why ``run`` cannot be undone now, as the error to raise, or None. Any member of the review may undo it, whoever
+    it was made as. ``busy``: see ``busy_run``; ``latest``: see ``latest_run`` (looked up when left out).
     """
-    if actor.pk != review.author_id and run.reviewer_id != actor.pk:
-        return PermissionDenied("Only the main author can undo a run made in the name of another reviewer.")
     if not run.undoable:
         return ValidationError(
             f"Run {run.pk} was made before Parsifal kept what each study was like before a run; it cannot be undone."
@@ -77,16 +75,16 @@ def undo_problem(review, actor, run, busy=None, latest=None):
     return None
 
 
-def controls(review, actor, runs):
+def controls(review, runs):
     """
     {run id: {"standing": decisions still the run's (None for runs that cannot be undone), "latest": whether it is
-    the review's newest run, "undo_problem": why the actor cannot undo it now, "" when it can}} for the AI runs window
-    and the API.
+    the review's newest run, "undo_problem": why it cannot be undone now, "" when it can}} for the AI runs window and
+    the API.
     """
     counts, busy, latest = standing(review), busy_run(review), latest_run(review)
     rows = {}
     for run in runs:
-        problem = undo_problem(review, actor, run, busy, latest)
+        problem = undo_problem(review, run, busy, latest)
         rows[run.pk] = {
             "standing": counts.get(run.pk, 0) if run.undoable else None,
             "latest": run.pk == latest.pk,
@@ -195,7 +193,7 @@ def undo_message(summary, done=False):
     return text + f" The run and its answers {'were' if done else 'are'} deleted."
 
 
-def undo_preview(*, review, actor, run_id):
+def undo_preview(*, review, run_id):
     """
     What undoing the run would do, without doing it: {"run_id", "phase", "reviewer_id", "reviewer", "screened"
     (studies it evaluated), "statuses_restored", "back_to" ({status: studies}), "statuses_kept" (changed again
@@ -203,7 +201,7 @@ def undo_preview(*, review, actor, run_id):
     they are), "message"}.
     """
     run = ai_screening.get_run(review, run_id)
-    problem = undo_problem(review, actor, run, busy_run(review))
+    problem = undo_problem(review, run, busy_run(review))
     if problem:
         raise problem
     return _summary(run, *_plan(run))
@@ -223,7 +221,7 @@ def undo_run(*, review, actor, run_id):
     returns, with the message saying what was done.
     """
     run = ai_screening.get_run(review, run_id)
-    problem = undo_problem(review, actor, run, busy_run(review))
+    problem = undo_problem(review, run, busy_run(review))
     if problem:
         raise problem
     results, statuses, decided = _plan(run)
@@ -306,7 +304,6 @@ def _classified_name(phase):
 def impact(
     *,
     review,
-    actor,
     reviewer_id=None,
     phase=None,
     statuses=None,
@@ -340,7 +337,7 @@ def impact(
     reviewer_id, phase = settings["reviewer_id"], settings["phase"]
     statuses, source_id = settings["statuses"], settings["source_id"]
     phase = ai_screening.clean_phase(phase)
-    reviewer = ai_screening.get_reviewer(review, actor, reviewer_id)
+    reviewer = ai_screening.get_reviewer(review, reviewer_id)
     statuses, source_id = ai_screening.clean_scope(review, phase, statuses, source_id)
     stage = ai_screening.clean_stage(review, settings["stage"] if stage is None else stage)
     pending = ai_screening.clean_pending(review, settings["pending"] if pending is None else pending)

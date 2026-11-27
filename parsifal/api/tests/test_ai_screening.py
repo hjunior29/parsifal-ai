@@ -145,7 +145,9 @@ class TestAiScreeningApi(AiScreeningApiBase):
 
         other = self.api("get", self.review_path("/ai-screening"), client=self.client_for(self.co_author)).json()
         self.assertEqual((False, None, []), (other["configured"], other["model"], other["models"]))
-        self.assertEqual([self.co_author.pk], [reviewer["id"] for reviewer in other["reviewers"]])
+        self.assertEqual(  # anyone in the review, for any member
+            {self.author.pk, self.co_author.pk}, {reviewer["id"] for reviewer in other["reviewers"]}
+        )
         self.assertEqual(
             404, self.api("get", self.review_path("/ai-screening"), client=self.client_for(self.outsider)).status_code
         )
@@ -250,10 +252,11 @@ class TestAiScreeningApi(AiScreeningApiBase):
         self.assertEqual(422, no_key.status_code)
         self.assertIn("Settings → Integrations", no_key.json()["detail"])
         Integration.objects.create(user=self.co_author, provider=Integration.JEV, api_key=KEY, model="jev-1.13.0")
-        self.assertEqual(403, self.api("post", start, me, client=co_author).status_code)  # only as themselves
         self.assertEqual(404, self.api("post", start, {"reviewer_id": self.outsider.pk}).status_code)
 
-        run = self.api("post", start, {"source_id": self.source.pk, **me}).json()
+        # A co-author in the main author's name: the run says who started it.
+        run = self.api("post", start, {"source_id": self.source.pk, **me}, client=co_author).json()
+        self.assertEqual((self.author.pk, self.co_author.username), (run["reviewer_id"], run["started_by"]))
         self.assertEqual(
             422, self.api("post", self.review_path(f"/ai-screening/runs/{run['id']}/step"), {"size": 65}).status_code
         )

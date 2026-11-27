@@ -8,7 +8,7 @@ from django.utils import timezone
 from parsifal.apps.accounts.models import Integration
 from parsifal.apps.authentication.tests.factories import UserFactory
 from parsifal.apps.core import jev
-from parsifal.apps.core.exceptions import NotFound, PermissionDenied, UpstreamError, ValidationError
+from parsifal.apps.core.exceptions import NotFound, UpstreamError, ValidationError
 from parsifal.apps.reviews.models import Article, ScreeningResult, ScreeningRun, SelectionCriteria, StudyDecision
 from parsifal.apps.reviews.services import agents, ai_screening, decisions, screening_requests
 from parsifal.apps.reviews.tests.factories import ArticleFactory, QuestionFactory, ReviewFactory, SourceFactory
@@ -151,21 +151,21 @@ class TestRequest(AiScreeningTestCase):
 
 
 class TestReviewers(AiScreeningTestCase):
-    def test_the_main_author_may_screen_as_anyone_in_the_review(self):
-        choices = ai_screening.reviewer_choices(self.review, self.owner)
+    def test_anyone_in_the_review_may_be_screened_as(self):
+        choices = ai_screening.reviewer_choices(self.review)
         self.assertEqual({self.owner, self.bot, self.other_bot}, set(choices))
         self.assertEqual({self.bot.pk, self.other_bot.pk}, ai_screening.agent_ids(self.review))
-        self.assertEqual(self.other_bot, ai_screening.get_reviewer(self.review, self.owner, str(self.other_bot.pk)))
-
-    def test_anyone_else_only_as_themselves(self):
-        self.assertEqual([self.bot], ai_screening.reviewer_choices(self.review, self.bot))
-        self.assertEqual(self.bot, ai_screening.get_reviewer(self.review, self.bot, self.bot.pk))
-        with self.assertRaises(PermissionDenied):
-            ai_screening.get_reviewer(self.review, self.bot, self.owner.pk)
+        self.assertEqual(self.other_bot, ai_screening.get_reviewer(self.review, str(self.other_bot.pk)))
         with self.assertRaises(NotFound):
-            ai_screening.get_reviewer(self.review, self.owner, UserFactory().pk)
+            ai_screening.get_reviewer(self.review, UserFactory().pk)
         with self.assertRaisesMessage(ValidationError, "Choose the reviewer"):
-            ai_screening.get_reviewer(self.review, self.owner, "")
+            ai_screening.get_reviewer(self.review, "")
+
+    def test_an_agent_screens_in_another_members_name(self):
+        Integration.objects.create(user=self.bot, provider=Integration.JEV, api_key="fake-key", model="jev-1.13.0")
+        self.article()
+        run = self.start(actor=self.bot, reviewer_id=self.other_bot.pk)
+        self.assertEqual((self.other_bot, self.bot), (run.reviewer, run.started_by))
 
 
 class TestStartRun(AiScreeningTestCase):

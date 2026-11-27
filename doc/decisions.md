@@ -229,7 +229,10 @@ reviewed (Akita, 2026-10-03).
   otherwise leave the study unclassified for the next phase.
 - Every run is made in the name of a **reviewer** chosen when it starts
   (2026-10-19, replacing a dedicated "Jev" agent): the main author may pick
-  any member, anyone else only themselves. The run records the reviewer's
+  any member, anyone else only themselves (until 2026-11-27: since then any
+  member may pick any member, so an agent can run the screening of another
+  agent, and may undo such a run; `started_by` keeps who started it, and
+  History shows it). The run records the reviewer's
   `StudyDecision` for every study it sends (nothing is skipped): R with the
   criterion, or U "no exclusion criterion". Recording the U decisions is what
   makes two reviewers comparable (kappa, unanimous consolidation).

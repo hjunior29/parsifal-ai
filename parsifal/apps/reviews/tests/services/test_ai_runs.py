@@ -3,10 +3,9 @@ from unittest import mock
 
 from django.utils import timezone
 
-from parsifal.apps.accounts.models import Integration
 from parsifal.apps.authentication.tests.factories import UserFactory
 from parsifal.apps.core import jev
-from parsifal.apps.core.exceptions import Conflict, PermissionDenied, ValidationError
+from parsifal.apps.core.exceptions import Conflict, ValidationError
 from parsifal.apps.reviews.models import Article, ScreeningResult, ScreeningRun, SelectionCriteria, StudyDecision
 from parsifal.apps.reviews.services import ai_runs, ai_screening, decisions, screening_requests
 from parsifal.apps.reviews.tests.services.test_ai_screening import EXCLUDE_E2, KEEP, AiScreeningTestCase
@@ -35,8 +34,8 @@ class AiRunsTestCase(AiScreeningTestCase):
     def original(self):
         return Article.UNCLASSIFIED, None, self.editor.pk, self.earlier
 
-    def preview(self, run, actor=None):
-        return ai_runs.undo_preview(review=self.review, actor=actor or self.owner, run_id=run.pk)
+    def preview(self, run):
+        return ai_runs.undo_preview(review=self.review, run_id=run.pk)
 
     def undo(self, run, actor=None):
         return ai_runs.undo_run(review=self.review, actor=actor or self.owner, run_id=run.pk)
@@ -231,7 +230,7 @@ class TestChainOfRuns(AiRunsTestCase):
         with self.assertRaisesMessage(ValidationError, "Only the latest run"):
             self.undo(first)
         self.assertEqual(("U", None, self.bot.pk), self.state(article)[:3])
-        controls = ai_runs.controls(self.review, self.owner, [first, second])
+        controls = ai_runs.controls(self.review, [first, second])
         self.assertEqual((False, True), (controls[first.pk]["latest"], controls[second.pk]["latest"]))
         self.assertIn(f"undo run {second.pk} first", controls[first.pk]["undo_problem"])
         self.assertEqual("", controls[second.pk]["undo_problem"])
@@ -257,22 +256,18 @@ class TestWhoAndWhen(AiRunsTestCase):
         run.refresh_from_db()
         with self.assertRaisesMessage(ValidationError, "cannot be undone"):
             self.undo(run)
-        control = ai_runs.controls(self.review, self.owner, [run])[run.pk]
+        control = ai_runs.controls(self.review, [run])[run.pk]
         self.assertIsNone(control["standing"])
         self.assertIn("before Parsifal kept", control["undo_problem"])
 
-    def test_the_main_author_or_the_runs_own_reviewer(self):
+    def test_any_member_whoever_the_run_was_made_as(self):
         coauthor = UserFactory()
         self.review.co_authors.add(coauthor)
-        Integration.objects.create(user=coauthor, provider=Integration.JEV, api_key="fake-key", model="jev-1.13.0")
         self.article()
-        run = self.screen([EXCLUDE_E2])
-        with self.assertRaisesMessage(PermissionDenied, "Only the main author"):
-            self.undo(run, actor=coauthor)
-        self.assertIn("Only the main author", ai_runs.controls(self.review, coauthor, [run])[run.pk]["undo_problem"])
-        own = self.screen([KEEP], actor=coauthor, reviewer_id=coauthor.pk)
-        self.undo(own, actor=coauthor)
-        self.assertFalse(ScreeningRun.objects.filter(pk=own.pk).exists())
+        run = self.screen([EXCLUDE_E2])  # by the main author, as an agent
+        self.assertEqual("", ai_runs.controls(self.review, [run])[run.pk]["undo_problem"])
+        self.undo(run, actor=coauthor)
+        self.assertFalse(ScreeningRun.objects.filter(pk=run.pk).exists())
 
     def test_not_while_a_run_is_being_screened(self):
         self.article()
@@ -292,13 +287,13 @@ class TestWhoAndWhen(AiRunsTestCase):
         run = self.screen([EXCLUDE_E2, KEEP])
         self.assertEqual({run.pk: 2}, ai_runs.standing(self.review))
         decisions.record_decision(review=self.review, article_id=first.pk, actor=self.bot, status="A")
-        control = ai_runs.controls(self.review, self.owner, [run])[run.pk]
+        control = ai_runs.controls(self.review, [run])[run.pk]
         self.assertEqual({"standing": 1, "latest": True, "undo_problem": ""}, control)
 
 
 class TestImpact(AiRunsTestCase):
     def impact(self, **kwargs):
-        return ai_runs.impact(review=self.review, actor=self.owner, **{"reviewer_id": self.bot.pk, **kwargs})
+        return ai_runs.impact(review=self.review, **{"reviewer_id": self.bot.pk, **kwargs})
 
     def test_nothing_to_rewrite(self):
         self.article()
@@ -328,8 +323,8 @@ class TestImpact(AiRunsTestCase):
         self.assertEqual(0, self.impact(phase="inclusion", statuses=["U", "R"])["classified"])
         self.assertFalse(self.impact(reviewer_id=self.other_bot.pk)["confirm"])
         # Doing a run again: its settings fill in the rest.
-        self.assertEqual(impact, ai_runs.impact(review=self.review, actor=self.owner, run_id=run.pk))
-        retention = ai_runs.impact(review=self.review, actor=self.owner, run_id=run.pk, statuses=["U", "R", "A"])
+        self.assertEqual(impact, ai_runs.impact(review=self.review, run_id=run.pk))
+        retention = ai_runs.impact(review=self.review, run_id=run.pk, statuses=["U", "R", "A"])
         self.assertIn("accepted or rejected", self.impact(phase="screen")["message"])
         self.assertEqual(2, retention["studies"])
 

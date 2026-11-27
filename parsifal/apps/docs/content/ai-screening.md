@@ -48,11 +48,12 @@ On **Conducting → Study Selection**, tab *All Sources*, click **Exclude with
 AI**, **Include with AI** or **Screen with AI**. The window is the same for the
 three and shows what will be sent:
 
-- **Reviewer**: the member of the review the decisions are recorded as. The
-  main author can choose anyone in the review (themselves or any AI agent);
-  create more reviewers as agents in *Manage access*. One person can thus screen
-  as several reviewers (for instance with different models or guidance) and
-  compare them in *Reviewer agreement*.
+- **Reviewer**: the member of the review the decisions are recorded as. Any
+  member can choose anyone in the review (themselves, the main author or any AI
+  agent); create more reviewers as agents in *Manage access*. One person can
+  thus screen as several reviewers (for instance with different models or
+  guidance) and compare them in *Reviewer agreement*. The run keeps who started
+  it: *AI runs* shows it next to the date, and so does *History*.
 - **Model**: the models Jev lists for your key, asked when the window opens.
 - **Review context**: title, objective, research questions and PICOC, taken
   from the review. You can edit them for the run; the review is not changed
@@ -163,8 +164,8 @@ sent.
 
 The same operations exist outside the web, one to one. Runs use the Jev key of
 the account that calls them, so an agent with its own token needs its own key
-(`parsifal integration jev set --api-key -` reads it from stdin) and can only
-screen as itself. As in the window, **whatever a run leaves out takes the
+(`parsifal integration jev set --api-key -` reads it from stdin); like anyone
+in the review, it can screen in any member's name. As in the window, **whatever a run leaves out takes the
 settings of the review's last run of that action** (`ai-screening setup` shows
 them under `start`); `--defaults` takes Parsifal's.
 
@@ -306,9 +307,9 @@ runs remain in *AI runs*, with their details, but cannot be run again.
 
 ## Reviewers and agreement
 
-Only the main author can screen in someone else's name; any other member (an
-agent with its own token, through the API) can only screen as itself. With two
-or more reviewers, *Reviewer agreement* gives Cohen's kappa and the
+Any member of the review can screen in any member's name, an agent with its
+own token too (for instance one agent running the screening of another), and
+the run keeps who started it. With two or more reviewers, *Reviewer agreement* gives Cohen's kappa and the
 disagreements, and *consolidate* with the **unanimous** rule rejects a study
 only when every reviewer rejected it. Deleting an agent in *Manage access*
 deletes its decisions and the log of its runs; studies rejected in its name stay
@@ -354,8 +355,8 @@ to confirm:
 
 Runs are undone one at a time, from the newest: once the latest is undone, the
 run before it becomes the latest and shows **Undo**, so undoing two runs in a row
-goes back to before both. Only the main author can undo a run made in someone
-else's name, and no run can be undone while one is being screened. Runs made
+goes back to before both. Any member of the review can undo it, whoever it was
+made as, but no run can be undone while one is being screened. Runs made
 before Parsifal kept what came before a run cannot be undone: while the latest
 run is one of them, no run shows **Undo**.
 

@@ -75,7 +75,7 @@ def jev_integration_delete(request):
 
 def _run_out(request, run, detail=False, controls=None):
     """``controls``: ``ai_runs.controls`` of the runs listed together (computed for this run when left out)."""
-    control = (controls or ai_runs.controls(run.review, request.auth, [run]))[run.pk]
+    control = (controls or ai_runs.controls(run.review, [run]))[run.pk]
     data = dict(
         ai_screening.progress(run),
         reviewer_id=run.reviewer_id,
@@ -129,7 +129,7 @@ def ai_screening_setup(request, review_id: int, phase: str = "exclusion", defaul
     integration = integrations.get_jev(request.auth)
     models, models_error = integrations.jev_models(request.auth) if integration else ([], "")
     agent_ids = ai_screening.agent_ids(review)
-    choices = ai_screening.reviewer_choices(review, request.auth)
+    choices = ai_screening.reviewer_choices(review)
     counts = ai_screening.scope_counts(review)
     unfinished = ai_screening.unfinished_run(review)
 
@@ -212,7 +212,7 @@ def ai_screening_start(request, review_id: int, payload: ScreeningStartIn):
     the exclusion threshold is reached (even when the inclusion criteria are met), else accepted when the inclusion
     criteria are met, else left unclassified. Only unclassified studies and those this reviewer classified change
     status (exclusion: its rejections; inclusion: its acceptances; screen: both); the others only get the reviewer's
-    decision. Only the main author may name another member. ``template`` is the request sent about each study (see the
+    decision. Any member may name any other (an agent too). ``template`` is the request sent about each study (see the
     setup and the preview operation). Nothing is screened yet: call the step operation until the run is no longer
     running.
     """
@@ -257,7 +257,7 @@ def ai_screening_runs_list(request, review_id: int):
     """
     review = get_review(request, review_id)
     runs = list(ai_screening.list_runs(review))
-    controls = ai_runs.controls(review, request.auth, runs)
+    controls = ai_runs.controls(review, runs)
     return [_run_out(request, run, controls=controls) for run in runs]
 
 
@@ -321,7 +321,7 @@ def ai_screening_impact(request, review_id: int, payload: ScreeningImpactIn):
     settings fill in the rest.
     """
     review = get_review(request, review_id)
-    return ai_runs.impact(review=review, actor=request.auth, **payload.dict())
+    return ai_runs.impact(review=review, **payload.dict())
 
 
 @router.post(
@@ -348,7 +348,7 @@ def ai_screening_rerun(request, review_id: int, run_id: int, payload: ScreeningR
 )
 def ai_screening_undo_preview(request, review_id: int, run_id: int):
     """What undoing the run would do (see the undo operation), without doing it."""
-    return ai_runs.undo_preview(review=get_review(request, review_id), actor=request.auth, run_id=run_id)
+    return ai_runs.undo_preview(review=get_review(request, review_id), run_id=run_id)
 
 
 @router.post(

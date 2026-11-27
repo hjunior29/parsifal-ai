@@ -935,7 +935,7 @@ def ai_screening(request):
     agent_ids = ai_screening_service.agent_ids(review)
     reviewers = [
         {"user": member, "is_agent": member.pk in agent_ids, "is_you": member.pk == request.user.pk}
-        for member in ai_screening_service.reviewer_choices(review, request.user)
+        for member in ai_screening_service.reviewer_choices(review)
     ]
     selected = settings["reviewer_id"]
     if selected not in {row["user"].pk for row in reviewers}:
@@ -1131,7 +1131,6 @@ def ai_screening_impact(request):
     try:
         impact = ai_runs.impact(
             review=review,
-            actor=request.user,
             reviewer_id=request.POST.get("reviewer-id"),
             phase=request.POST.get("phase"),
             statuses=request.POST.getlist("statuses"),
@@ -1173,9 +1172,9 @@ def _run_state(run):
     return run.get_status_display()
 
 
-def _run_rows(request, review, runs):
+def _run_rows(review, runs):
     """The AI runs window's rows for ``runs``: what each is, how it went and whether it can be undone."""
-    controls = ai_runs.controls(review, request.user, runs)
+    controls = ai_runs.controls(review, runs)
     sources = dict(review.sources.values_list("pk", "name"))
     rows = []
     for run in runs:
@@ -1197,8 +1196,8 @@ def _run_rows(request, review, runs):
     return rows
 
 
-def _ai_runs_context(request, review, message=None):
-    rows = _run_rows(request, review, list(ai_screening_service.list_runs(review)))
+def _ai_runs_context(review, message=None):
+    rows = _run_rows(review, list(ai_screening_service.list_runs(review)))
     latest = next((row["run"] for row in rows if row["latest"]), None)
     return {"review": review, "rows": rows, "latest": latest, "message": message}
 
@@ -1208,7 +1207,7 @@ def _ai_runs_context(request, review, message=None):
 def ai_runs_window(request):
     """The AI runs window: every Exclude, Include and Retain with AI run, how much of it stands, run again, undo."""
     review = get_object_or_404(Review, pk=request.GET.get("review-id"))
-    return render(request, "conducting/partial_conducting_ai_runs.html", _ai_runs_context(request, review))
+    return render(request, "conducting/partial_conducting_ai_runs.html", _ai_runs_context(review))
 
 
 @author_required
@@ -1249,7 +1248,7 @@ def ai_run(request):
         )
     context = {
         "review": review,
-        "row": _run_rows(request, review, [run])[0],
+        "row": _run_rows(review, [run])[0],
         "parameters": run.parameters,
         "template": screening_requests.as_text(run.parameters["template"]) if run.parameters.get("template") else "",
         "context_fields": [
@@ -1272,7 +1271,7 @@ def ai_run_undo(request):
     review = get_object_or_404(Review, pk=data.get("review-id"))
     try:
         if request.method != "POST":
-            summary = ai_runs.undo_preview(review=review, actor=request.user, run_id=data.get("run-id"))
+            summary = ai_runs.undo_preview(review=review, run_id=data.get("run-id"))
             run = ai_screening_service.get_run(review, summary["run_id"])
             context = {
                 "review": review,
@@ -1291,7 +1290,7 @@ def ai_run_undo(request):
         summary = ai_runs.undo_run(review=review, actor=request.user, run_id=data.get("run-id"))
     except DomainError as error:
         return HttpResponseBadRequest(str(error))
-    context = _ai_runs_context(request, review, message=summary["message"])
+    context = _ai_runs_context(review, message=summary["message"])
     return render(request, "conducting/partial_conducting_ai_runs.html", context)
 
 

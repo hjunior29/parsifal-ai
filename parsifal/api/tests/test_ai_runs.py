@@ -83,11 +83,10 @@ class TestAiRunsApi(AiScreeningApiBase):
         run = self.run_once()
         undo = self.review_path(f"/ai-screening/runs/{run['id']}/undo")
         co_author = self.client_for(self.co_author)
-        self.assertEqual(403, self.api("post", undo, client=co_author).status_code)
-        self.assertEqual(403, self.api("get", undo, client=co_author).status_code)
+        # Any member of the review, whoever the run was made as.
+        self.assertEqual(200, self.api("get", undo, client=co_author).status_code)
         listed = self.api("get", self.review_path("/ai-screening/runs"), client=co_author).json()[0]
-        self.assertEqual(False, listed["undoable"])
-        self.assertIn("Only the main author", listed["undo_blocked"])
+        self.assertEqual((True, ""), (listed["undoable"], listed["undo_blocked"]))
         self.assertEqual(404, self.api("post", undo, client=self.client_for(self.outsider)).status_code)
 
         busy = self.api("post", self.review_path("/ai-screening/runs"), {"reviewer_id": self.author.pk}).json()
