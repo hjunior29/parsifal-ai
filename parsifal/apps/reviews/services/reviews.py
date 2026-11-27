@@ -254,7 +254,6 @@ def review_overview(review):
         "quality_answers": review.qualityanswer_set.count(),
         "quality_assessment_cutoff_score": review.quality_assessment_cutoff_score,
         "data_extraction_fields": review.dataextractionfield_set.count(),
-        "classification_facets": review.facets.count(),
         "test_set": {
             "total": review.test_set.count(),
             "found": review.test_set.filter(matched_article__isnull=False).count(),

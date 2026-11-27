@@ -264,7 +264,7 @@ def articles_delete_batch(request, review_id: int, payload: ArticlesIn):
     """
     Delete several articles at once: ``ids`` (all must belong to the review, otherwise nothing is deleted), or with
     ``all_matching`` every study that matches the ``match_*`` filters. Their decisions, quality assessments,
-    extractions, classifications and PDFs are deleted with them.
+    extractions and PDFs are deleted with them.
     """
     review = get_review(request, review_id)
     return CountOut(count=studies.delete_articles(review=review, article_ids=_selected_ids(request, review, payload)))

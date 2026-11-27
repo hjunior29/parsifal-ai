@@ -52,7 +52,7 @@ def _planning(review):
     criteria = review.selectioncriteria_set.aggregate(
         inclusion=Count("pk", filter=Q(criteria_type="I")), exclusion=Count("pk", filter=Q(criteria_type="E"))
     )
-    fields, facets = review.dataextractionfield_set.count(), review.facets.count()
+    fields = review.dataextractionfield_set.count()
     steps = []
     if review.is_rapid_review:
         # A rapid review starts from a practical problem defined with the practitioners (Cartaxo et al. 2020 §4.1.2).
@@ -104,8 +104,8 @@ def _planning(review):
             "extraction_form",
             PLANNING,
             "Data extraction form",
-            float(bool(fields or facets)),
-            _count(fields, "field") + (f", {_count(facets, 'facet')}" if facets else ""),
+            float(bool(fields)),
+            _count(fields, "field"),
             "data_extraction_form",
         )
     )

@@ -154,14 +154,6 @@ def export_review_to_docx(review, sections):
         for field in codes.fields(review):
             coded(document, field.code, field.description)
 
-    # Classification scheme (mapping studies)
-    if "classification_scheme" in sections and review.facets.exists():
-        document.add_heading("Classification Scheme", level=3)
-        for facet in review.facets.prefetch_related("categories"):
-            p = document.add_paragraph()
-            p.add_run(f"{facet.name} ({facet.get_kind_display()}): ").bold = True
-            p.add_run(", ".join(facet.categories.values_list("name", flat=True)))
-
     # Procedures and strategies recommended by the guidelines (K 5.4, P 5.1.5)
     for key, title in (
         ("selection_procedure", "Study Selection Procedure"),
@@ -259,19 +251,6 @@ def export_review_to_docx(review, sections):
                     cell.text = str(row[column] or "")
         else:
             document.add_paragraph("No data has been extracted yet.")
-
-    if "classification_results" in sections and review.facets.exists():
-        from parsifal.apps.reviews.services import classification
-
-        document.add_heading("Classification Results", level=3)
-        for facet in review.facets.all():
-            frequencies = classification.facet_frequencies(review=review, facet_id=facet.pk)
-            p = document.add_paragraph()
-            p.add_run(f"{facet.name}: ").bold = True
-            p.add_run(
-                "; ".join(f"{row['category']} ({row['count']})" for row in frequencies["categories"])
-                or "no categories"
-            )
 
     if "data_analysis" in sections:
         from parsifal.apps.reviews.services import analytics

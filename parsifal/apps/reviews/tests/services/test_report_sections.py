@@ -1,16 +1,7 @@
 from django.test import TestCase
 
 from parsifal.apps.reviews.models import Review
-from parsifal.apps.reviews.services import (
-    classification,
-    extraction,
-    mapping,
-    quality,
-    reports,
-    reviews,
-    search,
-    threats,
-)
+from parsifal.apps.reviews.services import extraction, mapping, quality, reports, reviews, search, threats
 from parsifal.apps.reviews.tests.factories import (
     ArticleFactory,
     DataExtractionFieldFactory,
@@ -58,11 +49,6 @@ class TestExtendedReportSections(TestCase):
         quality.assess(review=cls.review, article_id=cls.article.pk, question_id=question.pk, answer_id=yes.pk)
         field = DataExtractionFieldFactory(review=cls.review, description="Tool")
         extraction.set_value(review=cls.review, article_id=cls.article.pk, field_id=field.pk, value="ReviewBot")
-        facet = classification.add_facet_from_template(review=cls.review, template="research_type")
-        category = facet.categories.get(name="Evaluation research")
-        classification.classify(
-            review=cls.review, article_id=cls.article.pk, facet_id=facet.pk, category_ids=[category.pk]
-        )
         mapping.add_test_set_article(review=cls.review, title="Known Paper")
         mapping.set_checklist_item(review=cls.review, key="search_database", applied=True, notes="Scopus")
         threats.add_threat(
@@ -81,8 +67,6 @@ class TestExtendedReportSections(TestCase):
             "Two reviewers screen independently.",
             "Frequencies and bubble plots.",
             "Descriptive validity: data form.",
-            "Classification Scheme",
-            "Research type (Fixed (topic-independent)): Evaluation research",
             "1 of 1 known papers were retrieved by the search (100%).",
             "Search Documentation",
             "2015–2026",
@@ -90,8 +74,6 @@ class TestExtendedReportSections(TestCase):
             "Maximum score: 1.0. Cutoff: 0.0.",
             "Known paper",
             "ReviewBot",
-            "Classification Results",
-            "Evaluation research (1)",
             "Scopus 1 / 1",
             "2020: 1",
             "1 of 26 recommended actions applied (4%).",

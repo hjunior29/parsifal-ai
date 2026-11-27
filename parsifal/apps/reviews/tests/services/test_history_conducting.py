@@ -3,11 +3,10 @@ from django.test import TestCase
 
 from parsifal.apps.authentication.tests.factories import UserFactory
 from parsifal.apps.core.tests.files import PDF, TemporaryFilesMixin
-from parsifal.apps.reviews.models import Article, ClassificationFacet, ReviewEvent, StudyDecision
+from parsifal.apps.reviews.models import Article, ReviewEvent, StudyDecision
 from parsifal.apps.reviews.services import (
     ai_runs,
     analytics,
-    classification,
     decisions,
     extraction,
     full_texts,
@@ -170,7 +169,7 @@ class TestSelectionQualityExtraction(HistoryTestCase):
         self.assertEqual(["2 now Rejected", "2 resolved", "0 left undecided"], consolidated.items)
         self.assertEqual({study, other}, set(consolidated.articles.all()))
 
-    def test_quality_extraction_classification_prisma(self):
+    def test_quality_extraction_prisma(self):
         study = ArticleFactory(review=self.review, title="A study", status=Article.ACCEPTED)
         question = QualityQuestionFactory(review=self.review, description="Clear?")
         yes = QualityAnswerFactory(review=self.review, description="Yes")
@@ -187,12 +186,7 @@ class TestSelectionQualityExtraction(HistoryTestCase):
         extraction.set_evidence(review=self.review, article_id=study.pk, field_id=country.pk, evidence="Abstract")
         extraction.set_value(review=self.review, article_id=study.pk, field_id=year.pk, value="2020", evidence="p. 1")
         extraction.mark_done(review=self.review, article_id=study.pk)
-        facet = classification.add_facet(
-            review=self.review, name="Type", kind=ClassificationFacet.FIXED, categories=["Tool"]
-        )
-        tool = facet.categories.get()
         since = self.latest().pk
-        classification.classify(review=self.review, article_id=study.pk, facet_id=facet.pk, category_ids=[tool.pk])
         missing = SelectionCriteriaFactory(review=self.review, criteria_type="E", description="No full text")
         analytics.set_prisma_not_retrieved(review=self.review, criteria_id=missing.pk)
         self.assertEqual(
@@ -204,13 +198,11 @@ class TestSelectionQualityExtraction(HistoryTestCase):
                 ("extraction", "change", "Changed the evidence of “Country” for the study “A study”"),
                 ("extraction", "change", "Changed the evidence of “Year” for the study “A study”"),
                 ("extraction", "change", "Marked the data extraction of the study “A study” as done"),
-                ("planning", "add", "Added the classification facet “Type”"),
             ],
             self.events(pk__lte=since),
         )
         self.assertEqual(
             [
-                ("extraction", "change", "Classified the study “A study” in “Type”"),
                 ("analysis", "change", "Changed the criterion of the reports not retrieved (PRISMA flow diagram)"),
             ],
             self.events(pk__gt=since),

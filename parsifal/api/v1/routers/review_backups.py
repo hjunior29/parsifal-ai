@@ -22,8 +22,8 @@ def reviews_backups_list(request, review_id: int):
 def reviews_backups_create(request, review_id: int):
     """
     Back up the review on the server (only the main author): the protocol, sources and search strings, the studies
-    and their PDFs, the reviewers' decisions, the AI screening runs, quality assessment, data extraction and
-    classification, in one .tar.gz. The newest PARSIFAL_REVIEW_BACKUPS_KEEP (10 by default) are kept.
+    and their PDFs, the reviewers' decisions, the AI screening runs, quality assessment, data extraction, threats to
+    validity and manuscripts, in one .tar.gz. The newest PARSIFAL_REVIEW_BACKUPS_KEEP (10 by default) are kept.
     """
     return 201, review_backups.create_backup(review=get_review(request, review_id), actor=request.auth)
 

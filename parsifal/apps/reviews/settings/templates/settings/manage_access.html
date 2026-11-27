@@ -48,7 +48,7 @@
                   </form>
                   <form method="post" style="display: inline;" class="js-confirm" data-confirm="{% blocktrans with name=row.agent.name decisions=row.stats.decisions quality=row.stats.quality_assessments extractions=row.stats.data_extractions %}Delete the agent {{ name }}?
 
-This permanently deletes its account, its API tokens and everything it recorded: {{ decisions }} screening decisions (also those made with Exclude with AI, and the log of those runs), {{ quality }} quality assessments and {{ extractions }} data extractions. Studies it imported and classifications it made stay in the review, without an author, and studies rejected in its name stay rejected. This cannot be undone.{% endblocktrans %}">
+This permanently deletes its account, its API tokens and everything it recorded: {{ decisions }} screening decisions (also those made with Exclude with AI, and the log of those runs), {{ quality }} quality assessments and {{ extractions }} data extractions. Studies it imported stay in the review, without an author, and studies rejected in its name stay rejected. This cannot be undone.{% endblocktrans %}">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="delete_agent">
                     <input type="hidden" name="user_id" value="{{ row.agent.user_id }}">

@@ -23,7 +23,7 @@ api = NinjaAPI(
     version="1",
     description=(
         "JSON API covering the whole systematic review and mapping study workflow: protocol, sources, study "
-        "import and selection, quality assessment, data extraction, classification, analytics, threats to validity, "
+        "import and selection, quality assessment, data extraction, analytics, threats to validity, "
         "manuscripts and exports. "
         "Authenticate with `Authorization: Bearer <token>` (tokens are created in Settings → API tokens) or with "
         "the browser session."

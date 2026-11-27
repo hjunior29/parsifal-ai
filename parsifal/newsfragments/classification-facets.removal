@@ -1,0 +1,1 @@
+Removed the classification facets (they had no web screens): a study is classified with the single or multiple choice fields of the data extraction form, so a review has one form for everything it extracts. Migration 0060 drops the facet tables; backups that hold facets still import, without them.

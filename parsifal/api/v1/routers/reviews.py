@@ -226,8 +226,8 @@ def agents_new_token(request, review_id: int, agent_id: int):
 def agents_delete(request, review_id: int, agent_id: int):
     """
     Delete the agent (main author only). PERMANENT: deletes its account, its API tokens and everything recorded
-    under it, namely its screening decisions, quality assessments and extracted data. Studies it imported and
-    classifications it made stay in the review, without an author.
+    under it, namely its screening decisions, quality assessments and extracted data. Studies it imported stay
+    in the review, without an author.
     """
     review = get_owned_review(request, review_id)
     agents.delete_agent(review=review, actor=request.auth, agent_id=agent_id)

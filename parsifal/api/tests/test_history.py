@@ -97,7 +97,7 @@ class ProtocolHistoryApiTest(ApiTestCase):
             self.summaries(),
         )
 
-    def test_quality_extraction_and_classification(self):
+    def test_quality_and_extraction(self):
         answers = self.api("POST", self.review_path("/quality/answers/suggested")).json()
         self.api("PATCH", self.review_path(f"/quality/answers/{answers[0]['id']}"), {"weight": 2})
         self.api("PUT", self.review_path("/quality/cutoff"), {"cutoff": 1.5})
@@ -107,9 +107,6 @@ class ProtocolHistoryApiTest(ApiTestCase):
             {"description": "Country", "field_type": "M", "lookup_values": ["Brazil"]},
         ).json()["id"]
         self.api("PATCH", self.review_path(f"/extraction/fields/{field}"), {"lookup_values": ["Brazil", "Chile"]})
-        facet = self.api("POST", self.review_path("/facets"), {"template": "venue_type"}).json()
-        category = facet["categories"][0]["id"]
-        self.api("DELETE", self.review_path(f"/facets/{facet['id']}/categories/{category}"))
         self.assertEqual(
             [
                 "Added the suggested quality assessment answers",
@@ -117,8 +114,6 @@ class ProtocolHistoryApiTest(ApiTestCase):
                 "Changed the protocol (Quality assessment cutoff score)",
                 "Added the data extraction field “Country”",
                 "Changed the data extraction field “Country”",
-                "Added the classification facet “Venue type”",
-                "Removed the category “Venue type: Journal”",
             ],
             self.summaries(),
         )

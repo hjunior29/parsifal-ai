@@ -1,4 +1,6 @@
+import hashlib
 import io
+import json
 import tarfile
 
 from django.contrib.auth.models import User
@@ -11,9 +13,6 @@ from parsifal.apps.core.models import StoredFile
 from parsifal.apps.core.tests.files import PDF, TemporaryFilesMixin
 from parsifal.apps.reviews.models import (
     Article,
-    ArticleClassification,
-    ClassificationCategory,
-    ClassificationFacet,
     DataExtraction,
     Keyword,
     ManuscriptVersion,
@@ -80,8 +79,6 @@ class ReviewBackupsTestCase(TemporaryFilesMixin, TestCase):
         country = DataExtractionFieldFactory(review=review, description="Country", field_type="M")
         brazil = country.dataextractionlookup_set.create(value="Brazil")
         country.dataextractionlookup_set.create(value="Portugal")
-        facet = ClassificationFacet.objects.create(review=review, name="Type", description="", template="")
-        category = ClassificationCategory.objects.create(facet=facet, name="Tool", description="")
         ProcessChecklistItem.objects.create(review=review, key="pilot", applied=True, notes="")
         ValidityThreat.objects.create(
             review=review, title="One reviewer", category="Theoretical validity", mitigation="A test set"
@@ -100,9 +97,6 @@ class ReviewBackupsTestCase(TemporaryFilesMixin, TestCase):
         )
         extraction.toggle_select_value(
             review=review, article_id=cls.study.pk, field_id=country.pk, lookup_id=brazil.pk, actor=cls.colleague
-        )
-        ArticleClassification.objects.create(
-            article=cls.study, facet=facet, category=category, user=cls.owner, notes=""
         )
         agent_user = cls.agent.agent.user
         cls.ai_run = ScreeningRun.objects.create(
@@ -173,7 +167,6 @@ class ReviewBackupsTestCase(TemporaryFilesMixin, TestCase):
             "articles": review.article_set.count(),
             "assessments": QualityAssessment.objects.filter(article__review=review).count(),
             "extractions": DataExtraction.objects.filter(article__review=review).count(),
-            "classifications": ArticleClassification.objects.filter(article__review=review).count(),
             "checklist": review.checklist_items.count(),
             "threats": list(review.threats.values_list("title", "category", "mitigation")),
             "manuscripts": [
@@ -297,6 +290,28 @@ class TestImport(ReviewBackupsTestCase):
             self.assertEqual(self.scopus, copy.sources.get(name="Scopus"))
             self.assertNotEqual(self.custom, copy.sources.get(name="Our own list"))
         self.assertEqual(f"{self.review.name}-1", self.import_backup(newcomer).name)
+
+    def test_a_backup_with_classification_facets_still_imports(self):
+        """Backups made before the facets were removed hold them: they are left out."""
+        backup = review_backups.create_backup(review=self.review, actor=self.owner)
+        with backup.file.open() as handle:
+            content = handle.read()
+        older = io.BytesIO()
+        with tarfile.open(fileobj=io.BytesIO(content)) as source, tarfile.open(fileobj=older, mode="w:gz") as target:
+            members = {member.name: (member, source.extractfile(member).read()) for member in source.getmembers()}
+            data = json.loads(members["review.json"][1])
+            data["facets"] = [{"id": 1, "review_id": data["review"]["id"], "name": "Type", "multiple": False}]
+            data["categories"] = [{"id": 1, "facet_id": 1, "name": "Tool"}]
+            data["classifications"] = [{"id": 1, "article_id": data["articles"][0]["id"], "category_id": 1}]
+            payload = json.dumps(data).encode()
+            manifest = json.loads(members["manifest.json"][1])
+            manifest["review.json"] = hashlib.sha256(payload).hexdigest()
+            for name, (member, body) in members.items():
+                body = {"review.json": payload, "manifest.json": json.dumps(manifest).encode()}.get(name, body)
+                member.size = len(body)
+                target.addfile(member, io.BytesIO(body))
+        copy = review_backups.import_review(actor=self.owner, content=older.getvalue())
+        self.assertEqual(self.counts(self.review), self.counts(copy))
 
     def test_someone_without_an_account_gets_an_inactive_one(self):
         backup = review_backups.create_backup(review=self.review, actor=self.owner)

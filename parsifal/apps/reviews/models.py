@@ -792,66 +792,6 @@ class DataExtraction(models.Model):
 # ---------------------------------------------------------------------------------------------------------------------
 
 
-class ClassificationFacet(models.Model):
-    """A dimension used to classify studies (research type, research method, venue, topic-specific scheme...)."""
-
-    FIXED = "fixed"
-    EMERGING = "emerging"
-    KINDS = (
-        (FIXED, _("Fixed (topic-independent)")),
-        (EMERGING, _("Emerging (topic-specific, built during keywording)")),
-    )
-
-    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="facets")
-    name = models.CharField(_("name"), max_length=100)
-    description = models.CharField(_("description"), max_length=500, blank=True)
-    kind = models.CharField(_("kind"), max_length=10, choices=KINDS, default=EMERGING)
-    template = models.CharField(_("template"), max_length=30, blank=True)
-    multiple = models.BooleanField(_("allow several categories per study"), default=False)
-    order = models.IntegerField(default=0)
-
-    class Meta:
-        verbose_name = _("classification facet")
-        verbose_name_plural = _("classification facets")
-        ordering = ("order", "pk")
-        constraints = (models.UniqueConstraint(fields=("review", "name"), name="unique_facet_name_per_review"),)
-
-    def __str__(self):
-        return self.name
-
-
-class ClassificationCategory(models.Model):
-    facet = models.ForeignKey(ClassificationFacet, on_delete=models.CASCADE, related_name="categories")
-    name = models.CharField(_("name"), max_length=200)
-    description = models.CharField(_("description"), max_length=500, blank=True)
-    order = models.IntegerField(default=0)
-
-    class Meta:
-        verbose_name = _("classification category")
-        verbose_name_plural = _("classification categories")
-        ordering = ("order", "pk")
-        constraints = (models.UniqueConstraint(fields=("facet", "name"), name="unique_category_name_per_facet"),)
-
-    def __str__(self):
-        return self.name
-
-
-class ArticleClassification(models.Model):
-    article = models.ForeignKey(Article, on_delete=models.CASCADE, related_name="classifications")
-    facet = models.ForeignKey(ClassificationFacet, on_delete=models.CASCADE, related_name="classifications")
-    category = models.ForeignKey(ClassificationCategory, on_delete=models.CASCADE, related_name="classifications")
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    notes = models.TextField(_("notes"), blank=True)
-    classified_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = _("article classification")
-        verbose_name_plural = _("article classifications")
-        constraints = (
-            models.UniqueConstraint(fields=("article", "facet", "category"), name="unique_article_facet_category"),
-        )
-
-
 class ReviewTestSetArticle(models.Model):
     """A known relevant paper used to evaluate the search (Petersen 5.1.2 'paper test-set')."""
 

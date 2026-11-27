@@ -2,7 +2,7 @@
 AI agents as co-authors. An agent is an account created for one review (never invited from outside): it works with
 the co-author permissions, authenticates with its own API token and everything it records is attributed to it.
 Deleting an agent deletes the account itself together with its tokens, screening decisions, quality assessments and
-extracted data. Studies it imported and classifications it made stay in the review, without an author.
+extracted data. Studies it imported stay in the review, without an author.
 """
 
 from dataclasses import dataclass
@@ -25,8 +25,8 @@ USERNAME_LENGTH = 150
 # What deleting an agent takes with it; shown to people before they confirm.
 DELETION_WARNING = (
     "Deleting an agent permanently deletes its account, its API tokens and everything recorded under it: its "
-    "screening decisions, quality assessments and extracted data. Studies it imported and classifications it made "
-    "stay in the review, without an author. This cannot be undone."
+    "screening decisions, quality assessments and extracted data. Studies it imported stay in the review, without "
+    "an author. This cannot be undone."
 )
 
 

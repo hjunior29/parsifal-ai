@@ -1,7 +1,7 @@
 """
 Backups of one review: everything of it — protocol, sources and search strings, studies and their PDFs, the
-reviewers' decisions, AI screening runs, quality assessment, data extraction, classification, threats to validity,
-manuscripts and their versions — in one ``.tar.gz`` (``review.json``, ``files/`` with the PDFs and the manuscripts'
+reviewers' decisions, AI screening runs, quality assessment, data extraction, threats to validity, manuscripts
+and their versions — in one ``.tar.gz`` (``review.json``, ``files/`` with the PDFs and the manuscripts'
 files, ``manifest.json`` with checksums).
 
 A backup is kept on the server in the review's list (the newest ``PARSIFAL_REVIEW_BACKUPS_KEEP``), downloaded,
@@ -33,9 +33,6 @@ from parsifal.apps.core.exceptions import ValidationError
 from parsifal.apps.core.models import StoredFile, files_storage
 from parsifal.apps.reviews.models import (
     Article,
-    ArticleClassification,
-    ClassificationCategory,
-    ClassificationFacet,
     DataExtraction,
     DataExtractionField,
     DataExtractionLookup,
@@ -82,8 +79,6 @@ CONTENT = (
     ("quality_answers", QualityAnswer, lambda review: review.qualityanswer_set.all()),
     ("fields", DataExtractionField, lambda review: review.dataextractionfield_set.all()),
     ("lookups", DataExtractionLookup, lambda review: DataExtractionLookup.objects.filter(field__review=review)),
-    ("facets", ClassificationFacet, lambda review: review.facets.all()),
-    ("categories", ClassificationCategory, lambda review: ClassificationCategory.objects.filter(facet__review=review)),
     ("checklist", ProcessChecklistItem, lambda review: review.checklist_items.all()),
     ("threats", ValidityThreat, lambda review: review.threats.all()),
     (
@@ -97,11 +92,6 @@ CONTENT = (
     ("test_set", ReviewTestSetArticle, lambda review: review.test_set.all()),
     ("assessments", QualityAssessment, lambda review: QualityAssessment.objects.filter(article__review=review)),
     ("extractions", DataExtraction, lambda review: DataExtraction.objects.filter(article__review=review)),
-    (
-        "classifications",
-        ArticleClassification,
-        lambda review: ArticleClassification.objects.filter(article__review=review),
-    ),
     ("manuscripts", Manuscript, lambda review: review.manuscripts.all()),
     (
         "manuscript_versions",

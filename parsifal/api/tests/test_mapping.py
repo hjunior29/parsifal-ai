@@ -89,101 +89,6 @@ class TestMappingStudyApi(ApiTestCase):
                 "2026-10-02", self.api("get", self.review_path("/sources/imports")).json()[0]["searched_at"]
             )
 
-    def test_facets_classification_and_analytics(self):
-        templates = self.api("get", "/facets/templates").json()
-        self.assertIn("research_type", [t["key"] for t in templates])
-
-        rtype = self.api("post", self.review_path("/facets"), {"template": "research_type"}).json()
-        self.assertEqual(6, len(rtype["categories"]))
-        topic = self.api(
-            "post", self.review_path("/facets"), {"name": "Topic", "multiple": True, "categories": ["Testing"]}
-        ).json()
-        self.assertEqual(422, self.api("post", self.review_path("/facets"), {}).status_code)
-        self.assertEqual(409, self.api("post", self.review_path("/facets"), {"name": "topic"}).status_code)
-
-        requirements = self.api(
-            "post", self.review_path(f"/facets/{topic['id']}/categories"), {"name": "Requirements"}
-        ).json()
-        self.assertEqual(
-            201,
-            self.api(
-                "post", self.review_path(f"/facets/{topic['id']}/categories"), {"name": "Maintenance"}
-            ).status_code,
-        )
-        self.api(
-            "patch",
-            self.review_path(f"/facets/{topic['id']}/categories/{requirements['id']}"),
-            {"name": "Requirements engineering"},
-        )
-        self.assertEqual(
-            200,
-            self.api(
-                "put",
-                self.review_path(f"/facets/{topic['id']}/categories/order"),
-                {
-                    "ids": [requirements["id"], topic["categories"][0]["id"]]
-                    + [
-                        c["id"]
-                        for c in self.api("get", self.review_path("/facets")).json()[1]["categories"]
-                        if c["name"] == "Maintenance"
-                    ]
-                },
-            ).status_code,
-        )
-        self.assertEqual(
-            200, self.api("put", self.review_path("/facets/order"), {"ids": [topic["id"], rtype["id"]]}).status_code
-        )
-        facets = self.api("get", self.review_path("/facets")).json()
-        self.assertEqual(["Topic", "Research type"], [f["name"] for f in facets])
-        self.assertEqual("Requirements engineering", facets[0]["categories"][0]["name"])
-
-        a1 = ArticleFactory(review=self.review, source=self.source, status="A")
-        a2 = ArticleFactory(review=self.review, source=self.source, status="A")
-        evaluation = next(c for c in rtype["categories"] if c["name"] == "Evaluation research")
-        testing = topic["categories"][0]
-        path = self.review_path(f"/articles/{a1.pk}/classification")
-        body = self.api(
-            "put", path, {"facet_id": rtype["id"], "category_ids": [evaluation["id"]], "notes": "clear"}
-        ).json()
-        facet_row = next(f for f in body["facets"] if f["facet_id"] == rtype["id"])
-        self.assertEqual(
-            (["Evaluation research"], "clear", self.author.username),
-            (facet_row["categories"], facet_row["notes"], facet_row["user"]),
-        )
-        self.api("put", path, {"facet_id": topic["id"], "category_ids": [testing["id"], requirements["id"]]})
-        self.api(
-            "put",
-            self.review_path(f"/articles/{a2.pk}/classification"),
-            {"facet_id": rtype["id"], "category_ids": [evaluation["id"]]},
-        )
-        self.api(
-            "put",
-            self.review_path(f"/articles/{a2.pk}/classification"),
-            {"facet_id": topic["id"], "category_ids": [testing["id"]]},
-        )
-
-        with self.subTest(msg="single-choice facet rejects two categories"):
-            response = self.api(
-                "put", path, {"facet_id": rtype["id"], "category_ids": [c["id"] for c in rtype["categories"][:2]]}
-            )
-            self.assertEqual(422, response.status_code)
-
-        freq = self.api("get", self.review_path(f"/analytics/facets/{rtype['id']}/frequencies")).json()
-        self.assertEqual(2, next(c["count"] for c in freq["categories"] if c["category"] == "Evaluation research"))
-        matrix = self.api(
-            "get", self.review_path(f"/analytics/facet-matrix?rows={topic['id']}&columns={rtype['id']}")
-        ).json()
-        cells = {(c["row"], c["column"]): c["count"] for c in matrix["cells"]}
-        self.assertEqual(2, cells[("Testing", "Evaluation research")])
-        self.assertEqual(1, cells[("Requirements engineering", "Evaluation research")])
-
-        self.assertEqual(
-            204,
-            self.api("delete", self.review_path(f"/facets/{topic['id']}/categories/{requirements['id']}")).status_code,
-        )
-        self.assertEqual(204, self.api("delete", self.review_path(f"/facets/{topic['id']}")).status_code)
-        self.assertEqual(1, len(self.api("get", self.review_path("/facets")).json()))
-
     def test_test_set_and_checklist(self):
         item = self.api("post", self.review_path("/test-set"), {"title": "Known paper", "doi": "10.1/x"}).json()
         self.assertIsNone(item["matched_article_id"])
@@ -204,5 +109,5 @@ class TestMappingStudyApi(ApiTestCase):
 
     def test_outsider_cannot_see_mapping_resources(self):
         outsider = self.client_for(self.outsider)
-        for path in ("/facets", "/test-set", "/checklist"):
+        for path in ("/test-set", "/checklist"):
             self.assertEqual(404, self.api("get", self.review_path(path), client=outsider).status_code)
