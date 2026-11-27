@@ -471,6 +471,10 @@ html.theme-dark {
   border-top-color: #3a3f44;
 }
 
+.theme-dark .extraction-field-form > td {
+  background-color: #2a2d31;
+}
+
 .theme-dark .item-code {
   background-color: #23364a;
   color: #b9d3ea;

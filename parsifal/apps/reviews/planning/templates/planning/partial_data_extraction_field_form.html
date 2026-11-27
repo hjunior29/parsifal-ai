@@ -1,39 +1,49 @@
-<tr oid="{{ field.id|default:'None' }}" csrf-token="{{ csrf_token }}">
-  <td colspan="3">
-    <input type="text" class="form-control" id="data-extraction-field-description" maxlength="255" value="{{ field.description }}">
-  </td>
-  <td style="vertical-align: middle;">
-    <select id="data-extraction-field-type" class="form-control" style="min-width: 160px;">
-      <option value="">Select...</option>
-      {% for field_type in field.FIELD_TYPES %}
-        <option value="{{ field_type.0 }}" {% if field.field_type == field_type.0 %} selected{% endif %}>{{ field_type.1 }}</option>
-      {% endfor %}
-    </select>
-  </td>
-  <td style="vertical-align: middle;">
-    <div class="select-field" style="{% if not field.is_select_field %}display: none{% endif %}">
-      <textarea class="form-control" id="data-extraction-lookup-values" rows="8">{% for value in field.get_select_values %}{{ value }}&#10;{% endfor %}</textarea>
-      <p>Add one value per line.</p>
+{% comment %}
+  Adding or editing a field of the data extraction form: one row across the table, the description and the type
+  side by side and, for a choice field, its options below them.
+{% endcomment %}
+<tr oid="{{ field.id|default:'None' }}" csrf-token="{{ csrf_token }}" class="extraction-field-form">
+  <td></td>
+  <td class="protocol-code">{% if field.code %}<span class="item-code">{{ field.code }}</span>{% endif %}</td>
+  <td colspan="4">
+    <div class="row">
+      <div class="col-sm-8 form-group">
+        <label for="data-extraction-field-description">Description</label>
+        <textarea class="form-control" id="data-extraction-field-description" rows="2" maxlength="255" placeholder="Name: what to extract from each study">{{ field.description }}</textarea>
+      </div>
+      <div class="col-sm-4 form-group">
+        <label for="data-extraction-field-type">Type</label>
+        <select id="data-extraction-field-type" class="form-control">
+          <option value="">Select...</option>
+          {% for field_type in field.FIELD_TYPES %}
+            <option value="{{ field_type.0 }}"{% if field.field_type == field_type.0 %} selected{% endif %}>{{ field_type.1 }}</option>
+          {% endfor %}
+        </select>
+      </div>
     </div>
-    <div class="no-select-field" style="{% if field.is_select_field %}display: none{% endif %}">
-      <p>Available only for <strong>select one</strong> or <strong>select many</strong> fields.</p>
+    <div class="row select-field" style="{% if not field.is_select_field %}display: none{% endif %}">
+      <div class="col-sm-8 form-group">
+        <label for="data-extraction-lookup-values">Options</label>
+        <textarea class="form-control" id="data-extraction-lookup-values" rows="4">{% for value in field.get_select_values %}{{ value }}&#10;{% endfor %}</textarea>
+        <p class="help-block">One option per line.</p>
+      </div>
     </div>
-  </td>
-  <td style="width: 200px; text-align: right; vertical-align: middle;">
-    <button type="button" class="btn btn-sm btn-success" id="btn-save-data-extraction-field">
-      <span class="btn-ajax-normal">
-        <span class="glyphicon glyphicon-ok"></span> save
-      </span>
-      <span class="btn-ajax-loading">
-        <span class="glyphicon glyphicon-refresh spin"></span> saving…
-      </span>
-      <span class="btn-ajax-error">
-        <span class="glyphicon glyphicon-remove"></span> error!
-      </span>
-      <span class="btn-ajax-complete">
-        <span class="glyphicon glyphicon-ok"></span> saved!
-      </span>
-    </button>
-    <button type="button" class="btn btn-sm btn-default" id="btn-cancel-data-extraction-field">cancel</button>
+    <div class="text-right">
+      <button type="button" class="btn btn-sm btn-default" id="btn-cancel-data-extraction-field">cancel</button>
+      <button type="button" class="btn btn-sm btn-success" id="btn-save-data-extraction-field">
+        <span class="btn-ajax-normal">
+          <span class="glyphicon glyphicon-ok"></span> save
+        </span>
+        <span class="btn-ajax-loading">
+          <span class="glyphicon glyphicon-refresh spin"></span> saving…
+        </span>
+        <span class="btn-ajax-error">
+          <span class="glyphicon glyphicon-remove"></span> error!
+        </span>
+        <span class="btn-ajax-complete">
+          <span class="glyphicon glyphicon-ok"></span> saved!
+        </span>
+      </button>
+    </div>
   </td>
 </tr>

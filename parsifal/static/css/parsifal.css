@@ -963,6 +963,35 @@ div.list-group.docs-nav a.list-group-item.active .docs-summary { color: #8a6f5c;
   vertical-align: middle !important;
 }
 
+/* Adding or editing a field of the data extraction form: a panel across the table. */
+.extraction-field-form > td {
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+  background-color: #f9f9f9;
+}
+
+.extraction-field-form > td.protocol-code {
+  vertical-align: top !important;
+  padding-top: 38px !important;
+}
+
+.extraction-field-form label {
+  font-size: 12px;
+}
+
+.extraction-field-form .form-group {
+  margin-bottom: 10px;
+}
+
+.extraction-field-form .help-block {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+
+#data-extraction-field-description {
+  resize: vertical;
+}
+
 .protocol-order {
   width: 40px;
   text-align: center;

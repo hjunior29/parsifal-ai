@@ -942,7 +942,7 @@ def add_new_data_extraction_field(request):
 @author_required
 @login_required
 def edit_data_extraction_field(request):
-    field = child(request.review.dataextractionfield_set, request.GET.get("field-id"))
+    field = codes.code_of(request.review, child(request.review.dataextractionfield_set, request.GET.get("field-id")))
     return render(request, "planning/partial_data_extraction_field_form.html", {"field": field})
 
 

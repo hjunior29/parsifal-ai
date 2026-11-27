@@ -10,7 +10,7 @@
   </td>
   <td class="protocol-code"><span class="item-code js-code">{{ field.code }}</span></td>
   <td style="vertical-align: middle;">{{ field.description }}</td>
-  <td style="vertical-align: middle;">{{ field.get_field_type_display }}</td>
+  <td style="vertical-align: middle; white-space: nowrap;">{{ field.get_field_type_display }}</td>
   <td style="vertical-align: middle;">
     {% if field.is_select_field %}
       {% comment %}Up to 15 options are all shown; more than that, the first 12 and "+N more".{% endcomment %}
@@ -30,7 +30,7 @@
       n/a
     {% endif %}
   </td>
-  <td style="width: 200px; text-align: right; vertical-align: middle;">
+  <td style="width: 1%; text-align: right; vertical-align: middle; white-space: nowrap;">
     <button type="button" class="btn btn-sm btn-warning btn-edit-data-extraction-field">
       <span class="btn-ajax-normal">
         <span class="glyphicon glyphicon-pencil"></span> edit

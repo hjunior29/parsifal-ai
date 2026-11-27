@@ -1,6 +1,17 @@
 $(function () {
   IS_ADDING_OR_EDITING_FIELD = false;
 
+  // The options box grows with its options: one line each and a free one, 4 to 15 lines
+  var fitOptions = function () {
+    var box = $("#data-extraction-lookup-values");
+    if (box.length) {
+      var lines = box.val().replace(/\n+$/, "").split("\n").length + 1;
+      box.attr("rows", Math.min(Math.max(lines, 4), 15));
+    }
+  };
+
+  $("table#tbl-data-extraction").on("input", "#data-extraction-lookup-values", fitOptions);
+
   $("#btn-add-field").click(function () {
     if (!IS_ADDING_OR_EDITING_FIELD) {
       IS_ADDING_OR_EDITING_FIELD = true;
@@ -12,6 +23,7 @@ $(function () {
         success: function (data) {
           $("#tbl-data-extraction tbody").append(data);
           $("#data-extraction-field-description").focus();
+          fitOptions();
         }
       });
     }
@@ -33,12 +45,23 @@ $(function () {
   // Hide or show the textarea for lookup values (select one field and select many field)
   $("table#tbl-data-extraction").on("change", "#data-extraction-field-type", function () {
     if ($(this).val() == 'O' || $(this).val() == 'M') {
-      $(".no-select-field").hide();
       $(".select-field").show();
+      fitOptions();
     }
     else {
       $(".select-field").hide();
-      $(".no-select-field").show();
+    }
+  });
+
+  // The description is a single line, even if it wraps: Enter saves the field, Esc cancels it
+  $("table#tbl-data-extraction").on("keydown", "#data-extraction-field-description", function (event) {
+    if (event.keyCode == 13) {
+      $("#btn-save-data-extraction-field").click();
+      return false;
+    }
+    else if (event.keyCode == 27) {
+      $("#btn-cancel-data-extraction-field").click();
+      return false;
     }
   });
 
@@ -152,6 +175,7 @@ $(function () {
           $(row).hide();
           $(row).after(data);
           $(row).addClass("data-extraction-field-hidden-for-edition");
+          fitOptions();
         },
         complete: function () {
           $(btn).ajaxEnable();
