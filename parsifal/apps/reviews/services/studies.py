@@ -189,9 +189,9 @@ def _protect_keys(text):
 
 def parse_bibtex_detailed(content):
     """
-    Parse BibTeX text/bytes/file. Besides the entries, report what the parser did not hand back: entries whose key
-    had spaces are recovered (with their original key), and entries that still cannot be read are counted and named,
-    so an import never looks complete when it is not.
+    Parse BibTeX text/bytes/file. Entries whose key has spaces are recovered with their original key, without a
+    word: nothing is lost and the key changes nothing. What the parser still cannot read is counted and named, so an
+    import never looks complete when it is not.
     """
     text = _decode(content)
     if not text or not text.strip():
@@ -205,9 +205,7 @@ def parse_bibtex_detailed(content):
     result = ParseResult(entries=entries)
     for entry in entries:
         if entry.get("ID") in originals:
-            original = originals[entry["ID"]]
-            entry["ID"] = original
-            result.warnings.append(f"{original}: key contains spaces; the entry was kept with its original key.")
+            entry["ID"] = originals[entry["ID"]]
     # Cross-check against the entry headers actually present in the text.
     declared = Counter(
         originals.get(match.group(3), match.group(3))

@@ -95,9 +95,7 @@ class TestImportBibtex(TestCase):
             {"De Pascale2023", "De_Pascale2023", "Plain"},
             set(Article.objects.filter(review=self.review).values_list("bibtex_key", flat=True)),
         )
-        self.assertEqual(
-            ["De Pascale2023: key contains spaces; the entry was kept with its original key."], result.warnings
-        )
+        self.assertEqual([], result.warnings)  # nothing was lost: nothing to tell
 
     def test_repeated_keys_are_all_imported(self):
         content = "@article{Same,\n title={First}\n}\n@article{Same,\n title={Second}\n}\n"
