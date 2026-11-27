@@ -37,6 +37,7 @@ from parsifal.apps.reviews.services import (
     decisions,
     extraction,
     full_texts,
+    mapping,
     quality,
     reports,
     screening_requests,
@@ -126,12 +127,18 @@ def import_base_string(request):
 @author_required
 @login_required
 def import_studies(request, username, review_name):
-    review = Review.objects.get(name=review_name, author__username__iexact=username)
-    return render(
-        request,
-        "conducting/conducting_import_studies.html",
-        {"review": review, "sources": search.list_source_imports(review)},
-    )
+    """
+    Import Studies: each source with its studies and its date of search, and the known studies that evaluate the
+    search (the test set: whether each was imported, the recall), added, edited (``?edit-known=<id>``) and removed.
+    """
+    review = request.review
+    context = {
+        "review": review,
+        "sources": search.list_source_imports(review),
+        "known": mapping.test_set_report(review),
+        "editing_known": request.GET.get("edit-known", ""),
+    }
+    return render(request, "conducting/conducting_import_studies.html", context)
 
 
 @author_required
@@ -523,6 +530,29 @@ def clear_source_articles(request):
     else:
         messages.success(request, _("%(count)s studies deleted.") % {"count": count})
     return redirect(r("import_studies", args=(review.author.username, review.name)))
+
+
+@author_required
+@login_required
+@require_POST
+def known_studies(request):
+    """A known study of the test set (Import Studies), added, edited or removed (``action``)."""
+    review = request.review
+    action = request.POST.get("action")
+    fields = {field: request.POST.get(field, "") for field in ("title", "doi", "notes")}
+    try:
+        if action == "add":
+            mapping.add_test_set_article(review=review, **fields)
+            messages.success(request, "The known study was added.")
+        elif action == "update":
+            mapping.update_test_set_article(review=review, item_id=request.POST.get("known-id"), **fields)
+            messages.success(request, "The known study was saved.")
+        elif action == "remove":
+            mapping.remove_test_set_article(review=review, item_id=request.POST.get("known-id"))
+            messages.success(request, "The known study was removed.")
+    except DomainError as error:
+        messages.error(request, str(error))
+    return redirect(r("import_studies", args=(review.author.username, review.name)) + "#known-studies")
 
 
 # The page sizes of the lists of Conducting: the study list, quality assessment and data extraction.

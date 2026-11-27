@@ -23,6 +23,10 @@ router = Router(tags=["mapping"])
 
 @router.get("/reviews/{int:review_id}/test-set", response=TestSetReportOut, operation_id="test_set_get")
 def test_set_get(request, review_id: int):
+    """
+    The known studies that evaluate the search, each linked to the imported study that matched it (by DOI, else by
+    title; matched again after every change to the studies), and the recall.
+    """
     return mapping.test_set_report(get_review(request, review_id))
 
 
@@ -48,7 +52,10 @@ def test_set_delete(request, review_id: int, item_id: int):
 
 @router.post("/reviews/{int:review_id}/test-set/match", response=TestSetReportOut, operation_id="test_set_match")
 def test_set_match(request, review_id: int):
-    """Re-match the known papers against the imported articles (by DOI, then by normalised title)."""
+    """
+    Match the known papers against the imported studies again (by DOI, else by title). Not needed after an import or
+    a change to the studies: those match them already.
+    """
     return mapping.match_test_set(review=get_review(request, review_id))
 
 

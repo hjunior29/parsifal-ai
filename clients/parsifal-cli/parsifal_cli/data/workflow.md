@@ -65,7 +65,8 @@ parsifal me
    --review R --id RUN` (check `ai-screening undo-preview` first; only when the human asks): only the latest run can
    be, what still stands of it goes back and the run is deleted, and the run before it becomes the latest.
    `ai-screening rerun --id RUN` starts a new run with RUN's settings.
-   `test-set get --review R` tells whether the known papers were found by the search.
+   `test-set get --review R` tells whether the known papers were found by the search (they are matched after every
+   import; the human sees them on Import Studies, panel Known Studies).
    Stars: `article star --review R --article A` marks a study in the review (one star per study, shared with the
    human; not a status); `article list --review R --starred --all` lists them, `article unstar` removes one.
    Full texts: a study's `pdf` field says whether it has one; read it with

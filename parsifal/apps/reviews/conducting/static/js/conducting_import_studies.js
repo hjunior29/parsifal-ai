@@ -26,6 +26,11 @@ $(function () {
     $("#bibtex_raw_content").focus();
   });
 
+  /* A known study (the test set): the form opens on its title. */
+  $("#known-study-add").on("shown.bs.collapse", function () {
+    $("textarea[name='title']", this).focus();
+  });
+
   /* The date of search of a source: saved as soon as it changes (empty clears it). */
   $(".js-searched-at").change(function () {
     var input = $(this);

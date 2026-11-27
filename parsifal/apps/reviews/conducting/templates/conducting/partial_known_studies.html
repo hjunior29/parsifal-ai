@@ -1,0 +1,102 @@
+{% comment %}
+  The known studies of Import Studies: the test set that evaluates the search. Each one is matched to the imported
+  studies (by DOI, else by title) after every import; the share found is the search's recall. Optional: without any,
+  the panel only says what it is for. Added from the footer, edited in place (?edit-known=<id>), removed with a
+  confirmation.
+{% endcomment %}
+<div class="modal fade" id="known-studies-help">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title">About the known studies</h4>
+      </div>
+      <div class="modal-body">
+        <p>A test set is a list of studies you know the search should find. Petersen et al. (2015, §5.1.2) found it the most common way to evaluate a search: an expert in the area, for example, gives some ten papers that should be found; without an expert, the web pages of key researchers of the field may list them.</p>
+        <p>Each known study is looked for among the imported studies, by its DOI or else by its title, again after every import. The share found is the search's <strong>recall</strong>; a known study not found is worth a look at the search string and the sources.</p>
+        <p>It is optional: a review without known studies is complete without them.</p>
+      </div>
+      <div class="modal-footer" style="text-align: left;">
+        <p><small class="text-muted">K. Petersen, S. Vakkalanka and L. Kuzniarz, "Guidelines for conducting systematic mapping studies in software engineering: An update", Information and Software Technology, 64, 2015.</small></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel panel-default" id="known-studies">
+  <div class="panel-heading">
+    <h3 class="panel-title">
+      Known Studies
+      <a href="javascript:void(0);" class="pull-right" data-toggle="tooltip" title="What's this? Click to get help." data-placement="top" data-container="body">
+        <span class="glyphicon glyphicon-question-sign" data-toggle="modal" data-target="#known-studies-help"></span>
+      </a>
+    </h3>
+  </div>
+  {% if known.items %}
+    <div class="panel-body known-studies-recall">
+      <strong>{{ known.found }} of {{ known.total }}</strong> found by the search
+      <span class="text-muted">· recall {% widthratio known.found known.total 100 %}%</span>
+    </div>
+    <ul class="list-group known-studies">
+      {% for item in known.items %}
+        {% if editing_known == item.pk|stringformat:"s" %}
+          <li class="list-group-item" id="known-{{ item.pk }}">
+            <form method="post" action="{% url 'reviews:conducting:known_studies' %}">
+              {% csrf_token %}
+              <input type="hidden" name="review-id" value="{{ review.id }}">
+              <input type="hidden" name="action" value="update">
+              <input type="hidden" name="known-id" value="{{ item.pk }}">
+              {% include "conducting/partial_known_study_fields.html" %}
+              <button type="submit" class="btn btn-success btn-sm"><span class="glyphicon glyphicon-ok"></span> Save</button>
+              <a href="{% url 'import_studies' review.author.username review.name %}#known-studies" class="btn btn-default btn-sm">Cancel</a>
+            </form>
+          </li>
+        {% else %}
+          <li class="list-group-item" id="known-{{ item.pk }}">
+            <div class="pull-right known-study-actions">
+              <a href="?edit-known={{ item.pk }}#known-{{ item.pk }}" class="btn btn-default btn-xs" title="Edit"><span class="glyphicon glyphicon-pencil"></span><span class="sr-only">Edit</span></a>
+              <form method="post" action="{% url 'reviews:conducting:known_studies' %}" style="display: inline;" onsubmit="return confirm('Remove the known study “{{ item.title|escapejs }}”?');">
+                {% csrf_token %}
+                <input type="hidden" name="review-id" value="{{ review.id }}">
+                <input type="hidden" name="action" value="remove">
+                <input type="hidden" name="known-id" value="{{ item.pk }}">
+                <button type="submit" class="btn btn-default btn-xs" title="Remove"><span class="glyphicon glyphicon-trash"></span><span class="sr-only">Remove</span></button>
+              </form>
+            </div>
+            <div class="known-study-title">{{ item.title }}</div>
+            <div class="small known-study-meta">
+              {% if item.matched_article %}
+                <span class="label label-success">found</span>
+                <span class="text-muted">in {{ item.matched_article.source.name }}</span>
+              {% else %}
+                <span class="label label-default">not found</span>
+              {% endif %}
+              {% if item.doi %}<span class="text-muted">· {{ item.doi }}</span>{% endif %}
+            </div>
+            {% if item.notes %}<div class="small text-muted">{{ item.notes }}</div>{% endif %}
+          </li>
+        {% endif %}
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="panel-body">
+      <p class="text-muted" style="margin: 0;">
+        Optional. Studies you already know are relevant, to see whether the search finds them.
+      </p>
+    </div>
+  {% endif %}
+  <div class="panel-footer">
+    <a class="btn btn-default btn-sm" role="button" data-toggle="collapse" href="#known-study-add" aria-expanded="false" aria-controls="known-study-add">
+      <span class="glyphicon glyphicon-plus"></span> Add a known study
+    </a>
+    <div class="collapse" id="known-study-add">
+      <form method="post" action="{% url 'reviews:conducting:known_studies' %}" class="known-study-add-form">
+        {% csrf_token %}
+        <input type="hidden" name="review-id" value="{{ review.id }}">
+        <input type="hidden" name="action" value="add">
+        {% include "conducting/partial_known_study_fields.html" with item=None %}
+        <button type="submit" class="btn btn-success btn-sm"><span class="glyphicon glyphicon-ok"></span> Add</button>
+      </form>
+    </div>
+  </div>
+</div>

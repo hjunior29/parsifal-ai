@@ -1,0 +1,1 @@
+Known studies: the test set that evaluates the search is on Import Studies, with whether each study was found and the recall; known studies are matched again (by DOI, else by title, as duplicates are) after every import or change to the studies.

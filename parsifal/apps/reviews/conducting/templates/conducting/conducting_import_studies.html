@@ -3,7 +3,7 @@
 {% load static %}
 
 {% block javascript %}
-  <script type="text/javascript" src="{% static 'js/conducting_import_studies.js' %}?_=4"></script>
+  <script type="text/javascript" src="{% static 'js/conducting_import_studies.js' %}?_=5"></script>
 {% endblock javascript %}
 
 {% block tab_content %}
@@ -81,6 +81,9 @@
           </div>
         {% endif %}
       </div>
+    </div>
+    <div class="col-md-4">
+      {% include "conducting/partial_known_studies.html" %}
     </div>
   </div>
 

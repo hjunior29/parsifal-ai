@@ -40,6 +40,41 @@ class TestTestSetAndChecklist(TestCase):
         with self.assertRaises(ValidationError):
             mapping.add_test_set_article(review=self.review, title="")
 
+    def test_known_studies_follow_every_change_to_the_studies(self):
+        """Imported, added, edited or deleted, the studies are matched again: the recall is always current."""
+        doi = mapping.add_test_set_article(review=self.review, title="Rapid reviews", doi="https://doi.org/10.1/ABC")
+        title = mapping.add_test_set_article(review=self.review, title="Moiré patterns – a survey")
+        self.assertEqual(0, mapping.test_set_report(self.review)["found"])
+
+        bibtex = (
+            "@article{k1, title={Another title}, doi={10.1/abc}}\n"
+            "@article{k2, title={Moir{\\'e} Patterns - A Survey}}"
+        )
+        result = studies.import_bibtex(review=self.review, source_id=self.source.pk, content=bibtex)
+        first, second = result.articles
+        doi.refresh_from_db()
+        title.refresh_from_db()
+        self.assertEqual((first, second), (doi.matched_article, title.matched_article))
+
+        copy = studies.create_article(review=self.review, source_id=self.source.pk, title="Moire patterns, a survey")
+        studies.delete_articles(review=self.review, article_ids=[second.pk])
+        title.refresh_from_db()
+        self.assertEqual(copy, title.matched_article)
+
+        studies.update_article(review=self.review, article_id=copy.pk, title="Something else")
+        studies.clear_articles(review=self.review, source_id=self.source.pk)
+        report = mapping.test_set_report(self.review)
+        self.assertEqual((2, 0, 0.0), (report["total"], report["found"], report["recall"]))
+
+    def test_a_known_study_links_to_a_copy_not_marked_duplicated(self):
+        known = mapping.add_test_set_article(review=self.review, title="Known")
+        duplicated = ArticleFactory(review=self.review, source=self.source, title="Known", status="D")
+        kept = ArticleFactory(review=self.review, source=self.source, title="Known")
+        mapping.match_test_set(review=self.review)
+        known.refresh_from_db()
+        self.assertEqual(kept, known.matched_article)
+        self.assertNotEqual(duplicated, known.matched_article)
+
     def test_checklist(self):
         initial = mapping.checklist(self.review)
         self.assertEqual((0, 26, 0.0), (initial["applied"], initial["total"], initial["ratio"]))

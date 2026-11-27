@@ -1,0 +1,14 @@
+{% with prefix=item.pk|default:"new" %}
+  <div class="form-group">
+    <label for="known-title-{{ prefix }}" class="control-label">Title</label>
+    <textarea class="form-control input-sm" id="known-title-{{ prefix }}" name="title" rows="2" maxlength="1000" required>{{ item.title }}</textarea>
+  </div>
+  <div class="form-group">
+    <label for="known-doi-{{ prefix }}" class="control-label">DOI <small class="text-muted">(optional)</small></label>
+    <input type="text" class="form-control input-sm" id="known-doi-{{ prefix }}" name="doi" maxlength="100" value="{{ item.doi }}" placeholder="10.xxxx/…">
+  </div>
+  <div class="form-group">
+    <label for="known-notes-{{ prefix }}" class="control-label">Notes <small class="text-muted">(optional)</small></label>
+    <input type="text" class="form-control input-sm" id="known-notes-{{ prefix }}" name="notes" maxlength="500" value="{{ item.notes }}" placeholder="Where it comes from: an expert, an earlier review…">
+  </div>
+{% endwith %}

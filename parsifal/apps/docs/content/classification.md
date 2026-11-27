@@ -28,8 +28,10 @@ in `article import --searched-at`). Imported articles keep a link to that
 documented search. Both guidelines ask for this table in the report.
 
 A **test set of known papers** evaluates the search: add the titles (and DOIs)
-of papers you know must be found (`test-set add`); Parsifal matches them
-against the imported articles and reports the recall (`test-set get`).
+of papers you know must be found, on *Conducting → Import Studies*, panel
+*Known Studies* (or `test-set add`). Parsifal looks for each one among the
+imported studies, by DOI or else by title, again after every import, and
+reports which were found and the recall (`test-set get`). It is optional.
 
 ## Classifying the studies
 
@@ -69,10 +71,11 @@ quality assessment, data extraction and analysis sections carry tables.
 
 ## Where to find these in the interface
 
-The test set, the search documentation and the process checklist are
-available through the API, the CLI and the MCP tools; the web pages expose the
-review type, the report sections and the reviewer agreement panel. Studies are
-classified on *Data Extraction*, with the choice fields of the form.
+The known studies of the test set are on *Conducting → Import Studies*, with
+the date of search of each source. The Petersen process checklist is available
+through the API, the CLI and the MCP tools; a rapid review's checklist is on
+*Planning → Rapid Review Checklist*. Studies are classified on *Data
+Extraction*, with the choice fields of the form.
 
 ## In the API, the CLI and the MCP server
 

@@ -143,7 +143,7 @@ carries `pdf` (that object, or `null`); 404 when downloading or deleting a PDF t
 
 | Method & path | operationId |
 |---------------|-------------|
-| `GET/POST /reviews/{rid}/test-set` · `PATCH/DELETE /test-set/{id}` · `POST /test-set/match` | `test_set_*` — known papers, matched by DOI or normalised title; `recall` = found/total |
+| `GET/POST /reviews/{rid}/test-set` · `PATCH/DELETE /test-set/{id}` · `POST /test-set/match` | `test_set_*` — known papers, matched by DOI or normalised title after every change to the studies (`match` forces it); `recall` = found/total |
 | `GET /reviews/{rid}/checklist?catalog=petersen|rapid` · `PUT /checklist/{key} {applied, notes}` | `checklist_*` — Petersen et al. (2015) Table 8 actions (`petersen`, the default), or the rapid review checklist (`rapid`, rapid reviews only, 422 otherwise: the collaboration with practitioners and the concessions, `rr_*` keys, each with its `threat`; `notes` is the justification; a change is a Planning event, an amendment once studies exist) |
 | `PATCH /reviews/{rid}/sources/{sid}/search {search_type, searched_at, years_from, years_to, result_count}` | `source_search_update` — search documentation (K 6.1.4); only the fields sent change, null (or `""` for the date) clears one |
 

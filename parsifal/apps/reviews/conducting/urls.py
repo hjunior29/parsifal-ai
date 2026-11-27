@@ -13,6 +13,7 @@ urlpatterns = [
     path("import/bibtex_file/", views.import_bibtex, name="import_bibtex"),
     path("import/clear/", views.clear_source_articles, name="clear_source_articles"),
     path("import/searched_at/", views.save_searched_at, name="save_searched_at"),
+    path("import/known_studies/", views.known_studies, name="known_studies"),
     path("import/bibtex_raw_content/", views.import_bibtex_raw_content, name="import_bibtex_raw_content"),
     path("source_articles/", views.source_articles, name="source_articles"),
     path("article_details/", views.article_details, name="article_details"),

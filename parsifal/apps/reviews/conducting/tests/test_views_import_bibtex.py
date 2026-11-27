@@ -6,7 +6,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from parsifal.apps.authentication.tests.factories import UserFactory
-from parsifal.apps.reviews.models import Article, SearchSession
+from parsifal.apps.reviews.models import Article, ReviewTestSetArticle, SearchSession
+from parsifal.apps.reviews.services import mapping
 from parsifal.apps.reviews.tests.factories import ReviewFactory, SourceFactory
 
 DATA = Path(__file__).resolve().parent.parent.parent / "tests" / "data"
@@ -155,3 +156,72 @@ class SearchDateViewTest(TestCase):
         self.client.force_login(UserFactory())
         self.assertEqual(403, self.post("2026-10-01").status_code)
         self.assertFalse(SearchSession.objects.exists())
+
+
+class KnownStudiesViewTest(TestCase):
+    """The Known Studies panel of Import Studies: the test set that evaluates the search."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.source = SourceFactory(name="Scopus")
+        cls.review = ReviewFactory(sources=[cls.source])
+        cls.url = reverse("reviews:conducting:known_studies")
+        cls.page = reverse("import_studies", args=(cls.review.author.username, cls.review.name))
+
+    def post(self, action, **data):
+        return self.client.post(self.url, {"review-id": self.review.pk, "action": action, **data}, follow=True)
+
+    def test_without_known_studies_the_panel_only_offers_to_add_one(self):
+        self.client.force_login(self.review.author)
+        response = self.client.get(self.page)
+        self.assertContains(response, "Optional. Studies you already know are relevant")
+        self.assertContains(response, "Add a known study")
+        self.assertNotContains(response, "found by the search")
+
+    def test_add_edit_and_remove(self):
+        self.client.force_login(self.review.author)
+        response = self.post("add", title="Rapid reviews in software engineering", doi="", notes="arXiv preprint")
+        self.assertEqual(self.page + "#known-studies", response.redirect_chain[-1][0])
+        self.assertContains(response, "The known study was added.")
+        self.assertContains(response, "<strong>0 of 1</strong> found by the search")
+        self.assertContains(response, "not found")
+        known = self.review.test_set.get()
+
+        self.client.post(
+            reverse("reviews:conducting:import_bibtex_raw_content"),
+            {
+                "review-id": self.review.pk,
+                "source-id": self.source.pk,
+                "bibtex_file": "@article{k, title={Rapid Reviews in Software Engineering}}",
+            },
+        )
+        response = self.client.get(self.page)
+        self.assertContains(response, "<strong>1 of 1</strong> found by the search")
+        self.assertContains(response, "in Scopus")
+
+        response = self.client.get(self.page, {"edit-known": known.pk})
+        self.assertContains(response, 'name="known-id" value="{0}"'.format(known.pk))
+        response = self.post("update", **{"known-id": known.pk, "title": "Another", "doi": "10.1/x", "notes": ""})
+        self.assertContains(response, "The known study was saved.")
+        known.refresh_from_db()
+        self.assertEqual(("Another", "10.1/x", None), (known.title, known.doi, known.matched_article))
+
+        response = self.post("remove", **{"known-id": known.pk})
+        self.assertContains(response, "The known study was removed.")
+        self.assertFalse(self.review.test_set.exists())
+
+    def test_errors_and_a_known_study_of_another_review(self):
+        self.client.force_login(self.review.author)
+        self.assertContains(self.post("add", title=""), "required")
+        other = mapping.add_test_set_article(review=ReviewFactory(), title="Theirs")
+        self.assertContains(self.post("remove", **{"known-id": other.pk}), "not found in this review")
+        self.assertContains(self.post("update", **{"known-id": other.pk, "title": "Mine"}), "not found in this review")
+        other.refresh_from_db()
+        self.assertEqual("Theirs", other.title)
+
+    def test_requires_post_and_author(self):
+        self.client.force_login(self.review.author)
+        self.assertEqual(405, self.client.get(self.url, {"review-id": self.review.pk}).status_code)
+        self.client.force_login(UserFactory())
+        self.assertEqual(403, self.client.post(self.url, {"review-id": self.review.pk, "action": "add"}).status_code)
+        self.assertFalse(ReviewTestSetArticle.objects.exists())

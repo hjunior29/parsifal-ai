@@ -17,7 +17,7 @@ from bibtexparser.bparser import BibTexParser
 
 from parsifal.apps.core.exceptions import ValidationError
 from parsifal.apps.reviews.models import Article, ReviewEvent, StudyDecision
-from parsifal.apps.reviews.services import ai_screening, decisions, history, search
+from parsifal.apps.reviews.services import ai_screening, decisions, history, mapping, search
 from parsifal.apps.reviews.services._common import check_length, get_child, get_children
 
 # Maximum length of every editable Article text field (mirrors the model).
@@ -288,6 +288,7 @@ def import_bibtex(*, review, source_id, content, actor=None, searched_at=None):
             articles=result.articles,
             actor=actor,
         )
+        mapping.refresh_matches(review)
     return result
 
 
@@ -330,6 +331,7 @@ def create_article(*, review, source_id, actor=None, status=None, selection_crit
     article.selection_criteria = _get_criteria(review, selection_criteria_id)
     article.save()
     record_study_added(review, article, actor)
+    mapping.refresh_matches(review)
     return article
 
 
@@ -357,6 +359,8 @@ def update_article(*, review, article_id, actor=None, status=None, selection_cri
     article.updated_by = actor
     article.save()
     record_study_changes(review, article, tracker)
+    if {"title", "doi"} & set(fields):
+        mapping.refresh_matches(review)
     return article
 
 
@@ -368,6 +372,7 @@ def delete_articles(*, review, article_ids):
         summary = f"Deleted {history.studies(len(articles))}"
     record_studies_deleted(review, articles, summary)
     review.article_set.filter(pk__in=[a.pk for a in articles]).delete()
+    mapping.refresh_matches(review)
     return len(articles)
 
 
@@ -388,6 +393,7 @@ def clear_articles(*, review, source_id, status=None):
             summary += f" {dict(Article.ARTICLE_STATUS)[status]}"
         record_studies_deleted(review, list(queryset.only("title")), summary)
     queryset.delete()
+    mapping.refresh_matches(review)
     return count
 
 

@@ -1447,7 +1447,7 @@ OPERATIONS = (
         "/reviews/{review_id}/test-set",
         ("test-set",),
         "get",
-        "Known papers and whether the search found them.",
+        "Known papers, whether the search found them (matched after every import) and the recall.",
         (REVIEW,),
     ),
     Operation(
@@ -1484,7 +1484,7 @@ OPERATIONS = (
         "/reviews/{review_id}/test-set/match",
         ("test-set",),
         "match",
-        "Re-match known papers against imported articles.",
+        "Match known papers against imported studies again (imports already do).",
         (REVIEW,),
     ),
     Operation(

@@ -1,12 +1,10 @@
 """
-Mapping-study support beyond classification: the known-paper test set used to evaluate the search and the process
-checklists: the self-assessment of Petersen et al. (2015, Table 8), and that of a rapid review (services.rapid).
+Optional steps of any review: the test set of known studies used to evaluate the search, and the process checklists:
+the self-assessment of Petersen et al. (2015, Table 8), and that of a rapid review (services.rapid).
 """
 
-from django.utils.text import slugify
-
 from parsifal.apps.core.exceptions import ValidationError
-from parsifal.apps.reviews.models import ProcessChecklistItem, ReviewEvent, ReviewTestSetArticle
+from parsifal.apps.reviews.models import Article, ProcessChecklistItem, ReviewEvent, ReviewTestSetArticle
 from parsifal.apps.reviews.services import history, rapid
 from parsifal.apps.reviews.services._common import check_length, get_child, require
 
@@ -75,7 +73,7 @@ def add_test_set_article(*, review, title, doi="", notes=""):
     check_length(notes or "", 500, field="notes")
     item = ReviewTestSetArticle.objects.create(review=review, title=title, doi=(doi or "").strip(), notes=notes or "")
     TEST_SET.added(review, item)
-    match_test_set(review=review)
+    refresh_matches(review)
     return item
 
 
@@ -91,7 +89,7 @@ def update_test_set_article(*, review, item_id, title=None, doi=None, notes=None
         item.notes = check_length(notes, 500, field="notes")
     item.save()
     TEST_SET.changed(review, tracker)
-    match_test_set(review=review)
+    refresh_matches(review)
     return item
 
 
@@ -102,26 +100,42 @@ def remove_test_set_article(*, review, item_id):
 
 
 def match_test_set(*, review):
-    """Link each known paper to an imported article by DOI (case-insensitive) or by normalised title."""
-    articles = list(review.article_set.only("id", "title", "doi"))
-    by_doi = {a.doi.strip().lower(): a for a in articles if a.doi}
-    by_title = {}
-    for article in articles:
-        by_title.setdefault(slugify(article.title or ""), article)
-    for item in review.test_set.all():
-        match = None
-        if item.doi:
-            match = by_doi.get(item.doi.lower())
-        if match is None:
-            match = by_title.get(slugify(item.title))
-        if item.matched_article_id != (match.pk if match else None):
-            item.matched_article = match
-            item.save(update_fields=["matched_article"])
+    """Link each known paper to an imported study again (``refresh_matches``) and return the report."""
+    refresh_matches(review)
     return test_set_report(review)
 
 
+def refresh_matches(review):
+    """
+    Link each known paper to an imported study: by DOI, else by title, both compared as the duplicate check compares
+    them (``studies.normalize_doi``, ``studies.title_key``), a study not marked duplicated first. The studies
+    service runs it after every change to the studies, so whether the search found each paper is always current.
+    """
+    from parsifal.apps.reviews.services import studies  # it imports this module
+
+    items = list(review.test_set.all())
+    if not items:
+        return
+    by_doi, by_title = {}, {}
+    articles = review.article_set.only("id", "title", "doi", "status")
+    for article in sorted(articles, key=lambda a: (a.status == Article.DUPLICATED, a.pk)):
+        doi, title = studies.normalize_doi(article.doi), studies.title_key(article.title)
+        if doi:
+            by_doi.setdefault(doi, article)
+        if title:
+            by_title.setdefault(title, article)
+    for item in items:
+        doi, title = studies.normalize_doi(item.doi), studies.title_key(item.title)
+        match = by_doi.get(doi) if doi else None
+        if match is None and title:
+            match = by_title.get(title)
+        if item.matched_article_id != (match.pk if match else None):
+            item.matched_article = match
+            item.save(update_fields=["matched_article"])
+
+
 def test_set_report(review):
-    items = list(review.test_set.select_related("matched_article"))
+    items = list(review.test_set.select_related("matched_article__source"))
     found = sum(1 for item in items if item.matched_article_id)
     return {
         "total": len(items),
