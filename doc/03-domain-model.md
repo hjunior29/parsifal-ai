@@ -37,9 +37,9 @@ erDiagram
     Review ||--o{ Invite : "invites"
 ```
 
-Phase 7 added the mapping-study entities (`ClassificationFacet`, `ClassificationCategory`,
-`ArticleClassification`, `ReviewTestSetArticle`, `ProcessChecklistItem`) and phase 8 added
-`StudyDecision`; the unused upstream `SearchResult`/`StudySelection`/`Study` were removed.
+Phase 7 added the mapping-study entities (`ReviewTestSetArticle`, `ProcessChecklistItem`, and
+the classification facets, removed in migration 0060: studies are classified with the choice
+fields of the extraction form) and phase 8 added `StudyDecision`; the unused upstream `SearchResult`/`StudySelection`/`Study` were removed.
 See [10-methodology.md](10-methodology.md) §4 for their shape.
 
 ## Review and protocol entities

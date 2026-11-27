@@ -31,38 +31,27 @@ A **test set of known papers** evaluates the search: add the titles (and DOIs)
 of papers you know must be found (`test-set add`); Parsifal matches them
 against the imported articles and reports the recall (`test-set get`).
 
-## Classification facets
+## Classifying the studies
 
-Classifying studies along **facets** complements (or, in a mapping study,
-replaces) data extraction. A facet is a question answered for every included
-study by picking one or more categories:
+A study is classified with the **data extraction form**, like everything else
+extracted from it: a **single choice** or **multiple choice** field per scheme,
+its categories as the options. The scheme may be one of the usual ones or
+emerge while reading the studies (add the option to the field when a study calls
+for one).
+Usual schemes:
 
-| Template | Categories |
-|----------|------------|
+| Scheme | Categories |
+|--------|------------|
 | Research type (Wieringa et al.) | Evaluation research, Validation research, Solution proposal, Philosophical paper, Experience paper, Opinion paper |
 | Contribution type | Process, Method, Model, Tool, Metric, Other |
 | Research method | Case study, Experiment, Survey, Action research, Grounded theory, Design science, Literature review, Other / none |
 | Venue type | Journal, Conference, Workshop, Book chapter, Thesis, Technical report, Other |
 | Study focus | Academic, Industrial, Government, Open source, Other |
 
-Create facets from these templates (`facet create --template research_type`)
-or define your own **emerging** scheme built while reading the abstracts
-(`facet create --name Topic --multiple --categories …`); categories can be
-added and reordered as the scheme evolves. A facet is single-choice or accepts
-several categories per study. Classify a study per facet
-(`classification set --article A --facet-id F --category-ids …`); each
-classification records who made it and optional notes.
-
-Analysis:
-
-- `analytics facet-frequencies --facet F` — studies per category.
-- `analytics facet-matrix --rows F1 --columns F2` — counts for every pair of
-  categories of two facets: the data behind a **bubble plot** (for example
-  topic × research type), which shows where research accumulates and where the
-  gaps are.
-
-Both consider the final selection only. Export the JSON and draw the plots with
-the tool of your choice.
+Each value carries its evidence, as every extracted value does. *Data
+Analysis* counts the studies of the final selection per option; the extraction
+export (one row per study, one column per field) holds what a bubble plot of
+two schemes needs, drawn with the tool of your choice.
 
 ## Process checklist
 
@@ -75,16 +64,15 @@ what you did. The applied ratio appears in the review overview and the report.
 ## Report
 
 The DOCX report (**Reporting → Export**) can include the review type, the three
-protocol texts, the classification scheme and its results, the search
-documentation table, the known-paper recall and the process checklist; its
+protocol texts, the search documentation table, the known-paper recall and the process checklist; its
 quality assessment, data extraction and analysis sections carry tables.
 
 ## Where to find these in the interface
 
-Today these steps are available through the API, the CLI and the MCP tools;
-the web pages expose the review type, the report sections and the reviewer
-agreement panel. Screens for facets and classification are planned next to the
-data extraction form.
+The test set, the search documentation and the process checklist are
+available through the API, the CLI and the MCP tools; the web pages expose the
+review type, the report sections and the reviewer agreement panel. Studies are
+classified on *Data Extraction*, with the choice fields of the form.
 
 ## In the API, the CLI and the MCP server
 
@@ -93,7 +81,7 @@ data extraction form.
 | Update protocol texts | `parsifal review update --review R --selection-procedure … --synthesis-strategy … --validity-threats …` | `PATCH /api/v1/reviews/{id}` |
 | Document a source search | `parsifal source document-search --review R --source-id S --searched-at YYYY-MM-DD` | `PUT /api/v1/reviews/{id}/sources/{source_id}/search` |
 | Manage known-paper test set | `parsifal test-set add --review R …` · `parsifal test-set get --review R` | `GET` / `POST /api/v1/reviews/{id}/test-set` |
-| Create a facet (template or custom) | `parsifal facet create --review R --template research_type` · `--name Topic --multiple --categories …` | `POST /api/v1/reviews/{id}/facets` |
-| Classify a study | `parsifal classification set --review R --article A --facet-id F --category-ids …` | `PUT /api/v1/reviews/{id}/articles/{article_id}/classification` |
-| Facet frequencies & bubble-plot matrix | `parsifal analytics facet-frequencies --review R --facet F` · `parsifal analytics facet-matrix --review R --rows F1 --columns F2` | `GET /api/v1/reviews/{id}/analytics/facets/{id}/frequencies` · `GET …/analytics/facet-matrix` |
+| A classification scheme | `parsifal extraction field create --review R --description "Research type" --field-type O --lookup-values …` (`M` for several per study) | `POST /api/v1/reviews/{id}/extraction/fields` |
+| Classify a study | `parsifal extraction set --review R --article A --field-id F --value … --evidence …` | `PUT /api/v1/reviews/{id}/articles/{article_id}/extraction` |
+| Studies per option | `parsifal analytics extraction --review R` | `GET /api/v1/reviews/{id}/analytics/extraction` |
 | Petersen process checklist | `parsifal checklist get --review R` · `parsifal checklist set --review R --key search_database --applied --notes "Scopus, IEEE"` | `GET /api/v1/reviews/{id}/checklist` · `PUT …/checklist/{key}` |

@@ -898,3 +898,30 @@ listed by description) and a listbox for a UI.
 **Consequences.** Migration `reviews.0059`. The analytics' `key` of a
 criterion or quality question is now its code (EC1, QA1).
 
+## Classification facets removed: studies are classified with the extraction form
+
+**Context.** Phase 7 added classification facets (Petersen et al. 2015 §5.1.3)
+as entities of their own: a facet with categories, a classification per study,
+frequencies and a facet × facet matrix. They had no web screens, so an agent
+could build a form the reviewer did not see: in a rapid review (2026-11-26) an
+agent split the extraction form into fields and facets, and Helder found only
+the fields on the web. He noted that a facet is a choice field whose options
+grow while reading, and that how a study is classified and how the result is
+analysed is the reviewer's interpretation, not something Parsifal should
+shape.
+
+**Decision.**
+- The facets go: model, service, API, CLI and MCP operations, report sections
+  and the facet analytics. A study is classified with a single or multiple
+  choice field of the data extraction form; its value needs evidence like any
+  other.
+- No conversion of the existing facets: the agent driving the review creates
+  the fields it needs (Helder's choice). Migration `reviews.0060` drops the
+  tables.
+- The usual schemes (research type, contribution type, research method, venue
+  type, study focus) stay in the in-app docs as suggestions, not templates.
+- Old backups that hold facets still import; the facets are left out.
+
+**Consequences.** Every feature is again in all four interfaces. *Data
+Analysis* counts the studies per option; a cross of two fields is drawn from
+the extraction export with the reviewer's own tools.

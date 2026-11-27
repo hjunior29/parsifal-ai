@@ -49,7 +49,7 @@ PAGES = (
         "classification",
         "Classification and search evaluation",
         "Methodology",
-        "Optional steps: facets, test set, checklist — what a mapping study uses.",
+        "Optional steps: classifying with the extraction form, test set, checklist — what a mapping study uses.",
     ),
     Page(
         "multi-reviewer",

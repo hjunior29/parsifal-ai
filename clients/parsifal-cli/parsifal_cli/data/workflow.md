@@ -28,9 +28,9 @@ parsifal me
    `quality answer suggested --review R` (Yes/Partially/No), `quality set-cutoff --review R --cutoff 1.5`
 9. Extraction form: `extraction field create --review R --description "Method" --field-type O --lookup-values "Case study" --lookup-values Survey`
    Field types: B boolean, S string, F float, I integer, D date (MM/DD/YYYY), O select one, M select many.
-10. Optional — classification facets (what a mapping study uses instead of detailed extraction):
-    `facet create --review R --template research_type` (also research_method, venue_type, study_focus,
-    contribution_type) or `facet create --review R --name Topic --multiple --categories A --categories B`.
+10. Optional — classification (what a mapping study uses instead of detailed extraction): a choice field per
+    scheme, its categories as the options: `extraction field create --review R --description "Research type"
+    --field-type O --lookup-values "Evaluation research" --lookup-values "Solution proposal"` (M for several).
 11. Optional — procedures: `review update --review R --selection-procedure @sel.txt --synthesis-strategy @syn.txt --validity-threats @val.txt`;
     known papers to evaluate the search: `test-set add --review R --title "..." --doi ...`.
 
@@ -73,15 +73,15 @@ parsifal me
    previous) with `article pdf upload --review R --article A --file paper.pdf`.
 5. Quality assessment (accepted articles): `quality assess --review R --article A --question-id Q --answer-id ANS`;
    `quality summary --review R` shows scores against the cutoff. Final selection = accepted AND score > cutoff.
-6. Data extraction (final selection): `extraction set --review R --article A --field-id F --value "..."`
-   (`--values id --values id` for select-many), then `extraction done --review R --article A`.
-   If the review has facets, classify too: `classification set --review R --article A --facet-id F --category-ids C`.
+6. Data extraction (final selection): `extraction set --review R --article A --field-id F --value "..." --evidence "..."`
+   (`--values id --values id` for select-many), then `extraction done --review R --article A` (every value needs
+   its evidence).
 7. Optional — process checklist (Petersen): `checklist set --review R --key search_database --applied --notes "..."`.
 
 ## 3. Analysis and reporting
 
 - `analytics selection-by-source --review R`, `analytics final-by-year --review R`
-- With facets: `analytics facet-frequencies --review R --facet F`, `analytics facet-matrix --review R --rows F1 --columns F2` (bubble plot)
+- `analytics extraction --review R` (studies per option of each choice field)
 - `export articles --review R --format csv -o articles.csv`
 - `export extraction --review R --format json -o extraction.json`
 - `export report --review R -o report.docx` (`--sections name,picoc,research_questions,...`)

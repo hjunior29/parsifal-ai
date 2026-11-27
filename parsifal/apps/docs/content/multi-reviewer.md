@@ -93,6 +93,6 @@ reviewers you choose; see [Exclude, include and screen with AI](/docs/ai-screeni
 
 ## Where else the reviewer is recorded
 
-Quality assessment answers, extracted values and classifications store the
-user who entered them, so an agent's work can always be told apart from a
-human's, even where there is a single consolidated value.
+Quality assessment answers and extracted values store the user who entered
+them, so an agent's work can always be told apart from a human's, even where
+there is a single consolidated value.

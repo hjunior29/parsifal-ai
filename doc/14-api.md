@@ -139,15 +139,10 @@ The study's full text: one PDF per study, any status, up to `PARSIFAL_PDF_MAX_MB
 else is a 422 on `file`. Uploading again replaces it; the status and `updated_by` are untouched. Every article
 carries `pdf` (that object, or `null`); 404 when downloading or deleting a PDF that does not exist.
 
-### Classification, search documentation, test set, checklist (optional for any review; phase 7)
+### Search documentation, test set, checklist (optional for any review; phase 7)
 
 | Method & path | operationId |
 |---------------|-------------|
-| `GET /facets/templates` | `facet_templates` — research_type, contribution_type, research_method, venue_type, study_focus |
-| `GET/POST /reviews/{rid}/facets` (`{template}` or `{name, kind, multiple, categories[]}`) · `PATCH/DELETE /facets/{id}` · `PUT /facets/order` | `facets_*` |
-| `POST /reviews/{rid}/facets/{fid}/categories` · `PATCH/DELETE /categories/{id}` · `PUT /categories/order` | `categories_*` |
-| `GET /reviews/{rid}/articles/{aid}/classification` · `PUT {facet_id, category_ids[], notes}` | `article_classification_*` (set semantics; single-choice facets accept one id) |
-| `GET /reviews/{rid}/analytics/facets/{fid}/frequencies` · `GET /analytics/facet-matrix?rows=&columns=` | `analytics_facet_frequencies` · `analytics_facet_matrix` (bubble-plot cells) |
 | `GET/POST /reviews/{rid}/test-set` · `PATCH/DELETE /test-set/{id}` · `POST /test-set/match` | `test_set_*` — known papers, matched by DOI or normalised title; `recall` = found/total |
 | `GET /reviews/{rid}/checklist?catalog=petersen|rapid` · `PUT /checklist/{key} {applied, notes}` | `checklist_*` — Petersen et al. (2015) Table 8 actions (`petersen`, the default), or the rapid review checklist (`rapid`, rapid reviews only, 422 otherwise: the collaboration with practitioners and the concessions, `rr_*` keys, each with its `threat`; `notes` is the justification; a change is a Planning event, an amendment once studies exist) |
 | `PATCH /reviews/{rid}/sources/{sid}/search {search_type, searched_at, years_from, years_to, result_count}` | `source_search_update` — search documentation (K 6.1.4); only the fields sent change, null (or `""` for the date) clears one |
@@ -158,9 +153,9 @@ reviews, the practical context: `demand` (practitioners, agenda, prospected,
 organisation, other), `demand_notes`, `practical_problem`, `practical_context`,
 `stakeholder_roles`, `started_on`, `deadline` (YYYY-MM-DD; `""` clears; the
 deadline cannot come before the start); `ArticleOut` carries `found_via_id`.
-The DOCX report accepts the extra sections `classification_scheme`,
-`selection_procedure`, `synthesis_strategy`, `validity_threats`, `test_set`,
-`search_documentation`, `classification_results`, `process_checklist`,
+The DOCX report accepts the extra sections `selection_procedure`,
+`synthesis_strategy`, `validity_threats`, `test_set`, `search_documentation`,
+`process_checklist`,
 `threats`, and for rapid reviews `practical_context` and `rapid_checklist`; its
 `quality_assessment` / `data_extraction` / `data_analysis` sections now have
 content.

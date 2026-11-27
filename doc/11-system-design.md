@@ -167,7 +167,7 @@ Rules:
 | `/reviews/{id}/analytics/selection-by-source`, `/analytics/final-by-year` | GET | JSON instead of text |
 | `/reviews/{id}/export/articles.{csv,xlsx,json}`, `/export/extraction.{csv,xlsx,json}`, `/export/report.docx?sections=` | GET | |
 | `/library/documents`, `/library/folders` | CRUD, import | v1.1 |
-| `*` reserved for phase 7–8 | `/reviews/{id}/facets`, `/articles/{aid}/classification`, `/decisions`, `/agreement`, `/test-set`, `/checklist` | see [10-methodology.md](10-methodology.md) |
+| `*` reserved for phase 7–8 | `/decisions`, `/agreement`, `/test-set`, `/checklist` | see [10-methodology.md](10-methodology.md) |
 
 ## 6. CLI (`clients/parsifal-cli/`) — implemented in phase 4 (see [15-cli-and-mcp.md](15-cli-and-mcp.md))
 

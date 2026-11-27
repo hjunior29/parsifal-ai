@@ -38,7 +38,7 @@ parameters in kebab-case; `--review` accepts a numeric id or `author/slug`.
 | `review` | `list`, `create`, `get`, `overview`, `progress`, `update`, `delete`, `rename`, `reset-selection`, `import --file` (a new review from a review backup); `review backup list|create|upload|download|restore|delete` |
 | `member` | `list` |
 | `history` | `list` (every change to the review; `--area`, `--action`, `--actor`, `--via`, `--article-id`, `--since`, `--until`, `--q`, `--amendments`) |
-| `agent` | `list`, `create`, `new-token`, `delete` (permanent: account, tokens, decisions, quality assessments and extracted data; imported studies and classifications stay) |
+| `agent` | `list`, `create`, `new-token`, `delete` (permanent: account, tokens, decisions, quality assessments and extracted data; imported studies stay) |
 | `question`, `keyword`, `criteria` | `list`, `create`, `update`, `delete` (+ `reorder`, `import-picoc`); each with its code (see [Codes](/docs/codes/)) |
 | `review codes` | `get` (the prefixes and the codes typed by hand in the names), `strip [--keys …]` |
 | `search-string` | `get`, `set`, `generate` |
@@ -48,9 +48,9 @@ parameters in kebab-case; `--review` accepts a numeric id or `author/slug`.
 | `manuscript` | `list`, `create`, `update`, `delete`; `version upload --file [--notes]`, `version download -o FILE`, `version delete` |
 | `extraction` | `field …`, `get`, `set` (`--evidence`), `evidence`, `done`, `studies` |
 | `article` | `list`, `create`, `get`, `update`, `delete`, `set-status`, `import`, `import-file` (both take `--searched-at`, the source's date of search), `duplicates`, `resolve-duplicates`, `delete-batch`, `clear`, `star`/`unstar` (`--article`; `list --starred` shows the starred ones); `article pdf upload|download|delete` (the study's PDF: `--article`, `--file` / `-o FILE`) |
-| `facet`, `classification`, `test-set`, `checklist` | optional classification steps — see [Classification and search evaluation](/docs/classification/) |
+| `test-set`, `checklist` | optional steps — see [Classification and search evaluation](/docs/classification/) |
 | `decision` | `list`, `record`, `remove-mine`, `article`, `summary`, `agreement`, `disagreements`, `consolidate` |
-| `analytics` | `selection-by-source`, `final-by-year`, `selection-summary` (per status, duplicates vs imported, accepted vs not duplicated, per source), `criteria-usage` (criteria by the studies rejected or accepted with them), `studies-by-year` (per year and status), `quality` (studies assessed, scores, answers per question), `extraction` (studies per option of each choice field), `prisma` (the PRISMA 2020 flow diagram in numbers), `funnel` (rapid reviews: the selection round by round), `prisma-settings --not-retrieved-criteria-id` (0: none), `facet-frequencies`, `facet-matrix` |
+| `analytics` | `selection-by-source`, `final-by-year`, `selection-summary` (per status, duplicates vs imported, accepted vs not duplicated, per source), `criteria-usage` (criteria by the studies rejected or accepted with them), `studies-by-year` (per year and status), `quality` (studies assessed, scores, answers per question), `extraction` (studies per option of each choice field), `prisma` (the PRISMA 2020 flow diagram in numbers), `funnel` (rapid reviews: the selection round by round), `prisma-settings --not-retrieved-criteria-id` (0: none) |
 | `export` | `articles`, `extraction`, `report` (all take `-o FILE`) |
 | `integration jev` | `show`, `set`, `test`, `remove` |
 | `integration library-access` | `show`, `set --address URL`, `remove` — your library proxy (e.g. CAPES), so studies carry `access_url`; see [Open studies through CAPES](/docs/library-access/) |

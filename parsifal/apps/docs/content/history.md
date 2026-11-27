@@ -40,12 +40,12 @@ only the changes to that study.
 | Area | Changes |
 |------|---------|
 | Review | Creating the review (also from a backup); its title, description, URL and type; co-authors removed or leaving; AI agents added, given a new token or deleted; backups made, added, restored or deleted |
-| Planning | The objective, the PICOC and the other protocol fields; research questions, keywords and their synonyms, the search string, sources (removing one lists the studies that went with it), inclusion and exclusion criteria and how they combine; the quality assessment questions, answers and cutoff score; the data extraction fields, their type and options; the classification facets and categories. Reordering a list is a change too. |
+| Planning | The objective, the PICOC and the other protocol fields; research questions, keywords and their synonyms, the search string, sources (removing one lists the studies that went with it), inclusion and exclusion criteria and how they combine; the quality assessment questions, answers and cutoff score; the data extraction fields, their type and options. Reordering a list is a change too. |
 | Search | The search string of each source; its search documentation (date of search, years, number of results); the known studies of the test set |
 | Studies | Imports (the studies imported, from which source); studies added, edited, deleted (one by one, in bulk or a source cleared; their titles stay in the History); PDFs added, replaced or removed; stars |
 | Study selection | The status of a study (one or many at once, with how many had each status before) and its criterion; duplicates marked; each reviewer's decisions and their consolidation; the AI screening runs — started (with the criteria sent), finished (with what they decided and the studies they changed), discarded or undone, one change per run and not per study; resetting the study selection |
 | Quality assessment | Each answer given or cleared, per study and question |
-| Data extraction | Each value extracted and its evidence, per study and field (before and after); a study's extraction marked done or not; its classification in each facet |
+| Data extraction | Each value extracted and its evidence, per study and field (before and after); a study's extraction marked done or not |
 | Data analysis | The criterion of the reports not retrieved in the PRISMA flow diagram |
 | Reporting | The threats to validity added, changed or removed; the manuscripts added, changed or deleted and their versions uploaded or deleted (never an amendment: they are not the protocol) |
 | Review (process) | The actions of the process checklist marked as applied, and their notes |

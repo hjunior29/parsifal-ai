@@ -81,6 +81,11 @@ tool, with where Parsifal stands:
 
 ### 2.3 Standard classification facets to ship as templates
 
+> Superseded on 2026-11-27: the facets were removed (see `doc/decisions.md`,
+> "Classification facets removed"). These schemes are now suggestions for the
+> choice fields of the extraction form (in-app docs, *Classification and search
+> evaluation*).
+
 - **Research type** (Wieringa et al., used by P): evaluation research,
   validation research, solution proposal, philosophical paper, experience
   report, opinion paper.
@@ -174,7 +179,7 @@ per-year per-facet; QA score distribution; inter-rater agreement per stage.
 Status: phase 7 implemented `review_type`, the protocol text fields, search
 documentation, `Article.found_via`, facets/categories/classifications (with
 `multiple` per facet instead of a per-user uniqueness), the test set and the
-process checklist — see `reviews/services/classification.py`,
+process checklist (the facets were removed on 2026-11-27) — see
 `reviews/services/mapping.py`, the `mapping` API router and
 [14-api.md](14-api.md). Phase 8 added `StudyDecision` (per reviewer and
 stage), Cohen's kappa, disagreement listing and consolidation rules — see

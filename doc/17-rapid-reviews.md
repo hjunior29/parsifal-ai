@@ -52,7 +52,7 @@ There is one workflow. `Review.review_type` (`slr` | `mapping`,
   `core/templates/core/home.html:29`;
 - the type paragraph of the .docx (`reporting/export.py:11`).
 
-Nothing is gated by it. The mapping additions (facets, test set, Petersen
+Nothing is gated by it. The mapping additions (test set, Petersen
 checklist, search documentation) are optional for any review, and most have
 no web UI.
 
