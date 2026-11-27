@@ -3,7 +3,7 @@ from django.test import Client
 from parsifal.api.tests.base import API, ApiTestCase
 from parsifal.apps.accounts.models import ApiToken
 from parsifal.apps.authentication.tests.factories import UserFactory
-from parsifal.apps.reviews.tests.factories import ArticleFactory
+from parsifal.apps.reviews.tests.factories import ArticleFactory, SourceFactory
 
 
 class TestAuthentication(ApiTestCase):
@@ -169,6 +169,18 @@ class TestLibraryAccess(ApiTestCase):
         self.assertEqual(204, self.api("delete", "/integrations/library-access").status_code)
         self.assertFalse(self.api("get", "/integrations/library-access").json()["configured"])
         self.assertIsNone(self.api("get", article_path).json()["access_url"])
+
+    def test_the_sources_access_url(self):
+        scopus = SourceFactory(name="Scopus", url="http://www.scopus.com")
+        self.review.sources.add(scopus)
+        sources_path = self.review_path("/sources")
+        listed = {item["name"]: item["access_url"] for item in self.api("get", sources_path).json()}
+        self.assertIsNone(listed["Scopus"])
+
+        self.api("put", "/integrations/library-access", {"address": self.PROXY})
+        listed = {item["name"]: item["access_url"] for item in self.api("get", sources_path).json()}
+        self.assertEqual(f"https://www-scopus-com.{self.PROXY}/", listed["Scopus"])
+        self.assertIsNone(listed[self.source.name])  # an address with hyphens cannot go through it
 
 
 class TestStudyColumns(ApiTestCase):

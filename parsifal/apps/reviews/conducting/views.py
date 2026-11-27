@@ -56,14 +56,21 @@ def conducting(request, username, review_name):
 @author_required
 @login_required
 def search_studies(request, username, review_name):
-    review = get_object_or_404(Review, name=review_name, author__username__iexact=username)
-    sessions = review.get_latest_source_search_strings()
+    """
+    Search: the base search string and the string of each source, each to copy, with the links that open the source
+    (also through the user's library proxy, Settings → Library access).
+    """
+    review = request.review
+    sessions = review.get_latest_source_search_strings().select_related("source")
     add_sources = review.sources.exclude(id__in=sessions.values("source__id"))
-    return render(
-        request,
-        "conducting/conducting_search_studies.html",
-        {"review": review, "add_sources": add_sources},
-    )
+    proxy = integrations.library_proxy_address(request.user)
+    context = {
+        "review": review,
+        "add_sources": add_sources,
+        "source_strings": [(session, session.source.access_url(proxy)) for session in sessions],
+        "access_label": library_proxy.label(proxy) if proxy else "",
+    }
+    return render(request, "conducting/conducting_search_studies.html", context)
 
 
 @author_required

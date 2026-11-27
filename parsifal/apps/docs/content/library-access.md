@@ -6,6 +6,10 @@ institution's access, the same way the CAPES *Portal de Periódicos* does when
 you are signed in through **Acesso CAFe**: no paywall for what your institution
 subscribes to.
 
+On **Conducting → Search**, each source's search string has the same pair of
+links: *Open Scopus* opens the source's own site, and **Via CAPES** opens it
+with your institution's access, to run the search there signed in.
+
 Parsifal never signs in to CAPES and never sees your login. It only writes the
 link; your browser, already signed in, does the rest.
 
@@ -71,6 +75,10 @@ co-author at another institution uses theirs, or none.
 - **A journal your institution does not subscribe to**: the publisher's page
   opens without access, as with *External Link*.
 
+A source opens at its address as saved in the protocol (`www.scopus.com`
+becomes `www-scopus-com.ezNN…`). A site the proxy does not serve shows the
+proxy's error page instead; an open one needs no proxy: use *Open* for it.
+
 No link is shown for a study with neither a DOI nor a URL, nor for one without
 a DOI whose URL's address has hyphens of its own (how CAPES rewrites those is
 not documented, so Parsifal gives no link rather than a wrong one).
@@ -94,6 +102,6 @@ link is called **Via proxy**.
 
 | Interface | Usage | Notes |
 |-----------|-------|-------|
-| API | `GET`, `PUT {address}` and `DELETE /api/v1/integrations/library-access` | Every study returned by the API includes `access_url` (`null` without a proxy) |
-| CLI | `parsifal integration library-access show` · `set --address "https://…"` · `remove` | `parsifal article get` shows `access_url` |
+| API | `GET`, `PUT {address}` and `DELETE /api/v1/integrations/library-access` | Every study and every source returned by the API includes `access_url` (`null` without a proxy) |
+| CLI | `parsifal integration library-access show` · `set --address "https://…"` · `remove` | `parsifal article get` and `parsifal source list` show `access_url` |
 | MCP | `parsifal_library_access_get`, `parsifal_library_access_set`, `parsifal_library_access_delete` | Manages the authenticated user's proxy |

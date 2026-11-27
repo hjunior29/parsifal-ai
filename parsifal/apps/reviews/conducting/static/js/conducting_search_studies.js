@@ -45,6 +45,20 @@ $(function () {
         });
     });
 
+    /* Copy a search string: the base string as saved, a source's as it is in its box (saved or not). */
+    $(".js-copy-string").click(function () {
+        var btn = $(this);
+        var label = $(".js-copy-label", btn);
+        var text = btn.is("[data-copy-from]") ? $(btn.attr("data-copy-from")).val() : btn.attr("data-text");
+        $.parsifal.copyText(text).then(function () {
+            label.text("Copied");
+        }, function () {
+            label.text("Copy failed: select it");
+        }).then(function () {
+            setTimeout(function () { label.text("Copy"); }, 2000);
+        });
+    });
+
     $(".js-remove-source-string").click(function () {
         $(this).ajaxDisable();
         var form = $(this).closest("form");

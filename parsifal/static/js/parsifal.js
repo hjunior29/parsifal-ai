@@ -189,6 +189,23 @@
       return "Request failed" + (xhr.status ? " (" + xhr.status + " " + xhr.statusText + ")" : "") + ".";
     },
 
+    /* Copy text to the clipboard: a promise, resolved once copied. Browsers refuse the clipboard API outside a secure
+       context (a server reached over plain http) or without permission; the text is then copied the older way,
+       selected in a hidden box put in ``container`` (the open modal, where the focus is kept; the page otherwise). */
+    copyText: function (text, container) {
+      function bySelecting() {
+        var $area = $("<textarea>").val(text).css({position: "fixed", top: 0, left: 0, opacity: 0});
+        $area.appendTo(container || document.body);
+        $area[0].select();
+        var copied = false;
+        try { copied = document.execCommand("copy"); } catch (error) { copied = false; }
+        $area.remove();
+        return copied ? Promise.resolve() : Promise.reject();
+      }
+      if (!navigator.clipboard) { return bySelecting(); }
+      return navigator.clipboard.writeText(text).catch(bySelecting);
+    },
+
     /* Helper functions */
 
     pageLoading: function () {

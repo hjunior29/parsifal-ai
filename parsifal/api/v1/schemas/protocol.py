@@ -3,6 +3,7 @@ from datetime import date
 from ninja import Schema
 
 from parsifal.api.v1.schemas.common import OptionalDate, resolve_code
+from parsifal.apps.accounts import services as integrations
 
 
 class QuestionOut(Schema):
@@ -60,6 +61,18 @@ class SourceOut(Schema):
     name: str
     url: str
     is_default: bool
+    # The source through your library proxy (Settings → Library access), to search it with your institution's
+    # access; null without one.
+    access_url: str | None = None
+
+    @staticmethod
+    def resolve_access_url(obj, context):
+        request = (context or {}).get("request")
+        if request is None:
+            return None
+        if not hasattr(request, "library_proxy"):  # once per request, however many sources are listed
+            request.library_proxy = integrations.library_proxy_address(request.auth)
+        return obj.access_url(request.library_proxy)
 
 
 class SourceAddIn(Schema):

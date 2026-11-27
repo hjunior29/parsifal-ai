@@ -168,28 +168,13 @@ $(function () {
     });
   });
 
-  // The older way, for browsers that refuse the clipboard API (no secure context, no permission).
-  function copyBySelecting(text) {
-    var $area = $("<textarea>").val(text).css({position: "fixed", top: 0, left: 0, opacity: 0}).appendTo($modal);
-    $area[0].select();
-    var copied = false;
-    try { copied = document.execCommand("copy"); } catch (error) { copied = false; }
-    $area.remove();
-    return copied ? Promise.resolve() : Promise.reject();
-  }
-
-  function copyText(text) {
-    if (!navigator.clipboard) { return copyBySelecting(text); }
-    return navigator.clipboard.writeText(text).catch(function () { return copyBySelecting(text); });
-  }
-
   // What the playground of Jev takes in its two fields.
   $modal.on("click", ".js-ai-copy", function () {
     var $button = $(this);
     if (!preview) { return; }
     var label = $button.data("label") || $button.text();
     $button.data("label", label);
-    copyText(JSON.stringify(preview[$button.data("part")], null, 2)).then(function () {
+    $.parsifal.copyText(JSON.stringify(preview[$button.data("part")], null, 2), $modal).then(function () {
       $button.text("Copied");
     }, function () {
       $button.text("Copy failed: select it below");

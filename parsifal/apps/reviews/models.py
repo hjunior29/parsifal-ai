@@ -35,6 +35,31 @@ class Source(models.Model):
         else:
             self.url = value
 
+    @property
+    def home_url(self):
+        """
+        The source's address as a link (Conducting → Search): https:// added when it was saved without a scheme;
+        None when there is none, or it is not a web address.
+        """
+        url = (self.url or "").strip()
+        if url and "://" not in url:
+            url = f"https://{url}"
+        try:
+            return url if urlsplit(url).scheme.lower() in ("http", "https") else None
+        except ValueError:
+            return None
+
+    def access_url(self, proxy):
+        """
+        The source's address through the user's library proxy (Settings → Library access; ``core.library_proxy``),
+        as ``Article.access_url`` does for a study; None without a proxy or when the address cannot go through it.
+        """
+        from parsifal.apps.core import library_proxy
+
+        if not proxy or not self.home_url:
+            return None
+        return library_proxy.proxied(self.home_url, proxy)
+
 
 class Review(models.Model):
     UNPUBLISHED = "U"

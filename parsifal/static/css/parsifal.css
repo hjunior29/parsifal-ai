@@ -795,6 +795,24 @@ div.list-group.docs-nav a.list-group-item.active .docs-summary { color: #8a6f5c;
 }
 
 
+/* Search (Conducting): over each search string, the links to its source and the button that copies it. */
+.search-string-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+
+.search-string-links a + a {
+  margin-left: 16px;
+}
+
+.search-string-toolbar .btn {
+  margin-left: auto;
+}
+
 /* Known studies (Import Studies): the test set that evaluates the search, each with whether it was imported. */
 .known-studies-recall {
   padding-top: 10px;

@@ -3,7 +3,7 @@ from pathlib import Path
 from django.test import TestCase
 
 from parsifal.apps.core.exceptions import NotFound, ValidationError
-from parsifal.apps.reviews.models import Article
+from parsifal.apps.reviews.models import Article, Source
 from parsifal.apps.reviews.services import studies, study_columns
 from parsifal.apps.reviews.tests.factories import (
     ArticleFactory,
@@ -352,6 +352,21 @@ class TestDuplicates(TestCase):
             with self.subTest(url=url, doi=doi):
                 self.assertEqual(expected, Article(url=url, doi=doi).access_url(proxy))
         self.assertIsNone(Article(url="https://example.org/1", doi="10.1/x").access_url(None))
+
+    def test_a_source_opens_directly_and_through_the_proxy(self):
+        proxy = "ez99.periodicos.capes.gov.br"
+        cases = [
+            ("http://www.scopus.com", "http://www.scopus.com", f"https://www-scopus-com.{proxy}/"),
+            ("arxiv.org", "https://arxiv.org", f"https://arxiv-org.{proxy}/"),
+            ("https://www.e-periodica.ch", "https://www.e-periodica.ch", None),
+            ("javascript://%0aalert(1)", None, None),
+            ("", None, None),
+        ]
+        for url, home, access in cases:
+            with self.subTest(url=url):
+                source = Source(name="S", url=url)
+                self.assertEqual((home, access), (source.home_url, source.access_url(proxy)))
+        self.assertIsNone(Source(name="S", url="https://www.scopus.com").access_url(None))
 
     def test_wos_and_scopus_dois_differing_by_an_escape_are_duplicates(self):
         review = ReviewFactory(sources=[self.source])

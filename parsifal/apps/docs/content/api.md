@@ -24,7 +24,7 @@ document at `/api/v1/openapi.json`.
 
 | Resource | Paths |
 |----------|-------|
-| Account | `/me` (GET, PATCH), `/tokens`, `/users` (administrators), `/sources/defaults`, `/integrations/library-access` (GET, PUT, DELETE: your library proxy, e.g. CAPES; studies then carry `access_url` — see [Open studies through CAPES](/docs/library-access/)) |
+| Account | `/me` (GET, PATCH), `/tokens`, `/users` (administrators), `/sources/defaults`, `/integrations/library-access` (GET, PUT, DELETE: your library proxy, e.g. CAPES; studies and sources then carry `access_url` — see [Open studies through CAPES](/docs/library-access/)) |
 | Reviews | `/reviews`, `/reviews/{id}`, `/overview`, `/progress` (how far the review has come, step by step), `/name`, `/members`, `/selection/reset` (back to the start of study selection; main author), `/history` (every change to the review, paged, with filters — see [History of a review](/docs/history/)) |
 | Protocol | `/questions`, `/keywords` (+ `/import-picoc`), `/search-string` (+ `/generate`), `/sources` (+ `/imports`: the studies imported from each source and its date of search; `/search-strings`, `/{id}/search-string`, `/{id}/search`), `/criteria` (+ `/order`), each research question, criterion, quality question and extraction field with its `code` (see [Codes](/docs/codes/)); `/reviews/{id}/codes` (+ `/strip`) |
 | Quality assessment | `/quality/questions`, `/quality/answers` (+ `/suggested`), `/quality/max-score`, `/quality/cutoff`, `/quality/summary`, `/quality/studies` (searched, filtered, paged), `/articles/{id}/quality` (no `answer_id`: clear the answer) |

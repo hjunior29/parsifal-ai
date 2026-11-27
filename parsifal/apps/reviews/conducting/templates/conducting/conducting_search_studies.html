@@ -4,7 +4,7 @@
 
 {% block javascript %}
   {% compress js %}
-    <script src="{% static 'js/conducting_search_studies.js' %}"></script>
+    <script src="{% static 'js/conducting_search_studies.js' %}?_=2"></script>
   {% endcompress %}
 {% endblock javascript %}
 
@@ -97,7 +97,7 @@
 
       <ul class="nav nav-tabs" role="tablist" id="source-search-strings">
         <li role="presentation" class="active"><a href="#base" aria-controls="base" role="tab" data-toggle="tab">Base String</a></li>
-        {% for search_session in review.get_latest_source_search_strings  %}
+        {% for search_session, access_url in source_strings %}
           <li role="presentation"><a href="#source_{{ search_session.source.pk }}" aria-controls="source_{{ search_session.source.pk }}" role="tab" data-toggle="tab">{{ search_session.source.name }}</a></li>
         {% endfor %}
       </ul>
@@ -105,20 +105,46 @@
         <div role="tabpanel" class="tab-pane active" id="base">
           {% with search_string=review.get_generic_search_string %}
             {% if search_string.search_string %}
-              <pre><code>{{ review.get_generic_search_string.search_string_as_html|safe }}</code></pre>
+              <div class="search-string-toolbar">
+                <small class="text-muted">The review's search string, edited in the <a href="{% url 'planning' review.author.username review.name %}#search-string-section">planning tab</a>.</small>
+                <button type="button" class="btn btn-default btn-sm js-copy-string" data-text="{{ search_string.search_string }}" title="Copy the search string">
+                  <span class="glyphicon glyphicon-copy"></span> <span class="js-copy-label">Copy</span>
+                </button>
+              </div>
+              <pre><code>{{ search_string.search_string_as_html|safe }}</code></pre>
             {% else %}
               <em class="text-muted">No provided search string. Please visit the <a href="{% url 'planning' review.author.username review.name %}#search-string-section">planning tab</a> and create one.</em>
             {% endif %}
           {% endwith %}
         </div>
-        {% for search_session in review.get_latest_source_search_strings  %}
+        {% for search_session, access_url in source_strings %}
           <div role="tabpanel" class="tab-pane" id="source_{{ search_session.source.pk }}">
+            {% with source=search_session.source %}
+              {# The source itself, to run the search there: directly, and through the user's library proxy (Settings → Library access). #}
+              <div class="search-string-toolbar">
+                <span class="search-string-links">
+                  {% if source.home_url %}
+                    <a href="{{ source.home_url }}" target="_blank" rel="noopener" title="Opens {{ source.name }} in a new tab">
+                      <span class="glyphicon glyphicon-new-window"></span> Open {{ source.name }}
+                    </a>
+                  {% endif %}
+                  {% if access_url %}
+                    <a href="{{ access_url }}" target="_blank" rel="noopener" title="Opens {{ source.name }} through your institution's access (Settings → Library access). Not signed in? You are asked to sign in first.">
+                      <span class="glyphicon glyphicon-lock"></span> {{ access_label }}
+                    </a>
+                  {% endif %}
+                </span>
+                <button type="button" class="btn btn-default btn-sm js-copy-string" data-copy-from="#search-string-{{ source.pk }}" title="Copy the search string of {{ source.name }}, as it is in the box">
+                  <span class="glyphicon glyphicon-copy"></span> <span class="js-copy-label">Copy</span>
+                </button>
+              </div>
+            {% endwith %}
             <form method="post">
               {% csrf_token %}
               <input type="hidden" name="review-id" value="{{ review.id }}">
               <input type="hidden" name="source-id" value="{{ search_session.source.pk }}">
               <div class="form-group">
-                <textarea name="search_string" class="form-control expanding" rows="4" autocomplete="off" maxlength="10000">{{ search_session.search_string }}</textarea>
+                <textarea name="search_string" id="search-string-{{ search_session.source.pk }}" class="form-control expanding" rows="4" autocomplete="off" maxlength="10000" aria-label="Search string of {{ search_session.source.name }}">{{ search_session.search_string }}</textarea>
               </div>
               <div class="form-group">
                 <button type="button" class="btn btn-sm btn-danger pull-right js-remove-source-string" data-remote="{% url 'reviews:conducting:remove_source_string' %}">

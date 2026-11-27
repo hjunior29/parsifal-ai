@@ -257,6 +257,7 @@ group and marks the rest `D`.
 - `accounts.LibraryAccess(user 1:1, proxy, updated_at)`: the address of the user's library proxy, such as their
   institution's CAPES access (`ezNN.periodicos.capes.gov.br`). The study window's *Via CAPES* and the API's
   `access_url` are `Article.access_url(proxy)`: the DOI, else the URL, through the proxy (`core/library_proxy.py`).
+  `Source.access_url(proxy)` does the same for a source's address (`Source.home_url`), linked on *Search*.
   Only the address is kept; the sign-in (CAFe) stays in the user's browser.
 
 ## People and collaboration
