@@ -119,11 +119,12 @@ class ScreeningStartSettingsOut(Schema):
 
 class ScreeningSetupOut(Schema):
     phase: str  # what the rest describes: exclusion, inclusion or screen
-    configured: bool  # whether you have a Jev API key
-    model: str | None  # your default model
-    models: list[JevModelOut]  # as listed by Jev for your key, asked now
+    configured: bool  # whether the main author has a Jev API key: the review's runs use it, whoever starts them
+    key_owner: str  # the main author's username, whose key and default model the runs use
+    model: str | None  # the main author's default model
+    models: list[JevModelOut]  # as listed by Jev for that key, asked now
     models_error: str  # why the list is empty, when Jev could not be asked
-    reviewers: list[ScreeningReviewerOut]  # who you may screen as (the main author: anyone in the review)
+    reviewers: list[ScreeningReviewerOut]  # who you may screen as: anyone in the review
     unfinished_run: ScreeningRunOut | None  # a run left half-way: step it to continue, or start a new one
     unfinished_run_active: bool  # a step ran in the last seconds: something is driving it right now
     # Every setting a run starts from: those of the review's last run of the action, or Parsifal's defaults with

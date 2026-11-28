@@ -250,10 +250,10 @@ SCREENING_RUN_DESCRIPTION = (
     "threshold is reached (even if the inclusion criteria are met), else 'accepted' when the inclusion criteria are "
     "met, else 'unclassified'. Only unclassified studies and those this reviewer classified change status, so two "
     "reviewers can screen the same studies and be compared (parsifal_decisions_agreement). Uses the Jev API key of "
-    "the token's user (parsifal_jev_integration_set). If the result says it is still running, call again with "
-    "run_id. Before starting, parsifal_ai_screening_impact says whether the run would rewrite the reviewer's "
-    "decisions; a run started by mistake is undone with parsifal_ai_screening_undo while it is the latest run (see "
-    "parsifal_ai_screening_undo_preview)."
+    "the review's main author, whoever calls it (key_owner in parsifal_ai_screening_setup). If the result says it is "
+    "still running, call again with run_id. Before starting, parsifal_ai_screening_impact says whether the run "
+    "would rewrite the reviewer's decisions; a run started by mistake is undone with parsifal_ai_screening_undo "
+    "while it is the latest run (see parsifal_ai_screening_undo_preview)."
 )
 
 

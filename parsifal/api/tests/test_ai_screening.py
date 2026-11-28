@@ -143,8 +143,13 @@ class TestAiScreeningApi(AiScreeningApiBase):
         self.assertEqual((MODELS, ""), (body["models"], body["models_error"]))
         self.assertEqual({self.author.pk, self.co_author.pk}, {reviewer["id"] for reviewer in body["reviewers"]})
 
+        self.assertEqual(self.author.username, body["key_owner"])
+        # A co-author without a key of their own: the main author's, which the review's runs use.
         other = self.api("get", self.review_path("/ai-screening"), client=self.client_for(self.co_author)).json()
-        self.assertEqual((False, None, []), (other["configured"], other["model"], other["models"]))
+        self.assertEqual(
+            (True, self.author.username, "jev-1.13.0", MODELS),
+            (other["configured"], other["key_owner"], other["model"], other["models"]),
+        )
         self.assertEqual(  # anyone in the review, for any member
             {self.author.pk, self.co_author.pk}, {reviewer["id"] for reviewer in other["reviewers"]}
         )
@@ -237,6 +242,23 @@ class TestAiScreeningApi(AiScreeningApiBase):
             )
             self.assertIsNotNone(detail["finished_at"])
 
+    def test_the_main_authors_key_whoever_starts_the_run(self):
+        start = self.review_path("/ai-screening/runs")
+        co_author = self.client_for(self.co_author)  # no key of their own
+        run = self.api("post", start, {"reviewer_id": self.co_author.pk}, client=co_author).json()
+        with mock.patch.object(jev, "evaluate", side_effect=[answer(0.1, 0.9), answer(0.1, 0.9)]) as evaluate:
+            self.api("post", self.review_path(f"/ai-screening/runs/{run['id']}/step"), {}, client=co_author)
+        self.assertEqual({KEY}, {call.args[0] for call in evaluate.call_args_list})
+
+        Integration.objects.filter(user=self.author).delete()
+        setup = self.api("get", self.review_path("/ai-screening"), client=co_author).json()
+        self.assertEqual((False, self.author.username), (setup["configured"], setup["key_owner"]))
+        no_key = self.api("post", start, {"reviewer_id": self.co_author.pk}, client=co_author)
+        self.assertEqual(422, no_key.status_code)
+        self.assertIn("the Jev API key of its main author", no_key.json()["detail"])
+        own = self.api("post", start, {"reviewer_id": self.author.pk})
+        self.assertIn("Add your Jev API key in Settings → Integrations", own.json()["detail"])
+
     def test_validation_and_continuing(self):
         start = self.review_path("/ai-screening/runs")
         me = {"reviewer_id": self.author.pk}
@@ -248,10 +270,6 @@ class TestAiScreeningApi(AiScreeningApiBase):
         self.assertEqual(422, no_studies.status_code)
         self.assertIn("no studies with these statuses", no_studies.json()["detail"])
         co_author = self.client_for(self.co_author)
-        no_key = self.api("post", start, {"reviewer_id": self.co_author.pk}, client=co_author)
-        self.assertEqual(422, no_key.status_code)
-        self.assertIn("Settings → Integrations", no_key.json()["detail"])
-        Integration.objects.create(user=self.co_author, provider=Integration.JEV, api_key=KEY, model="jev-1.13.0")
         self.assertEqual(404, self.api("post", start, {"reviewer_id": self.outsider.pk}).status_code)
 
         # A co-author in the main author's name: the run says who started it.

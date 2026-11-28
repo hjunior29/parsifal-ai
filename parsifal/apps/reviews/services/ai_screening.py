@@ -14,10 +14,12 @@ affiliations) and answers about the review's criteria, in one of three actions, 
 
 Every run is made in the name of a **reviewer** chosen by whoever starts it: any member of the review, themselves or
 another (a person or an AI agent), so one person or agent can screen as several reviewers and compare them; the run
-keeps who started it (``started_by``). A run sends the studies with the chosen statuses and the criteria chosen (all
-of them, or some: those Jev cannot judge from a title and abstract, such as the year or the full text's availability,
-can be left out), and rewrites this reviewer's decisions: nothing is skipped because it was evaluated before, so two
-reviewers can screen the same studies and be compared (Reviewer agreement).
+keeps who started it (``started_by``). Every run of a review uses its main author's Jev key and default model,
+whoever starts it (``jev_integration``): co-authors and agents need no key of their own. A run sends the studies
+with the chosen statuses and the criteria chosen (all of them, or some: those Jev cannot judge from a title and
+abstract, such as the year or the full text's availability, can be left out), and rewrites this reviewer's
+decisions: nothing is skipped because it was evaluated before, so two reviewers can screen the same studies and be
+compared (Reviewer agreement).
 
 A new run of an action starts from every setting of the review's last run of that action (reviewer, model, context,
 guidance, request, thresholds, criteria, studies), or from Parsifal's defaults when asked (``starting_settings``).
@@ -145,6 +147,30 @@ def reviewer_choices(review):
 
 def agent_ids(review):
     return set(ReviewAgent.objects.filter(review=review).values_list("user_id", flat=True))
+
+
+def jev_integration(review):
+    """The Jev integration the review's runs use, its main author's, whoever starts them; or None."""
+    return integrations.get_jev(review.author)
+
+
+def missing_key(review):
+    """What anyone but the main author is told when the review's runs have no Jev key to use."""
+    name = review.author.get_full_name() or review.author.username
+    return (
+        f"The AI runs of this review use the Jev API key of its main author, {name}, who has to add it (or save it "
+        "again) in Settings → Integrations."
+    )
+
+
+def jev_api_key(review, actor):
+    """The main author's key, which the review's runs are made with; ValidationError, for ``actor``, without one."""
+    try:
+        return integrations.jev_api_key(review.author)
+    except ValidationError:
+        if actor.pk == review.author_id:
+            raise
+        raise ValidationError(missing_key(review), field="api_key")
 
 
 def get_reviewer(review, reviewer_id):
@@ -305,7 +331,8 @@ def starting_settings(review, phase, *, defaults=False):
     """
     The settings a new run of ``phase`` starts from (``run_settings``): those of the review's last run of that
     action, or Parsifal's defaults when there is none or ``defaults`` — the review's context, the default request,
-    every criterion, threshold 0.9, the action's default statuses, all sources and the actor's default model (None).
+    every criterion, threshold 0.9, the action's default statuses, all sources and the main author's default model
+    (None).
     ``run`` is the run they come from, or None.
     """
     phase = clean_phase(phase)
@@ -610,13 +637,13 @@ def get_run(review, run_id):
         raise NotFound(f"Screening run {run_id!r} not found.")
 
 
-def _clean_model(actor, model):
-    """The model for the run: the actor's default, or another one Jev lists for the actor's key."""
-    default = integrations.get_jev(actor).model or jev.DEFAULT_MODEL
+def _clean_model(review, model):
+    """The model for the run: the main author's default, or another one Jev lists for the main author's key."""
+    default = jev_integration(review).model or jev.DEFAULT_MODEL
     model = (model or "").strip() or default
     check_length(model, 100, field="model")
-    if model != default and model not in {card["name"] for card in integrations.test_jev(actor)}:
-        raise ValidationError(f"Jev does not list the model {model!r} for your key.", field="model")
+    if model != default and model not in {card["name"] for card in integrations.test_jev(review.author)}:
+        raise ValidationError(f"Jev does not list the model {model!r} for the main author's key.", field="model")
     return model
 
 
@@ -687,7 +714,8 @@ def start_run(
 ):
     """
     Check the settings, take the studies in scope and open a run of ``phase`` (exclusion, inclusion or screen);
-    ``process_step`` does the work. The decisions are recorded as ``reviewer_id``; the calls use the actor's Jev key.
+    ``process_step`` does the work. The decisions are recorded as ``reviewer_id``; the calls use the main author's
+    Jev key.
     Whatever is left out (None) takes the settings of the review's last run of that action, or Parsifal's defaults
     with ``defaults`` (see ``starting_settings``); a context field "" sends it empty, source_id "" or 0 means all
     sources. ``template``: the request sent about each study, as an object or its JSON text (see
@@ -698,10 +726,10 @@ def start_run(
     ``pending``, only the studies of that round the reviewer has not decided at it yet.
     """
     phase = clean_phase(phase)
-    integrations.jev_api_key(actor)  # a key the actor can use, before anything else
+    jev_api_key(review, actor)  # a key the run can use, before anything else
     reviewer = get_reviewer(review, reviewer_id)
     base = starting_settings(review, phase, defaults=defaults)
-    model = _clean_model(actor, base["model"] if model is None else model)
+    model = _clean_model(review, base["model"] if model is None else model)
     stage = clean_stage(review, base["stage"] if stage is None else stage)
     pending = clean_pending(review, base["pending"] if pending is None else pending)
     if template is None and stage != base["stage"]:
@@ -782,7 +810,6 @@ def record_run(run, action, summary, *, articles=(), items=(), actor=None, linke
 def preview(
     *,
     review,
-    actor,
     phase=EXCLUSION,
     model=None,
     context=None,
@@ -830,7 +857,7 @@ def preview(
             raise ValidationError(
                 "There are no studies with a title or abstract with these statuses in this scope.", field="statuses"
             )
-    integration = integrations.get_jev(actor)
+    integration = jev_integration(review)
     model = (model or "").strip() or base["model"] or (integration.model if integration else "") or jev.DEFAULT_MODEL
     check_length(model, 100, field="model")
     request_state, questions = build_request(phase, template, options, context, guidance, study)
@@ -906,7 +933,7 @@ def process_step(*, run, actor, size=STEP_SIZE):
     if run.phase not in ACTIONS:  # Retain with AI was removed
         _close(run, ScreeningRun.CANCELLED, f"{LABELS[run.phase]} was removed.")
         return []
-    api_key = integrations.jev_api_key(actor)
+    api_key = jev_api_key(run.review, actor)
     run.last_step_at = timezone.now()
     run.save(update_fields=["last_step_at"])
     pending = list(run.results.filter(outcome=ScreeningResult.PENDING).select_related("article", "run")[:size])

@@ -252,8 +252,8 @@ PARSIFAL_ENVIRONMENT = config("PARSIFAL_ENVIRONMENT", default=Environments.LOCAL
 # co-author invites. Set to True to let anyone register.
 PARSIFAL_ALLOW_SIGNUP = config("PARSIFAL_ALLOW_SIGNUP", default=False, cast=bool)
 
-# Jev (TypeSafe), used by the AI exclusion screening. Each user sets the API key in Settings → Integrations; the
-# URL can point to a compatible server instead.
+# Jev (TypeSafe), used by the AI screening. Each user sets the API key in Settings → Integrations, and a review's
+# runs use its main author's; the URL can point to a compatible server instead.
 JEV_API_URL = config("JEV_API_URL", default="https://api.typesafe.ai")
 # Requests per minute sent with one key, across all the threads of a process: 90% of the 1,200 TypeSafe allows (about
 # the 55 ms between requests of Matsui and Takaesu's study, which met no rate limit); 0: no spacing.

@@ -2,9 +2,10 @@
 Exclude with AI, Include with AI and Screen with AI (both in one request), in no particular order, and the Jev
 integration they need. The same
 operations as the web: the user's Jev key (Settings → Integrations) and runs started and advanced step by step from
-the study selection page; an interrupted run is continued by stepping it again. Runs use the Jev key of whoever
-calls the endpoint. As the AI runs window: what a run would rewrite before starting it, running one again with its
-settings, and undoing the latest one (see ``services/ai_runs.py``).
+the study selection page; an interrupted run is continued by stepping it again. A review's runs use the Jev key of
+its main author, whoever calls the endpoint (``key_owner`` in the setup). As the AI runs window: what a run would
+rewrite before starting it, running one again with its settings, and undoing the latest one (see
+``services/ai_runs.py``).
 """
 
 from ninja import Router
@@ -47,7 +48,10 @@ def _integration_out(integration):
 
 @router.get("/integrations/jev", response=JevIntegrationOut, operation_id="jev_integration_get")
 def jev_integration_get(request):
-    """Your Jev integration: whether a key is saved (only its last characters), the model and when it changed."""
+    """
+    Your Jev integration: whether a key is saved (only its last characters), the model and when it changed. The AI
+    runs of the reviews you are the main author of use it, whoever starts them.
+    """
     return _integration_out(integrations.get_jev(request.auth))
 
 
@@ -119,15 +123,15 @@ def ai_screening_setup(request, review_id: int, phase: str = "exclusion", defaul
     start operation takes them for whatever it leaves out. Also the review's criteria of the action (exclusion: E1,
     E2… plus none in one choice question; inclusion: I1, I2…, one yes/no question each, answered with the probability
     that the study meets it; screen: both in one request), the protocol's inclusion rule (all or any), Parsifal's
-    request template, the threshold's range, Jev's models for your key, who you may screen as, and how many studies
-    each source has per status.
+    request template, the threshold's range, Jev's models for the main author's key (the review's runs use it,
+    whoever starts them), who you may screen as, and how many studies each source has per status.
     """
     review = get_review(request, review_id)
     phase = ai_screening.clean_phase(phase)
     start = ai_screening.starting_settings(review, phase, defaults=defaults)
     threshold_default, threshold_min, threshold_max, inclusion_threshold_min = ai_screening.threshold_range()
-    integration = integrations.get_jev(request.auth)
-    models, models_error = integrations.jev_models(request.auth) if integration else ([], "")
+    integration = ai_screening.jev_integration(review)
+    models, models_error = integrations.jev_models(review.author) if integration else ([], "")
     agent_ids = ai_screening.agent_ids(review)
     choices = ai_screening.reviewer_choices(review)
     counts = ai_screening.scope_counts(review)
@@ -146,6 +150,7 @@ def ai_screening_setup(request, review_id: int, phase: str = "exclusion", defaul
     return ScreeningSetupOut(
         phase=phase,
         configured=integration is not None,
+        key_owner=review.author.username,
         model=integration.model if integration else None,
         models=models,
         models_error=models_error,
@@ -241,9 +246,7 @@ def ai_screening_preview(request, review_id: int, payload: ScreeningPreviewIn):
     it to check an edited ``template`` before starting a run.
     """
     review = get_review(request, review_id)
-    preview = ai_screening.preview(
-        review=review, actor=request.auth, article_id=payload.article_id, **_settings(payload)
-    )
+    preview = ai_screening.preview(review=review, article_id=payload.article_id, **_settings(payload))
     article = preview["article"]
     return ScreeningPreviewOut(article_id=article.pk, title=article.title, request=preview["request"])
 
@@ -278,12 +281,12 @@ def ai_screening_runs_get(request, review_id: int, run_id: int):
 )
 def ai_screening_step(request, review_id: int, run_id: int, payload: ScreeningStepIn):
     """
-    Screen the next studies of the run (size 1–64) with your Jev key. Exclusion: studies whose p_exclude reaches the
-    threshold get the reviewer's "rejected" decision, the rest "unclassified". Inclusion: "accepted" when the
-    criteria's p(meets) reach their thresholds (all of them, or one with the rule "any"), else "unclassified"
-    (outcome undecided); nothing is rejected. Screen: "rejected" (outcome excluded) when p_exclude reaches the
-    exclusion threshold, else "accepted" (included) when the inclusion criteria are met, else "unclassified"
-    (undecided). The status follows as described in the start operation.
+    Screen the next studies of the run (size 1–64) with the main author's Jev key. Exclusion: studies whose
+    p_exclude reaches the threshold get the reviewer's "rejected" decision, the rest "unclassified". Inclusion:
+    "accepted" when the criteria's p(meets) reach their thresholds (all of them, or one with the rule "any"), else
+    "unclassified" (outcome undecided); nothing is rejected. Screen: "rejected" (outcome excluded) when p_exclude
+    reaches the exclusion threshold, else "accepted" (included) when the inclusion criteria are met, else
+    "unclassified" (undecided). The status follows as described in the start operation.
     The run finishes when no study is left. If Jev refuses the key or is unavailable, the run keeps its remaining
     studies and ``run.error`` says why: call step again to continue (also for a run interrupted in the web).
     """

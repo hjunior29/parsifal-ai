@@ -11,8 +11,12 @@
 
 {% if not integration %}
   <div class="modal-body">
-    <p>{{ label }} uses Jev, and needs your Jev API key.</p>
-    <p><a href="{% url 'settings:integrations' %}" class="btn btn-primary">Add the key in Settings → Integrations</a></p>
+    {% if is_key_owner %}
+      <p>{{ label }} uses Jev, and needs your Jev API key: the runs of your reviews use it, whoever starts them.</p>
+      <p><a href="{% url 'settings:integrations' %}" class="btn btn-primary">Add the key in Settings → Integrations</a></p>
+    {% else %}
+      <p>{{ label }} uses Jev, with the Jev API key of the review's main author, {{ key_owner.profile.get_screen_name }}, who has not added it yet (Settings → Integrations).</p>
+    {% endif %}
   </div>
   <div class="modal-footer">
     <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
@@ -110,7 +114,7 @@
                   <option value="{{ model.name }}"{% if model.name == selected_model %} selected{% endif %}>{{ model.label }}</option>
                 {% endfor %}
               </select>
-              <p class="help-block small">As listed by Jev now. Your default comes from Settings → Integrations.</p>
+              <p class="help-block small">As listed by Jev now. {% if is_key_owner %}Your default comes from Settings → Integrations.{% else %}The runs use the Jev key of the main author, {{ key_owner.profile.get_screen_name }}, and that default.{% endif %}</p>
             {% else %}
               <input type="text" name="model" id="ai-model" class="form-control input-sm" value="{{ selected_model }}" maxlength="100">
               {% if models_error %}<p class="help-block small text-warning">Could not load the list of models from Jev: {{ models_error }}</p>{% endif %}

@@ -929,7 +929,7 @@ def ai_screening(request):
     except DomainError as error:
         return HttpResponseBadRequest(str(error))
     phase = settings["phase"]
-    integration = integrations.get_jev(request.user)
+    integration = ai_screening_service.jev_integration(review)
     defaults = ai_screening_service.default_context(review)
     defaults.update({name: value for name, value in (settings["context"] or {}).items() if value is not None})
     agent_ids = ai_screening_service.agent_ids(review)
@@ -941,7 +941,7 @@ def ai_screening(request):
     if selected not in {row["user"].pk for row in reviewers}:
         selected = reviewers[0]["user"].pk if len(reviewers) == 1 else None
     selected_model = settings["model"] or (integration.model if integration else "")
-    models, models_error = integrations.jev_models(request.user) if integration else ([], "")
+    models, models_error = integrations.jev_models(review.author) if integration else ([], "")
     if integration and selected_model not in {model["name"] for model in models}:
         models = [*models, {"name": selected_model, "description": "", "release_date": ""}] if models else []
     unfinished = ai_screening_service.unfinished_run(review)
@@ -975,6 +975,8 @@ def ai_screening(request):
         "label": ai_screening_service.LABELS[phase],
         "inclusion_rule": review.get_inclusion_rule_display(),
         "integration": integration,
+        "key_owner": review.author,
+        "is_key_owner": request.user.pk == review.author_id,
         "unfinished": unfinished,
         "unfinished_label": ai_screening_service.LABELS[unfinished.phase] if unfinished else "",
         "unfinished_active": unfinished is not None and ai_screening_service.is_active(unfinished),
@@ -1078,7 +1080,6 @@ def ai_screening_preview(request):
     try:
         preview = ai_screening_service.preview(
             review=review,
-            actor=request.user,
             article_id=request.POST.get("article-id") or None,
             **_ai_screening_settings(request),
         )

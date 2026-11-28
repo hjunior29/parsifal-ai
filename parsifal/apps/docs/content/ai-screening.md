@@ -38,6 +38,12 @@ yes/no question).
    whether a study must meet **all the inclusion criteria or at least one**
    (*A study must meet*, under the inclusion criteria). Jev works best in English.
 
+Only the main author needs a key: every run of a review uses the **main author's
+key and default model**, whoever starts it (a co-author or an AI agent too), so
+agents need no key of their own. Each user's key serves the reviews they are the
+main author of; the window and `ai-screening setup` (`key_owner`) say whose key
+a review's runs use.
+
 The key is stored encrypted (with a key derived from the instance's `SECRET_KEY`) and is never shown again in
 full; if `SECRET_KEY` changes, save the Jev key again. Parsifal's own API tokens are stored as hashes, so not
 even Parsifal can read them back. Calls are billed to the key.
@@ -54,7 +60,8 @@ three and shows what will be sent:
   thus screen as several reviewers (for instance with different models or
   guidance) and compare them in *Reviewer agreement*. The run keeps who started
   it: *AI runs* shows it next to the date, and so does *History*.
-- **Model**: the models Jev lists for your key, asked when the window opens.
+- **Model**: the models Jev lists for the main author's key, asked when the
+  window opens.
 - **Review context**: title, objective, research questions and PICOC, taken
   from the review. You can edit them for the run; the review is not changed
   and the run's log keeps what was sent.
@@ -162,10 +169,9 @@ sent.
 
 ## From the API, CLI and MCP
 
-The same operations exist outside the web, one to one. Runs use the Jev key of
-the account that calls them, so an agent with its own token needs its own key
-(`parsifal integration jev set --api-key -` reads it from stdin); like anyone
-in the review, it can screen in any member's name. As in the window, **whatever a run leaves out takes the
+The same operations exist outside the web, one to one. Runs use the main
+author's Jev key, whoever calls them, so an agent with its own token needs no
+key; like anyone in the review, it can screen in any member's name. As in the window, **whatever a run leaves out takes the
 settings of the review's last run of that action** (`ai-screening setup` shows
 them under `start`); `--defaults` takes Parsifal's.
 

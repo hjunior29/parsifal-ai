@@ -88,6 +88,24 @@ class AiScreeningViewsTest(AiScreeningViewsBase):
         self.assertContains(response, reverse("settings:integrations"))
         self.assertNotContains(response, "ai-screening-form")
 
+    def test_the_main_authors_key_for_everyone_in_the_review(self):
+        self.client.force_login(self.bot)  # an agent, with no key of its own
+        response = self.client.get(self.form_url, {"review-id": self.review.pk})
+        self.assertContains(response, "with the Jev API key of the review's main author")
+        self.assertNotContains(response, reverse("settings:integrations"))  # not theirs to add
+        self.assertNotContains(response, "ai-screening-form")
+        self.connect()
+        response = self.client.get(self.form_url, {"review-id": self.review.pk})
+        self.assertContains(response, "ai-screening-form")
+        self.assertContains(response, "The runs use the Jev key of the main author")
+        self.list_models.assert_called_with("fake-key", quick=True)
+        with mock.patch.object(jev, "evaluate", return_value=EXCLUDE) as evaluate:
+            run = ScreeningRun.objects.get(pk=self.start(**{"reviewer-id": self.owner.pk}).json()["run"]["id"])
+            self.client.post(self.step_url, {"review-id": self.review.pk, "run-id": run.pk})
+        self.assertEqual(
+            ("fake-key", self.owner, self.bot), (evaluate.call_args.args[0], run.reviewer, run.started_by)
+        )
+
     def test_asks_for_exclusion_criteria_first(self):
         self.connect()
         empty = ReviewFactory(author=self.owner)

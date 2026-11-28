@@ -1658,7 +1658,8 @@ OPERATIONS = (
         "/integrations/jev",
         ("integration", "jev"),
         "show",
-        "Your Jev integration: whether a key is saved (last characters only) and the model.",
+        "Your Jev integration: whether a key is saved (last characters only) and the model. The AI runs of the "
+        "reviews you are the main author of use it, whoever starts them.",
     ),
     Operation(
         "jev_integration_set",

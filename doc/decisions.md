@@ -254,6 +254,12 @@ reviewed (Akita, 2026-10-03).
   (`accounts.Integration`), encrypted at rest with a key derived from
   `SECRET_KEY` (it must be readable to be sent to Jev, so it cannot be
   hashed like Parsifal's own API tokens), never rendered back.
+- Since 2026-11-28 a review's runs use its **main author's** key and default
+  model, whoever starts them (until then: the caller's), so agents and
+  co-authors need no key of their own. Not one key for the whole instance:
+  any account could then spend it, in reviews of its own too (an invitation
+  creates an account even with sign-up closed); the main author decides who
+  is in the review. No migration: only whose `Integration` is read changed.
   `JEV_API_URL` can point to a compatible server.
 - The browser drives the run in steps of 8 studies (4 concurrent requests),
   so there is no task queue; the client retries 429/5xx/529 with backoff.
@@ -299,7 +305,7 @@ reviewed (Akita, 2026-10-03).
 (reviewer, no agent kind), `reviews.0044` (`last_step_at`), `reviews.0045` (`phase`, `p_include`, outcomes
 `included` and `undecided`). The API, CLI and
 MCP mirror the web one to one (`jev_integration_*`, `ai_screening_*`); runs use
-the Jev key of the caller. The CLI command `ai-screening run` and the MCP tool
+the Jev key of the caller (of the main author since 2026-11-28, see above). The CLI command `ai-screening run` and the MCP tool
 `parsifal_ai_screening_run` loop over the steps like the web page does.
 Thresholds should be checked against the reviewer's own decisions before
 relying on them.

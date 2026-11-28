@@ -49,8 +49,9 @@ parsifal me
    with `decision agreement` / `decision disagreements` and sets the final status with `decision consolidate`.
    `article set-status ...` changes the consolidated status directly — use it only when asked to.
    Exclude with AI (only when the human asks): `ai-screening run --review R --reviewer-id <your user id>` lets Jev
-   reject the studies that clearly meet an exclusion criterion, recording the decisions as you (needs a Jev key:
-   `integration jev set --api-key -`; `--statuses` picks the studies sent, default R and U); check them with `ai-screening results --review R --id RUN --outcome excluded`.
+   reject the studies that clearly meet an exclusion criterion, recording the decisions as you, or as the member
+   `--reviewer-id` names (it uses the main author's Jev key, `key_owner` in `ai-screening setup`: you need none;
+   `--statuses` picks the studies sent, default R and U); check them with `ai-screening results --review R --id RUN --outcome excluded`.
    Include with AI (`--phase inclusion`) asks one yes/no question per inclusion criterion: it accepts the studies
    that meet them (every one, or at least one when the protocol's `inclusion_rule` is `any`; a threshold per
    criterion: `--thresholds I1=0.9 --thresholds I2=0.85`) and leaves the rest unclassified for the human; it never

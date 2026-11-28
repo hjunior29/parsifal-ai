@@ -161,18 +161,24 @@ class TestReviewers(AiScreeningTestCase):
         with self.assertRaisesMessage(ValidationError, "Choose the reviewer"):
             ai_screening.get_reviewer(self.review, "")
 
-    def test_an_agent_screens_in_another_members_name(self):
-        Integration.objects.create(user=self.bot, provider=Integration.JEV, api_key="fake-key", model="jev-1.13.0")
+    def test_an_agent_screens_in_another_members_name_with_the_main_authors_key(self):
         self.article()
-        run = self.start(actor=self.bot, reviewer_id=self.other_bot.pk)
+        run = self.start(actor=self.bot, reviewer_id=self.other_bot.pk)  # the agent has no key of its own
         self.assertEqual((self.other_bot, self.bot), (run.reviewer, run.started_by))
+        with mock.patch.object(jev, "evaluate", side_effect=[KEEP]) as evaluate:
+            ai_screening.process_step(run=run, actor=self.bot)
+        self.assertEqual("fake-key", evaluate.call_args.args[0])
+
+        Integration.objects.filter(user=self.owner).delete()
+        with self.assertRaisesMessage(ValidationError, "the Jev API key of its main author"):
+            self.start(actor=self.bot)
+        with self.assertRaisesMessage(ValidationError, "Add your Jev API key in Settings → Integrations"):
+            self.start()
 
 
 class TestStartRun(AiScreeningTestCase):
     def test_requirements(self):
         self.article()
-        with self.assertRaisesMessage(ValidationError, "Settings → Integrations"):
-            self.start(actor=UserFactory())
         with self.assertRaisesMessage(ValidationError, "Choose the reviewer"):
             self.start(reviewer_id=None)
         with self.assertRaisesMessage(ValidationError, "between 0.5 and 0.99"):
@@ -609,7 +615,7 @@ class TestRequestTemplate(AiScreeningTestCase):
         self.article(title="Second")
         accepted = self.article(title="Accepted", status=Article.ACCEPTED)
         with mock.patch.object(jev, "evaluate") as evaluate:
-            preview = ai_screening.preview(review=self.review, actor=self.owner)
+            preview = ai_screening.preview(review=self.review)
             evaluate.assert_not_called()
         self.assertEqual(first, preview["article"])  # the first one in scope with something to read
         self.assertEqual("jev-1.13.0", preview["request"]["model"])
@@ -619,7 +625,6 @@ class TestRequestTemplate(AiScreeningTestCase):
         with self.subTest(msg="the settings of the window"):
             preview = ai_screening.preview(
                 review=self.review,
-                actor=self.owner,
                 template=EDITED,
                 model="jev-1.14.0",
                 context={"objective": "Edited"},
@@ -630,23 +635,22 @@ class TestRequestTemplate(AiScreeningTestCase):
             self.assertEqual(("jev-1.14.0", "Edited"), (preview["request"]["model"], review["objective"]))
 
         with self.subTest(msg="one study"):
-            preview = ai_screening.preview(
-                review=self.review, actor=self.owner, article_id=accepted.pk, phase="inclusion"
-            )
+            preview = ai_screening.preview(review=self.review, article_id=accepted.pk, phase="inclusion")
             self.assertEqual(["inclusion_I1"], list(preview["request"]["questions"]))
             with self.assertRaisesMessage(ValidationError, "no title or abstract"):
-                ai_screening.preview(review=self.review, actor=self.owner, article_id=nothing.pk)
+                ai_screening.preview(review=self.review, article_id=nothing.pk)
             with self.assertRaises(NotFound):
-                ai_screening.preview(review=self.review, actor=self.owner, article_id=ArticleFactory().pk)
+                ai_screening.preview(review=self.review, article_id=ArticleFactory().pk)
 
-        with self.subTest(msg="without a Jev key: the default model"):
-            preview = ai_screening.preview(review=self.review, actor=self.bot)
+        with self.subTest(msg="the main author without a Jev key: Parsifal's default model"):
+            Integration.objects.filter(user=self.owner).delete()
+            preview = ai_screening.preview(review=self.review)
             self.assertEqual(jev.DEFAULT_MODEL, preview["request"]["model"])
 
         with self.assertRaisesMessage(ValidationError, "no studies with a title or abstract"):
-            ai_screening.preview(review=self.review, actor=self.owner, statuses=["D"])
+            ai_screening.preview(review=self.review, statuses=["D"])
         with self.assertRaisesMessage(ValidationError, "must send the study"):
-            ai_screening.preview(review=self.review, actor=self.owner, template={**EDITED, "state": {}})
+            ai_screening.preview(review=self.review, template={**EDITED, "state": {}})
         self.assertFalse(ScreeningRun.objects.exists())
 
 

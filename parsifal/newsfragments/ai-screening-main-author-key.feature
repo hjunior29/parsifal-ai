@@ -1,0 +1,1 @@
+AI screening: a review's runs use its main author's Jev key and default model, whoever starts them, so co-authors and AI agents need no key of their own; the window and the setup (key_owner) say whose key it is.
